@@ -45,7 +45,13 @@ describe('RolesGuard', () => {
     }
   });
 
-  it('passes public routes (no user attached)', () => {
-    expect(guardWith([UserRole.ADMIN]).canActivate(contextFor(undefined))).toBe(true);
+  it('fails closed when roles are required but no user is attached', () => {
+    expect(() => guardWith([UserRole.ADMIN]).canActivate(contextFor(undefined))).toThrow(
+      ForbiddenException,
+    );
+  });
+
+  it('still passes user-less requests when no roles are required', () => {
+    expect(guardWith(undefined).canActivate(contextFor(undefined))).toBe(true);
   });
 });

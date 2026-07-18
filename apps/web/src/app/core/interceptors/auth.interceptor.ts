@@ -13,7 +13,7 @@ export class RefreshCoordinator {
 }
 
 /** Endpoints whose 401s are final — retrying them via refresh would loop. */
-const NO_RETRY = /\/api\/v1\/auth\/(login|refresh|logout|setup)/;
+const NO_RETRY = /\/api\/v1\/auth\/(login|refresh|logout|setup)(?=$|[/?])/;
 
 export const authInterceptor: HttpInterceptorFn = (req, next) => {
   const api = inject(AuthApi);

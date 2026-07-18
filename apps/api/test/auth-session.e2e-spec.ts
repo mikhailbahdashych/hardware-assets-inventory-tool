@@ -138,6 +138,44 @@ describe('Auth sessions (e2e)', () => {
       .expect(401);
   });
 
+  it('administrative revocation (change-password) is NOT treated as theft', async () => {
+    const s1 = request.agent(app.getHttpServer());
+    const s2 = request.agent(app.getHttpServer());
+    await s1
+      .post('/api/v1/auth/login')
+      .send({ email: ADMIN.email, password: ADMIN.password })
+      .expect(200);
+    await s2
+      .post('/api/v1/auth/login')
+      .send({ email: ADMIN.email, password: ADMIN.password })
+      .expect(200);
+
+    const reuseRowsBefore: Array<{ count: number }> = await ds.query(
+      `SELECT count(*)::int AS count FROM audit_logs WHERE action = 'login_failed' AND metadata->>'reuse' = 'true'`,
+    );
+
+    await s1
+      .post('/api/v1/auth/change-password')
+      .send({ currentPassword: ADMIN.password, newPassword: 'a-rotated-password-1' })
+      .expect(204);
+
+    // s2's revoked session gets a plain 401 — and s1's fresh session SURVIVES.
+    await s2.post('/api/v1/auth/refresh').expect(401);
+    await s1.post('/api/v1/auth/refresh').expect(200);
+    await s1.get('/api/v1/auth/me').expect(200);
+
+    const reuseRowsAfter: Array<{ count: number }> = await ds.query(
+      `SELECT count(*)::int AS count FROM audit_logs WHERE action = 'login_failed' AND metadata->>'reuse' = 'true'`,
+    );
+    expect(reuseRowsAfter[0].count).toBe(reuseRowsBefore[0].count);
+
+    // restore the password for the specs below
+    await s1
+      .post('/api/v1/auth/change-password')
+      .send({ currentPassword: 'a-rotated-password-1', newPassword: ADMIN.password })
+      .expect(204);
+  });
+
   it('logout revokes the refresh token, clears cookies, and is audited', async () => {
     const jar = request.agent(app.getHttpServer());
     await jar

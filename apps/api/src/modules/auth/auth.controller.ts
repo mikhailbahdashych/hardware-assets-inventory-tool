@@ -21,6 +21,7 @@ import { LoginDto } from './dto/login.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
 import { ACCESS_COOKIE, REFRESH_COOKIE, REFRESH_COOKIE_PATH } from './auth.constants';
 import { Public } from '../../common/decorators/public.decorator';
+import { AllowedDuringPasswordChange } from '../../common/decorators/allowed-during-password-change.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import type { AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 
@@ -68,6 +69,7 @@ export class AuthController {
   }
 
   @Get('me')
+  @AllowedDuringPasswordChange()
   async me(@CurrentUser() authed: AuthenticatedUser): Promise<User> {
     const user = await this.auth.findById(authed.userId);
     if (!user || !user.isActive) throw new UnauthorizedException();
@@ -76,6 +78,7 @@ export class AuthController {
 
   @Post('change-password')
   @HttpCode(204)
+  @AllowedDuringPasswordChange()
   async changePassword(
     @CurrentUser() authed: AuthenticatedUser,
     @Body() dto: ChangePasswordDto,
@@ -119,6 +122,10 @@ export class AuthController {
           metadata: { reuse: true, ip: ctx.ip ?? null, userAgent: ctx.userAgent ?? null },
         });
       }
+      if (err instanceof UnauthorizedException) {
+        // Dead cookies must not keep re-presenting themselves for days.
+        this.clearAuthCookies(res);
+      }
       throw err;
     }
   }
@@ -126,6 +133,7 @@ export class AuthController {
   @Public()
   @Post('logout')
   @HttpCode(204)
+  @AllowedDuringPasswordChange()
   async logout(@Req() req: Request, @Res({ passthrough: true }) res: Response): Promise<void> {
     const raw = this.refreshCookie(req);
     if (raw) await this.tokens.revoke(raw);
@@ -135,11 +143,21 @@ export class AuthController {
       actorId: actor?.sub ?? null,
       actorEmail: actor?.email ?? null,
       action: AuditAction.LOGOUT,
-      metadata: { ip: req.ip ?? null },
+      metadata: { ip: req.ip ?? null, userAgent: req.headers['user-agent'] ?? null },
     });
 
-    res.clearCookie(ACCESS_COOKIE, { path: '/' });
-    res.clearCookie(REFRESH_COOKIE, { path: REFRESH_COOKIE_PATH });
+    this.clearAuthCookies(res);
+  }
+
+  private clearAuthCookies(res: Response): void {
+    const secure = this.config.get<boolean>('cookieSecure') ?? false;
+    res.clearCookie(ACCESS_COOKIE, { path: '/', httpOnly: true, sameSite: 'lax', secure });
+    res.clearCookie(REFRESH_COOKIE, {
+      path: REFRESH_COOKIE_PATH,
+      httpOnly: true,
+      sameSite: 'strict',
+      secure,
+    });
   }
 
   private refreshCookie(req: Request): string | undefined {

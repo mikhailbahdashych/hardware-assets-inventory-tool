@@ -26,7 +26,9 @@ import { HealthModule } from './modules/health/health.module';
         // Generous default ceiling; sensitive routes tighten via @Throttle.
         throttlers: [{ name: 'default', ttl: 60_000, limit: 100 }],
         // Test runs disable throttling except where a spec re-enables it.
-        skipIf: () => config.get<boolean>('throttleDisabled') === true,
+        // Hard-ignored in production so a leaked env var can't kill rate limits.
+        skipIf: () =>
+          process.env.NODE_ENV !== 'production' && config.get<boolean>('throttleDisabled') === true,
       }),
     }),
     DatabaseModule,

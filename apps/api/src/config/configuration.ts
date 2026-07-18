@@ -1,3 +1,6 @@
+/** Case-insensitive boolean env parsing ('true'/'TRUE'/'True' all count). */
+const bool = (value: string | undefined): boolean => String(value).toLowerCase() === 'true';
+
 export default () => ({
   port: parseInt(process.env.PORT ?? '3000', 10),
   database: {
@@ -14,9 +17,11 @@ export default () => ({
     refreshTtl: process.env.REFRESH_TOKEN_TTL ?? '7d',
   },
   encryptionKey: process.env.APP_ENCRYPTION_KEY,
-  cookieSecure: process.env.COOKIE_SECURE === 'true',
-  /** Internal test escape hatch — not part of the documented .env contract. */
-  throttleDisabled: process.env.THROTTLE_DISABLED === 'true',
-  mfaEnforceAll: process.env.MFA_ENFORCE_ALL === 'true',
+  cookieSecure: bool(process.env.COOKIE_SECURE),
+  /** Enable when running behind a reverse proxy so req.ip is the real client. */
+  trustProxy: bool(process.env.TRUST_PROXY),
+  mfaEnforceAll: bool(process.env.MFA_ENFORCE_ALL),
   swaggerEnabled: process.env.SWAGGER_ENABLED !== 'false',
+  /** Internal test escape hatch — ignored in production builds. */
+  throttleDisabled: bool(process.env.THROTTLE_DISABLED),
 });

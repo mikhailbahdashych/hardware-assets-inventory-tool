@@ -20,16 +20,24 @@ export const loginRedirectGuard: CanActivateFn = async () => {
   const api = inject(AuthApi);
   if (store.status() === 'unknown') await store.init();
   if (store.status() === 'authed') return router.createUrlTree(['/dashboard']);
-  const { setupRequired } = await firstValueFrom(api.setupStatus());
-  return setupRequired ? router.createUrlTree(['/setup']) : true;
+  try {
+    const { setupRequired } = await firstValueFrom(api.setupStatus());
+    return setupRequired ? router.createUrlTree(['/setup']) : true;
+  } catch {
+    return true; // API unreachable — stay on login; submit will surface the error
+  }
 };
 
 /** Setup page is only reachable while the instance has no users. */
 export const setupGuard: CanActivateFn = async () => {
   const api = inject(AuthApi);
   const router = inject(Router);
-  const { setupRequired } = await firstValueFrom(api.setupStatus());
-  return setupRequired ? true : router.createUrlTree(['/login']);
+  try {
+    const { setupRequired } = await firstValueFrom(api.setupStatus());
+    return setupRequired ? true : router.createUrlTree(['/login']);
+  } catch {
+    return router.createUrlTree(['/login']);
+  }
 };
 
 /** Users flagged for a password change are pinned to that page. */

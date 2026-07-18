@@ -33,9 +33,9 @@ jobs:
       POSTGRES_DB: inventory_test
       POSTGRES_USER: inventory
       POSTGRES_PASSWORD: inventory
-      JWT_ACCESS_SECRET: ci-only-secret
-      JWT_REFRESH_SECRET: ci-only-secret
-      APP_ENCRYPTION_KEY: ci-only-secret
+      JWT_ACCESS_SECRET: ci-only-secret-0123456789abcdef0123456789abcdef
+      JWT_REFRESH_SECRET: ci-only-secret-fedcba9876543210fedcba9876543210
+      APP_ENCRYPTION_KEY: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
     steps:
       - uses: actions/checkout@v4
 

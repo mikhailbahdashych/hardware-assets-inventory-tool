@@ -74,8 +74,9 @@ export class TokenService {
         userId,
         tokenHash: this.hashToken(raw),
         expiresAt: new Date(Date.now() + this.ttlMs('jwt.refreshTtl')),
-        ip: ctx.ip ?? null,
-        userAgent: ctx.userAgent ?? null,
+        // Column widths are hard limits; real-world UA strings exceed 255.
+        ip: ctx.ip?.slice(0, 45) ?? null,
+        userAgent: ctx.userAgent?.slice(0, 255) ?? null,
       }),
     );
     return { raw, row };
@@ -93,8 +94,12 @@ export class TokenService {
     if (row.expiresAt.getTime() < Date.now()) throw new UnauthorizedException();
 
     if (row.revokedAt) {
-      const withinGrace =
-        row.replacedById !== null && Date.now() <= row.revokedAt.getTime() + REFRESH_REUSE_GRACE_MS;
+      // Administrative revocation (logout, change-password revoke-all) is a
+      // plain expired session — NOT theft. Only a rotated-away token
+      // (replacedById set) presented after the grace window signals reuse.
+      if (row.replacedById === null) throw new UnauthorizedException();
+
+      const withinGrace = Date.now() <= row.revokedAt.getTime() + REFRESH_REUSE_GRACE_MS;
       if (withinGrace) {
         const minted = await this.mintRefreshToken(row.userId, ctx);
         return { userId: row.userId, raw: minted.raw };

@@ -16,8 +16,9 @@ export class RolesGuard implements CanActivate {
     if (!required || required.length === 0) return true;
 
     const { user } = context.switchToHttp().getRequest<{ user?: AuthenticatedUser }>();
-    // Public routes carry no user; role restrictions only make sense on authed routes.
-    if (!user) return true;
+    // Role requirements without a principal fail CLOSED — @Public + @Roles is
+    // a contradiction, and it must never open a restricted route to anonymous.
+    if (!user) throw new ForbiddenException('insufficient role');
 
     if (!required.includes(user.role as UserRole)) {
       throw new ForbiddenException('insufficient role');

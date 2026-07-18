@@ -7,12 +7,15 @@ export const validationSchema = Joi.object({
   POSTGRES_USER: Joi.string().required(),
   POSTGRES_PASSWORD: Joi.string().required(),
   PORT: Joi.number().port().default(3000),
-  JWT_ACCESS_SECRET: Joi.string().min(8).required(),
-  JWT_REFRESH_SECRET: Joi.string().min(8).required(),
-  APP_ENCRYPTION_KEY: Joi.string().min(8).required(),
+  // 32+ chars: an HS256 secret short enough to brute-force forges admin tokens.
+  JWT_ACCESS_SECRET: Joi.string().min(32).required(),
+  JWT_REFRESH_SECRET: Joi.string().min(32).required(),
+  // Exactly 32 bytes of hex — AES-256-GCM key for MFA secrets (Phase 3).
+  APP_ENCRYPTION_KEY: Joi.string().hex().length(64).required(),
   ACCESS_TOKEN_TTL: Joi.string().default('15m'),
   REFRESH_TOKEN_TTL: Joi.string().default('7d'),
   COOKIE_SECURE: Joi.boolean().default(false),
+  TRUST_PROXY: Joi.boolean().default(false),
   MFA_ENFORCE_ALL: Joi.boolean().default(false),
   SWAGGER_ENABLED: Joi.boolean().default(true),
 });

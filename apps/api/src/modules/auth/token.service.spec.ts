@@ -108,6 +108,19 @@ describe('TokenService rotation semantics', () => {
     expect(repo.rows.filter((r) => r.revokedAt === null)).toHaveLength(0);
   });
 
+  it('administratively revoked tokens get a plain 401 — never theft handling', async () => {
+    const { raw } = await service.mintRefreshToken('u1', {});
+    const { raw: other } = await service.mintRefreshToken('u1', {});
+    await service.revoke(raw); // logout-style revocation: replacedById stays null
+    repo.rows[0].revokedAt = new Date(Date.now() - REFRESH_REUSE_GRACE_MS - 60_000);
+
+    const err = await service.rotate(raw, {}).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(UnauthorizedException);
+    expect(err).not.toBeInstanceOf(RefreshReuseException);
+    // The user's other session survives untouched.
+    await expect(service.rotate(other, {})).resolves.toMatchObject({ userId: 'u1' });
+  });
+
   it('revokeAllForUser only touches active rows of that user', async () => {
     await service.mintRefreshToken('u1', {});
     await service.mintRefreshToken('u2', {});

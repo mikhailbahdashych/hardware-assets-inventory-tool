@@ -46,11 +46,19 @@ describe('Auth setup + login (e2e)', () => {
       .expect(400);
   });
 
-  it('setup creates the admin, sets both cookies, lowercases email, never leaks hashes', async () => {
-    const res = await request(app.getHttpServer())
-      .post('/api/v1/auth/setup')
-      .send(ADMIN)
-      .expect(201);
+  it('exactly one of two concurrent setups wins; the winner gets cookies, lowercased email, no hash leaks', async () => {
+    const [r1, r2] = await Promise.all([
+      request(app.getHttpServer()).post('/api/v1/auth/setup').send(ADMIN),
+      request(app.getHttpServer()).post('/api/v1/auth/setup').send(ADMIN),
+    ]);
+    const statuses = [r1.status, r2.status].sort();
+    expect(statuses).toEqual([201, 403]);
+    const [{ count }]: Array<{ count: number }> = await ds.query(
+      `SELECT count(*)::int AS count FROM users`,
+    );
+    expect(count).toBe(1);
+
+    const res = r1.status === 201 ? r1 : r2;
     const body = res.body as Record<string, unknown>;
     expect(body.email).toBe('admin@example.com');
     expect(body.role).toBe('admin');

@@ -12,8 +12,14 @@ import { PasswordService } from './password.service';
 import { AuditService } from '../audit/audit.service';
 import { TokenContext } from './token.service';
 
+/** Serializes first-run setup across concurrent requests (arbitrary constant). */
+const SETUP_ADVISORY_LOCK_KEY = 7_150_001;
+
 @Injectable()
 export class AuthService {
+  /** Verified against on unknown emails so response timing never reveals account existence. */
+  private dummyHashPromise: Promise<string> | null = null;
+
   constructor(
     @InjectRepository(User)
     private readonly users: Repository<User>,
@@ -21,6 +27,11 @@ export class AuthService {
     private readonly passwords: PasswordService,
     private readonly audit: AuditService,
   ) {}
+
+  private dummyHash(): Promise<string> {
+    this.dummyHashPromise ??= this.passwords.hash('timing-equalizer-dummy-password');
+    return this.dummyHashPromise;
+  }
 
   async setupRequired(): Promise<boolean> {
     return (await this.users.count()) === 0;
@@ -35,6 +46,9 @@ export class AuthService {
     const passwordHash = await this.passwords.hash(input.password);
 
     const user = await this.dataSource.transaction(async (manager) => {
+      // READ COMMITTED lets two concurrent setups both see count()==0 —
+      // the advisory lock serializes them so the loser sees the winner's row.
+      await manager.query('SELECT pg_advisory_xact_lock($1)', [SETUP_ADVISORY_LOCK_KEY]);
       const count = await manager.count(User);
       if (count > 0) throw new ForbiddenException('setup already completed');
       return manager.save(
@@ -63,8 +77,13 @@ export class AuthService {
   async validateLogin(email: string, password: string, ctx: TokenContext): Promise<User> {
     const normalized = email.toLowerCase();
     const user = await this.users.findOne({ where: { email: normalized } });
-    const valid =
-      user?.passwordHash != null && (await this.passwords.verify(user.passwordHash, password));
+    let valid = false;
+    if (user?.passwordHash != null) {
+      valid = await this.passwords.verify(user.passwordHash, password);
+    } else {
+      // Unknown accounts still pay the argon2 cost — no timing oracle.
+      await this.passwords.verify(await this.dummyHash(), password);
+    }
 
     if (!user || !valid) {
       await this.audit.log({
