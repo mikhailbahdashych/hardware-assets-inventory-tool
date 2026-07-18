@@ -1,0 +1,18 @@
+- generic [ref=f1e2]:
+  - generic [ref=f1e3]: Software Inventory
+  - generic [ref=f1e53]:
+    - generic [ref=f1e55]:
+      - generic [ref=f1e56]: Software Inventory
+      - generic [ref=f1e57]: Sign in
+    - generic [ref=f1e59]:
+      - generic [ref=f1e62]:
+        - generic [ref=f1e63]:
+          - text: Email
+          - generic [ref=f1e64]: "*"
+        - textbox "Email" [ref=f1e66]
+      - generic [ref=f1e70]:
+        - generic [ref=f1e71]:
+          - text: Password
+          - generic [ref=f1e72]: "*"
+        - textbox "Password" [ref=f1e74]
+      - button "Sign in" [disabled]

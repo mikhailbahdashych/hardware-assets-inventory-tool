@@ -1,14 +1,10 @@
 import { Component } from '@angular/core';
 import { RouterOutlet } from '@angular/router';
-import { MatToolbarModule } from '@angular/material/toolbar';
-import { APP_NAME } from '@inventory/shared';
 
+/** Bare routing host — layout (toolbar/nav) lives in core/layout/Shell. */
 @Component({
   selector: 'app-root',
-  imports: [RouterOutlet, MatToolbarModule],
-  templateUrl: './app.html',
-  styleUrl: './app.scss',
+  imports: [RouterOutlet],
+  template: '<router-outlet />',
 })
-export class App {
-  protected readonly appName = APP_NAME;
-}
+export class App {}

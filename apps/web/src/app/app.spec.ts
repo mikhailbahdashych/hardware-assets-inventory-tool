@@ -1,18 +1,19 @@
 import { TestBed } from '@angular/core/testing';
+import { provideRouter } from '@angular/router';
 import { App } from './app';
-import { APP_NAME } from '@inventory/shared';
 
 describe('App', () => {
   beforeEach(async () => {
-    await TestBed.configureTestingModule({
+    TestBed.configureTestingModule({
       imports: [App],
-    }).compileComponents();
+      providers: [provideRouter([])],
+    });
+    await TestBed.compileComponents();
   });
 
-  it('renders the app name in the toolbar', () => {
+  it('hosts the router outlet', () => {
     const fixture = TestBed.createComponent(App);
     fixture.detectChanges();
-    const el: HTMLElement = fixture.nativeElement;
-    expect(el.querySelector('mat-toolbar')?.textContent).toContain(APP_NAME);
+    expect((fixture.nativeElement as HTMLElement).querySelector('router-outlet')).toBeTruthy();
   });
 });

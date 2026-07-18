@@ -13,12 +13,15 @@ export const authGuard: CanActivateFn = async () => {
   return store.status() === 'authed' ? true : router.createUrlTree(['/login']);
 };
 
-/** Login/setup pages bounce already-authed users to the dashboard. */
+/** Login bounces authed users to the dashboard — and virgin instances to setup. */
 export const loginRedirectGuard: CanActivateFn = async () => {
   const store = inject(AuthStore);
   const router = inject(Router);
+  const api = inject(AuthApi);
   if (store.status() === 'unknown') await store.init();
-  return store.status() === 'authed' ? router.createUrlTree(['/dashboard']) : true;
+  if (store.status() === 'authed') return router.createUrlTree(['/dashboard']);
+  const { setupRequired } = await firstValueFrom(api.setupStatus());
+  return setupRequired ? router.createUrlTree(['/setup']) : true;
 };
 
 /** Setup page is only reachable while the instance has no users. */
