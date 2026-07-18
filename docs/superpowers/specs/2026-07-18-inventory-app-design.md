@@ -12,7 +12,7 @@ A distinguishing goal is **claudification**: the repo ships with CLAUDE.md files
 ## Settled Decisions
 
 - **Deploy (prod):** Docker Compose with three services: `web` (nginx serving the built Angular app, proxying `/api` → api), `api` (NestJS), `db` (postgres:17-alpine). Frontend and backend are **separate images**. Only `web` publishes a host port (`WEB_PORT`, default 8080); api/db stay on the internal compose network. Images on GHCR (`…-api`, `…-web`). End-user UX: `git clone → cp .env.example .env → docker compose up -d`.
-- **Dev mode (first-class):** `npm run db:up` (compose Postgres only) + `npm run dev` (NestJS hot reload :3000 + Angular dev server :4200 with `/api` proxy). Documented in `docs/DEVELOPMENT.md`; README offers three paths: *Deploy it / Develop it / Customize it with Claude*.
+- **Dev mode (first-class):** `npm run db:up` (compose Postgres only) + `npm run dev` (NestJS hot reload :3000 + Angular dev server :4200 with `/api` proxy). Documented in `docs/DEVELOPMENT.md`; README offers three paths: _Deploy it / Develop it / Customize it with Claude_.
 - **Database:** PostgreSQL only. TypeORM (1.x line), explicit migrations (never `synchronize`), auto-run on boot.
 - **Auth v1:** Local accounts, admin-managed. First-run setup creates the initial admin; admins create users with one-time temp passwords + forced change at first login. Roles: **Admin / Manager / Viewer**. Passport + JWT (15m access + 7d rotating refresh, httpOnly cookies, argon2id). OIDC pluggable later (`provider` column reserved).
 - **MFA in v1 (TOTP):** authenticator-app TOTP + single-use recovery codes. Admins control per-user enforcement, see status, and can reset MFA; optional instance-wide `MFA_ENFORCE_ALL` env toggle. Secrets encrypted at rest (AES-256-GCM with `APP_ENCRYPTION_KEY`).
@@ -94,15 +94,15 @@ Routes: `/setup`, `/login` (password step → code step), `/change-password`, `/
 
 CLAUDE.md: root (project map, commands, golden rules), `apps/api/`, `apps/web/`, `packages/shared/`. Skills in `.claude/skills/<name>/SKILL.md`:
 
-| Skill | Teaches |
-|---|---|
-| `add-entity-field` | Column end-to-end: entity→migration→DTO→shared types→form/table/CSV→tests (worked example: `Assignment.expectedReturnAt`, deliberately absent from v1) |
-| `add-asset-status` | Extend status enum + labels/colors/transitions — no migration |
-| `add-api-endpoint` | Route + DTO validation + `@Roles` + swagger + audit + e2e template |
-| `add-frontend-page` | Lazy page + nav item + api service + Material scaffold + test |
-| `build-custom-report` | Filtered query + streamed CSV endpoint + UI trigger |
-| `database-migrations` | Generate/review/run/revert safely (referenced by other skills) |
-| `troubleshoot-deployment` | Compose/nginx logs, healthchecks, VPN/reverse-proxy + COOKIE_SECURE, backup/restore, `reset-admin-password`/`reset-mfa` runbooks |
+| Skill                     | Teaches                                                                                                                                                |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `add-entity-field`        | Column end-to-end: entity→migration→DTO→shared types→form/table/CSV→tests (worked example: `Assignment.expectedReturnAt`, deliberately absent from v1) |
+| `add-asset-status`        | Extend status enum + labels/colors/transitions — no migration                                                                                          |
+| `add-api-endpoint`        | Route + DTO validation + `@Roles` + swagger + audit + e2e template                                                                                     |
+| `add-frontend-page`       | Lazy page + nav item + api service + Material scaffold + test                                                                                          |
+| `build-custom-report`     | Filtered query + streamed CSV endpoint + UI trigger                                                                                                    |
+| `database-migrations`     | Generate/review/run/revert safely (referenced by other skills)                                                                                         |
+| `troubleshoot-deployment` | Compose/nginx logs, healthchecks, VPN/reverse-proxy + COOKIE_SECURE, backup/restore, `reset-admin-password`/`reset-mfa` runbooks                       |
 
 Plus `docs/ARCHITECTURE.md` (diagram, ERD, auth/MFA/audit flows, deliberate decisions, v2 extension points), `docs/DEPLOYMENT.md` (env table, VPN/internal-domain + TLS/internal CA guidance, backups, upgrades), `docs/DEVELOPMENT.md` (manual dev workflow), shipped `.claude/settings.json` allowlisting safe commands. Every skill dogfooded in a scratch branch before shipping.
 

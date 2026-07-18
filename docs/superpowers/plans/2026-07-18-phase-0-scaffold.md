@@ -26,10 +26,12 @@
 ### Task 1: Root workspace skeleton
 
 **Files:**
+
 - Create: `package.json`, `.gitignore`, `.editorconfig`, `.prettierrc.json`, `.prettierignore`, `LICENSE`, `tsconfig.base.json`, `.env.example`
 - Modify: none
 
 **Interfaces:**
+
 - Produces: root `package.json` with `workspaces: ["apps/*", "packages/*"]` and devDep `concurrently` (used by Task 5 scripts); `tsconfig.base.json` (extended by `packages/shared` in Task 2 and `apps/api` in Task 3); `.env.example` env-var contract for all later phases.
 
 - [ ] **Step 1: Write root package.json**
@@ -44,10 +46,7 @@
   "engines": {
     "node": "^22.22.0 || ^24.15.0 || >=26.0.0"
   },
-  "workspaces": [
-    "apps/*",
-    "packages/*"
-  ],
+  "workspaces": ["apps/*", "packages/*"],
   "scripts": {
     "format": "prettier --write .",
     "format:check": "prettier --check ."
@@ -93,6 +92,7 @@ trim_trailing_whitespace = false
 - [ ] **Step 4: Write .prettierrc.json and .prettierignore**
 
 `.prettierrc.json`:
+
 ```json
 {
   "singleQuote": true,
@@ -102,6 +102,7 @@ trim_trailing_whitespace = false
 ```
 
 `.prettierignore`:
+
 ```
 dist/
 coverage/
@@ -188,10 +189,12 @@ WEB_PORT=8080
 - [ ] **Step 8: Verify install works**
 
 Run:
+
 ```bash
 export PATH="$HOME/.nvm/versions/node/v24.18.0/bin:$PATH"
 npm install && npx prettier --check .env.example >/dev/null 2>&1; node -e "console.log(require('./package.json').workspaces)"
 ```
+
 Expected: install succeeds creating `package-lock.json`; prints `[ 'apps/*', 'packages/*' ]`.
 
 - [ ] **Step 9: Commit**
@@ -207,9 +210,11 @@ Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>"
 ### Task 2: packages/shared (@inventory/shared)
 
 **Files:**
+
 - Create: `packages/shared/package.json`, `packages/shared/tsconfig.json`, `packages/shared/src/index.ts`, `packages/shared/src/enums.ts`, `packages/shared/src/status.ts`, `packages/shared/src/api-types.ts`
 
 **Interfaces:**
+
 - Consumes: root `tsconfig.base.json` (Task 1).
 - Produces: package `@inventory/shared` with `main: dist/index.js`, `types: dist/index.d.ts`, script `build` (tsc). Exports (exact names later tasks/phases rely on): `APP_NAME: string`; enums `UserRole { ADMIN='admin', MANAGER='manager', VIEWER='viewer' }`, `AssetStatus { AVAILABLE='available', ASSIGNED='assigned', IN_REPAIR='in_repair', RETIRED='retired', LOST='lost' }`, `AuditAction` (create|update|delete|checkout|checkin|import|export|login|login_failed|login_mfa_failed|logout|setup|password_change|mfa_setup|mfa_reset|mfa_disabled — UPPER_SNAKE keys, lower_snake values); `ASSET_STATUS_LABELS: Record<AssetStatus,string>`; `ASSET_STATUS_COLORS: Record<AssetStatus,string>`; `MANUAL_STATUS_TARGETS: readonly AssetStatus[]`; interface `Paginated<T> { items: T[]; total: number; page: number; pageSize: number }`.
 
@@ -343,10 +348,12 @@ export * from './api-types';
 - [ ] **Step 7: Build and verify exports**
 
 Run:
+
 ```bash
 export PATH="$HOME/.nvm/versions/node/v24.18.0/bin:$PATH"
 npm install && npm run build -w @inventory/shared && node -e "const s=require('./packages/shared/dist/index.js'); console.log(s.APP_NAME, s.UserRole.ADMIN, s.ASSET_STATUS_LABELS.in_repair)"
 ```
+
 Expected: prints `Software Inventory admin In repair`.
 
 - [ ] **Step 8: Commit**
@@ -362,12 +369,14 @@ Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>"
 ### Task 3: NestJS API scaffold with health endpoint (TDD)
 
 **Files:**
+
 - Create (via CLI, then modify): `apps/api/*` (nest scaffold: `package.json`, `tsconfig*.json`, `nest-cli.json`, `eslint.config.mjs`, `src/main.ts`, `src/app.module.ts`, `test/jest-e2e.json`)
 - Create: `apps/api/src/modules/health/health.controller.ts`, `apps/api/src/modules/health/health.module.ts`
 - Test: `apps/api/test/health.e2e-spec.ts`, `apps/api/src/modules/health/health.controller.spec.ts`
 - Delete: nest-generated `src/app.controller.ts`, `src/app.controller.spec.ts`, `src/app.service.ts`, `test/app.e2e-spec.ts`, `apps/api/.prettierrc` (root owns prettier), `apps/api/.gitignore` (root owns it)
 
 **Interfaces:**
+
 - Consumes: root workspace install (Task 1).
 - Produces: workspace `@inventory/api` with scripts `start:dev`, `build`, `lint`, `test`, `test:e2e` (nest defaults); app listens on `process.env.PORT ?? 3000` with global prefix `api/v1`; `GET /api/v1/health` → `200 {"status":"ok"}` (Task 5 dev script and CI depend on this exact route/shape; Phase 1 will extend the controller with terminus DB checks).
 
@@ -377,6 +386,7 @@ Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>"
 export PATH="$HOME/.nvm/versions/node/v24.18.0/bin:$PATH"
 mkdir -p apps && cd apps && npx -y @nestjs/cli@11 new api --skip-git --skip-install --package-manager npm --language TypeScript
 ```
+
 Expected: `apps/api` created with src/, test/, configs.
 
 - [ ] **Step 2: Align package identity and clean duplicates**
@@ -410,10 +420,7 @@ describe('Health (e2e)', () => {
   });
 
   it('GET /api/v1/health returns ok', () => {
-    return request(app.getHttpServer())
-      .get('/api/v1/health')
-      .expect(200)
-      .expect({ status: 'ok' });
+    return request(app.getHttpServer()).get('/api/v1/health').expect(200).expect({ status: 'ok' });
   });
 });
 ```
@@ -424,11 +431,13 @@ describe('Health (e2e)', () => {
 export PATH="$HOME/.nvm/versions/node/v24.18.0/bin:$PATH"
 npm run test:e2e -w @inventory/api
 ```
+
 Expected: FAIL (404 — no health route; or module compile error since app.controller was deleted — fix module in next step).
 
 - [ ] **Step 5: Implement health module + rewire AppModule + main.ts**
 
 `apps/api/src/modules/health/health.controller.ts`:
+
 ```typescript
 import { Controller, Get } from '@nestjs/common';
 
@@ -442,6 +451,7 @@ export class HealthController {
 ```
 
 `apps/api/src/modules/health/health.module.ts`:
+
 ```typescript
 import { Module } from '@nestjs/common';
 import { HealthController } from './health.controller';
@@ -453,6 +463,7 @@ export class HealthModule {}
 ```
 
 `apps/api/src/app.module.ts` (full replacement):
+
 ```typescript
 import { Module } from '@nestjs/common';
 import { HealthModule } from './modules/health/health.module';
@@ -464,6 +475,7 @@ export class AppModule {}
 ```
 
 `apps/api/src/main.ts` (full replacement):
+
 ```typescript
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
@@ -477,6 +489,7 @@ void bootstrap();
 ```
 
 `apps/api/src/modules/health/health.controller.spec.ts` (unit — replaces deleted app.controller.spec):
+
 ```typescript
 import { Test, TestingModule } from '@nestjs/testing';
 import { HealthController } from './health.controller';
@@ -504,6 +517,7 @@ describe('HealthController', () => {
 export PATH="$HOME/.nvm/versions/node/v24.18.0/bin:$PATH"
 npm run test -w @inventory/api && npm run test:e2e -w @inventory/api
 ```
+
 Expected: both PASS.
 
 - [ ] **Step 7: Lint and boot check**
@@ -513,6 +527,7 @@ export PATH="$HOME/.nvm/versions/node/v24.18.0/bin:$PATH"
 npm run lint -w @inventory/api && npm run build -w @inventory/api
 (npm run start:dev -w @inventory/api &) ; sleep 8 ; curl -sf http://localhost:3000/api/v1/health ; kill %1 2>/dev/null || pkill -f "nest start"
 ```
+
 Expected: lint+build clean; curl prints `{"status":"ok"}`.
 
 - [ ] **Step 8: Commit**
@@ -528,12 +543,14 @@ Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>"
 ### Task 4: Angular web scaffold with Material, proxy, shared wiring
 
 **Files:**
+
 - Create (via CLI, then modify): `apps/web/*` (ng scaffold: `package.json`, `angular.json`, `tsconfig*.json`, `src/*`)
 - Create: `apps/web/proxy.conf.json`
 - Modify: `apps/web/src/app/app.ts` + `app.html` (minimal toolbar shell using `APP_NAME` from `@inventory/shared`), `apps/web/src/app/app.spec.ts` (smoke test), `apps/web/angular.json` (proxy + allowedCommonJsDependencies), `apps/web/package.json` (name, `test:ci` script)
 - Delete: `apps/web/.gitignore` (root owns it; keep `.editorconfig` deletion too if generated)
 
 **Interfaces:**
+
 - Consumes: `@inventory/shared` exports `APP_NAME` (Task 2).
 - Produces: workspace `@inventory/web` with scripts `start` (ng serve, proxy built-in via angular.json), `build`, `test`, `test:ci` (headless, no-watch), `lint` (angular-eslint). Dev server on :4200 proxies `/api` → `http://localhost:3000` (Task 5 dev flow depends on this).
 
@@ -543,20 +560,24 @@ Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>"
 export PATH="$HOME/.nvm/versions/node/v24.18.0/bin:$PATH"
 cd apps && npx -y @angular/cli@22 new web --skip-git --skip-install --style=scss --ssr=false --defaults
 ```
+
 Expected: `apps/web` created (standalone app, zoneless per v22 defaults). Inspect `apps/web/package.json` afterward to confirm generated script names before wiring root scripts.
 
 - [ ] **Step 2: Align identity, install, add Material and eslint**
 
 In `apps/web/package.json`: set `"name": "@inventory/web"`, `"version": "0.1.0"`; add script `"test:ci": "ng test --watch=false --browsers=ChromeHeadless"`. Delete `apps/web/.gitignore`. From repo root: `npm install`. Then:
+
 ```bash
 export PATH="$HOME/.nvm/versions/node/v24.18.0/bin:$PATH"
 cd apps/web && npx ng add @angular/material --skip-confirmation --defaults && npx ng add @angular/eslint --skip-confirmation
 ```
+
 Expected: Material theme wired into `angular.json`/styles, `lint` script appears. If `ng add` balks in the workspace layout, fallback: `npm i -w @inventory/web @angular/material @angular/cdk` + manually add a prebuilt theme to `src/styles.scss` (`@use '@angular/material' as mat;` prebuilt azure-blue include per Material 22 docs) and `npm i -D -w @inventory/web angular-eslint @eslint/js typescript-eslint eslint` with the standard `ng lint` flat config.
 
 - [ ] **Step 3: Proxy config**
 
 `apps/web/proxy.conf.json`:
+
 ```json
 {
   "/api": {
@@ -565,11 +586,15 @@ Expected: Material theme wired into `angular.json`/styles, `lint` script appears
   }
 }
 ```
+
 In `apps/web/angular.json` under `projects.web.architect.serve.options` add:
+
 ```json
 "proxyConfig": "proxy.conf.json"
 ```
+
 (create the `options` object if absent). Also under `projects.web.architect.build.options` add:
+
 ```json
 "allowedCommonJsDependencies": ["@inventory/shared"]
 ```
@@ -596,6 +621,7 @@ describe('App', () => {
   });
 });
 ```
+
 (If the generated root component uses different file/class names — e.g. `app.component.ts` / `AppComponent` — keep the generated names and adjust imports here accordingly; v22 `ng new` generates `app.ts` with class `App`.)
 
 - [ ] **Step 5: Run test to verify it fails**
@@ -604,11 +630,13 @@ describe('App', () => {
 export PATH="$HOME/.nvm/versions/node/v24.18.0/bin:$PATH"
 npm run test:ci -w @inventory/web
 ```
+
 Expected: FAIL (no mat-toolbar rendered).
 
 - [ ] **Step 6: Implement minimal shell**
 
 `apps/web/src/app/app.ts` (full replacement, keeping generated class name):
+
 ```typescript
 import { Component } from '@angular/core';
 import { RouterOutlet } from '@angular/router';
@@ -627,9 +655,9 @@ export class App {
 ```
 
 `apps/web/src/app/app.html` (full replacement):
+
 ```html
-<mat-toolbar color="primary">{{ appName }}</mat-toolbar>
-<router-outlet />
+<mat-toolbar color="primary">{{ appName }}</mat-toolbar> <router-outlet />
 ```
 
 Ensure `@inventory/shared` is declared as a dependency of the web app: in `apps/web/package.json` `dependencies` add `"@inventory/shared": "0.1.0"`, then root `npm install` (npm links the workspace). Build shared first if `dist/` missing: `npm run build -w @inventory/shared`.
@@ -640,6 +668,7 @@ Ensure `@inventory/shared` is declared as a dependency of the web app: in `apps/
 export PATH="$HOME/.nvm/versions/node/v24.18.0/bin:$PATH"
 npm run test:ci -w @inventory/web && npm run lint -w @inventory/web && npm run build -w @inventory/web
 ```
+
 Expected: all PASS/clean. Serve+proxy is verified end-to-end in Task 5.
 
 - [ ] **Step 8: Commit**
@@ -655,10 +684,12 @@ Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>"
 ### Task 5: Dev Postgres compose + root orchestration scripts
 
 **Files:**
+
 - Create: `docker-compose.dev.yml`, `docker/postgres-init/01-create-test-db.sql`
 - Modify: root `package.json` (scripts)
 
 **Interfaces:**
+
 - Consumes: `@inventory/api` `start:dev` (Task 3), `@inventory/web` `start` (Task 4), `.env.example` var names (Task 1).
 - Produces: root scripts `dev`, `db:up`, `db:down`, `build`, `lint`, `test`, `test:e2e` (CI in Task 6 and every later phase call these); dev DB `inventory` + test DB `inventory_test` on localhost:5432.
 
@@ -718,6 +749,7 @@ CREATE DATABASE inventory_test;
 export PATH="$HOME/.nvm/versions/node/v24.18.0/bin:$PATH"
 npm run db:up && docker compose -f docker-compose.dev.yml exec db psql -U inventory -c '\l' | grep -E 'inventory(_test)?'
 ```
+
 Expected: `--wait` returns once healthy; output lists both `inventory` and `inventory_test`.
 
 - [ ] **Step 5: Verify full dev flow (API direct + through web proxy)**
@@ -728,6 +760,7 @@ export PATH="$HOME/.nvm/versions/node/v24.18.0/bin:$PATH"
 curl -sf http://localhost:3000/api/v1/health && curl -sf http://localhost:4200/api/v1/health
 pkill -f "nest start" ; pkill -f "ng serve"
 ```
+
 Expected: both curls print `{"status":"ok"}` — the second proves the Angular dev proxy forwards `/api` to the API.
 
 - [ ] **Step 6: Commit**
@@ -743,9 +776,11 @@ Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>"
 ### Task 6: CI workflow
 
 **Files:**
+
 - Create: `.github/workflows/ci.yml`
 
 **Interfaces:**
+
 - Consumes: root scripts (Task 5), health tests (Task 3), web tests (Task 4).
 - Produces: CI contract every later phase extends (lint → test → build). No Docker build yet (no Dockerfiles until Phase 10). No push happens in this phase; the workflow is validated by running the identical commands locally.
 
@@ -798,6 +833,7 @@ jobs:
 export PATH="$HOME/.nvm/versions/node/v24.18.0/bin:$PATH"
 npm ci && npm run build -w @inventory/shared && npm run lint && npm run test -w @inventory/api && npm run test:e2e && npm run test:ci -w @inventory/web && npm run build
 ```
+
 Expected: every step exits 0 (this is the same sequence CI runs; `npm ci` also proves the committed lockfile is complete).
 
 - [ ] **Step 3: Commit**
@@ -813,10 +849,12 @@ Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>"
 ### Task 7: Root CLAUDE.md seed + README skeleton
 
 **Files:**
+
 - Create: `CLAUDE.md`
 - Modify: `README.md`
 
 **Interfaces:**
+
 - Consumes: everything above (documents real, working commands only).
 - Produces: root `CLAUDE.md` (expanded in later phases; Phase 11 finalizes claudification), README with the three-path structure (Deploy path stays "coming soon" until Phase 10).
 
@@ -853,7 +891,7 @@ Open-source, self-hosted IT asset inventory. Angular 22 + Angular Material front
 
 - [ ] **Step 2: Write README.md** (full replacement of the stub)
 
-```markdown
+````markdown
 # Software Inventory Tool
 
 Open-source, self-hosted IT asset inventory. Track hardware assets (laptops, phones, monitors, servers…), who holds them, and the full ownership history — deployed entirely inside your own infrastructure.
@@ -878,6 +916,7 @@ npm install
 npm run db:up     # Postgres 17 in Docker (localhost:5432, user/pass/db: inventory)
 npm run dev       # API on :3000, web on :4200 (proxies /api to the API)
 ```
+````
 
 Open http://localhost:4200. Tests: `npm run test` and `npm run test:e2e`. Lint: `npm run lint`.
 
@@ -892,7 +931,8 @@ The approved design spec lives at [`docs/superpowers/specs/2026-07-18-inventory-
 ## License
 
 [MIT](LICENSE)
-```
+
+````
 
 - [ ] **Step 3: Verify docs commands are honest**
 
@@ -904,7 +944,7 @@ Run: `git status --short` (expect only CLAUDE.md + README.md changed) and re-run
 git add -A && git commit -m "docs: root CLAUDE.md and README with dev quickstart
 
 Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>"
-```
+````
 
 ---
 
@@ -914,4 +954,7 @@ Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>"
 - Version facts verified 2026-07-18: `@nestjs/cli` 11.0.24, `@angular/cli` 22.0.7, Material 22.0.5, Node 24.18.0 via nvm (Angular engines `^22.22.3 || ^24.15.0 || >=26`), TypeORM `latest` = 1.1.0 (not used until Phase 1).
 - CLI-generated file names may drift from this plan (e.g. `app.ts` vs `app.component.ts`): keep generated names, adapt the shown diffs — noted inline in T4.
 - No placeholders; all code complete; no later-phase files created.
+
+```
+
 ```
