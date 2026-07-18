@@ -1,0 +1,22 @@
+{
+  "name": "software-inventory-tool",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Open-source, self-hosted IT asset inventory. Angular + NestJS + PostgreSQL, deployable with a single docker compose up.",
+  "license": "MIT",
+  "engines": {
+    "node": "^22.22.0 || ^24.15.0 || >=26.0.0"
+  },
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2",
+    "prettier": "^3.6.0"
+  }
+}
