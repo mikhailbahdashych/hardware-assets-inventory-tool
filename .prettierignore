@@ -3,3 +3,4 @@ coverage/
 .angular/
 package-lock.json
 docs/superpowers/
+.playwright-mcp/
