@@ -54,6 +54,8 @@ describe('Database schema (e2e)', () => {
       `SELECT indexname, indexdef FROM pg_indexes WHERE tablename = 'employees' AND indexname LIKE 'uq_%'`,
     );
     const byName = Object.fromEntries(rows.map((r) => [r.indexname, r.indexdef.toLowerCase()]));
+    expect(byName).toHaveProperty('uq_employees_email');
+    expect(byName).toHaveProperty('uq_employees_employee_number');
     expect(byName['uq_employees_email']).toContain('is not null');
     expect(byName['uq_employees_employee_number']).toContain('is not null');
   });

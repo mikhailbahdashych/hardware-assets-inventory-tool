@@ -32,9 +32,11 @@ export const dataSourceOptions: DataSourceOptions = {
   type: 'postgres',
   host: process.env.POSTGRES_HOST ?? 'localhost',
   port: parseInt(process.env.POSTGRES_PORT ?? '5432', 10),
-  database: process.env.POSTGRES_DB ?? 'inventory',
-  username: process.env.POSTGRES_USER ?? 'inventory',
-  password: process.env.POSTGRES_PASSWORD ?? 'inventory',
+  // No fallbacks for credentials/database: a missing .env must fail loud
+  // (the runtime has Joi for this; the bare CLI path gets it from pg errors).
+  database: process.env.POSTGRES_DB,
+  username: process.env.POSTGRES_USER,
+  password: process.env.POSTGRES_PASSWORD,
   entities,
   // Path-anchored to this file's own directory so it works from both src (CLI
   // via ts-node) and dist (runtime) — the one deliberate glob: migration files

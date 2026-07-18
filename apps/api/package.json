@@ -23,7 +23,7 @@
     "migration:generate": "npm run typeorm -- migration:generate",
     "migration:run": "npm run typeorm -- migration:run",
     "migration:revert": "npm run typeorm -- migration:revert",
-    "migration:check": "rm -f /tmp/*-DriftCheck.ts; OUT=$(npm run typeorm -- migration:generate /tmp/DriftCheck 2>&1); if ls /tmp/*-DriftCheck.ts >/dev/null 2>&1; then echo 'SCHEMA DRIFT: entities differ from committed migrations' >&2; rm -f /tmp/*-DriftCheck.ts; exit 1; elif echo \"$OUT\" | grep -q 'No changes in database schema'; then echo 'schema in sync'; else echo \"$OUT\" >&2; exit 1; fi"
+    "migration:check": "mkdir -p node_modules/.tmp && rm -f node_modules/.tmp/*-DriftCheck.ts; OUT=$(npm run typeorm -- migration:generate node_modules/.tmp/DriftCheck 2>&1); if ls node_modules/.tmp/*-DriftCheck.ts >/dev/null 2>&1; then echo 'SCHEMA DRIFT: entities differ from committed migrations' >&2; rm -f node_modules/.tmp/*-DriftCheck.ts; exit 1; elif echo \"$OUT\" | grep -q 'No changes in database schema'; then echo 'schema in sync'; else echo \"$OUT\" >&2; exit 1; fi"
   },
   "dependencies": {
     "@inventory/shared": "0.1.0",
