@@ -6,6 +6,7 @@ import {
   PrimaryGeneratedColumn,
   UpdateDateColumn,
 } from 'typeorm';
+import { Exclude } from 'class-transformer';
 import { UserRole } from '@inventory/shared';
 
 @Entity('users')
@@ -18,6 +19,7 @@ export class User {
   email: string;
 
   /** argon2id hash; NULL reserved for future OIDC-provisioned accounts. */
+  @Exclude()
   @Column({ type: 'varchar', length: 255, nullable: true })
   passwordHash: string | null;
 
@@ -44,6 +46,7 @@ export class User {
   mfaEnforced: boolean;
 
   /** AES-256-GCM-encrypted TOTP secret (never stored in plaintext). */
+  @Exclude()
   @Column({ type: 'text', nullable: true })
   mfaSecret: string | null;
 
