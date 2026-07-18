@@ -18,6 +18,10 @@
     "incremental": true,
     "skipLibCheck": true,
     "strictNullChecks": true,
+    // TypeORM entities and validation DTOs are populated at runtime (ORM
+    // hydration / request transformation), never via constructors — the one
+    // strict-family flag that fights that pattern is disabled repo-wide here.
+    "strictPropertyInitialization": false,
     "forceConsistentCasingInFileNames": true,
     "noFallthroughCasesInSwitch": false
   }
