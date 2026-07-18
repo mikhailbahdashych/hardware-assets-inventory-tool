@@ -12,6 +12,13 @@
     "packages/*"
   ],
   "scripts": {
+    "dev": "concurrently -n api,web -c blue,green \"npm run start:dev -w @inventory/api\" \"npm run start -w @inventory/web\"",
+    "db:up": "docker compose -f docker-compose.dev.yml up -d --wait",
+    "db:down": "docker compose -f docker-compose.dev.yml down",
+    "build": "npm run build -w @inventory/shared && npm run build -w @inventory/api && npm run build -w @inventory/web",
+    "lint": "npm run lint -w @inventory/api && npm run lint -w @inventory/web",
+    "test": "npm run test -w @inventory/api && npm run test:ci -w @inventory/web",
+    "test:e2e": "npm run test:e2e -w @inventory/api",
     "format": "prettier --write .",
     "format:check": "prettier --check ."
   },
