@@ -1,0 +1,38 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Build shared package
+        run: npm run build -w @inventory/shared
+
+      - name: Lint
+        run: npm run lint
+
+      - name: API unit tests
+        run: npm run test -w @inventory/api
+
+      - name: API e2e tests
+        run: npm run test:e2e
+
+      - name: Web tests (headless)
+        run: npm run test:ci -w @inventory/web
+
+      - name: Build all
+        run: npm run build
