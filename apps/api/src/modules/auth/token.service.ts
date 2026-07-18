@@ -10,7 +10,7 @@ import { REFRESH_REUSE_GRACE_MS } from './auth.constants';
 
 /** Thrown when a rotated-away refresh token is presented after the grace window. */
 export class RefreshReuseException extends UnauthorizedException {
-  constructor() {
+  constructor(readonly userId: string) {
     super('refresh token reuse detected');
   }
 }
@@ -100,7 +100,7 @@ export class TokenService {
         return { userId: row.userId, raw: minted.raw };
       }
       await this.revokeAllForUser(row.userId);
-      throw new RefreshReuseException();
+      throw new RefreshReuseException(row.userId);
     }
 
     const minted = await this.mintRefreshToken(row.userId, ctx);

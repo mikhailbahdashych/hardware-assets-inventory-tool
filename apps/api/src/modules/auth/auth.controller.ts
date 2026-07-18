@@ -1,27 +1,43 @@
-import { Body, Controller, Get, HttpCode, Post, Req, Res } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  HttpCode,
+  Post,
+  Req,
+  Res,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import { ConfigService } from '@nestjs/config';
 import type { Request, Response } from 'express';
+import { AuditAction } from '@inventory/shared';
 import { User } from '../users/entities/user.entity';
 import { AuthService } from './auth.service';
-import { TokenContext, TokenService } from './token.service';
+import { RefreshReuseException, TokenContext, TokenService } from './token.service';
+import { AuditService } from '../audit/audit.service';
 import { SetupDto } from './dto/setup.dto';
 import { LoginDto } from './dto/login.dto';
 import { ACCESS_COOKIE, REFRESH_COOKIE, REFRESH_COOKIE_PATH } from './auth.constants';
+import { Public } from '../../common/decorators/public.decorator';
+import { AuthenticatedUser, CurrentUser } from '../../common/decorators/current-user.decorator';
 
 @Controller('auth')
 export class AuthController {
   constructor(
     private readonly auth: AuthService,
     private readonly tokens: TokenService,
+    private readonly audit: AuditService,
     private readonly config: ConfigService,
   ) {}
 
+  @Public()
   @Get('setup-status')
   async setupStatus(): Promise<{ setupRequired: boolean }> {
     return { setupRequired: await this.auth.setupRequired() };
   }
 
+  @Public()
   @Post('setup')
   async setup(
     @Body() dto: SetupDto,
@@ -34,6 +50,7 @@ export class AuthController {
     return user;
   }
 
+  @Public()
   @Post('login')
   @HttpCode(200)
   @Throttle({ default: { limit: 5, ttl: 60_000 } })
@@ -46,6 +63,76 @@ export class AuthController {
     const user = await this.auth.validateLogin(dto.email, dto.password, ctx);
     await this.issueSession(res, user, ctx);
     return user;
+  }
+
+  @Get('me')
+  async me(@CurrentUser() authed: AuthenticatedUser): Promise<User> {
+    const user = await this.auth.findById(authed.userId);
+    if (!user || !user.isActive) throw new UnauthorizedException();
+    return user;
+  }
+
+  @Public()
+  @Post('refresh')
+  @HttpCode(200)
+  async refresh(@Req() req: Request, @Res({ passthrough: true }) res: Response): Promise<User> {
+    const raw = this.refreshCookie(req);
+    if (!raw) throw new UnauthorizedException();
+    const ctx = this.ctxFrom(req);
+
+    try {
+      const rotated = await this.tokens.rotate(raw, ctx);
+      const user = await this.auth.findById(rotated.userId);
+      if (!user || !user.isActive) {
+        await this.tokens.revokeAllForUser(rotated.userId);
+        throw new UnauthorizedException();
+      }
+      this.setAuthCookies(res, this.tokens.signAccessToken(user), rotated.raw);
+      return user;
+    } catch (err) {
+      if (err instanceof RefreshReuseException) {
+        await this.audit.log({
+          actorId: err.userId,
+          action: AuditAction.LOGIN_FAILED,
+          metadata: { reuse: true, ip: ctx.ip ?? null, userAgent: ctx.userAgent ?? null },
+        });
+      }
+      throw err;
+    }
+  }
+
+  @Public()
+  @Post('logout')
+  @HttpCode(204)
+  async logout(@Req() req: Request, @Res({ passthrough: true }) res: Response): Promise<void> {
+    const raw = this.refreshCookie(req);
+    if (raw) await this.tokens.revoke(raw);
+
+    const actor = this.actorFromAccessCookie(req);
+    await this.audit.log({
+      actorId: actor?.sub ?? null,
+      actorEmail: actor?.email ?? null,
+      action: AuditAction.LOGOUT,
+      metadata: { ip: req.ip ?? null },
+    });
+
+    res.clearCookie(ACCESS_COOKIE, { path: '/' });
+    res.clearCookie(REFRESH_COOKIE, { path: REFRESH_COOKIE_PATH });
+  }
+
+  private refreshCookie(req: Request): string | undefined {
+    return (req.cookies as Record<string, string> | undefined)?.[REFRESH_COOKIE];
+  }
+
+  private actorFromAccessCookie(req: Request): { sub: string; email: string } | null {
+    const token = (req.cookies as Record<string, string> | undefined)?.[ACCESS_COOKIE];
+    if (!token) return null;
+    try {
+      const payload = this.tokens.verifyAccessToken(token);
+      return { sub: payload.sub, email: payload.email };
+    } catch {
+      return null;
+    }
   }
 
   private ctxFrom(req: Request): TokenContext {
