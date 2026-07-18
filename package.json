@@ -19,6 +19,10 @@
     "lint": "npm run lint -w @inventory/api && npm run lint -w @inventory/web",
     "test": "npm run test -w @inventory/api && npm run test:ci -w @inventory/web",
     "test:e2e": "npm run test:e2e -w @inventory/api",
+    "migration:generate": "npm run migration:generate -w @inventory/api --",
+    "migration:run": "npm run migration:run -w @inventory/api",
+    "migration:revert": "npm run migration:revert -w @inventory/api",
+    "migration:check": "npm run migration:check -w @inventory/api",
     "format": "prettier --write .",
     "format:check": "prettier --check ."
   },

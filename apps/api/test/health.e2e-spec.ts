@@ -3,6 +3,7 @@ import { INestApplication } from '@nestjs/common';
 import request from 'supertest';
 import { App } from 'supertest/types';
 import { AppModule } from './../src/app.module';
+import { configureApp } from './utils/configure-app';
 
 describe('Health (e2e)', () => {
   let app: INestApplication<App>;
@@ -12,8 +13,7 @@ describe('Health (e2e)', () => {
       imports: [AppModule],
     }).compile();
 
-    app = moduleFixture.createNestApplication();
-    app.setGlobalPrefix('api/v1');
+    app = configureApp(moduleFixture.createNestApplication());
     await app.init();
   });
 
@@ -21,7 +21,10 @@ describe('Health (e2e)', () => {
     await app.close();
   });
 
-  it('GET /api/v1/health returns ok', () => {
-    return request(app.getHttpServer()).get('/api/v1/health').expect(200).expect({ status: 'ok' });
+  it('GET /api/v1/health reports ok with the database up', async () => {
+    const res = await request(app.getHttpServer()).get('/api/v1/health').expect(200);
+    const body = res.body as { status: string; info: { database: { status: string } } };
+    expect(body.status).toBe('ok');
+    expect(body.info.database.status).toBe('up');
   });
 });
