@@ -123,6 +123,14 @@ export class TokenService {
     await this.refreshTokens.update({ userId, revokedAt: IsNull() }, { revokedAt: new Date() });
   }
 
+  accessTtlMs(): number {
+    return this.ttlMs('jwt.accessTtl');
+  }
+
+  refreshTtlMs(): number {
+    return this.ttlMs('jwt.refreshTtl');
+  }
+
   private hashToken(raw: string): string {
     return createHash('sha256').update(raw).digest('hex');
   }

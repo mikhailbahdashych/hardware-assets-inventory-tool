@@ -15,6 +15,8 @@ export default () => ({
   },
   encryptionKey: process.env.APP_ENCRYPTION_KEY,
   cookieSecure: process.env.COOKIE_SECURE === 'true',
+  /** Internal test escape hatch — not part of the documented .env contract. */
+  throttleDisabled: process.env.THROTTLE_DISABLED === 'true',
   mfaEnforceAll: process.env.MFA_ENFORCE_ALL === 'true',
   swaggerEnabled: process.env.SWAGGER_ENABLED !== 'false',
 });
