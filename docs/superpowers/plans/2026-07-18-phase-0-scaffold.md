@@ -954,7 +954,3 @@ Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>"
 - Version facts verified 2026-07-18: `@nestjs/cli` 11.0.24, `@angular/cli` 22.0.7, Material 22.0.5, Node 24.18.0 via nvm (Angular engines `^22.22.3 || ^24.15.0 || >=26`), TypeORM `latest` = 1.1.0 (not used until Phase 1).
 - CLI-generated file names may drift from this plan (e.g. `app.ts` vs `app.component.ts`): keep generated names, adapt the shown diffs — noted inline in T4.
 - No placeholders; all code complete; no later-phase files created.
-
-```
-
-```
