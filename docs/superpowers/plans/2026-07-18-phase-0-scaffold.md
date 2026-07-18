@@ -844,7 +844,7 @@ Open-source, self-hosted IT asset inventory. Angular 22 + Angular Material front
 
 ## Golden rules
 
-- Node 24 LTS required (Angular 22 rejects Node 23; use `nvm use 24`).
+- Node 24 LTS recommended (Angular 22 rejects Node 23; use `nvm use 24`).
 - Never enable TypeORM `synchronize`. Every schema change is an explicit migration (from Phase 1 on).
 - Shared enums/types/constants live ONLY in `packages/shared` — never duplicate them in an app. Rebuild after editing: `npm run build -w @inventory/shared`.
 - Angular core + Material are upgraded together (`ng update @angular/core @angular/cli @angular/material`).
