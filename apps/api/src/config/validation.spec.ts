@@ -22,6 +22,21 @@ describe('env validation schema', () => {
     expect(value.SWAGGER_ENABLED).toBe(true);
   });
 
+  it('rejects the .env.example placeholder secrets verbatim', () => {
+    expect(
+      validationSchema.validate(
+        { ...validEnv, JWT_ACCESS_SECRET: 'change-me-run-openssl-rand-hex-32' },
+        { allowUnknown: true },
+      ).error?.message,
+    ).toContain('JWT_ACCESS_SECRET');
+    expect(
+      validationSchema.validate(
+        { ...validEnv, APP_ENCRYPTION_KEY: '0'.repeat(64) },
+        { allowUnknown: true },
+      ).error?.message,
+    ).toContain('APP_ENCRYPTION_KEY');
+  });
+
   it('rejects short JWT secrets and non-hex encryption keys', () => {
     expect(
       validationSchema.validate(
