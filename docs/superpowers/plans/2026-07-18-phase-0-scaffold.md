@@ -6,7 +6,7 @@
 
 **Architecture:** Three workspaces — `apps/api` (NestJS 11, CLI-scaffolded), `apps/web` (Angular 22 + Material, CLI-scaffolded), `packages/shared` (`@inventory/shared`, CJS lib of enums/consts/types built first). CLI-generated configs stay app-local (idiomatic for downstream devs); the root owns prettier, orchestration scripts, compose, and CI.
 
-**Tech Stack:** Node 24 LTS (24.18.0 local via nvm), npm workspaces, NestJS 11.1.x, Angular 22.0.x + Angular Material 22, TypeScript (CLI-pinned per app), Jest + supertest (api), Karma/Jasmine ChromeHeadless (web, CLI default), postgres:17-alpine via Docker Compose, GitHub Actions.
+**Tech Stack:** Node 24 LTS (24.18.0 local via nvm), npm workspaces, NestJS 11.1.x, Angular 22.0.x + Angular Material 22, TypeScript (CLI-pinned per app), Jest + supertest (api), Vitest/jsdom (web, Angular 22 CLI default), postgres:17-alpine via Docker Compose, GitHub Actions.
 
 ## Global Constraints
 
@@ -848,7 +848,7 @@ Open-source, self-hosted IT asset inventory. Angular 22 + Angular Material front
 - Never enable TypeORM `synchronize`. Every schema change is an explicit migration (from Phase 1 on).
 - Shared enums/types/constants live ONLY in `packages/shared` — never duplicate them in an app. Rebuild after editing: `npm run build -w @inventory/shared`.
 - Angular core + Material are upgraded together (`ng update @angular/core @angular/cli @angular/material`).
-- App-local CLI configs (eslint, tsconfig, jest/karma) belong to their app; root owns prettier, compose, and orchestration scripts.
+- App-local CLI configs (eslint, tsconfig, jest/vitest) belong to their app; root owns prettier, compose, and orchestration scripts.
 ```
 
 - [ ] **Step 2: Write README.md** (full replacement of the stub)
