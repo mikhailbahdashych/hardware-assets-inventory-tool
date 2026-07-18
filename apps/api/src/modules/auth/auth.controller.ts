@@ -18,6 +18,7 @@ import { RefreshReuseException, TokenContext, TokenService } from './token.servi
 import { AuditService } from '../audit/audit.service';
 import { SetupDto } from './dto/setup.dto';
 import { LoginDto } from './dto/login.dto';
+import { ChangePasswordDto } from './dto/change-password.dto';
 import { ACCESS_COOKIE, REFRESH_COOKIE, REFRESH_COOKIE_PATH } from './auth.constants';
 import { Public } from '../../common/decorators/public.decorator';
 import { AuthenticatedUser, CurrentUser } from '../../common/decorators/current-user.decorator';
@@ -70,6 +71,26 @@ export class AuthController {
     const user = await this.auth.findById(authed.userId);
     if (!user || !user.isActive) throw new UnauthorizedException();
     return user;
+  }
+
+  @Post('change-password')
+  @HttpCode(204)
+  async changePassword(
+    @CurrentUser() authed: AuthenticatedUser,
+    @Body() dto: ChangePasswordDto,
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ): Promise<void> {
+    const ctx = this.ctxFrom(req);
+    const user = await this.auth.changePassword(
+      authed.userId,
+      dto.currentPassword,
+      dto.newPassword,
+      ctx,
+    );
+    // Every other session dies; this one continues on fresh tokens.
+    await this.tokens.revokeAllForUser(user.id);
+    await this.issueSession(res, user, ctx);
   }
 
   @Public()

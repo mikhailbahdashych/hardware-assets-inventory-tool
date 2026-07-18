@@ -1,4 +1,9 @@
-import { ForbiddenException, Injectable, UnauthorizedException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+  Injectable,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, Repository } from 'typeorm';
 import { AuditAction, UserRole } from '@inventory/shared';
@@ -92,5 +97,34 @@ export class AuthService {
 
   findById(id: string): Promise<User | null> {
     return this.users.findOne({ where: { id } });
+  }
+
+  /** Verifies the current password, sets the new one, clears the forced flag. */
+  async changePassword(
+    userId: string,
+    currentPassword: string,
+    newPassword: string,
+    ctx: TokenContext,
+  ): Promise<User> {
+    const user = await this.users.findOne({ where: { id: userId } });
+    if (!user || !user.isActive) throw new UnauthorizedException();
+    const valid =
+      user.passwordHash != null &&
+      (await this.passwords.verify(user.passwordHash, currentPassword));
+    if (!valid) throw new BadRequestException('current password is incorrect');
+
+    user.passwordHash = await this.passwords.hash(newPassword);
+    user.mustChangePassword = false;
+    await this.users.save(user);
+
+    await this.audit.log({
+      actorId: user.id,
+      actorEmail: user.email,
+      action: AuditAction.PASSWORD_CHANGE,
+      entityType: 'User',
+      entityId: user.id,
+      metadata: { ip: ctx.ip ?? null, userAgent: ctx.userAgent ?? null },
+    });
+    return user;
   }
 }
