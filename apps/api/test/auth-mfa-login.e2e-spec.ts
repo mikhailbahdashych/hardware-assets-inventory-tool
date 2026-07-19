@@ -87,6 +87,17 @@ describe('MFA login (e2e)', () => {
       .expect(401);
   });
 
+  it('two simultaneous submissions of the same fresh code: exactly one wins', async () => {
+    const t1 = ((await login('secured@t.co').expect(200)).body as { ticket: string }).ticket;
+    const t2 = ((await login('secured@t.co').expect(200)).body as { ticket: string }).ticket;
+    const code = totpNow(mfaSecret, 30_000); // next step — untouched by earlier tests
+    const [r1, r2] = await Promise.all([
+      request(app.getHttpServer()).post('/api/v1/auth/login/mfa').send({ ticket: t1, code }),
+      request(app.getHttpServer()).post('/api/v1/auth/login/mfa').send({ ticket: t2, code }),
+    ]);
+    expect([r1.status, r2.status].sort()).toEqual([200, 401]);
+  });
+
   it('a wrong code is 401 and audited as login_mfa_failed', async () => {
     const { ticket } = (await login('secured@t.co').expect(200)).body as { ticket: string };
     await request(app.getHttpServer())

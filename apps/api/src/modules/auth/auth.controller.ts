@@ -157,8 +157,9 @@ export class AuthController {
     @Res({ passthrough: true }) res: Response,
   ): Promise<void> {
     const ctx = this.ctxFrom(req);
+    // disableMfa revokes every session via the shared reset helper;
+    // this browser continues on the fresh pair issued below.
     const user = await this.auth.disableMfa(authed.userId, dto.code, ctx);
-    await this.tokens.revokeAllForUser(authed.userId);
     await this.issueSession(res, user, ctx);
   }
 
