@@ -41,6 +41,10 @@ export class AuthApi {
     return this.http.post<MfaVerifyResponse>('/api/v1/auth/mfa/verify', body);
   }
 
+  mfaDisable(code: string): Observable<void> {
+    return this.http.delete<void>('/api/v1/auth/mfa', { body: { code } });
+  }
+
   me(): Observable<SessionUser> {
     return this.http.get<SessionUser>('/api/v1/auth/me');
   }

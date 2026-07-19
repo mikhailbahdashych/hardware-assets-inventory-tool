@@ -18,6 +18,8 @@ export interface SessionUser {
   mustChangePassword: boolean;
   mfaEnabled: boolean;
   mfaEnforced: boolean;
+  /** ISO timestamp (serialized Date). */
+  createdAt: string;
 }
 
 export interface SetupRequest {
@@ -70,3 +72,26 @@ export interface MfaVerifyResponse {
 
 /** 403 message the API emits when MFA enrollment blocks a route — the web app routes on it. */
 export const MFA_ENROLLMENT_REQUIRED_MESSAGE = 'mfa enrollment required';
+
+export interface CreateUserRequest {
+  email: string;
+  displayName: string;
+  role: UserRole;
+}
+
+export interface UpdateUserRequest {
+  displayName?: string;
+  role?: UserRole;
+  isActive?: boolean;
+  mfaEnforced?: boolean;
+}
+
+/** tempPassword is returned exactly once — the server stores only the hash. */
+export interface CreateUserResponse {
+  user: SessionUser;
+  tempPassword: string;
+}
+
+export interface ResetPasswordResponse {
+  tempPassword: string;
+}

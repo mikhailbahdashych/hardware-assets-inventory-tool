@@ -1,9 +1,11 @@
 import { Routes } from '@angular/router';
+import { UserRole } from '@inventory/shared';
 import {
   authGuard,
   loginRedirectGuard,
   mfaEnrollmentGuard,
   mustChangePasswordGuard,
+  roleGuard,
   setupGuard,
 } from './core/guards/auth.guards';
 
@@ -38,6 +40,11 @@ export const routes: Routes = [
         path: 'dashboard',
         loadComponent: () =>
           import('./features/dashboard/dashboard-page').then((m) => m.DashboardPage),
+      },
+      {
+        path: 'admin/users',
+        canActivate: [roleGuard(UserRole.ADMIN)],
+        loadComponent: () => import('./features/admin/users/users-page').then((m) => m.UsersPage),
       },
       { path: '', pathMatch: 'full', redirectTo: 'dashboard' },
     ],

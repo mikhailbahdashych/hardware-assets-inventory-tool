@@ -13,6 +13,7 @@ import { AuditAction, UserRole } from '@inventory/shared';
 import { User } from '../users/entities/user.entity';
 import { MfaRecoveryCode } from './entities/mfa-recovery-code.entity';
 import { generateRecoveryCodes, hashRecoveryCode } from './recovery-codes';
+import { resetUserMfa } from './mfa-reset';
 import { PasswordService } from './password.service';
 import { AuditService } from '../audit/audit.service';
 import { CryptoService } from './crypto.service';
@@ -166,14 +167,21 @@ export class AuthService {
 
   /**
    * Validates a TOTP code AND persists the accepted time-step so the same
-   * code can never be replayed (RFC 6238 §5.2).
+   * code can never be replayed (RFC 6238 §5.2). The stamp is written with a
+   * conditional UPDATE, so two simultaneous submissions of the same code
+   * race here and exactly one wins.
    */
   private async consumeTotp(user: User, code: string): Promise<boolean> {
     const step = this.matchTotpStep(user, code);
     if (step === null) return false;
-    if (user.mfaLastUsedStep !== null && step <= user.mfaLastUsedStep) return false;
+    const prior = user.mfaLastUsedStep;
+    if (prior !== null && step <= prior) return false;
+    const stamped = await this.users.update(
+      { id: user.id, mfaLastUsedStep: prior === null ? IsNull() : prior },
+      { mfaLastUsedStep: step },
+    );
+    if (!stamped.affected) return false;
     user.mfaLastUsedStep = step;
-    await this.users.save(user);
     return true;
   }
 
@@ -231,12 +239,7 @@ export class AuthService {
     const passed = await this.verifySecondFactor(user, code);
     if (!passed.ok) throw new BadRequestException('invalid code');
 
-    user.mfaSecret = null;
-    user.mfaEnabled = false;
-    user.mfaVerifiedAt = null;
-    user.mfaLastUsedStep = null;
-    await this.users.save(user);
-    await this.recoveryCodes.delete({ userId: user.id });
+    await resetUserMfa(this.users.manager, user);
 
     await this.audit.log({
       actorId: user.id,
