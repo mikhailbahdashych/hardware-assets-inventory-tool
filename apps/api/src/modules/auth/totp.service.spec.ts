@@ -19,7 +19,7 @@ describe('TotpService', () => {
   it('builds an otpauth URI carrying issuer and account label', () => {
     const uri = service.otpauthUri('user@example.com', 'JBSWY3DPEHPK3PXP');
     expect(uri).toMatch(/^otpauth:\/\/totp\//);
-    expect(uri).toContain('issuer=Software%20Inventory');
+    expect(uri).toContain('issuer=Hardware%20Assets%20Inventory');
     expect(uri).toContain('user%40example.com');
     expect(uri).toContain('secret=JBSWY3DPEHPK3PXP');
   });

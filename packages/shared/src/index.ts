@@ -1,4 +1,4 @@
-export const APP_NAME = 'Software Inventory';
+export const APP_NAME = 'Hardware Assets Inventory';
 
 export * from './enums';
 export * from './status';
