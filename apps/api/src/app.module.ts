@@ -11,6 +11,7 @@ import { validationSchema } from './config/validation';
 import { DatabaseModule } from './database/database.module';
 import { AuditModule } from './modules/audit/audit.module';
 import { AuthModule } from './modules/auth/auth.module';
+import { UsersModule } from './modules/users/users.module';
 import { HealthModule } from './modules/health/health.module';
 
 @Module({
@@ -35,6 +36,7 @@ import { HealthModule } from './modules/health/health.module';
     DatabaseModule,
     AuditModule,
     AuthModule,
+    UsersModule,
     HealthModule,
   ],
   providers: [
