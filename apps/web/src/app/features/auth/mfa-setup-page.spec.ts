@@ -6,7 +6,7 @@ import { MfaSetupPage } from './mfa-setup-page';
 import { QrService } from '../../core/qr.service';
 
 const OTPAUTH_URI =
-  'otpauth://totp/Software%20Inventory:user%40x.co?issuer=Software%20Inventory&secret=JBSWY3DPEHPK3PXP';
+  'otpauth://totp/Hardware%20Assets%20Inventory:user%40x.co?issuer=Hardware%20Assets%20Inventory&secret=JBSWY3DPEHPK3PXP';
 
 const drain = () => new Promise((resolve) => setTimeout(resolve));
 
