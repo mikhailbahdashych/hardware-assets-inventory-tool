@@ -49,6 +49,7 @@ describe('TokenService rotation semantics', () => {
     const jwt = new JwtService({});
     const values: Record<string, string> = {
       'jwt.accessSecret': 'test-secret',
+      'jwt.refreshSecret': 'test-ticket-secret',
       'jwt.accessTtl': '15m',
       'jwt.refreshTtl': '7d',
     };
@@ -127,6 +128,20 @@ describe('TokenService rotation semantics', () => {
     await service.revokeAllForUser('u1');
     expect(repo.rows.find((r) => r.userId === 'u1')?.revokedAt).not.toBeNull();
     expect(repo.rows.find((r) => r.userId === 'u2')?.revokedAt).toBeNull();
+  });
+
+  it('mfa tickets round-trip and are purpose-locked', () => {
+    const ticket = service.signMfaTicket('u42');
+    expect(service.verifyMfaTicket(ticket)).toBe('u42');
+    // An access token must never pass as a ticket (different secret AND purpose).
+    const access = service.signAccessToken({
+      id: 'u42',
+      email: 'a@b.c',
+      role: 'admin',
+      mustChangePassword: false,
+    } as never);
+    expect(() => service.verifyMfaTicket(access)).toThrow(UnauthorizedException);
+    expect(() => service.verifyMfaTicket('garbage.token.here')).toThrow(UnauthorizedException);
   });
 
   it('signAccessToken embeds sub/email/role/mcp', () => {

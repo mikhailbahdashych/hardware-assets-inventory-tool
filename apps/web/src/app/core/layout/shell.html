@@ -29,6 +29,12 @@
           <mat-icon>password</mat-icon>
           <span>Change password</span>
         </button>
+        @if (!user()?.mfaEnabled) {
+          <button mat-menu-item routerLink="/mfa-setup">
+            <mat-icon>phonelink_lock</mat-icon>
+            <span>Enable two-factor auth</span>
+          </button>
+        }
         <button mat-menu-item (click)="logout()">
           <mat-icon>logout</mat-icon>
           <span>Sign out</span>

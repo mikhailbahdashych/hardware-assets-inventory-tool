@@ -5,6 +5,7 @@ import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { RolesGuard } from './common/guards/roles.guard';
 import { MustChangePasswordGuard } from './common/guards/must-change-password.guard';
+import { MfaEnrollmentGuard } from './common/guards/mfa-enrollment.guard';
 import configuration from './config/configuration';
 import { validationSchema } from './config/validation';
 import { DatabaseModule } from './database/database.module';
@@ -41,6 +42,7 @@ import { HealthModule } from './modules/health/health.module';
     { provide: APP_GUARD, useClass: JwtAuthGuard },
     { provide: APP_GUARD, useClass: RolesGuard },
     { provide: APP_GUARD, useClass: MustChangePasswordGuard },
+    { provide: APP_GUARD, useClass: MfaEnrollmentGuard },
   ],
 })
 export class AppModule {}

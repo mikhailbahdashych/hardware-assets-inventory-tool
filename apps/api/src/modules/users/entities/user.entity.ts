@@ -53,6 +53,10 @@ export class User {
   @Column({ type: 'timestamptz', nullable: true })
   mfaVerifiedAt: Date | null;
 
+  /** Last accepted TOTP time-step — RFC 6238 §5.2 replay rejection. */
+  @Column({ type: 'int', nullable: true })
+  mfaLastUsedStep: number | null;
+
   @Column({ type: 'timestamptz', nullable: true })
   lastLoginAt: Date | null;
 

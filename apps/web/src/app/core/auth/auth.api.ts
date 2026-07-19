@@ -1,7 +1,17 @@
 import { inject, Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
-import { ChangePasswordRequest, LoginRequest, SessionUser, SetupRequest } from '@inventory/shared';
+import {
+  ChangePasswordRequest,
+  LoginRequest,
+  LoginResponse,
+  MfaLoginRequest,
+  MfaSetupResponse,
+  MfaVerifyRequest,
+  MfaVerifyResponse,
+  SessionUser,
+  SetupRequest,
+} from '@inventory/shared';
 
 @Injectable({ providedIn: 'root' })
 export class AuthApi {
@@ -15,8 +25,20 @@ export class AuthApi {
     return this.http.post<SessionUser>('/api/v1/auth/setup', body);
   }
 
-  login(body: LoginRequest): Observable<SessionUser> {
-    return this.http.post<SessionUser>('/api/v1/auth/login', body);
+  login(body: LoginRequest): Observable<LoginResponse> {
+    return this.http.post<LoginResponse>('/api/v1/auth/login', body);
+  }
+
+  loginMfa(body: MfaLoginRequest): Observable<SessionUser> {
+    return this.http.post<SessionUser>('/api/v1/auth/login/mfa', body);
+  }
+
+  mfaSetup(): Observable<MfaSetupResponse> {
+    return this.http.post<MfaSetupResponse>('/api/v1/auth/mfa/setup', {});
+  }
+
+  mfaVerify(body: MfaVerifyRequest): Observable<MfaVerifyResponse> {
+    return this.http.post<MfaVerifyResponse>('/api/v1/auth/mfa/verify', body);
   }
 
   me(): Observable<SessionUser> {

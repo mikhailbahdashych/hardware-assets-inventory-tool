@@ -3,7 +3,7 @@ import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { provideRouter, Router, UrlTree } from '@angular/router';
 import { UserRole } from '@inventory/shared';
-import { authGuard, mustChangePasswordGuard, roleGuard } from './auth.guards';
+import { authGuard, mfaEnrollmentGuard, mustChangePasswordGuard, roleGuard } from './auth.guards';
 import { AuthStore } from '../auth/auth.store';
 
 const USER = {
@@ -53,6 +53,19 @@ describe('auth guards', () => {
     store.applyUser({ ...USER, mustChangePassword: true });
     const decision = runGuard(mustChangePasswordGuard) as UrlTree;
     expect(router.serializeUrl(decision)).toBe('/change-password');
+  });
+
+  it('mfaEnrollmentGuard pins enforced-unenrolled users to /mfa-setup', () => {
+    store.applyUser({ ...USER, mfaEnforced: true, mfaEnabled: false });
+    const decision = runGuard(mfaEnrollmentGuard) as UrlTree;
+    expect(router.serializeUrl(decision)).toBe('/mfa-setup');
+  });
+
+  it('mfaEnrollmentGuard passes enrolled and unenforced users', () => {
+    store.applyUser({ ...USER, mfaEnforced: true, mfaEnabled: true });
+    expect(runGuard(mfaEnrollmentGuard)).toBe(true);
+    store.applyUser({ ...USER, mfaEnforced: false, mfaEnabled: false });
+    expect(runGuard(mfaEnrollmentGuard)).toBe(true);
   });
 
   it('roleGuard blocks a viewer from an admin route', () => {

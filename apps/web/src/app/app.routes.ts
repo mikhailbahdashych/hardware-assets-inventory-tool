@@ -2,6 +2,7 @@ import { Routes } from '@angular/router';
 import {
   authGuard,
   loginRedirectGuard,
+  mfaEnrollmentGuard,
   mustChangePasswordGuard,
   setupGuard,
 } from './core/guards/auth.guards';
@@ -24,8 +25,13 @@ export const routes: Routes = [
       import('./features/auth/change-password-page').then((m) => m.ChangePasswordPage),
   },
   {
+    path: 'mfa-setup',
+    canActivate: [authGuard],
+    loadComponent: () => import('./features/auth/mfa-setup-page').then((m) => m.MfaSetupPage),
+  },
+  {
     path: '',
-    canActivate: [authGuard, mustChangePasswordGuard],
+    canActivate: [authGuard, mustChangePasswordGuard, mfaEnrollmentGuard],
     loadComponent: () => import('./core/layout/shell').then((m) => m.Shell),
     children: [
       {

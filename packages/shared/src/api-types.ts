@@ -35,3 +35,38 @@ export interface ChangePasswordRequest {
   currentPassword: string;
   newPassword: string;
 }
+
+/** Second-factor challenge issued when a password login hits an MFA-enabled account. */
+export interface MfaRequiredResponse {
+  mfaRequired: true;
+  /** Short-lived opaque-to-the-client ticket to present at /auth/login/mfa. */
+  ticket: string;
+}
+
+export type LoginResponse = SessionUser | MfaRequiredResponse;
+
+export function isMfaRequired(response: LoginResponse): response is MfaRequiredResponse {
+  return 'mfaRequired' in response && response.mfaRequired === true;
+}
+
+export interface MfaLoginRequest {
+  ticket: string;
+  /** 6-digit TOTP code or a recovery code (xxxxx-xxxxx). */
+  code: string;
+}
+
+export interface MfaSetupResponse {
+  otpauthUri: string;
+}
+
+export interface MfaVerifyRequest {
+  code: string;
+}
+
+export interface MfaVerifyResponse {
+  /** Shown exactly once — the server stores only hashes. */
+  recoveryCodes: string[];
+}
+
+/** 403 message the API emits when MFA enrollment blocks a route — the web app routes on it. */
+export const MFA_ENROLLMENT_REQUIRED_MESSAGE = 'mfa enrollment required';

@@ -7,6 +7,8 @@ export interface AuthenticatedUser {
   role: string;
   /** mustChangePassword claim from the access token. */
   mcp: boolean;
+  /** MFA-enrollment-pending claim from the access token. */
+  mfp: boolean;
 }
 
 export const CurrentUser = createParamDecorator(

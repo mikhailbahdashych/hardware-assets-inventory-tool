@@ -3,6 +3,7 @@ import { HttpErrorResponse, HttpInterceptorFn } from '@angular/common/http';
 import { Router } from '@angular/router';
 import { catchError, from, switchMap, throwError } from 'rxjs';
 import { firstValueFrom } from 'rxjs';
+import { MFA_ENROLLMENT_REQUIRED_MESSAGE } from '@inventory/shared';
 import { AuthApi } from '../auth/auth.api';
 import { AuthStore } from '../auth/auth.store';
 
@@ -23,6 +24,17 @@ export const authInterceptor: HttpInterceptorFn = (req, next) => {
 
   return next(req).pipe(
     catchError((err: unknown) => {
+      // Instance-wide MFA enforcement (MFA_ENFORCE_ALL) surfaces as 403s the
+      // route guards can't predict from the user object — route to enrollment.
+      if (
+        err instanceof HttpErrorResponse &&
+        err.status === 403 &&
+        (err.error as { message?: string } | null)?.message === MFA_ENROLLMENT_REQUIRED_MESSAGE
+      ) {
+        router.navigate(['/mfa-setup']).catch(() => undefined);
+        return throwError(() => err);
+      }
+
       const isFinal =
         !(err instanceof HttpErrorResponse) || err.status !== 401 || NO_RETRY.test(req.url);
       if (isFinal) return throwError(() => err);
@@ -34,7 +46,7 @@ export const authInterceptor: HttpInterceptorFn = (req, next) => {
         })
         .catch(() => {
           store.clear();
-          void router.navigate(['/login']);
+          router.navigate(['/login']).catch(() => undefined);
           return false;
         })
         .finally(() => {
