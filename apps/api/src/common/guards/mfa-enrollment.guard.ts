@@ -1,5 +1,6 @@
 import { CanActivate, ExecutionContext, ForbiddenException, Injectable } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
+import { MFA_ENROLLMENT_REQUIRED_MESSAGE } from '@inventory/shared';
 import { AuthenticatedUser } from '../decorators/current-user.decorator';
 import { ALLOWED_DURING_MFA_ENROLLMENT_KEY } from '../decorators/allowed-during-mfa-enrollment.decorator';
 
@@ -21,6 +22,6 @@ export class MfaEnrollmentGuard implements CanActivate {
       context.getClass(),
     ]);
     if (allowed) return true;
-    throw new ForbiddenException('mfa enrollment required');
+    throw new ForbiddenException(MFA_ENROLLMENT_REQUIRED_MESSAGE);
   }
 }

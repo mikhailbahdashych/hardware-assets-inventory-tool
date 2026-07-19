@@ -3,6 +3,7 @@ import { HttpErrorResponse, HttpInterceptorFn } from '@angular/common/http';
 import { Router } from '@angular/router';
 import { catchError, from, switchMap, throwError } from 'rxjs';
 import { firstValueFrom } from 'rxjs';
+import { MFA_ENROLLMENT_REQUIRED_MESSAGE } from '@inventory/shared';
 import { AuthApi } from '../auth/auth.api';
 import { AuthStore } from '../auth/auth.store';
 
@@ -28,7 +29,7 @@ export const authInterceptor: HttpInterceptorFn = (req, next) => {
       if (
         err instanceof HttpErrorResponse &&
         err.status === 403 &&
-        (err.error as { message?: string } | null)?.message === 'mfa enrollment required'
+        (err.error as { message?: string } | null)?.message === MFA_ENROLLMENT_REQUIRED_MESSAGE
       ) {
         void router.navigate(['/mfa-setup']);
         return throwError(() => err);

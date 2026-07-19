@@ -7,9 +7,11 @@
  * (enforcement flags are left untouched — an enforced user re-enrolls at
  * next login). The action is audit-logged with metadata { cli: true }.
  */
+import { IsNull } from 'typeorm';
 import { AuditAction } from '@inventory/shared';
 import dataSource from '../database/data-source';
 import { User } from '../modules/users/entities/user.entity';
+import { RefreshToken } from '../modules/auth/entities/refresh-token.entity';
 import { MfaRecoveryCode } from '../modules/auth/entities/mfa-recovery-code.entity';
 import { AuditLog } from '../modules/audit/entities/audit-log.entity';
 
@@ -21,8 +23,13 @@ async function resetMfa(email: string): Promise<void> {
   user.mfaSecret = null;
   user.mfaEnabled = false;
   user.mfaVerifiedAt = null;
+  user.mfaLastUsedStep = null;
   await users.save(user);
   await dataSource.getRepository(MfaRecoveryCode).delete({ userId: user.id });
+  // Compromise-driven resets must not leave live sessions behind.
+  await dataSource
+    .getRepository(RefreshToken)
+    .update({ userId: user.id, revokedAt: IsNull() }, { revokedAt: new Date() });
 
   await dataSource.getRepository(AuditLog).save(
     dataSource.getRepository(AuditLog).create({

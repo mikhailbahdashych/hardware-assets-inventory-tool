@@ -59,11 +59,14 @@ describe('MFA login (e2e)', () => {
     expect(cookies.some((c) => c.startsWith('sit_'))).toBe(false);
   });
 
+  let consumedCode: string;
+
   it('a valid TOTP code completes the login with cookies and an mfa-flagged audit row', async () => {
     const { ticket } = (await login('secured@t.co').expect(200)).body as { ticket: string };
+    consumedCode = totpNow(mfaSecret);
     const res = await request(app.getHttpServer())
       .post('/api/v1/auth/login/mfa')
-      .send({ ticket, code: totpNow(mfaSecret) })
+      .send({ ticket, code: consumedCode })
       .expect(200);
     expect((res.body as Record<string, unknown>).email).toBe('secured@t.co');
     const cookies = (res.headers['set-cookie'] as unknown as string[]) ?? [];
@@ -74,6 +77,14 @@ describe('MFA login (e2e)', () => {
       `SELECT metadata FROM audit_logs WHERE action = 'login' AND actor_email = 'secured@t.co' ORDER BY id DESC LIMIT 1`,
     );
     expect(rows[0].metadata.mfa).toBe(true);
+  });
+
+  it('a just-used TOTP code is rejected on replay (RFC 6238 §5.2)', async () => {
+    const { ticket } = (await login('secured@t.co').expect(200)).body as { ticket: string };
+    await request(app.getHttpServer())
+      .post('/api/v1/auth/login/mfa')
+      .send({ ticket, code: consumedCode })
+      .expect(401);
   });
 
   it('a wrong code is 401 and audited as login_mfa_failed', async () => {

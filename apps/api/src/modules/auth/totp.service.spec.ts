@@ -36,6 +36,30 @@ describe('TotpService', () => {
     expect(service.verify(codeFor(secret, -90_000), secret)).toBe(false);
   });
 
+  it('normalizes pasted whitespace in codes', () => {
+    const secret = service.generateSecret();
+    const code = codeFor(secret);
+    expect(service.verify(`${code.slice(0, 3)} ${code.slice(3)}`, secret)).toBe(true);
+    expect(service.verify(` ${code} `, secret)).toBe(true);
+  });
+
+  it('matches the RFC 6238 SHA-1 test vector (guards against library swaps)', () => {
+    // Appendix B: secret "12345678901234567890", T=59s → 94287082 (6 digits: 287082)
+    const rfcSecret = 'GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ';
+    const code = new OTPAuth.TOTP({ secret: OTPAuth.Secret.fromBase32(rfcSecret) }).generate({
+      timestamp: 59_000,
+    });
+    expect(code).toBe('287082');
+  });
+
+  it('validateStep returns the absolute time-step a code matched', () => {
+    const secret = service.generateSecret();
+    const nowStep = Math.floor(Date.now() / 30_000);
+    expect(service.validateStep(codeFor(secret), secret)).toBe(nowStep);
+    expect(service.validateStep(codeFor(secret, -30_000), secret)).toBe(nowStep - 1);
+    expect(service.validateStep('000000', secret)).toBeNull();
+  });
+
   it('rejects garbage tokens and secrets without throwing', () => {
     expect(service.verify('not-a-code', service.generateSecret())).toBe(false);
     expect(service.verify('', service.generateSecret())).toBe(false);

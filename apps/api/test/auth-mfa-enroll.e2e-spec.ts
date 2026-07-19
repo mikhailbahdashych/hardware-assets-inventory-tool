@@ -27,8 +27,10 @@ function secretFromUri(uri: string): string {
   return new URL(uri).searchParams.get('secret') as string;
 }
 
-function totpNow(secret: string): string {
-  return new OTPAuth.TOTP({ secret: OTPAuth.Secret.fromBase32(secret) }).generate();
+function totpNow(secret: string, offsetMs = 0): string {
+  return new OTPAuth.TOTP({ secret: OTPAuth.Secret.fromBase32(secret) }).generate({
+    timestamp: Date.now() + offsetMs,
+  });
 }
 
 describe('MFA enrollment lifecycle (e2e)', () => {
@@ -75,6 +77,8 @@ describe('MFA enrollment lifecycle (e2e)', () => {
 
   it('voluntary enrollment: setup → verify → recovery codes → mfa login required', async () => {
     const agent = await loginAgent('volunteer@t.co');
+    // A second device, logged in before enrollment — must die when MFA turns on.
+    const otherDevice = await loginAgent('volunteer@t.co');
 
     const setup = await agent.post('/api/v1/auth/mfa/setup').expect(200);
     const uri = (setup.body as { otpauthUri: string }).otpauthUri;
@@ -93,6 +97,9 @@ describe('MFA enrollment lifecycle (e2e)', () => {
 
     const me = await agent.get('/api/v1/auth/me').expect(200);
     expect((me.body as Record<string, unknown>).mfaEnabled).toBe(true);
+
+    // The enrolling session survives on fresh cookies; the other device is revoked.
+    await otherDevice.post('/api/v1/auth/refresh').expect(401);
 
     const relogin = await request(app.getHttpServer())
       .post('/api/v1/auth/login')
@@ -156,13 +163,14 @@ describe('MFA enrollment lifecycle (e2e)', () => {
     const crypto = app.get(CryptoService);
     const forcedSecret = crypto.decrypt(mfa_secret);
     const forcedAgent = request.agent(app.getHttpServer());
+    // +30s: the enrollment already consumed the current step (replay guard).
     await forcedAgent
       .post('/api/v1/auth/login/mfa')
-      .send({ ticket: (t.body as { ticket: string }).ticket, code: totpNow(forcedSecret) })
+      .send({ ticket: (t.body as { ticket: string }).ticket, code: totpNow(forcedSecret, 30_000) })
       .expect(200);
     await forcedAgent
       .delete('/api/v1/auth/mfa')
-      .send({ code: totpNow(forcedSecret) })
+      .send({ code: totpNow(forcedSecret, 30_000) })
       .expect(403);
 
     // Voluntary user disables with a TOTP code.
@@ -177,12 +185,10 @@ describe('MFA enrollment lifecycle (e2e)', () => {
     const vAgent = request.agent(app.getHttpServer());
     await vAgent
       .post('/api/v1/auth/login/mfa')
-      .send({ ticket: (vTicket.body as { ticket: string }).ticket, code: totpNow(vSecret) })
+      .send({ ticket: (vTicket.body as { ticket: string }).ticket, code: totpNow(vSecret, 30_000) })
       .expect(200);
-    await vAgent
-      .delete('/api/v1/auth/mfa')
-      .send({ code: totpNow(vSecret) })
-      .expect(204);
+    // Disable with a recovery code — the TOTP step was just consumed above.
+    await vAgent.delete('/api/v1/auth/mfa').send({ code: volunteerCodes[1] }).expect(204);
 
     const plain = await request(app.getHttpServer())
       .post('/api/v1/auth/login')

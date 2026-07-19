@@ -171,14 +171,19 @@ export class LoginPage {
       const user = await this.store.loginMfa(this.ticket, this.codeForm.getRawValue().code);
       await this.navigateAfterLogin(user);
     } catch (err) {
-      this.error.set(
-        err instanceof HttpErrorResponse && err.status === 401
-          ? 'That code was not accepted. Codes expire quickly — try a fresh one.'
-          : this.messageFor(err),
-      );
-      // An expired ticket needs a fresh password step.
-      if (err instanceof HttpErrorResponse && err.status === 401) {
+      const serverMessage =
+        err instanceof HttpErrorResponse
+          ? (err.error as { message?: string } | null)?.message
+          : undefined;
+      if (serverMessage === 'invalid mfa ticket') {
+        // The 5-minute window closed — a fresh password step is the only way on.
+        this.backToPassword();
+        this.error.set('Your sign-in expired — please enter your password again.');
+      } else if (err instanceof HttpErrorResponse && err.status === 401) {
+        this.error.set('That code was not accepted. Codes expire quickly — try a fresh one.');
         this.codeForm.reset();
+      } else {
+        this.error.set(this.messageFor(err));
       }
     } finally {
       this.busy.set(false);

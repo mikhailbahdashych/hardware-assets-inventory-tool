@@ -19,13 +19,23 @@ export class TotpService {
     }).toString();
   }
 
-  /** Accepts the current code or its immediate neighbors; never throws. */
-  verify(code: string, secret: string): boolean {
+  /**
+   * Validates the code (current step ±1) and returns the absolute time-step
+   * it matched, or null. Callers persist the step to reject replays.
+   */
+  validateStep(code: string, secret: string): number | null {
     try {
       const totp = new OTPAuth.TOTP({ secret: OTPAuth.Secret.fromBase32(secret) });
-      return totp.validate({ token: code, window: WINDOW }) !== null;
+      const delta = totp.validate({ token: code.replace(/\s+/g, ''), window: WINDOW });
+      if (delta === null) return null;
+      return Math.floor(Date.now() / 30_000) + delta;
     } catch {
-      return false;
+      return null;
     }
+  }
+
+  /** Accepts the current code or its immediate neighbors; never throws. */
+  verify(code: string, secret: string): boolean {
+    return this.validateStep(code, secret) !== null;
   }
 }

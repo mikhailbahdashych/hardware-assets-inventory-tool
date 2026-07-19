@@ -67,3 +67,6 @@ export interface MfaVerifyResponse {
   /** Shown exactly once — the server stores only hashes. */
   recoveryCodes: string[];
 }
+
+/** 403 message the API emits when MFA enrollment blocks a route — the web app routes on it. */
+export const MFA_ENROLLMENT_REQUIRED_MESSAGE = 'mfa enrollment required';

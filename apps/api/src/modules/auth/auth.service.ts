@@ -3,6 +3,7 @@ import {
   ConflictException,
   ForbiddenException,
   Injectable,
+  Logger,
   UnauthorizedException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -23,6 +24,8 @@ const SETUP_ADVISORY_LOCK_KEY = 7_150_001;
 
 @Injectable()
 export class AuthService {
+  private readonly logger = new Logger(AuthService.name);
+
   /** Verified against on unknown emails so response timing never reveals account existence. */
   private dummyHashPromise: Promise<string> | null = null;
 
@@ -142,14 +145,36 @@ export class AuthService {
     });
   }
 
-  /** Decrypts the stored TOTP seed and checks the code. False on any failure. */
-  verifyTotp(user: User, code: string): boolean {
-    if (!user.mfaSecret) return false;
+  /**
+   * Decrypts the stored TOTP seed and validates the code, returning the
+   * matched time-step (null on failure). Decrypt failures are loud in the
+   * logs — they mean data corruption or a rotated APP_ENCRYPTION_KEY.
+   */
+  private matchTotpStep(user: User, code: string): number | null {
+    if (!user.mfaSecret) return null;
+    let secret: string;
     try {
-      return this.totp.verify(code, this.crypto.decrypt(user.mfaSecret));
+      secret = this.crypto.decrypt(user.mfaSecret);
     } catch {
-      return false;
+      this.logger.warn(
+        `cannot decrypt mfaSecret for user ${user.id} — corrupted data or rotated APP_ENCRYPTION_KEY`,
+      );
+      return null;
     }
+    return this.totp.validateStep(code, secret);
+  }
+
+  /**
+   * Validates a TOTP code AND persists the accepted time-step so the same
+   * code can never be replayed (RFC 6238 §5.2).
+   */
+  private async consumeTotp(user: User, code: string): Promise<boolean> {
+    const step = this.matchTotpStep(user, code);
+    if (step === null) return false;
+    if (user.mfaLastUsedStep !== null && step <= user.mfaLastUsedStep) return false;
+    user.mfaLastUsedStep = step;
+    await this.users.save(user);
+    return true;
   }
 
   /** Generates (or regenerates, while unverified) the TOTP secret. 409 once enabled. */
@@ -169,7 +194,7 @@ export class AuthService {
     const user = await this.users.findOne({ where: { id: userId } });
     if (!user || !user.isActive) throw new UnauthorizedException();
     if (user.mfaEnabled) throw new ConflictException('mfa is already enabled');
-    if (!user.mfaSecret || !this.verifyTotp(user, code)) {
+    if (!user.mfaSecret || !(await this.consumeTotp(user, code))) {
       throw new BadRequestException('invalid code');
     }
 
@@ -209,6 +234,7 @@ export class AuthService {
     user.mfaSecret = null;
     user.mfaEnabled = false;
     user.mfaVerifiedAt = null;
+    user.mfaLastUsedStep = null;
     await this.users.save(user);
     await this.recoveryCodes.delete({ userId: user.id });
 
@@ -227,18 +253,23 @@ export class AuthService {
     return this.config.get<boolean>('mfaEnforceAll') === true;
   }
 
-  /** TOTP first; falls back to consuming an unused recovery code. */
+  /** TOTP first (replay-guarded); falls back to atomically consuming a recovery code. */
   async verifySecondFactor(
     user: User,
     code: string,
   ): Promise<{ ok: boolean; recoveryCode?: boolean }> {
-    if (this.verifyTotp(user, code)) return { ok: true };
+    if (await this.consumeTotp(user, code)) return { ok: true };
     const row = await this.recoveryCodes.findOne({
       where: { userId: user.id, codeHash: hashRecoveryCode(code), usedAt: IsNull() },
     });
     if (!row) return { ok: false };
-    row.usedAt = new Date();
-    await this.recoveryCodes.save(row);
+    // Conditional update — two concurrent presentations of the same code
+    // race here and exactly one wins.
+    const consumed = await this.recoveryCodes.update(
+      { id: row.id, usedAt: IsNull() },
+      { usedAt: new Date() },
+    );
+    if (!consumed.affected) return { ok: false };
     return { ok: true, recoveryCode: true };
   }
 

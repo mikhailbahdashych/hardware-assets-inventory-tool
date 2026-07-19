@@ -29,7 +29,8 @@ export class CryptoService {
   /** Throws on tampered/foreign/malformed input — callers treat that as data corruption. */
   decrypt(blob: string): string {
     const [iv, ciphertext, tag] = blob.split('.').map((part) => Buffer.from(part, 'base64'));
-    if (!iv?.length || !ciphertext?.length || !tag?.length) {
+    if (!iv?.length || !ciphertext?.length || tag?.length !== 16) {
+      // Full-length GCM tag only — Node otherwise accepts truncated tags.
       throw new Error('malformed encrypted blob');
     }
     const decipher = createDecipheriv(ALGORITHM, this.key, iv);

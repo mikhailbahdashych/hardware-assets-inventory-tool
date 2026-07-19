@@ -130,6 +130,7 @@ export class AuthController {
   @Post('mfa/verify')
   @HttpCode(200)
   @AllowedDuringMfaEnrollment()
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
   async mfaVerify(
     @CurrentUser() authed: AuthenticatedUser,
     @Body() dto: MfaCodeDto,
@@ -138,7 +139,9 @@ export class AuthController {
   ): Promise<MfaVerifyResponse> {
     const ctx = this.ctxFrom(req);
     const recoveryCodes = await this.auth.confirmMfaEnrollment(authed.userId, dto.code, ctx);
-    // Reissue the session so the mfp claim clears immediately.
+    // Enabling MFA is a trust upgrade: every other session dies, and the
+    // mfp claim clears immediately on this one via fresh cookies.
+    await this.tokens.revokeAllForUser(authed.userId);
     const user = await this.auth.findById(authed.userId);
     if (user) await this.issueSession(res, user, ctx);
     return { recoveryCodes };
@@ -146,6 +149,7 @@ export class AuthController {
 
   @Delete('mfa')
   @HttpCode(204)
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
   async mfaDisable(
     @CurrentUser() authed: AuthenticatedUser,
     @Body() dto: MfaCodeDto,
@@ -154,6 +158,7 @@ export class AuthController {
   ): Promise<void> {
     const ctx = this.ctxFrom(req);
     const user = await this.auth.disableMfa(authed.userId, dto.code, ctx);
+    await this.tokens.revokeAllForUser(authed.userId);
     await this.issueSession(res, user, ctx);
   }
 
