@@ -1,5 +1,6 @@
 import { Component, computed, inject } from '@angular/core';
 import { Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
+import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatListModule } from '@angular/material/list';
@@ -53,6 +54,7 @@ const NAV_ITEMS: NavItem[] = [
     RouterLink,
     RouterLinkActive,
     MatButtonModule,
+    MatDialogModule,
     MatIconModule,
     MatListModule,
     MatMenuModule,
@@ -65,6 +67,7 @@ const NAV_ITEMS: NavItem[] = [
 export class Shell {
   private readonly store = inject(AuthStore);
   private readonly router = inject(Router);
+  private readonly dialog = inject(MatDialog);
 
   protected readonly appName = APP_NAME;
   protected readonly user = this.store.user;
@@ -76,5 +79,10 @@ export class Shell {
   protected async logout(): Promise<void> {
     await this.store.logout();
     await this.router.navigate(['/login']);
+  }
+
+  protected async disableMfa(): Promise<void> {
+    const { MfaDisableDialog } = await import('../../features/auth/mfa-disable-dialog');
+    this.dialog.open(MfaDisableDialog);
   }
 }

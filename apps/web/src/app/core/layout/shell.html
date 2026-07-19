@@ -34,6 +34,11 @@
             <mat-icon>phonelink_lock</mat-icon>
             <span>Enable two-factor auth</span>
           </button>
+        } @else {
+          <button mat-menu-item (click)="disableMfa()">
+            <mat-icon>phonelink_erase</mat-icon>
+            <span>Disable two-factor auth</span>
+          </button>
         }
         <button mat-menu-item (click)="logout()">
           <mat-icon>logout</mat-icon>
