@@ -26,6 +26,8 @@ export interface AccessTokenPayload {
   role: string;
   /** mustChangePassword — gates everything except the change-password flow. */
   mcp: boolean;
+  /** MFA-enrollment pending — gates everything except the enrollment flow. */
+  mfp: boolean;
 }
 
 const TTL_PATTERN = /^(\d+)([smhd])$/;
@@ -46,11 +48,13 @@ export class TokenService {
   ) {}
 
   signAccessToken(user: User): string {
+    const enforceAll = this.config.get<boolean>('mfaEnforceAll') === true;
     const payload: AccessTokenPayload = {
       sub: user.id,
       email: user.email,
       role: user.role,
       mcp: user.mustChangePassword,
+      mfp: (user.mfaEnforced || enforceAll) && !user.mfaEnabled,
     };
     return this.jwt.sign(payload, {
       secret: this.config.getOrThrow<string>('jwt.accessSecret'),

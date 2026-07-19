@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   HttpCode,
   Post,
@@ -11,7 +12,12 @@ import {
 import { Throttle } from '@nestjs/throttler';
 import { ConfigService } from '@nestjs/config';
 import type { Request, Response } from 'express';
-import { AuditAction, MfaRequiredResponse } from '@inventory/shared';
+import {
+  AuditAction,
+  MfaRequiredResponse,
+  MfaSetupResponse,
+  MfaVerifyResponse,
+} from '@inventory/shared';
 import { User } from '../users/entities/user.entity';
 import { AuthService } from './auth.service';
 import { RefreshReuseException, TokenContext, TokenService } from './token.service';
@@ -19,10 +25,12 @@ import { AuditService } from '../audit/audit.service';
 import { SetupDto } from './dto/setup.dto';
 import { LoginDto } from './dto/login.dto';
 import { MfaLoginDto } from './dto/mfa-login.dto';
+import { MfaCodeDto } from './dto/mfa-code.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
 import { ACCESS_COOKIE, REFRESH_COOKIE, REFRESH_COOKIE_PATH } from './auth.constants';
 import { Public } from '../../common/decorators/public.decorator';
 import { AllowedDuringPasswordChange } from '../../common/decorators/allowed-during-password-change.decorator';
+import { AllowedDuringMfaEnrollment } from '../../common/decorators/allowed-during-mfa-enrollment.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import type { AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 
@@ -105,15 +113,54 @@ export class AuthController {
 
   @Get('me')
   @AllowedDuringPasswordChange()
+  @AllowedDuringMfaEnrollment()
   async me(@CurrentUser() authed: AuthenticatedUser): Promise<User> {
     const user = await this.auth.findById(authed.userId);
     if (!user || !user.isActive) throw new UnauthorizedException();
     return user;
   }
 
+  @Post('mfa/setup')
+  @HttpCode(200)
+  @AllowedDuringMfaEnrollment()
+  async mfaSetup(@CurrentUser() authed: AuthenticatedUser): Promise<MfaSetupResponse> {
+    return this.auth.startMfaEnrollment(authed.userId);
+  }
+
+  @Post('mfa/verify')
+  @HttpCode(200)
+  @AllowedDuringMfaEnrollment()
+  async mfaVerify(
+    @CurrentUser() authed: AuthenticatedUser,
+    @Body() dto: MfaCodeDto,
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ): Promise<MfaVerifyResponse> {
+    const ctx = this.ctxFrom(req);
+    const recoveryCodes = await this.auth.confirmMfaEnrollment(authed.userId, dto.code, ctx);
+    // Reissue the session so the mfp claim clears immediately.
+    const user = await this.auth.findById(authed.userId);
+    if (user) await this.issueSession(res, user, ctx);
+    return { recoveryCodes };
+  }
+
+  @Delete('mfa')
+  @HttpCode(204)
+  async mfaDisable(
+    @CurrentUser() authed: AuthenticatedUser,
+    @Body() dto: MfaCodeDto,
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ): Promise<void> {
+    const ctx = this.ctxFrom(req);
+    const user = await this.auth.disableMfa(authed.userId, dto.code, ctx);
+    await this.issueSession(res, user, ctx);
+  }
+
   @Post('change-password')
   @HttpCode(204)
   @AllowedDuringPasswordChange()
+  @AllowedDuringMfaEnrollment()
   async changePassword(
     @CurrentUser() authed: AuthenticatedUser,
     @Body() dto: ChangePasswordDto,
@@ -169,6 +216,7 @@ export class AuthController {
   @Post('logout')
   @HttpCode(204)
   @AllowedDuringPasswordChange()
+  @AllowedDuringMfaEnrollment()
   async logout(@Req() req: Request, @Res({ passthrough: true }) res: Response): Promise<void> {
     const raw = this.refreshCookie(req);
     if (raw) await this.tokens.revoke(raw);

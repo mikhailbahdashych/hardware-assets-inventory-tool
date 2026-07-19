@@ -12,6 +12,7 @@ export interface TestUserSpec {
   role: UserRole;
   displayName?: string;
   mustChangePassword?: boolean;
+  mfaEnforced?: boolean;
   isActive?: boolean;
 }
 
@@ -43,6 +44,7 @@ export async function createUser(ds: DataSource, spec: TestUserSpec): Promise<Us
       displayName: spec.displayName ?? spec.email.split('@')[0],
       role: spec.role,
       mustChangePassword: spec.mustChangePassword ?? false,
+      mfaEnforced: spec.mfaEnforced ?? false,
       isActive: spec.isActive ?? true,
     }),
   );

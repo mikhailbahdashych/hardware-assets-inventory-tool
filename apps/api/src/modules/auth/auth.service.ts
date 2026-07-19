@@ -1,15 +1,17 @@
 import {
   BadRequestException,
+  ConflictException,
   ForbiddenException,
   Injectable,
   UnauthorizedException,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, IsNull, Repository } from 'typeorm';
 import { AuditAction, UserRole } from '@inventory/shared';
 import { User } from '../users/entities/user.entity';
 import { MfaRecoveryCode } from './entities/mfa-recovery-code.entity';
-import { hashRecoveryCode } from './recovery-codes';
+import { generateRecoveryCodes, hashRecoveryCode } from './recovery-codes';
 import { PasswordService } from './password.service';
 import { AuditService } from '../audit/audit.service';
 import { CryptoService } from './crypto.service';
@@ -34,6 +36,7 @@ export class AuthService {
     private readonly audit: AuditService,
     private readonly crypto: CryptoService,
     private readonly totp: TotpService,
+    private readonly config: ConfigService,
   ) {}
 
   private dummyHash(): Promise<string> {
@@ -147,6 +150,81 @@ export class AuthService {
     } catch {
       return false;
     }
+  }
+
+  /** Generates (or regenerates, while unverified) the TOTP secret. 409 once enabled. */
+  async startMfaEnrollment(userId: string): Promise<{ otpauthUri: string }> {
+    const user = await this.users.findOne({ where: { id: userId } });
+    if (!user || !user.isActive) throw new UnauthorizedException();
+    if (user.mfaEnabled) throw new ConflictException('mfa is already enabled');
+
+    const secret = this.totp.generateSecret();
+    user.mfaSecret = this.crypto.encrypt(secret);
+    await this.users.save(user);
+    return { otpauthUri: this.totp.otpauthUri(user.email, secret) };
+  }
+
+  /** Confirms the code against the pending secret; activates MFA; returns raw recovery codes. */
+  async confirmMfaEnrollment(userId: string, code: string, ctx: TokenContext): Promise<string[]> {
+    const user = await this.users.findOne({ where: { id: userId } });
+    if (!user || !user.isActive) throw new UnauthorizedException();
+    if (user.mfaEnabled) throw new ConflictException('mfa is already enabled');
+    if (!user.mfaSecret || !this.verifyTotp(user, code)) {
+      throw new BadRequestException('invalid code');
+    }
+
+    user.mfaEnabled = true;
+    user.mfaVerifiedAt = new Date();
+    await this.users.save(user);
+
+    const codes = generateRecoveryCodes();
+    await this.recoveryCodes.delete({ userId: user.id });
+    await this.recoveryCodes.save(
+      codes.map((c) =>
+        this.recoveryCodes.create({ userId: user.id, codeHash: hashRecoveryCode(c) }),
+      ),
+    );
+
+    await this.audit.log({
+      actorId: user.id,
+      actorEmail: user.email,
+      action: AuditAction.MFA_SETUP,
+      entityType: 'User',
+      entityId: user.id,
+      metadata: { ip: ctx.ip ?? null, userAgent: ctx.userAgent ?? null },
+    });
+    return codes;
+  }
+
+  /** Voluntary opt-out. Blocked when enforcement applies; requires a valid second factor. */
+  async disableMfa(userId: string, code: string, ctx: TokenContext): Promise<User> {
+    const user = await this.users.findOne({ where: { id: userId } });
+    if (!user || !user.isActive || !user.mfaEnabled) throw new UnauthorizedException();
+    if (user.mfaEnforced || this.mfaEnforceAll()) {
+      throw new ForbiddenException('mfa is enforced for this account');
+    }
+    const passed = await this.verifySecondFactor(user, code);
+    if (!passed.ok) throw new BadRequestException('invalid code');
+
+    user.mfaSecret = null;
+    user.mfaEnabled = false;
+    user.mfaVerifiedAt = null;
+    await this.users.save(user);
+    await this.recoveryCodes.delete({ userId: user.id });
+
+    await this.audit.log({
+      actorId: user.id,
+      actorEmail: user.email,
+      action: AuditAction.MFA_DISABLED,
+      entityType: 'User',
+      entityId: user.id,
+      metadata: { ip: ctx.ip ?? null, userAgent: ctx.userAgent ?? null },
+    });
+    return user;
+  }
+
+  private mfaEnforceAll(): boolean {
+    return this.config.get<boolean>('mfaEnforceAll') === true;
   }
 
   /** TOTP first; falls back to consuming an unused recovery code. */
