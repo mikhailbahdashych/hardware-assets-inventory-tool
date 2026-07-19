@@ -18,6 +18,8 @@ export interface SessionUser {
   mustChangePassword: boolean;
   mfaEnabled: boolean;
   mfaEnforced: boolean;
+  /** ISO timestamp (serialized Date). */
+  createdAt: string;
 }
 
 export interface SetupRequest {

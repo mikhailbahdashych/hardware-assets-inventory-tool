@@ -29,7 +29,6 @@ const NAV_ITEMS: NavItem[] = [
     icon: 'manage_accounts',
     path: '/admin/users',
     roles: [UserRole.ADMIN],
-    disabled: true,
   },
   {
     label: 'Asset types',
