@@ -128,6 +128,32 @@ export class TokenService {
     await this.refreshTokens.update({ userId, revokedAt: IsNull() }, { revokedAt: new Date() });
   }
 
+  /**
+   * Short-lived pass between the password step and the TOTP step. Signed with
+   * jwt.refreshSecret (deliberately distinct from the access secret) and
+   * purpose-scoped, so a ticket can never pass the access-cookie extractor
+   * and an access token can never act as a ticket.
+   */
+  signMfaTicket(userId: string): string {
+    return this.jwt.sign(
+      { sub: userId, purpose: 'mfa' },
+      { secret: this.config.getOrThrow<string>('jwt.refreshSecret'), expiresIn: 300 },
+    );
+  }
+
+  /** Returns the userId or throws UnauthorizedException (bad/expired/wrong-purpose). */
+  verifyMfaTicket(ticket: string): string {
+    try {
+      const payload = this.jwt.verify<{ sub: string; purpose?: string }>(ticket, {
+        secret: this.config.getOrThrow<string>('jwt.refreshSecret'),
+      });
+      if (payload.purpose !== 'mfa' || !payload.sub) throw new Error('wrong purpose');
+      return payload.sub;
+    } catch {
+      throw new UnauthorizedException('invalid mfa ticket');
+    }
+  }
+
   accessTtlMs(): number {
     return this.ttlMs('jwt.accessTtl');
   }

@@ -5,11 +5,15 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { DataSource, Repository } from 'typeorm';
+import { DataSource, IsNull, Repository } from 'typeorm';
 import { AuditAction, UserRole } from '@inventory/shared';
 import { User } from '../users/entities/user.entity';
+import { MfaRecoveryCode } from './entities/mfa-recovery-code.entity';
+import { hashRecoveryCode } from './recovery-codes';
 import { PasswordService } from './password.service';
 import { AuditService } from '../audit/audit.service';
+import { CryptoService } from './crypto.service';
+import { TotpService } from './totp.service';
 import { TokenContext } from './token.service';
 
 /** Serializes first-run setup across concurrent requests (arbitrary constant). */
@@ -23,9 +27,13 @@ export class AuthService {
   constructor(
     @InjectRepository(User)
     private readonly users: Repository<User>,
+    @InjectRepository(MfaRecoveryCode)
+    private readonly recoveryCodes: Repository<MfaRecoveryCode>,
     private readonly dataSource: DataSource,
     private readonly passwords: PasswordService,
     private readonly audit: AuditService,
+    private readonly crypto: CryptoService,
+    private readonly totp: TotpService,
   ) {}
 
   private dummyHash(): Promise<string> {
@@ -73,8 +81,12 @@ export class AuthService {
     return user;
   }
 
-  /** Validates credentials; audits both outcomes. Throws 401 (bad creds) / 403 (inactive). */
-  async validateLogin(email: string, password: string, ctx: TokenContext): Promise<User> {
+  /**
+   * Validates email+password only — does NOT record a completed login (the
+   * caller decides: full session for password-only users, MFA ticket first
+   * for enrolled ones). Audits failures. Throws 401 (bad creds) / 403 (inactive).
+   */
+  async validateCredentials(email: string, password: string, ctx: TokenContext): Promise<User> {
     const normalized = email.toLowerCase();
     const user = await this.users.findOne({ where: { email: normalized } });
     let valid = false;
@@ -102,16 +114,54 @@ export class AuthService {
       });
       throw new ForbiddenException('account is deactivated');
     }
+    return user;
+  }
 
+  /** Marks a fully completed login (after password, and after TOTP when enabled). */
+  async recordLogin(
+    user: User,
+    ctx: TokenContext,
+    viaMfa: boolean,
+    usedRecoveryCode = false,
+  ): Promise<void> {
     user.lastLoginAt = new Date();
     await this.users.save(user);
     await this.audit.log({
       actorId: user.id,
       actorEmail: user.email,
       action: AuditAction.LOGIN,
-      metadata: { ip: ctx.ip ?? null, userAgent: ctx.userAgent ?? null },
+      metadata: {
+        ip: ctx.ip ?? null,
+        userAgent: ctx.userAgent ?? null,
+        mfa: viaMfa,
+        ...(usedRecoveryCode ? { recoveryCode: true } : {}),
+      },
     });
-    return user;
+  }
+
+  /** Decrypts the stored TOTP seed and checks the code. False on any failure. */
+  verifyTotp(user: User, code: string): boolean {
+    if (!user.mfaSecret) return false;
+    try {
+      return this.totp.verify(code, this.crypto.decrypt(user.mfaSecret));
+    } catch {
+      return false;
+    }
+  }
+
+  /** TOTP first; falls back to consuming an unused recovery code. */
+  async verifySecondFactor(
+    user: User,
+    code: string,
+  ): Promise<{ ok: boolean; recoveryCode?: boolean }> {
+    if (this.verifyTotp(user, code)) return { ok: true };
+    const row = await this.recoveryCodes.findOne({
+      where: { userId: user.id, codeHash: hashRecoveryCode(code), usedAt: IsNull() },
+    });
+    if (!row) return { ok: false };
+    row.usedAt = new Date();
+    await this.recoveryCodes.save(row);
+    return { ok: true, recoveryCode: true };
   }
 
   findById(id: string): Promise<User | null> {

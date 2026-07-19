@@ -11,13 +11,14 @@ import {
 import { Throttle } from '@nestjs/throttler';
 import { ConfigService } from '@nestjs/config';
 import type { Request, Response } from 'express';
-import { AuditAction } from '@inventory/shared';
+import { AuditAction, MfaRequiredResponse } from '@inventory/shared';
 import { User } from '../users/entities/user.entity';
 import { AuthService } from './auth.service';
 import { RefreshReuseException, TokenContext, TokenService } from './token.service';
 import { AuditService } from '../audit/audit.service';
 import { SetupDto } from './dto/setup.dto';
 import { LoginDto } from './dto/login.dto';
+import { MfaLoginDto } from './dto/mfa-login.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
 import { ACCESS_COOKIE, REFRESH_COOKIE, REFRESH_COOKIE_PATH } from './auth.constants';
 import { Public } from '../../common/decorators/public.decorator';
@@ -61,9 +62,43 @@ export class AuthController {
     @Body() dto: LoginDto,
     @Req() req: Request,
     @Res({ passthrough: true }) res: Response,
+  ): Promise<User | MfaRequiredResponse> {
+    const ctx = this.ctxFrom(req);
+    const user = await this.auth.validateCredentials(dto.email, dto.password, ctx);
+    if (user.mfaEnabled) {
+      return { mfaRequired: true, ticket: this.tokens.signMfaTicket(user.id) };
+    }
+    await this.auth.recordLogin(user, ctx, false);
+    await this.issueSession(res, user, ctx);
+    return user;
+  }
+
+  @Public()
+  @Post('login/mfa')
+  @HttpCode(200)
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
+  async loginMfa(
+    @Body() dto: MfaLoginDto,
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
   ): Promise<User> {
     const ctx = this.ctxFrom(req);
-    const user = await this.auth.validateLogin(dto.email, dto.password, ctx);
+    const userId = this.tokens.verifyMfaTicket(dto.ticket);
+    const user = await this.auth.findById(userId);
+    if (!user || !user.isActive || !user.mfaEnabled) throw new UnauthorizedException();
+
+    const passed = await this.auth.verifySecondFactor(user, dto.code);
+    if (!passed.ok) {
+      await this.audit.log({
+        actorId: user.id,
+        actorEmail: user.email,
+        action: AuditAction.LOGIN_MFA_FAILED,
+        metadata: { ip: ctx.ip ?? null, userAgent: ctx.userAgent ?? null },
+      });
+      throw new UnauthorizedException('invalid code');
+    }
+
+    await this.auth.recordLogin(user, ctx, true, passed.recoveryCode === true);
     await this.issueSession(res, user, ctx);
     return user;
   }
