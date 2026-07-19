@@ -117,7 +117,7 @@ export class UsersService {
       for (const key of ['displayName', 'role', 'isActive', 'mfaEnforced'] as const) {
         if (changes[key] !== undefined && changes[key] !== target[key]) {
           beforeDiff[key] = target[key];
-          (target as Record<string, unknown>)[key] = changes[key];
+          (target as unknown as Record<string, unknown>)[key] = changes[key];
         }
       }
       const saved = await manager.save(target);
