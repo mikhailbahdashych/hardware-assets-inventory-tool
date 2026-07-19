@@ -1,6 +1,12 @@
 import { computed, inject, Injectable, signal } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
-import { SessionUser, SetupRequest, UserRole } from '@inventory/shared';
+import {
+  isMfaRequired,
+  LoginResponse,
+  SessionUser,
+  SetupRequest,
+  UserRole,
+} from '@inventory/shared';
 import { AuthApi } from './auth.api';
 
 export type AuthStatus = 'unknown' | 'authed' | 'anon';
@@ -29,8 +35,16 @@ export class AuthStore {
     }
   }
 
-  async login(email: string, password: string): Promise<SessionUser> {
-    const user = await firstValueFrom(this.api.login({ email, password }));
+  /** Password step. Applies the session only when no second factor is pending. */
+  async login(email: string, password: string): Promise<LoginResponse> {
+    const response = await firstValueFrom(this.api.login({ email, password }));
+    if (!isMfaRequired(response)) this.applyUser(response);
+    return response;
+  }
+
+  /** Second factor: TOTP or recovery code against the login ticket. */
+  async loginMfa(ticket: string, code: string): Promise<SessionUser> {
+    const user = await firstValueFrom(this.api.loginMfa({ ticket, code }));
     this.applyUser(user);
     return user;
   }

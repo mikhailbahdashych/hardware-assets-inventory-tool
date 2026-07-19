@@ -47,6 +47,14 @@ export const mustChangePasswordGuard: CanActivateFn = () => {
   return store.user()?.mustChangePassword ? router.createUrlTree(['/change-password']) : true;
 };
 
+/** Users under per-account MFA enforcement who haven't enrolled are pinned to setup. */
+export const mfaEnrollmentGuard: CanActivateFn = () => {
+  const store = inject(AuthStore);
+  const router = inject(Router);
+  const user = store.user();
+  return user && user.mfaEnforced && !user.mfaEnabled ? router.createUrlTree(['/mfa-setup']) : true;
+};
+
 /** Route factory: restrict to the given roles (others land on the dashboard). */
 export const roleGuard =
   (...roles: UserRole[]): CanActivateFn =>

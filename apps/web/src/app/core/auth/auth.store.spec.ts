@@ -60,6 +60,25 @@ describe('AuthStore', () => {
     expect(store.user()).toBeNull();
   });
 
+  it('login with an MFA challenge does NOT establish a session', async () => {
+    const done = store.login('a@b.c', 'pw-long-enough');
+    http.expectOne('/api/v1/auth/login').flush({ mfaRequired: true, ticket: 't-123' });
+    const response = await done;
+    expect('mfaRequired' in response).toBe(true);
+    expect(store.status()).toBe('unknown');
+    expect(store.user()).toBeNull();
+  });
+
+  it('loginMfa completes the challenge and applies the session', async () => {
+    const done = store.loginMfa('t-123', '654321');
+    const req = http.expectOne('/api/v1/auth/login/mfa');
+    expect(req.request.body).toEqual({ ticket: 't-123', code: '654321' });
+    req.flush(USER);
+    await done;
+    expect(store.status()).toBe('authed');
+    expect(store.user()?.email).toBe('a@b.c');
+  });
+
   it('changePassword clears the mustChangePassword flag locally', async () => {
     store.applyUser({ ...USER, mustChangePassword: true });
     const done = store.changePassword('old-password-1', 'new-password-12');

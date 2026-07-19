@@ -23,6 +23,17 @@ export const authInterceptor: HttpInterceptorFn = (req, next) => {
 
   return next(req).pipe(
     catchError((err: unknown) => {
+      // Instance-wide MFA enforcement (MFA_ENFORCE_ALL) surfaces as 403s the
+      // route guards can't predict from the user object — route to enrollment.
+      if (
+        err instanceof HttpErrorResponse &&
+        err.status === 403 &&
+        (err.error as { message?: string } | null)?.message === 'mfa enrollment required'
+      ) {
+        void router.navigate(['/mfa-setup']);
+        return throwError(() => err);
+      }
+
       const isFinal =
         !(err instanceof HttpErrorResponse) || err.status !== 401 || NO_RETRY.test(req.url);
       if (isFinal) return throwError(() => err);
