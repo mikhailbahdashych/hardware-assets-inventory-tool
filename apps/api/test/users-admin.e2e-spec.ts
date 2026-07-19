@@ -50,10 +50,15 @@ describe('Users admin (e2e)', () => {
   it('every route is admin-only', async () => {
     const manager = await loginAgent('manager@t.co');
     const viewer = await loginAgent('viewer@t.co');
+    const someId = '00000000-0000-4000-8000-000000000000';
     await manager.get('/api/v1/users').expect(403);
     await viewer.get('/api/v1/users').expect(403);
     await request(app.getHttpServer()).get('/api/v1/users').expect(401);
     await manager.post('/api/v1/users').send({}).expect(403);
+    await manager.patch(`/api/v1/users/${someId}`).send({}).expect(403);
+    await manager.post(`/api/v1/users/${someId}/reset-password`).expect(403);
+    await manager.post(`/api/v1/users/${someId}/mfa/reset`).expect(403);
+    await viewer.get(`/api/v1/users/${someId}`).expect(403);
   });
 
   it('lists users with pagination and escaped search', async () => {
@@ -161,10 +166,20 @@ describe('Users admin (e2e)', () => {
     await admin.patch(`/api/v1/users/${admin2Id}`).send({ role: UserRole.MANAGER }).expect(200);
 
     // admin2's access token still carries the admin role claim (≤15 min
-    // staleness by design) — but root is now the LAST active admin, so the
-    // invariant must refuse regardless of who asks.
-    await admin2.patch(`/api/v1/users/${rootId}`).send({ role: UserRole.MANAGER }).expect(409);
-    await admin2.patch(`/api/v1/users/${rootId}`).send({ isActive: false }).expect(409);
+    // staleness by design), but every mutating route re-checks the actor
+    // against the DATABASE — the demoted admin gets 403 everywhere, closing
+    // the takeover primitives (reset the last admin's password, mint a new
+    // admin) that pure claim checks would have allowed.
+    await admin2.patch(`/api/v1/users/${rootId}`).send({ role: UserRole.MANAGER }).expect(403);
+    await admin2.patch(`/api/v1/users/${rootId}`).send({ isActive: false }).expect(403);
+    await admin2.post(`/api/v1/users/${rootId}/reset-password`).expect(403);
+    await admin2
+      .post('/api/v1/users')
+      .send({ email: 'evil@t.co', displayName: 'Evil', role: UserRole.ADMIN })
+      .expect(403);
+    // Self-service resets are refused for admins on their own account.
+    await admin.post(`/api/v1/users/${rootId}/reset-password`).expect(409);
+    await admin.post(`/api/v1/users/${rootId}/mfa/reset`).expect(409);
 
     const admins: Array<{ count: number }> = await ds.query(
       `SELECT count(*)::int AS count FROM users WHERE role = 'admin' AND is_active = true`,

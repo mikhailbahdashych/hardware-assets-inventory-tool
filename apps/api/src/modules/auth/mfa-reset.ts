@@ -13,15 +13,19 @@ import { MfaRecoveryCode } from './entities/mfa-recovery-code.entity';
  * the audit entry (different actors/metadata).
  */
 export async function resetUserMfa(manager: EntityManager, user: User): Promise<void> {
-  user.mfaSecret = null;
-  user.mfaEnabled = false;
-  user.mfaVerifiedAt = null;
-  user.mfaLastUsedStep = null;
-  await manager.save(user);
-  await manager.delete(MfaRecoveryCode, { userId: user.id });
-  await manager.update(
-    RefreshToken,
-    { userId: user.id, revokedAt: IsNull() },
-    { revokedAt: new Date() },
-  );
+  // Transactional: a partial reset (enrollment cleared but sessions alive, or
+  // stale recovery codes surviving re-enrollment) is a security hole.
+  await manager.transaction(async (tx) => {
+    user.mfaSecret = null;
+    user.mfaEnabled = false;
+    user.mfaVerifiedAt = null;
+    user.mfaLastUsedStep = null;
+    await tx.save(user);
+    await tx.delete(MfaRecoveryCode, { userId: user.id });
+    await tx.update(
+      RefreshToken,
+      { userId: user.id, revokedAt: IsNull() },
+      { revokedAt: new Date() },
+    );
+  });
 }

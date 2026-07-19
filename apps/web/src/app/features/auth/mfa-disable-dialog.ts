@@ -82,11 +82,13 @@ export class MfaDisableDialog {
       await this.store.init();
       this.ref.close(true);
     } catch (err) {
-      this.error.set(
-        err instanceof HttpErrorResponse && err.status === 403
-          ? 'MFA is enforced on this account and cannot be disabled.'
-          : 'That code was not accepted — try a fresh one.',
-      );
+      if (err instanceof HttpErrorResponse && err.status === 403) {
+        this.error.set('MFA is enforced on this account and cannot be disabled.');
+      } else if (err instanceof HttpErrorResponse && err.status === 429) {
+        this.error.set('Too many attempts — wait a minute and try again.');
+      } else {
+        this.error.set('That code was not accepted — try a fresh one.');
+      }
     } finally {
       this.busy.set(false);
     }

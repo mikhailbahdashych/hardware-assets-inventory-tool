@@ -88,7 +88,7 @@
           <mat-icon>lock_reset</mat-icon>
           <span>Reset password</span>
         </button>
-        <button mat-menu-item (click)="resetMfa(u)" [disabled]="!u.mfaEnabled">
+        <button mat-menu-item (click)="resetMfa(u)" [disabled]="!u.mfaEnabled || isSelf(u)">
           <mat-icon>phonelink_erase</mat-icon>
           <span>Reset MFA</span>
         </button>

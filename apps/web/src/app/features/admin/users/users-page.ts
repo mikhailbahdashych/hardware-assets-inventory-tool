@@ -93,6 +93,8 @@ export class UsersPage implements OnInit {
       );
       this.users.set(result.items);
       this.total.set(result.total);
+    } catch (err) {
+      this.snack.open(this.messageFor(err, 'Could not load users.'), 'OK', { duration: 5000 });
     } finally {
       this.busy.set(false);
     }

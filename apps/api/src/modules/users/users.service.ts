@@ -1,9 +1,15 @@
-import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  ConflictException,
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, Repository } from 'typeorm';
 import { AuditAction, Paginated, UserRole } from '@inventory/shared';
 import { User } from './entities/user.entity';
 import { generateTempPassword } from './temp-password';
+import { escapeLike } from '../../common/utils/escape-like';
 import { PasswordService } from '../auth/password.service';
 import { TokenService, TokenContext } from '../auth/token.service';
 import { AuditService } from '../audit/audit.service';
@@ -27,10 +33,26 @@ export class UsersService {
     private readonly audit: AuditService,
   ) {}
 
+  /**
+   * The JWT role claim can be up to one access-TTL stale. For mutations on
+   * this privilege surface (create admins, reset passwords/MFA), a freshly
+   * demoted or deactivated admin must lose their powers IMMEDIATELY — so the
+   * actor is re-checked against the database, not the token.
+   */
+  private async assertActiveAdmin(actorId: string): Promise<void> {
+    const actor = await this.users.findOne({ where: { id: actorId } });
+    if (!actor || !actor.isActive || actor.role !== UserRole.ADMIN) {
+      throw new ForbiddenException('admin privileges required');
+    }
+  }
+
   async list(page: number, pageSize: number, search?: string): Promise<Paginated<User>> {
-    const qb = this.users.createQueryBuilder('u').orderBy('u.createdAt', 'ASC');
+    const qb = this.users
+      .createQueryBuilder('u')
+      .orderBy('u.createdAt', 'ASC')
+      .addOrderBy('u.id', 'ASC');
     if (search) {
-      const pattern = `%${search.replace(/[\\%_]/g, '\\$&')}%`;
+      const pattern = `%${escapeLike(search)}%`;
       qb.where('(u.email ILIKE :pattern OR u.displayName ILIKE :pattern)', { pattern });
     }
     const [items, total] = await qb
@@ -51,6 +73,7 @@ export class UsersService {
     actor: AuthenticatedUser,
     ctx: TokenContext,
   ): Promise<{ user: User; tempPassword: string }> {
+    await this.assertActiveAdmin(actor.userId);
     const tempPassword = generateTempPassword();
     const passwordHash = await this.passwords.hash(tempPassword);
     let user: User;
@@ -89,6 +112,7 @@ export class UsersService {
     actor: AuthenticatedUser,
     ctx: TokenContext,
   ): Promise<User> {
+    await this.assertActiveAdmin(actor.userId);
     const demotesOrDeactivates =
       (changes.role !== undefined && changes.role !== UserRole.ADMIN) || changes.isActive === false;
 
@@ -105,10 +129,11 @@ export class UsersService {
       if (!target) throw new NotFoundException('user not found');
 
       if (target.role === UserRole.ADMIN && target.isActive && demotesOrDeactivates) {
-        const otherActiveAdmins = await manager.count(User, {
+        // Counts ALL active admins including the target — <=1 means it's the last one.
+        const activeAdmins = await manager.count(User, {
           where: { role: UserRole.ADMIN, isActive: true },
         });
-        if (otherActiveAdmins <= 1) {
+        if (activeAdmins <= 1) {
           throw new ConflictException('cannot demote or deactivate the last active admin');
         }
       }
@@ -124,7 +149,9 @@ export class UsersService {
       return { user: saved, before: beforeDiff };
     });
 
-    if (changes.isActive === false) {
+    // Deactivation AND role changes kill sessions: a demoted admin must not
+    // keep re-minting their old role claim via refresh for up to 15 minutes.
+    if (changes.isActive === false || before.role !== undefined) {
       await this.tokens.revokeAllForUser(user.id);
     }
 
@@ -152,6 +179,10 @@ export class UsersService {
     actor: AuthenticatedUser,
     ctx: TokenContext,
   ): Promise<{ tempPassword: string }> {
+    await this.assertActiveAdmin(actor.userId);
+    if (id === actor.userId) {
+      throw new ConflictException('use the change-password flow for your own account');
+    }
     const user = await this.findById(id);
     const tempPassword = generateTempPassword();
     user.passwordHash = await this.passwords.hash(tempPassword);
@@ -171,7 +202,14 @@ export class UsersService {
   }
 
   async resetMfa(id: string, actor: AuthenticatedUser, ctx: TokenContext): Promise<void> {
+    await this.assertActiveAdmin(actor.userId);
+    if (id === actor.userId) {
+      throw new ConflictException('use the MFA disable flow for your own account');
+    }
     const user = await this.findById(id);
+    if (!user.mfaEnabled && !user.mfaSecret) {
+      throw new ConflictException('mfa is not enabled for this user');
+    }
     await resetUserMfa(this.users.manager, user);
 
     await this.audit.log({
