@@ -4,3 +4,4 @@ coverage/
 package-lock.json
 docs/superpowers/
 .playwright-mcp/
+.remember/
