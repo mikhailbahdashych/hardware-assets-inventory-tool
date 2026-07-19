@@ -31,7 +31,7 @@ export const authInterceptor: HttpInterceptorFn = (req, next) => {
         err.status === 403 &&
         (err.error as { message?: string } | null)?.message === MFA_ENROLLMENT_REQUIRED_MESSAGE
       ) {
-        void router.navigate(['/mfa-setup']);
+        router.navigate(['/mfa-setup']).catch(() => undefined);
         return throwError(() => err);
       }
 
@@ -46,7 +46,7 @@ export const authInterceptor: HttpInterceptorFn = (req, next) => {
         })
         .catch(() => {
           store.clear();
-          void router.navigate(['/login']);
+          router.navigate(['/login']).catch(() => undefined);
           return false;
         })
         .finally(() => {
