@@ -1,6 +1,6 @@
-# Software Inventory Tool
+# Hardware Assets Inventory Tool
 
-Open-source, self-hosted IT asset inventory. Angular 22 + Angular Material frontend, NestJS 11 backend, PostgreSQL 17. npm-workspaces monorepo.
+Open-source, self-hosted hardware asset inventory. Angular 22 + Angular Material frontend, NestJS 11 backend, PostgreSQL 17. npm-workspaces monorepo. (The repo is `hardware-assets-inventory-tool`; a local checkout directory may still be named `software-inventory-tool` — the historical name.)
 
 ## Layout
 

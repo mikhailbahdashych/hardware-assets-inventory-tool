@@ -19,7 +19,7 @@ describe('TotpService', () => {
   it('builds an otpauth URI carrying issuer and account label', () => {
     const uri = service.otpauthUri('user@example.com', 'JBSWY3DPEHPK3PXP');
     expect(uri).toMatch(/^otpauth:\/\/totp\//);
-    expect(uri).toContain('issuer=Software%20Inventory');
+    expect(uri).toContain('issuer=Hardware%20Assets%20Inventory');
     expect(uri).toContain('user%40example.com');
     expect(uri).toContain('secret=JBSWY3DPEHPK3PXP');
   });
@@ -54,9 +54,16 @@ describe('TotpService', () => {
 
   it('validateStep returns the absolute time-step a code matched', () => {
     const secret = service.generateSecret();
-    const nowStep = Math.floor(Date.now() / 30_000);
-    expect(service.validateStep(codeFor(secret), secret)).toBe(nowStep);
-    expect(service.validateStep(codeFor(secret, -30_000), secret)).toBe(nowStep - 1);
+    // One timestamp for both code generation and the expectation — a step
+    // boundary between two Date.now() calls must not flake this test.
+    const ts = Date.now();
+    const expectedStep = Math.floor(ts / 30_000);
+    const codeAt = (offsetMs: number) =>
+      new OTPAuth.TOTP({ secret: OTPAuth.Secret.fromBase32(secret) }).generate({
+        timestamp: ts + offsetMs,
+      });
+    expect(service.validateStep(codeAt(0), secret)).toBe(expectedStep);
+    expect(service.validateStep(codeAt(-30_000), secret)).toBe(expectedStep - 1);
     expect(service.validateStep('000000', secret)).toBeNull();
   });
 

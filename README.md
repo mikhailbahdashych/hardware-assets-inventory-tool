@@ -1,12 +1,12 @@
-# Software Inventory Tool
+# Hardware Assets Inventory Tool
 
-Open-source, self-hosted IT asset inventory. Track hardware assets (laptops, phones, monitors, servers…), who holds them, and the full ownership history — deployed entirely inside your own infrastructure.
+Open-source, self-hosted hardware asset inventory. Track your company's devices (laptops, phones, monitors, servers…), who holds them, and the full ownership history — deployed entirely inside your own infrastructure.
 
 **Status: early development.** The stack below works; features are landing phase by phase.
 
 - Backend: NestJS 11 + PostgreSQL 17 (TypeORM, REST under `/api/v1`)
 - Frontend: Angular 22 + Angular Material
-- Auth (planned per spec): local accounts, roles (admin/manager/viewer), TOTP MFA
+- Auth: local accounts, roles (admin/manager/viewer), TOTP MFA with recovery codes
 - Deploy target: Docker Compose (separate web/api/db containers) behind your VPN/reverse proxy
 
 ## Deploy it

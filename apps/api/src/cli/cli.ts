@@ -5,31 +5,21 @@
  *
  * reset-mfa clears a user's TOTP secret, recovery codes, and enabled flag
  * (enforcement flags are left untouched — an enforced user re-enrolls at
- * next login). The action is audit-logged with metadata { cli: true }.
+ * next login) and revokes all their sessions. Audit-logged { cli: true }.
  */
-import { IsNull } from 'typeorm';
 import { AuditAction } from '@inventory/shared';
 import dataSource from '../database/data-source';
 import { User } from '../modules/users/entities/user.entity';
-import { RefreshToken } from '../modules/auth/entities/refresh-token.entity';
-import { MfaRecoveryCode } from '../modules/auth/entities/mfa-recovery-code.entity';
+import { resetUserMfa } from '../modules/auth/mfa-reset';
 import { AuditLog } from '../modules/audit/entities/audit-log.entity';
 
 async function resetMfa(email: string): Promise<void> {
-  const users = dataSource.getRepository(User);
-  const user = await users.findOne({ where: { email: email.toLowerCase() } });
+  const user = await dataSource
+    .getRepository(User)
+    .findOne({ where: { email: email.toLowerCase() } });
   if (!user) throw new Error(`no user with email ${email}`);
 
-  user.mfaSecret = null;
-  user.mfaEnabled = false;
-  user.mfaVerifiedAt = null;
-  user.mfaLastUsedStep = null;
-  await users.save(user);
-  await dataSource.getRepository(MfaRecoveryCode).delete({ userId: user.id });
-  // Compromise-driven resets must not leave live sessions behind.
-  await dataSource
-    .getRepository(RefreshToken)
-    .update({ userId: user.id, revokedAt: IsNull() }, { revokedAt: new Date() });
+  await resetUserMfa(dataSource.manager, user);
 
   await dataSource.getRepository(AuditLog).save(
     dataSource.getRepository(AuditLog).create({
@@ -42,7 +32,7 @@ async function resetMfa(email: string): Promise<void> {
     }),
   );
 
-  console.log(`MFA reset for ${user.email}.`);
+  console.log(`MFA reset for ${user.email}; all their sessions were revoked.`);
   if (user.mfaEnforced) console.log('MFA is enforced — they will re-enroll at next login.');
 }
 
