@@ -1,4 +1,7 @@
 # Development-only: runs Postgres. The API and web apps run on your host via `npm run dev`.
+# Explicit project name so container/volume names don't depend on the checkout folder name.
+name: hardware-assets-inventory-tool
+
 services:
   db:
     image: postgres:17-alpine
