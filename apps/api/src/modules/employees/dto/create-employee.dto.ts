@@ -6,11 +6,13 @@ const optionalNullable = () =>
   ValidateIf((_object, value) => value !== undefined && value !== null);
 
 export class CreateEmployeeDto {
+  @Transform(({ value }): unknown => (typeof value === 'string' ? value.trim() : value))
   @IsString()
   @MinLength(1)
   @MaxLength(100)
   firstName: string;
 
+  @Transform(({ value }): unknown => (typeof value === 'string' ? value.trim() : value))
   @IsString()
   @MinLength(1)
   @MaxLength(100)

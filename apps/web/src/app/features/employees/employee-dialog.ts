@@ -109,11 +109,11 @@ export class EmployeeDialog {
   protected readonly form = this.fb.nonNullable.group({
     firstName: [
       this.data.employee?.firstName ?? '',
-      [Validators.required, Validators.maxLength(100)],
+      [Validators.required, Validators.pattern(/\S/), Validators.maxLength(100)],
     ],
     lastName: [
       this.data.employee?.lastName ?? '',
-      [Validators.required, Validators.maxLength(100)],
+      [Validators.required, Validators.pattern(/\S/), Validators.maxLength(100)],
     ],
     email: [this.data.employee?.email ?? '', [Validators.email, Validators.maxLength(255)]],
     employeeNumber: [this.data.employee?.employeeNumber ?? '', [Validators.maxLength(64)]],

@@ -86,9 +86,13 @@ describe('EmployeeDialog', () => {
     expect(result.isActive).toBe(true);
   });
 
-  it('does not close while required fields are missing', () => {
+  it('does not close while required fields are missing or whitespace-only', () => {
     const fixture = setup({ mode: 'create' });
     setField(fixture, 'firstName', 'OnlyFirst');
+    submit(fixture);
+    expect(closeFn.calls).toHaveLength(0);
+
+    setField(fixture, 'lastName', '   ');
     submit(fixture);
     expect(closeFn.calls).toHaveLength(0);
   });

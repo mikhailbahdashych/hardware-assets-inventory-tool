@@ -152,6 +152,22 @@ describe('Employees (e2e)', () => {
     expect(auditCountAfter[0].count).toBe(auditCountBefore[0].count);
   });
 
+  it('PATCH normalizes empty/whitespace strings to null; blank names are rejected', async () => {
+    const res = await manager
+      .patch(`/api/v1/employees/${adaId}`)
+      .send({ title: '', employeeNumber: '   ' })
+      .expect(200);
+    const body = res.body as Record<string, unknown>;
+    expect(body.title).toBeNull();
+    expect(body.employeeNumber).toBeNull();
+
+    await manager.patch(`/api/v1/employees/${adaId}`).send({ firstName: '   ' }).expect(400);
+    await manager
+      .post('/api/v1/employees')
+      .send({ firstName: '   ', lastName: 'Blank' })
+      .expect(400);
+  });
+
   it('delete is blocked while assignment history references the employee', async () => {
     // Manufacture history directly: an asset type + asset + a returned assignment.
     await ds.query(`INSERT INTO asset_types (name) VALUES ('E2EType') ON CONFLICT DO NOTHING`);

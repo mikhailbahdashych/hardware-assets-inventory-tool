@@ -99,6 +99,12 @@ export class EmployeesPage implements OnInit {
           this.activeOnly() ? true : undefined,
         ),
       );
+      if (result.items.length === 0 && result.total > 0 && this.page() > 1) {
+        // The current page fell off the end (e.g. last row of the last page deleted).
+        this.page.set(Math.max(1, Math.ceil(result.total / this.pageSize())));
+        await this.load();
+        return;
+      }
       this.employees.set(result.items);
       this.total.set(result.total);
     } catch (err) {

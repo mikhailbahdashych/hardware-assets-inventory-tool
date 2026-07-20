@@ -11,6 +11,8 @@ import { TokenContext } from '../auth/token.service';
 
 /** Postgres unique-violation error code. */
 const PG_UNIQUE_VIOLATION = '23505';
+/** Postgres foreign-key-violation error code. */
+const PG_FK_VIOLATION = '23503';
 
 /** Fields the PATCH diff/audit tracks — hashes/ids can never leak by construction. */
 const EDITABLE_FIELDS = [
@@ -97,7 +99,7 @@ export class EmployeesService {
           employeeNumber: this.normalize(input.employeeNumber as string | null | undefined) ?? null,
           department: this.normalize(input.department as string | null | undefined) ?? null,
           title: this.normalize(input.title as string | null | undefined) ?? null,
-          notes: (input.notes as string | null | undefined) ?? null,
+          notes: this.normalize(input.notes as string | null | undefined) ?? null,
         }),
       );
     } catch (err) {
@@ -130,9 +132,13 @@ export class EmployeesService {
     const after: Record<string, unknown> = {};
     for (const key of EDITABLE_FIELDS) {
       if (!(key in changes) || changes[key] === undefined) continue;
-      let value = changes[key];
-      if (key === 'email' && typeof value === 'string') value = value.trim().toLowerCase();
-      else if (typeof value === 'string' && key !== 'notes') value = value.trim();
+      let value: unknown = changes[key];
+      if (typeof value === 'string') {
+        // Same contract as create: names are trimmed; optional fields normalize '' → null.
+        if (key === 'firstName' || key === 'lastName') value = value.trim();
+        else value = this.normalize(value);
+        if (key === 'email' && typeof value === 'string') value = value.toLowerCase();
+      }
       if (value === current[key]) continue;
       before[key] = current[key];
       after[key] = value;
@@ -169,7 +175,17 @@ export class EmployeesService {
         'this employee has assignment history — deactivate them instead of deleting',
       );
     }
-    await this.employees.remove(employee);
+    try {
+      await this.employees.remove(employee);
+    } catch (err) {
+      // FK RESTRICT backstop: an assignment created between the count and the delete.
+      if ((err as { code?: string }).code === PG_FK_VIOLATION) {
+        throw new ConflictException(
+          'this employee has assignment history — deactivate them instead of deleting',
+        );
+      }
+      throw err;
+    }
 
     await this.audit.log({
       actorId: actor.userId,
@@ -196,6 +212,7 @@ export class EmployeesService {
       employeeNumber: employee.employeeNumber,
       department: employee.department,
       title: employee.title,
+      notes: employee.notes,
       isActive: employee.isActive,
     };
   }
