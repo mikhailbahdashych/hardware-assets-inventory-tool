@@ -42,6 +42,11 @@ export const routes: Routes = [
           import('./features/dashboard/dashboard-page').then((m) => m.DashboardPage),
       },
       {
+        path: 'employees',
+        loadComponent: () =>
+          import('./features/employees/employees-page').then((m) => m.EmployeesPage),
+      },
+      {
         path: 'admin/users',
         canActivate: [roleGuard(UserRole.ADMIN)],
         loadComponent: () => import('./features/admin/users/users-page').then((m) => m.UsersPage),

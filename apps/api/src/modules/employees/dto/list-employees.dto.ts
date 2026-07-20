@@ -22,7 +22,7 @@ export class ListEmployeesDto {
   search?: string;
 
   @IsOptional()
-  @Transform(({ value }) => (value === 'true' ? true : value === 'false' ? false : value))
+  @Transform(({ value }): unknown => (value === 'true' ? true : value === 'false' ? false : value))
   @IsBoolean()
   isActive?: boolean;
 }

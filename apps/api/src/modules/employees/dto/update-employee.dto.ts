@@ -19,7 +19,7 @@ export class UpdateEmployeeDto {
   lastName?: string;
 
   @optionalNullable()
-  @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
+  @Transform(({ value }): unknown => (typeof value === 'string' ? value.trim() : value))
   @IsEmail()
   @MaxLength(255)
   email?: string | null;

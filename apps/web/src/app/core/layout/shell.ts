@@ -23,7 +23,7 @@ interface NavItem {
 const NAV_ITEMS: NavItem[] = [
   { label: 'Dashboard', icon: 'dashboard', path: '/dashboard' },
   { label: 'Assets', icon: 'devices', path: '/assets', disabled: true },
-  { label: 'Employees', icon: 'group', path: '/employees', disabled: true },
+  { label: 'Employees', icon: 'group', path: '/employees' },
   { label: 'Assignments', icon: 'assignment_ind', path: '/assignments', disabled: true },
   {
     label: 'Users',

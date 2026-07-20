@@ -125,6 +125,7 @@ export class EmployeesService {
   ): Promise<Employee> {
     const employee = await this.findById(id);
 
+    const current = employee as unknown as Record<string, unknown>;
     const before: Record<string, unknown> = {};
     const after: Record<string, unknown> = {};
     for (const key of EDITABLE_FIELDS) {
@@ -132,10 +133,10 @@ export class EmployeesService {
       let value = changes[key];
       if (key === 'email' && typeof value === 'string') value = value.trim().toLowerCase();
       else if (typeof value === 'string' && key !== 'notes') value = value.trim();
-      if (value === (employee as Record<string, unknown>)[key]) continue;
-      before[key] = (employee as Record<string, unknown>)[key];
+      if (value === current[key]) continue;
+      before[key] = current[key];
       after[key] = value;
-      (employee as Record<string, unknown>)[key] = value;
+      current[key] = value;
     }
     if (Object.keys(before).length === 0) return employee;
 
