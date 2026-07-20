@@ -73,6 +73,44 @@ export interface MfaVerifyResponse {
 /** 403 message the API emits when MFA enrollment blocks a route — the web app routes on it. */
 export const MFA_ENROLLMENT_REQUIRED_MESSAGE = 'mfa enrollment required';
 
+/** A person who holds assets — most employees never log into the app. */
+export interface EmployeeDto {
+  id: string;
+  firstName: string;
+  lastName: string;
+  email: string | null;
+  /** External HR identifier; CSV import match key. */
+  employeeNumber: string | null;
+  department: string | null;
+  title: string | null;
+  notes: string | null;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateEmployeeRequest {
+  firstName: string;
+  lastName: string;
+  email?: string | null;
+  employeeNumber?: string | null;
+  department?: string | null;
+  title?: string | null;
+  notes?: string | null;
+}
+
+/** PATCH semantics: undefined = untouched, null = clear the field. */
+export interface UpdateEmployeeRequest {
+  firstName?: string;
+  lastName?: string;
+  email?: string | null;
+  employeeNumber?: string | null;
+  department?: string | null;
+  title?: string | null;
+  notes?: string | null;
+  isActive?: boolean;
+}
+
 export interface CreateUserRequest {
   email: string;
   displayName: string;
