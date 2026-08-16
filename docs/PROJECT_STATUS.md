@@ -2,7 +2,7 @@
 
 **Read this first when picking the project up.** It records where the build stands, what every earlier decision was, and exactly what the next piece of work is. Update it at the end of each PR.
 
-_Last updated: 2026-08-16, after PR 4 (assets + employees)._
+_Last updated: 2026-08-16, after PR 5 (assignment lifecycle)._
 
 ---
 
@@ -40,7 +40,7 @@ The full approved plan lives at `~/.claude/plans/hello-there-i-want-valiant-sunb
 
 PRs 1–3 are merged, so PR 4 branches from `main` rather than stacking. To start PR 5: `git checkout feat/04-assets-employees && git checkout -b feat/05-assignments` (it stacks on 4 until 4 merges).
 
-The app is usable end-to-end for its core job: set up an instance, add the people, register devices, hand one to somebody at creation time, filter and search the inventory, and edit or delete records with the guards in place. What it cannot do yet is move an asset between holders after the fact — assign and check-in are PR 5.
+The app now does the whole job it exists for: set up an instance, add people, register devices, hand them out, take them back, and read the full ownership history of any asset or person. What is left is the surrounding product — members and invites (PR 6), the dashboard, command palette and CSV import (PR 7), and email, cron, Docker and the release (PR 8).
 
 ## 4. What exists today
 
@@ -103,11 +103,7 @@ Rules that keep the codebase coherent:
 
 ## 6. What comes next
 
-### PR 5 — Assignment lifecycle _(riskiest, next up)_
-
-Assign (both modes), check-in, and a **Change status** modal — the prototype misroutes that button to Assign, which is a bug we fix. Current-holder card, ownership timeline with "in stock" gaps and the "Added to inventory" origin derived at read time, employee holdings and history with outcomes, per-asset audit trail, attachments, custom-field editing. **Front-load the invariant test**: random assign/check-in sequences must always leave `assets.status='assigned'` ⇔ an active assignment exists. The partial unique index is already in the schema, and `openAssignment` already maintains the pairing for creates — build check-in as its mirror image (`closeAssignment`) rather than updating the two tables at the call site. Also due here: the "Manage fields" modal and custom-field CRUD, the attachments UI, and the per-asset audit trail.
-
-### PR 6 — Members, invites UI, admin
+### PR 6 — Members, invites UI, admin _(next up)_
 
 Members page with the role/linked-employee/last-active columns and the overflow menu (resend invite, copy reset link, change role, remove; last-admin and self guards); invite modal with the radio role cards and a copyable link that works whether or not SMTP exists; activity log with type chips, "Load more" and CSV export; settings page including the danger zone with type-to-confirm. **Add the viewer/read-only e2e journey here** — it was deferred from PR 3 because creating a non-admin account needs the invite endpoint.
 
@@ -140,7 +136,9 @@ The prototype is a design artifact, not an app: several behaviors it advertises 
 - **First-run setup screen** doesn't exist in the handoff; self-hosting requires it, so it reuses the login layout exactly.
 - **Ownership history snapshots holder names** — the design shows a past holder who no longer exists in the employee list.
 - **Members link to employees optionally** (per the handoff README), rather than sharing an identity as the prototype's demo data does.
-- **The Change-status button misroutes to Assign** in the prototype; PR 5 adds the dedicated modal.
+- **The Change-status button misroutes to Assign** in the prototype, which cannot work — an asset in repair has no holder to change. It has its own small modal, offering only the moves `canDirectlyTransition` allows.
+- **The ownership timeline's "In stock" spells and "Added to inventory" origin are derived at read time**, not stored as rows, so the database holds only what actually happened. `apps/web/src/features/assets/timeline.ts` composes them.
+- **Custom fields are managed by label, keyed by slug.** Renaming a field never moves the key its values hang off; deleting one takes its values, which the modal says out loud before it does it.
 - **Keyboard navigation, role gating, edit forms, validation, toasts and empty states** are promised by the design but absent from the prototype; each is scheduled in the PR that owns its screens.
 - **The employee list gained the filter input the asset list has.** The design draws no filter row there, but the same live filter is the difference between a usable list and scrolling past two hundred people; it is styled identically and adds nothing new to the language.
 - **Date fields are native `type="date"` inputs**, not the design's free-text fields with `"Aug 16, 2026"` placeholders. Dates are stored as `YYYY-MM-DD`, and a native picker guarantees that without inventing a date parser. This is the one place a browser's own chrome shows through.
