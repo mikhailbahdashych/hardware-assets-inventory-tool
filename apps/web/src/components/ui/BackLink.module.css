@@ -1,0 +1,12 @@
+.back {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--muted);
+  font-size: 12.5px;
+  width: fit-content;
+}
+
+.back:hover {
+  color: var(--text);
+}

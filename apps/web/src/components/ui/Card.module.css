@@ -1,0 +1,16 @@
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: var(--shadow);
+}
+
+.card[data-padding='true'] {
+  padding: 16px 18px;
+}
+
+.title {
+  font-size: 13px;
+  font-weight: 600;
+  margin-bottom: 12px;
+}

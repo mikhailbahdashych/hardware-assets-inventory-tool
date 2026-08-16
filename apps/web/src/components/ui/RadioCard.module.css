@@ -1,0 +1,64 @@
+.card {
+  position: relative;
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 12px;
+  cursor: pointer;
+}
+
+.card[data-checked='true'] {
+  border-color: var(--accent);
+  background: var(--acc-bg);
+}
+
+.card:has(.input:focus-visible) {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.input {
+  position: absolute;
+  opacity: 0;
+  width: 1px;
+  height: 1px;
+}
+
+.dot {
+  width: 13px;
+  height: 13px;
+  border-radius: 50%;
+  border: 1.5px solid var(--muted);
+  margin-top: 2px;
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.card[data-checked='true'] .dot {
+  border-color: var(--accent);
+}
+
+.card[data-checked='true'] .dot::after {
+  content: '';
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+
+.title {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.description {
+  display: block;
+  font-size: 12px;
+  color: var(--muted);
+  margin-top: 1px;
+}

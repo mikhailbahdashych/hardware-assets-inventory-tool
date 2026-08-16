@@ -1,0 +1,27 @@
+.control {
+  display: inline-flex;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow: hidden;
+  flex: none;
+}
+
+.segment {
+  height: 27px;
+  padding: 0 9px;
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.segment + .segment {
+  border-left: 1px solid var(--border);
+}
+
+.segment[data-active='true'] {
+  background: var(--acc-bg);
+  color: var(--accent);
+}

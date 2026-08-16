@@ -1,0 +1,21 @@
+.iconButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: none;
+  color: var(--muted);
+  cursor: pointer;
+  padding: 0;
+  flex: none;
+}
+
+.iconButton:hover {
+  background: var(--hover);
+  color: var(--text);
+}
+
+.iconButton[data-bordered='true'] {
+  border-color: var(--border);
+}

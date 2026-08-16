@@ -1,0 +1,40 @@
+.stack {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  z-index: 100;
+}
+
+.toast {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: var(--mshadow);
+  padding: 9px 13px;
+  font-size: 12.5px;
+}
+
+.dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex: none;
+}
+
+.dot[data-kind='ok'] {
+  background: var(--ok);
+}
+
+.dot[data-kind='err'] {
+  background: var(--err);
+}
+
+.dot[data-kind='info'] {
+  background: var(--info);
+}
