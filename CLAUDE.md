@@ -32,7 +32,8 @@ npm run format       # Prettier
 - **TypeScript everywhere, strict.** No new languages, no state-management or component libraries — primitives are hand-rolled for design fidelity.
 - **Enums are slugs** (`in_repair`, `lost_stolen`) defined in `packages/shared/src/enums.ts` with label and semantic-color maps beside them. The database has **no CHECK constraints** on enums, so adding a value is a code-only change.
 - **Semantic colors:** every status/role/type maps to `sv ∈ {ok, acc, warn, err, info, neut}` and renders via CSS vars `--{sv}` / `--{sv}-bg`. Never hardcode a status color.
-- **Dates**: date-only values are `YYYY-MM-DD` strings; timestamps are ISO-8601 UTC. **Money is integer cents.** Emails are lowercased before storage.
+- **Dates**: date-only values are `YYYY-MM-DD` strings; timestamps are ISO-8601 UTC. **Money is integer cents** — `parsePriceToCents` in `packages/shared/src/money.ts` is the only place a typed decimal becomes cents. Emails are lowercased before storage.
+- **Who holds an asset lives in `assignments`, never on the asset.** `assets.status = 'assigned'` ⇔ an open ownership row exists, enforced by a partial unique index and maintained only inside the assignment service.
 - **TDD**: write the failing test first, watch it fail, then implement. Config files are exempt; behavior is not.
 - Work happens in sequential PRs; the repo owner merges every PR. Never merge.
 
