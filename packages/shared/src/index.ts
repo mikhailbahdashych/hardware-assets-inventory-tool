@@ -7,3 +7,4 @@ export * from './schemas/assignments.js';
 export * from './schemas/auth.js';
 export * from './schemas/custom-fields.js';
 export * from './schemas/employees.js';
+export * from './types/index.js';

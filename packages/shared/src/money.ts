@@ -2,10 +2,10 @@
 // these helpers. Only the form input and the CSV column are decimal strings,
 // so this is the one place a decimal is turned into cents (and back).
 
+import type { PriceParse } from './types/money.js';
+
 /** €1,000,000.00 — a ceiling that keeps a typo from becoming a plausible row. */
 export const MAX_PRICE_CENTS = 100_000_000;
-
-export type PriceParse = { ok: true; cents: number | null } | { ok: false; reason: string };
 
 const NOT_A_NUMBER = 'Enter an amount like 1299.00.';
 
@@ -28,6 +28,8 @@ export function parsePriceToCents(raw: string): PriceParse {
   if (!/^\d+$/.test(whole) || !/^\d*$/.test(fraction)) return { ok: false, reason: NOT_A_NUMBER };
 
   let cents = Number(whole) * 100 + Number(`${fraction}00`.slice(0, 2));
+  // Domain rule, not a fallback: an amount written with fewer than three
+  // decimals has no third digit to round on, which is the same as a zero.
   if (Number(fraction[2] ?? 0) >= 5) cents += 1;
 
   if (!Number.isSafeInteger(cents) || cents > MAX_PRICE_CENTS) {

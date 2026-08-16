@@ -1,11 +1,6 @@
 import { z } from 'zod';
-import {
-  CHECKIN_CONDITIONS,
-  CHECKIN_NEW_STATUSES,
-  type AssignmentOutcome,
-  type CheckinNewStatus,
-  type EmployeeStatus,
-} from '../enums.js';
+import { CHECKIN_CONDITIONS, CHECKIN_NEW_STATUSES, type AssignmentOutcome } from '../enums.js';
+import type { OutcomeInput } from '../types/assignments.js';
 import { nullableDate, nullableText } from './common.js';
 
 // The three ways an asset changes hands or state. Assign and check-in are the
@@ -44,10 +39,7 @@ export type CheckinInput = z.infer<typeof checkinInput>;
  * where the device happened to land. `upgraded` exists in the vocabulary for
  * history imported from elsewhere; nothing derives it yet.
  */
-export function deriveOutcome(input: {
-  holderStatus: EmployeeStatus | null;
-  newStatus: CheckinNewStatus;
-}): AssignmentOutcome {
+export function deriveOutcome(input: OutcomeInput): AssignmentOutcome {
   if (input.holderStatus === 'offboarding') return 'offboarded';
   if (input.newStatus === 'in_repair') return 'in_repair';
   return 'returned';

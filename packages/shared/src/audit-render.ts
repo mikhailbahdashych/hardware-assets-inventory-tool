@@ -1,18 +1,19 @@
 import { ASSET_STATUS_LABELS, type AssetStatus, type AuditType } from './enums.js';
+import type { AuditParams, RenderableAuditEvent } from './types/audit.js';
 
 // Audit events are stored structured — an action plus params with name
 // snapshots — and rendered to sentences here. One renderer serves the per-asset
 // trail, the activity log and the CSV export, so they can never drift apart.
 
-type Params = Record<string, unknown>;
-
-const text = (params: Params, key: string, fallback: string): string => {
+const text = (params: AuditParams, key: string, fallback: string): string => {
   const value = params[key];
   return typeof value === 'string' && value.length > 0 ? value : fallback;
 };
 
-const status = (params: Params, key: string): string => {
+const status = (params: AuditParams, key: string): string => {
   const value = params[key];
+  // Same rule as the unknown-action fallback below: a status slug this build
+  // has no label for still renders as itself rather than vanishing.
   return typeof value === 'string'
     ? (ASSET_STATUS_LABELS[value as AssetStatus] ?? value)
     : 'unknown';
@@ -32,7 +33,7 @@ const FIELD_LABELS: Record<string, string> = {
   startDate: 'start date',
 };
 
-function fieldList(params: Params): string {
+function fieldList(params: AuditParams): string {
   const fields = params.changedFields;
   if (!Array.isArray(fields) || fields.length === 0) return '';
   const names = fields
@@ -40,12 +41,14 @@ function fieldList(params: Params): string {
     .map((field) =>
       field.startsWith('custom.')
         ? field.slice('custom.'.length).replace(/_/g, ' ')
-        : (FIELD_LABELS[field] ?? field.replace(/([A-Z])/g, ' $1').toLowerCase()),
+        : // Not every column earns a hand-written label; the rest are humanized
+          // from the field name so a new column never renders as a blank.
+          (FIELD_LABELS[field] ?? field.replace(/([A-Z])/g, ' $1').toLowerCase()),
     );
   return names.length > 0 ? ` (${names.join(', ')})` : '';
 }
 
-const RENDERERS: Record<string, (params: Params) => string> = {
+const RENDERERS: Record<string, (params: AuditParams) => string> = {
   'asset.created': (p) => `Added ${text(p, 'assetName', 'an asset')} to the inventory`,
   'asset.updated': (p) => `Updated ${text(p, 'assetName', 'an asset')}${fieldList(p)}`,
   'asset.status_changed': (p) =>
@@ -85,7 +88,7 @@ export const AUDIT_ACTIONS = Object.keys(RENDERERS);
  * A sentence for one event. Unknown actions fall back to the raw action name
  * rather than an empty line — a log that hides events is worse than an ugly one.
  */
-export function renderAuditEvent(event: { action: string; params?: Params }): string {
+export function renderAuditEvent(event: RenderableAuditEvent): string {
   return RENDERERS[event.action]?.(event.params ?? {}) ?? event.action;
 }
 
