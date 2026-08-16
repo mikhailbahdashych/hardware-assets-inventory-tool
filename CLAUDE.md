@@ -7,7 +7,7 @@ This repo is built to be customized by asking Claude Code. Every area has its ow
 ## Repo map
 
 - `apps/web` — React 19 + Vite SPA. Design system, pages, modals. See `apps/web/CLAUDE.md`.
-- `apps/api` — Fastify API + SQLite (arrives in PR 2). REST under `/api/v1`, serves the built SPA in production.
+- `apps/api` — Fastify API + SQLite (Drizzle). REST under `/api/v1`, sessions + RBAC + audit log, serves the built SPA in production. See `apps/api/CLAUDE.md`.
 - `packages/shared` — **single source of truth** for enums, label/color maps, RBAC, and (from PR 2) zod schemas. Both apps import it; change domain vocabulary here first. See `packages/shared/CLAUDE.md`.
 - `e2e` — Playwright tests against the production build. See `e2e/CLAUDE.md`.
 - `docs/design-handoff/` — the interactive HTML design prototype. **Visual source of truth**; open it in a browser and compare side-by-side when building UI.
@@ -16,7 +16,7 @@ This repo is built to be customized by asking Claude Code. Every area has its ow
 
 ```bash
 npm install          # once, at the root (npm workspaces)
-npm run dev          # web app on http://localhost:5173 (dev-only /kitchen-sink for the design system)
+npm run dev          # api on :3000 + web on http://localhost:5173 (dev-only /kitchen-sink; /api proxied)
 npm test             # unit tests, all workspaces
 npm run e2e          # Playwright against the production build
 npm run lint         # ESLint
