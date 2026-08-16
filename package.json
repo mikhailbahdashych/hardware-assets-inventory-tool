@@ -25,7 +25,7 @@
     "lint": "eslint .",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "e2e": "npm run test -w e2e"
+    "e2e": "npm run e2e -w e2e"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
