@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { requireAction } from '../src/plugins/rbac.js';
+import { requireAction } from '@/plugins/rbac.js';
 import { buildTestApp, inject, setupOrg, SETUP_BODY, type TestApp } from './helpers.js';
 
 let ctx: TestApp;

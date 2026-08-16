@@ -1,8 +1,8 @@
 import type { AuditType } from '@inventory/shared';
-import type { DbOrTx } from '../db/client.js';
-import { auditEvents } from '../db/schema.js';
-import { newId } from '../lib/ids.js';
-import { nowIso } from '../lib/dates.js';
+import type { DbOrTx } from '@/db/client.js';
+import { auditEvents } from '@/db/schema.js';
+import { newId } from '@/lib/ids.js';
+import { nowIso } from '@/lib/dates.js';
 
 export type AuditEntry = {
   type: AuditType;

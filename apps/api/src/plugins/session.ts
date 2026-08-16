@@ -1,7 +1,7 @@
 import type { FastifyInstance } from 'fastify';
-import type { members } from '../db/schema.js';
-import type { AppDeps } from '../app.js';
-import { resolveSession, SESSION_COOKIE } from '../services/sessions.js';
+import type { members } from '@/db/schema.js';
+import type { AppDeps } from '@/app.js';
+import { resolveSession, SESSION_COOKIE } from '@/services/sessions.js';
 
 export type MemberRow = typeof members.$inferSelect;
 

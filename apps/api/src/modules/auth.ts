@@ -8,22 +8,22 @@ import {
   loginInput,
   resetPasswordInput,
 } from '@inventory/shared';
-import type { AppDeps } from '../app.js';
-import { members, orgSettings, sessions } from '../db/schema.js';
-import { invalidCredentials, invalidToken } from '../lib/errors.js';
-import { nowIso } from '../lib/dates.js';
-import { DUMMY_HASH_PROMISE, hashPassword, verifyPassword } from '../lib/password.js';
-import { serializeMember } from '../lib/serialize.js';
-import { requireAuth } from '../plugins/rbac.js';
-import { writeAudit } from '../services/audit.js';
-import { consumeToken, findValidToken } from '../services/auth-tokens.js';
+import type { AppDeps } from '@/app.js';
+import { members, orgSettings, sessions } from '@/db/schema.js';
+import { invalidCredentials, invalidToken } from '@/lib/errors.js';
+import { nowIso } from '@/lib/dates.js';
+import { DUMMY_HASH_PROMISE, hashPassword, verifyPassword } from '@/lib/password.js';
+import { serializeMember } from '@/lib/serialize.js';
+import { requireAuth } from '@/plugins/rbac.js';
+import { writeAudit } from '@/services/audit.js';
+import { consumeToken, findValidToken } from '@/services/auth-tokens.js';
 import {
   clearSessionCookie,
   createSession,
   deleteSession,
   setSessionCookie,
   SESSION_COOKIE,
-} from '../services/sessions.js';
+} from '@/services/sessions.js';
 
 // Attempt caps per IP; the login handler additionally verifies a dummy hash
 // for unknown emails so timing never reveals whether an account exists.

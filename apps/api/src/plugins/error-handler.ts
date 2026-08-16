@@ -1,6 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import { hasZodFastifySchemaValidationErrors } from 'fastify-type-provider-zod';
-import { AppError } from '../lib/errors.js';
+import { AppError } from '@/lib/errors.js';
 
 // One error envelope everywhere: { error: { code, message, fields? } }.
 export function registerErrorHandler(app: FastifyInstance): void {

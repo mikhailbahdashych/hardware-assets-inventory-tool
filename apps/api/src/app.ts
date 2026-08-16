@@ -9,7 +9,10 @@ import { registerErrorHandler } from './plugins/error-handler.js';
 import { registerOriginGuard } from './plugins/origin-guard.js';
 import { registerSessionAuth } from './plugins/session.js';
 import { registerStaticSpa } from './plugins/static-spa.js';
+import { registerAssetRoutes } from './modules/assets.js';
 import { registerAuthRoutes } from './modules/auth.js';
+import { registerCustomFieldRoutes } from './modules/custom-fields.js';
+import { registerEmployeeRoutes } from './modules/employees.js';
 import { registerMeRoutes } from './modules/me.js';
 import { registerMetaRoutes } from './modules/meta.js';
 import { registerSetupRoutes } from './modules/setup.js';
@@ -54,6 +57,9 @@ export async function buildApp(opts: BuildAppOptions): Promise<FastifyInstance> 
   registerSetupRoutes(app, deps);
   registerAuthRoutes(app, deps);
   registerMeRoutes(app, deps);
+  registerAssetRoutes(app, deps);
+  registerEmployeeRoutes(app, deps);
+  registerCustomFieldRoutes(app, deps);
 
   await registerStaticSpa(app, deps.config.webDist);
 
