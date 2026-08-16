@@ -13,7 +13,7 @@ export function PageHeader({
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
       <div style={{ marginRight: 'auto' }}>
-        <div style={{ fontSize: 18, fontWeight: 600 }}>{title}</div>
+        <h1 style={{ fontSize: 18, fontWeight: 600, margin: 0 }}>{title}</h1>
         {subtitle && (
           <div style={{ fontSize: '12.5px', color: 'var(--muted)', marginTop: 2 }}>{subtitle}</div>
         )}

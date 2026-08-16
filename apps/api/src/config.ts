@@ -1,3 +1,4 @@
+import { resolve } from 'node:path';
 import { z } from 'zod';
 
 // Zero-config by design: every value has a sensible self-hosting default.
@@ -38,6 +39,7 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
         ? parsed.COOKIE_SECURE === 'true'
         : parsed.APP_URL.startsWith('https://'),
     logLevel: parsed.LOG_LEVEL,
-    webDist: parsed.WEB_DIST,
+    // fastify-static needs an absolute root.
+    webDist: parsed.WEB_DIST ? resolve(parsed.WEB_DIST) : undefined,
   };
 }

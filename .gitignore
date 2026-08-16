@@ -24,3 +24,4 @@ e2e/blob-report/
 .claude/settings.local.json
 .remember/
 .DS_Store
+e2e/.data/
