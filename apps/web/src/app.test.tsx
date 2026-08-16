@@ -1,38 +1,12 @@
-import { QueryClient } from '@tanstack/react-query';
-import { render, screen, waitFor } from '@testing-library/react';
+import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { MemoryRouter } from 'react-router';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { AppProviders } from './App';
-import { AppRoutes } from './routes';
-import { ADMIN_MEMBER, READY_META, stubApi, type StubRoutes } from './test/api-stub';
-
-function renderApp(routes: StubRoutes, initialPath = '/') {
-  const api = stubApi(routes);
-  const queryClient = new QueryClient({
-    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
-  });
-  render(
-    <AppProviders queryClient={queryClient}>
-      <MemoryRouter initialEntries={[initialPath]}>
-        <AppRoutes />
-      </MemoryRouter>
-    </AppProviders>,
-  );
-  return api;
-}
-
-const UNAUTHENTICATED = {
-  status: 401,
-  body: { error: { code: 'unauthorized', message: 'Sign in to continue.' } },
-};
+import { ADMIN_MEMBER, READY_META, type StubRoutes } from './test/api-stub';
+import { renderApp, resetAppState, UNAUTHENTICATED } from './test/render';
 
 afterEach(() => {
   vi.unstubAllGlobals();
-  // Theme lives on <html> and in localStorage, both of which outlive a render.
-  window.localStorage.clear();
-  delete document.documentElement.dataset.theme;
-  delete document.documentElement.dataset.density;
+  resetAppState();
 });
 
 describe('first-run setup', () => {

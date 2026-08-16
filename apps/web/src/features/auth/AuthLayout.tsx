@@ -1,8 +1,8 @@
 import { useId, type ReactNode } from 'react';
-import { ApiError } from '../../api/client';
-import { useMeta } from '../../api/queries';
-import { Icon, IconButton } from '../../components/ui';
-import { useTheme } from '../../providers/ThemeProvider';
+import { ApiError } from '@/api/client';
+import { useMeta } from '@/api/queries';
+import { Icon, IconButton } from '@/components/ui';
+import { useTheme } from '@/providers/ThemeProvider';
 import styles from './Auth.module.css';
 
 /** The centered 360px column shared by every signed-out screen. */

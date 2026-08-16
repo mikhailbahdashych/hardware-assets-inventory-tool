@@ -1,5 +1,5 @@
-import { avatarColor } from '../../lib/avatar';
-import { initials } from '../../lib/format';
+import { avatarColor } from '@/lib/avatar';
+import { initials } from '@/lib/format';
 import styles from './Avatar.module.css';
 
 /** Sizes used by the design: 24 (sidebar/lists), 26 (table rows), 30 (holder card), 44 (employee header). */

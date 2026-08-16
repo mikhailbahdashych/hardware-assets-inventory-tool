@@ -1,7 +1,8 @@
 import { act, fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { avatarColor } from '../../lib/avatar';
+import { avatarColor } from '@/lib/avatar';
+import { ToastProvider, useToast } from '@/providers/ToastProvider';
 import { Avatar } from './Avatar';
 import { Button } from './Button';
 import { Checkbox } from './Checkbox';
@@ -14,7 +15,6 @@ import { SearchInput } from './SearchInput';
 import { SegmentedControl } from './SegmentedControl';
 import { Tabs } from './Tabs';
 import { ToggleSwitch } from './ToggleSwitch';
-import { ToastProvider, useToast } from '../../providers/ToastProvider';
 
 describe('Button', () => {
   it('renders its label and forwards clicks', async () => {

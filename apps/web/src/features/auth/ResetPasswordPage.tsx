@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router';
-import { useResetPassword } from '../../api/mutations';
+import { fieldErrors } from '@/api/formErrors';
+import { useResetPassword } from '@/api/mutations';
 import { AuthField, AuthLayout, FormError } from './AuthLayout';
-import { fieldErrors } from './formErrors';
 import styles from './Auth.module.css';
 
 export function ResetPasswordPage() {

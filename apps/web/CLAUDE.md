@@ -21,6 +21,10 @@ React 19 + Vite + TypeScript, react-router (declarative `BrowserRouter` mode), T
 - `lib/` — `format.ts` (dates, relative time, durations, currency, initials) and `avatar.ts` (stable hash → 9-color palette). Reuse these; never re-implement formatting inline.
 - `routes.tsx` — the whole route map and its guards. `App.tsx` only wires providers.
 
+**Imports:** anything that crosses a directory uses the `@/` alias for `src/` (`@/components/app/PageContainer`, `@/lib/format`) — never `../../`. Same-directory imports stay relative (`./AssetFormModal`, `./filters`, `./Assets.module.css`); the alias would only add noise. CSS modules and `import type` follow the same rule, and `@inventory/shared` is a package import, not an alias. Keep the grouping: external packages, then `@inventory/shared`, then `@/` app imports, then `./` neighbours, styles last.
+
+The alias is declared in **three** places that must agree, or you get a green typecheck and a red build: `tsconfig.json` (`paths`), `vite.config.ts` (`resolve.alias`), and Vitest — which reads the same `vite.config.ts`, so its `test` block needs no separate entry. Add a fourth resolver (Storybook, a bundler) and you must teach it the alias too. `apps/api` uses the same `@/` convention, but its Vitest does not share a Vite config, so it mirrors the alias in `apps/api/vitest.config.ts`.
+
 ## Data and auth
 
 - Reads go through hooks in `api/queries.ts`; add the key to `queryKeys` first. Writes live in `api/mutations.ts` and own their cache effects. When a mutation touches assets or assignments it must invalidate every affected surface — that helper arrives with the assets PR (`api/invalidate.ts`).

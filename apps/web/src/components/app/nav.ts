@@ -1,5 +1,5 @@
 import { can, type Role } from '@inventory/shared';
-import type { IconName } from '../ui/Icon';
+import type { IconName } from '@/components/ui/Icon';
 
 export type NavItem = {
   label: string;

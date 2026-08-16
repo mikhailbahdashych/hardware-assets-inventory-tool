@@ -3,11 +3,15 @@ import { can } from '@inventory/shared';
 import { useMe, useMeta } from './api/queries';
 import { AppShell } from './components/app/AppShell';
 import { Spinner } from './components/ui';
+import { AssetDetailPage } from './features/assets/AssetDetailPage';
+import { AssetsPage } from './features/assets/AssetsPage';
 import { AcceptInvitePage } from './features/auth/AcceptInvitePage';
 import { ForgotPasswordPage } from './features/auth/ForgotPasswordPage';
 import { LoginPage } from './features/auth/LoginPage';
 import { ResetPasswordPage } from './features/auth/ResetPasswordPage';
 import { SetupPage } from './features/auth/SetupPage';
+import { EmployeeDetailPage } from './features/employees/EmployeeDetailPage';
+import { EmployeesPage } from './features/employees/EmployeesPage';
 import { SectionPlaceholder } from './features/placeholder/SectionPlaceholder';
 
 function Splash() {
@@ -73,25 +77,10 @@ export function AppRoutes() {
             />
           }
         />
-        <Route
-          path="/assets"
-          element={
-            <SectionPlaceholder
-              title="Assets"
-              summary="The asset list, filters and detail pages arrive with the assets PR."
-            />
-          }
-        />
-        <Route
-          path="/employees"
-          element={
-            <SectionPlaceholder
-              title="Employees"
-              maxWidth={1060}
-              summary="The employee list and holdings arrive with the employees PR."
-            />
-          }
-        />
+        <Route path="/assets" element={<AssetsPage role={member.role} />} />
+        <Route path="/assets/:id" element={<AssetDetailPage role={member.role} />} />
+        <Route path="/employees" element={<EmployeesPage role={member.role} />} />
+        <Route path="/employees/:id" element={<EmployeeDetailPage role={member.role} />} />
         <Route
           path="/members"
           element={

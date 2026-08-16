@@ -1,11 +1,11 @@
 import { useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router';
 import { ROLE_DESCRIPTIONS, ROLE_LABELS } from '@inventory/shared';
-import { useAcceptInvite } from '../../api/mutations';
-import { useInvite } from '../../api/queries';
-import { Spinner } from '../../components/ui';
+import { fieldErrors } from '@/api/formErrors';
+import { useAcceptInvite } from '@/api/mutations';
+import { useInvite } from '@/api/queries';
+import { Spinner } from '@/components/ui';
 import { AuthField, AuthLayout, FormError } from './AuthLayout';
-import { fieldErrors } from './formErrors';
 import styles from './Auth.module.css';
 
 export function AcceptInvitePage() {

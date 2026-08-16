@@ -11,7 +11,9 @@
   color: var(--muted);
 }
 
-.required {
+/* Presentational only — see the note in Field.tsx. */
+.label[data-required='true']::after {
+  content: '*';
   color: var(--accent);
   margin-left: 2px;
 }

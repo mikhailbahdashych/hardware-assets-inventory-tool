@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router';
-import { useSetup } from '../../api/mutations';
+import { fieldErrors } from '@/api/formErrors';
+import { useSetup } from '@/api/mutations';
 import { AuthField, AuthLayout, FormError } from './AuthLayout';
-import { fieldErrors } from './formErrors';
 import styles from './Auth.module.css';
 
 /**

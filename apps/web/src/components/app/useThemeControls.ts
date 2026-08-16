@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
-import { useUpdatePrefs } from '../../api/mutations';
-import type { Member } from '../../api/types';
-import { useTheme, type Density } from '../../providers/ThemeProvider';
+import { useUpdatePrefs } from '@/api/mutations';
+import type { Member } from '@/api/types';
+import { useTheme, type Density } from '@/providers/ThemeProvider';
 
 /**
  * Theme and density for signed-in members: changes apply instantly (local

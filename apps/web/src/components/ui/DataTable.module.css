@@ -6,6 +6,13 @@
   overflow: hidden;
 }
 
+.tableTitle {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+  font-size: 13px;
+  font-weight: 600;
+}
+
 .header {
   display: grid;
   gap: 12px;
@@ -50,9 +57,10 @@
   text-align: right;
 }
 
+/* No border of its own: the last row's bottom border is the divider, exactly
+   as in the design. A border here would double it to 2px. */
 .footer {
   padding: 8px 16px;
   font-size: 12px;
   color: var(--faint);
-  border-top: 1px solid var(--border);
 }
