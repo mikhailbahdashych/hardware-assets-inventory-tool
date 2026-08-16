@@ -195,3 +195,21 @@ describe('app shell', () => {
     });
   });
 });
+
+describe('when the instance cannot be described', () => {
+  it('says so instead of guessing, and instead of a blank page', async () => {
+    // AppRoutes throws when /meta fails: guessing "signed out" would send an
+    // uninitialized instance to a login nobody can pass.
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    renderApp({
+      'GET /meta': {
+        status: 500,
+        body: { error: { code: 'internal', message: 'Something went wrong on the server.' } },
+      },
+      'GET /auth/me': UNAUTHENTICATED,
+    });
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Inventory could not start');
+    expect(screen.getByRole('button', { name: 'Reload' })).toBeInTheDocument();
+  });
+});

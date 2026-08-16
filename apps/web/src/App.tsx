@@ -1,6 +1,7 @@
 import { useState, type ReactNode } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { BrowserRouter } from 'react-router';
+import { AppErrorBoundary } from './components/app/AppErrorBoundary';
 import { ThemeProvider } from './providers/ThemeProvider';
 import { ToastProvider } from './providers/ToastProvider';
 import { AppRoutes } from './routes';
@@ -30,7 +31,9 @@ export function AppProviders({
   return (
     <QueryClientProvider client={queryClient ?? ownClient}>
       <ThemeProvider>
-        <ToastProvider>{children}</ToastProvider>
+        <ToastProvider>
+          <AppErrorBoundary>{children}</AppErrorBoundary>
+        </ToastProvider>
       </ThemeProvider>
     </QueryClientProvider>
   );
