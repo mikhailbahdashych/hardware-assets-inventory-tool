@@ -2,7 +2,7 @@ import { eq } from 'drizzle-orm';
 import type { FastifyInstance } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
 import { prefsPatchInput } from '@inventory/shared';
-import type { AppDeps } from '@/app.js';
+import type { AppDeps } from '@/types/app.js';
 import { members } from '@/db/schema.js';
 import { nowIso } from '@/lib/dates.js';
 import { serializeMember } from '@/lib/serialize.js';

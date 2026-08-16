@@ -1,5 +1,5 @@
 import type { FastifyInstance } from 'fastify';
-import type { AppDeps } from '@/app.js';
+import type { AppDeps } from '@/types/app.js';
 import { orgSettings } from '@/db/schema.js';
 import pkg from '../../package.json';
 

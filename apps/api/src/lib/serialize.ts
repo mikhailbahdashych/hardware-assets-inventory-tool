@@ -2,9 +2,6 @@ import type { assets, employees } from '@/db/schema.js';
 import type { AssignmentRow } from '@/services/assignments.js';
 import type { MemberRow } from '@/plugins/session.js';
 
-/** Who a mutation is attributed to in the audit log. */
-export type Actor = { id: string; displayName: string };
-
 export function serializeMember(member: MemberRow) {
   return {
     id: member.id,
@@ -16,7 +13,10 @@ export function serializeMember(member: MemberRow) {
     lastActiveAt: member.lastActiveAt,
     theme: member.theme,
     density: member.density,
-    widgets: JSON.parse(member.widgetsJson || '{}') as Record<string, boolean>,
+    // widgets_json is NOT NULL DEFAULT '{}' and only ever written by
+    // JSON.stringify in /me/prefs, so it always parses. If it ever does not,
+    // the row is corrupt and the throw is the bug report.
+    widgets: JSON.parse(member.widgetsJson) as Record<string, boolean>,
   };
 }
 

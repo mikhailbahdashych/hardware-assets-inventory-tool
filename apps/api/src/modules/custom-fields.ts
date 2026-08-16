@@ -3,7 +3,7 @@ import type { FastifyInstance } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
 import { z } from 'zod';
 import { customFieldCreateInput, customFieldPatchInput, toFieldKey } from '@inventory/shared';
-import type { AppDeps } from '@/app.js';
+import type { AppDeps } from '@/types/app.js';
 import { customFieldDefs } from '@/db/schema.js';
 import { invalidFields, notFound } from '@/lib/errors.js';
 import { nowIso } from '@/lib/dates.js';
@@ -121,6 +121,7 @@ export function registerCustomFieldRoutes(app: FastifyInstance, deps: AppDeps): 
             action: 'custom_field.updated',
             actorMemberId: request.member!.id,
             actorName: request.member!.displayName,
+            // The label *after* the patch: an untouched label is the stored one.
             params: { key: current.key, label: request.body.label ?? current.label },
           },
           now,

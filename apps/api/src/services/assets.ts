@@ -5,8 +5,8 @@ import {
   type AssetPatchInput,
   type AssetStatus,
 } from '@inventory/shared';
-import type { AppDeps } from '@/app.js';
-import type { Db, DbOrTx } from '@/db/client.js';
+import type { AppDeps } from '@/types/app.js';
+import type { Db, DbOrTx } from '@/types/db.js';
 import {
   assetCustomValues,
   assets,
@@ -19,7 +19,9 @@ import {
 import { AppError, invalidFields, notFound } from '@/lib/errors.js';
 import { nowIso, todayDate } from '@/lib/dates.js';
 import { newId } from '@/lib/ids.js';
-import { serializeAsset, serializeAssignment, type Actor } from '@/lib/serialize.js';
+import { serializeAsset, serializeAssignment } from '@/lib/serialize.js';
+import type { Actor } from '@/types/audit.js';
+import type { StatusMove } from '@/types/assets.js';
 import { writeAudit } from './audit.js';
 import { activeAssignment, assetHistory, openAssignment } from './assignments.js';
 import { listAttachments, storedNamesForAsset } from './attachments.js';
@@ -74,6 +76,8 @@ export function getAssetDetail(db: Db, id: string) {
       key: def.key,
       label: def.label,
       type: def.type,
+      // Every definition is listed for every asset; no row for this pair
+      // means the field is genuinely unset on this asset.
       value: values.get(def.id) ?? null,
     }));
 
@@ -94,7 +98,7 @@ export function getAssetDetail(db: Db, id: string) {
     }));
 
   return {
-    asset: serializeAsset(asset, activeAssignment(db, id) ?? null),
+    asset: serializeAsset(asset, activeAssignment(db, id)),
     customFields,
     history: assetHistory(db, id).map(serializeAssignment),
     attachments: listAttachments(db, id),
@@ -102,15 +106,29 @@ export function getAssetDetail(db: Db, id: string) {
   };
 }
 
-/** The suggestion the New-asset form prefills; the field stays editable. */
+/**
+ * The suggestion the New-asset form prefills; the field stays editable.
+ *
+ * The prefix comes from org settings and nowhere else. Every caller is behind
+ * a session, and a session implies the instance was set up, so a missing
+ * settings row is a broken invariant — better to say so than to quietly
+ * generate tags under a second, invented prefix nobody chose.
+ */
 export function nextAssetTag(db: DbOrTx): string {
   const settings = db.select().from(orgSettings).get();
+  if (!settings) {
+    throw new AppError(
+      500,
+      'not_initialized',
+      'This instance has no organization settings, so asset tags cannot be numbered.',
+    );
+  }
   const tags = db
     .select({ assetTag: assets.assetTag })
     .from(assets)
     .all()
     .map((row) => row.assetTag);
-  return computeNextTag(settings?.assetTagPrefix ?? 'AST', tags);
+  return computeNextTag(settings.assetTagPrefix, tags);
 }
 
 export function createAsset(deps: AppDeps, actor: Actor, input: AssetCreateInput) {
@@ -118,6 +136,7 @@ export function createAsset(deps: AppDeps, actor: Actor, input: AssetCreateInput
   const at = nowIso(now);
 
   return deps.db.transaction((tx) => {
+    // The form may leave the tag out entirely, which means "number it for me".
     const assetTag = input.assetTag ?? nextAssetTag(tx);
     if (tx.select().from(assets).where(eq(assets.assetTag, assetTag)).get()) {
       throw invalidFields({ assetTag: 'That asset tag is already in use.' });
@@ -125,12 +144,15 @@ export function createAsset(deps: AppDeps, actor: Actor, input: AssetCreateInput
 
     let holder: typeof employees.$inferSelect | null = null;
     if (input.status === 'assigned') {
-      holder =
-        tx.select().from(employees).where(eq(employees.id, input.assignedToEmployeeId!)).get() ??
-        null;
-      if (!holder) {
+      const found = tx
+        .select()
+        .from(employees)
+        .where(eq(employees.id, input.assignedToEmployeeId!))
+        .get();
+      if (!found) {
         throw invalidFields({ assignedToEmployeeId: 'That employee could not be found.' });
       }
+      holder = found;
     }
 
     const id = newId();
@@ -176,6 +198,8 @@ export function createAsset(deps: AppDeps, actor: Actor, input: AssetCreateInput
           assetId: id,
           employeeId: holder.id,
           holderName,
+          // The create form makes the checkout date optional; leaving it out
+          // means "handed over today", which is what this records.
           checkedOutAt: input.checkoutDate ?? todayDate(now),
         },
         now,
@@ -197,7 +221,7 @@ export function createAsset(deps: AppDeps, actor: Actor, input: AssetCreateInput
 
     return serializeAsset(
       tx.select().from(assets).where(eq(assets.id, id)).get()!,
-      activeAssignment(tx, id) ?? null,
+      activeAssignment(tx, id),
     );
   });
 }
@@ -212,6 +236,9 @@ export function updateAsset(deps: AppDeps, actor: Actor, id: string, patch: Asse
     const values: Record<string, unknown> = {};
     const changedFields: string[] = [];
     for (const field of EDITABLE) {
+      // Patch semantics (see packages/shared/CLAUDE.md): absent means "leave
+      // alone" — already skipped — so a present field that carries no value
+      // means "clear it", and NULL is how the column says that.
       if (!(field in patch)) continue;
       const next = patch[field] ?? null;
       if (next === current[field]) continue;
@@ -229,7 +256,7 @@ export function updateAsset(deps: AppDeps, actor: Actor, id: string, patch: Asse
     }
 
     // Moving in or out of `assigned` is what assign and check-in are for.
-    let statusMove: { from: string; to: string } | null = null;
+    let statusMove: StatusMove | null = null;
     if (patch.status && patch.status !== current.status) {
       if (!canDirectlyTransition(current.status as AssetStatus, patch.status)) {
         throw new AppError(
@@ -244,12 +271,14 @@ export function updateAsset(deps: AppDeps, actor: Actor, id: string, patch: Asse
 
     changedFields.push(...applyCustomValues(tx, id, patch.customValues));
     if (changedFields.length === 0 && !statusMove) {
-      return serializeAsset(current, activeAssignment(tx, id) ?? null);
+      return serializeAsset(current, activeAssignment(tx, id));
     }
 
     values.updatedAt = nowIso(now);
     tx.update(assets).set(values).where(eq(assets.id, id)).run();
 
+    // The audit line names the asset as it is *after* the edit, so an unchanged
+    // field reads from the stored row rather than from the patch.
     const subject = {
       assetName: (values.name as string | undefined) ?? current.name,
       assetTag: (values.assetTag as string | undefined) ?? current.assetTag,
@@ -285,7 +314,7 @@ export function updateAsset(deps: AppDeps, actor: Actor, id: string, patch: Asse
 
     return serializeAsset(
       tx.select().from(assets).where(eq(assets.id, id)).get()!,
-      activeAssignment(tx, id) ?? null,
+      activeAssignment(tx, id),
     );
   });
 }
@@ -349,6 +378,8 @@ function applyCustomValues(
       eq(assetCustomValues.assetId, assetId),
       eq(assetCustomValues.fieldDefId, def.id),
     );
+    // No row for this pair means the field is unset, which is the same state
+    // an explicit null asks for — so neither is a change worth auditing.
     const existing = tx.select().from(assetCustomValues).where(where).get();
     if ((existing?.value ?? null) === value) continue;
 

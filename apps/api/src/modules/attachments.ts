@@ -4,7 +4,7 @@ import { eq } from 'drizzle-orm';
 import type { FastifyInstance } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
 import { z } from 'zod';
-import type { AppDeps } from '@/app.js';
+import type { AppDeps } from '@/types/app.js';
 import { attachments } from '@/db/schema.js';
 import { AppError, notFound } from '@/lib/errors.js';
 import {

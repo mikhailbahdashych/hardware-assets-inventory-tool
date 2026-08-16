@@ -5,13 +5,15 @@ import {
   type CheckinInput,
   type EmployeeStatus,
 } from '@inventory/shared';
-import type { AppDeps } from '@/app.js';
-import type { DbOrTx } from '@/db/client.js';
+import type { AppDeps } from '@/types/app.js';
+import type { DbOrTx } from '@/types/db.js';
+import type { Actor } from '@/types/audit.js';
+import type { CloseAssignmentParams, OpenAssignmentParams } from '@/types/assignments.js';
 import { assets, assignments, employees } from '@/db/schema.js';
 import { nowIso } from '@/lib/dates.js';
 import { newId } from '@/lib/ids.js';
 import { AppError, invalidFields, notFound } from '@/lib/errors.js';
-import { serializeAsset, type Actor } from '@/lib/serialize.js';
+import { serializeAsset } from '@/lib/serialize.js';
 import { writeAudit } from './audit.js';
 
 export type AssignmentRow = typeof assignments.$inferSelect;
@@ -19,13 +21,19 @@ export type AssignmentRow = typeof assignments.$inferSelect;
 /** Statuses an asset can be handed out from. */
 const ASSIGNABLE_FROM = new Set(['available', 'ordered']);
 
-/** The open ownership record for an asset, or null when nobody holds it. */
-export function activeAssignment(db: DbOrTx, assetId: string): AssignmentRow | undefined {
-  return db
-    .select()
-    .from(assignments)
-    .where(and(eq(assignments.assetId, assetId), isNull(assignments.returnedAt)))
-    .get();
+/**
+ * The open ownership record for an asset, or null when nobody holds it.
+ * "Nobody holds it" is a real answer, so it is spelled null rather than left
+ * as drizzle's undefined — callers then need no coalescing of their own.
+ */
+export function activeAssignment(db: DbOrTx, assetId: string): AssignmentRow | null {
+  return (
+    db
+      .select()
+      .from(assignments)
+      .where(and(eq(assignments.assetId, assetId), isNull(assignments.returnedAt)))
+      .get() ?? null
+  );
 }
 
 /**
@@ -34,20 +42,11 @@ export function activeAssignment(db: DbOrTx, assetId: string): AssignmentRow | u
  * active assignment exists always holds. The partial unique index on
  * `(asset_id) WHERE returned_at IS NULL` is the structural backstop.
  *
- * Must be called inside the caller's transaction.
+ * Must be called inside the caller's transaction. The two `?? null` below are
+ * the columns' meaning, not a default: no agreed return date and no handover
+ * note are both real, storable states.
  */
-export function openAssignment(
-  tx: DbOrTx,
-  params: {
-    assetId: string;
-    employeeId: string;
-    holderName: string;
-    checkedOutAt: string;
-    expectedReturnDate?: string | null;
-    notes?: string | null;
-  },
-  now: Date,
-): string {
+export function openAssignment(tx: DbOrTx, params: OpenAssignmentParams, now: Date): string {
   const id = newId();
   tx.insert(assignments)
     .values({
@@ -73,20 +72,10 @@ export function openAssignment(
  * the mirror image of openAssignment, and the only way an asset may leave
  * `assigned`.
  *
- * Must be called inside the caller's transaction.
+ * Must be called inside the caller's transaction. As with openAssignment, an
+ * unrecorded condition or note is stored as NULL because that is what it is.
  */
-export function closeAssignment(
-  tx: DbOrTx,
-  params: {
-    assignment: AssignmentRow;
-    returnedAt: string;
-    newStatus: string;
-    condition?: string | null;
-    notes?: string | null;
-    outcome: string;
-  },
-  now: Date,
-): void {
+export function closeAssignment(tx: DbOrTx, params: CloseAssignmentParams, now: Date): void {
   tx.update(assignments)
     .set({
       returnedAt: params.returnedAt,
@@ -181,7 +170,7 @@ export function assignAsset(deps: AppDeps, actor: Actor, assetId: string, input:
 
     return serializeAsset(
       tx.select().from(assets).where(eq(assets.id, assetId)).get()!,
-      activeAssignment(tx, assetId) ?? null,
+      activeAssignment(tx, assetId),
     );
   });
 }
@@ -207,8 +196,10 @@ export function checkinAsset(deps: AppDeps, actor: Actor, assetId: string, input
     const holder = open.employeeId
       ? tx.select().from(employees).where(eq(employees.id, open.employeeId)).get()
       : undefined;
+    // A deleted holder leaves employee_id NULL, and "no holder to offboard" is
+    // exactly what deriveOutcome's null arm means.
     const outcome = deriveOutcome({
-      holderStatus: (holder?.status as EmployeeStatus | undefined) ?? null,
+      holderStatus: holder ? (holder.status as EmployeeStatus) : null,
       newStatus: input.newStatus,
     });
 

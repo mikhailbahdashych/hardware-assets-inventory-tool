@@ -8,9 +8,9 @@ import {
   loginInput,
   resetPasswordInput,
 } from '@inventory/shared';
-import type { AppDeps } from '@/app.js';
+import type { AppDeps } from '@/types/app.js';
 import { members, orgSettings, sessions } from '@/db/schema.js';
-import { invalidCredentials, invalidToken } from '@/lib/errors.js';
+import { AppError, invalidCredentials, invalidToken } from '@/lib/errors.js';
 import { nowIso } from '@/lib/dates.js';
 import { DUMMY_HASH_PROMISE, hashPassword, verifyPassword } from '@/lib/password.js';
 import { serializeMember } from '@/lib/serialize.js';
@@ -45,6 +45,9 @@ export function registerAuthRoutes(app: FastifyInstance, deps: AppDeps): void {
         .where(eq(members.email, request.body.email))
         .get();
 
+      // Deliberate, and the reason this endpoint is safe: an unknown email
+      // still pays for one argon2 verify, so timing never reveals whether an
+      // account exists. The dummy hash is the point, not a fallback.
       const hash = member?.passwordHash ?? (await DUMMY_HASH_PROMISE);
       const valid = await verifyPassword(hash, request.body.password);
       if (!member || !member.passwordHash || !valid || member.status !== 'active') {
@@ -129,8 +132,17 @@ export function registerAuthRoutes(app: FastifyInstance, deps: AppDeps): void {
       if (!token) throw invalidToken();
       const member = deps.db.select().from(members).where(eq(members.id, token.memberId)).get();
       if (!member || member.status !== 'invited') throw invalidToken();
+      // An invite can only exist once setup has run, so the settings row is
+      // always there. Naming an unnamed organization would be the bug.
       const settings = deps.db.select().from(orgSettings).get();
-      return { email: member.email, role: member.role, orgName: settings?.orgName ?? '' };
+      if (!settings) {
+        throw new AppError(
+          500,
+          'not_initialized',
+          'This instance has no organization settings, so the invite cannot be described.',
+        );
+      }
+      return { email: member.email, role: member.role, orgName: settings.orgName };
     },
   );
 

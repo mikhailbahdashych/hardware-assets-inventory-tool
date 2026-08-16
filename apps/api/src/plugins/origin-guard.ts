@@ -21,6 +21,8 @@ export function registerOriginGuard(app: FastifyInstance, config: Config): void 
   app.addHook('onRequest', async (request) => {
     if (SAFE_METHODS.has(request.method)) return;
 
+    // Not a default: browsers send one header or the other, and either one
+    // answers the same question — where did this request come from?
     const source = request.headers.origin ?? request.headers.referer;
     if (!source) return;
 

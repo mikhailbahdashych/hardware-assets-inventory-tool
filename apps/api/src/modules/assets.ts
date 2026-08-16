@@ -2,7 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
 import { z } from 'zod';
 import { assetCreateInput, assetPatchInput, assignInput, checkinInput } from '@inventory/shared';
-import type { AppDeps } from '@/app.js';
+import type { AppDeps } from '@/types/app.js';
 import { requireAction, requireAuth } from '@/plugins/rbac.js';
 import {
   createAsset,

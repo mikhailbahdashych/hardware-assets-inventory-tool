@@ -1,12 +1,13 @@
 import { and, asc, eq, isNull, ne, sql } from 'drizzle-orm';
 import type { EmployeeCreateInput, EmployeePatchInput } from '@inventory/shared';
-import type { AppDeps } from '@/app.js';
-import type { Db, DbOrTx } from '@/db/client.js';
+import type { AppDeps } from '@/types/app.js';
+import type { Db, DbOrTx } from '@/types/db.js';
 import { assignments, employees } from '@/db/schema.js';
 import { AppError, invalidFields, notFound } from '@/lib/errors.js';
 import { nowIso } from '@/lib/dates.js';
 import { newId } from '@/lib/ids.js';
-import { serializeEmployee, serializeHolding, type Actor } from '@/lib/serialize.js';
+import { serializeEmployee, serializeHolding } from '@/lib/serialize.js';
+import type { Actor } from '@/types/audit.js';
 import { writeAudit } from './audit.js';
 import { employeeHistory } from './assignments.js';
 
@@ -34,6 +35,8 @@ function activeCounts(db: DbOrTx): Map<string, number> {
 
 /** Alphabetical: an employee list is scanned for a person, not for recency. */
 export function listEmployees(db: Db) {
+  // activeCounts only has rows for people who hold something, so a miss below
+  // is a genuine zero rather than a missing count.
   const counts = activeCounts(db);
   return db
     .select()
@@ -113,6 +116,8 @@ export function updateEmployee(deps: AppDeps, actor: Actor, id: string, patch: E
     const values: Record<string, unknown> = {};
     const changedFields: string[] = [];
     for (const field of EDITABLE) {
+      // Patch semantics: absent means "leave alone" (skipped above), so a
+      // present field with no value means "clear it" — that is what NULL is.
       if (!(field in patch)) continue;
       const next = patch[field] ?? null;
       if (next === current[field]) continue;
@@ -148,6 +153,8 @@ export function updateEmployee(deps: AppDeps, actor: Actor, id: string, patch: E
     values.updatedAt = nowIso(now);
     tx.update(employees).set(values).where(eq(employees.id, id)).run();
 
+    // The audit line names the person as they are *after* the edit, so an
+    // untouched half of the name reads from the stored row.
     const employeeName = `${values.firstName ?? current.firstName} ${values.lastName ?? current.lastName}`;
     if (changedFields.length > 0) {
       writeAudit(
@@ -172,6 +179,7 @@ export function updateEmployee(deps: AppDeps, actor: Actor, id: string, patch: E
           actorMemberId: actor.id,
           actorName: actor.displayName,
           employeeId: id,
+          // Offboarding without a return date is allowed; null records that.
           params: { employeeName, scheduledReturns, returnDueDate: patch.returnDueDate ?? null },
         },
         now,

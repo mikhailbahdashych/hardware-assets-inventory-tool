@@ -1,7 +1,7 @@
 import { eq, lt } from 'drizzle-orm';
 import type { FastifyReply } from 'fastify';
 import type { Config } from '@/config.js';
-import type { Db } from '@/db/client.js';
+import type { Db } from '@/types/db.js';
 import { members, sessions } from '@/db/schema.js';
 import { nowIso } from '@/lib/dates.js';
 import { createRawToken, hashToken } from '@/lib/tokens.js';

@@ -1,5 +1,5 @@
 import { customFieldDefs } from './schema.js';
-import type { Db } from './client.js';
+import type { Db } from '@/types/db.js';
 import { newId } from '@/lib/ids.js';
 import { nowIso } from '@/lib/dates.js';
 

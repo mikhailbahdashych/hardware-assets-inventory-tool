@@ -1,7 +1,7 @@
 import { eq, isNull } from 'drizzle-orm';
 import { afterEach, describe, expect, it } from 'vitest';
 import { assets, assignments, auditEvents } from '@/db/schema.js';
-import type { Db } from '@/db/client.js';
+import type { Db } from '@/types/db.js';
 import { buildTestApp, inject, memberCookie, setupOrg, type TestApp } from './helpers.js';
 
 let ctx: TestApp;

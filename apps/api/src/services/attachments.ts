@@ -3,13 +3,14 @@ import { mkdir, unlink } from 'node:fs/promises';
 import { extname, join } from 'node:path';
 import { pipeline } from 'node:stream/promises';
 import { eq } from 'drizzle-orm';
-import type { AppDeps } from '@/app.js';
-import type { Db } from '@/db/client.js';
+import type { AppDeps } from '@/types/app.js';
+import type { Db } from '@/types/db.js';
 import { assets, attachments, members } from '@/db/schema.js';
 import { nowIso } from '@/lib/dates.js';
 import { newId } from '@/lib/ids.js';
 import { AppError, notFound } from '@/lib/errors.js';
-import type { Actor } from '@/lib/serialize.js';
+import type { Actor } from '@/types/audit.js';
+import type { UploadedFile } from '@/types/attachments.js';
 import { writeAudit } from './audit.js';
 
 export type AttachmentRow = typeof attachments.$inferSelect;
@@ -31,6 +32,10 @@ export function serializeAttachment(row: AttachmentRow, uploaderName: string | n
   };
 }
 
+/**
+ * The uploader is a LEFT JOIN: the member who uploaded a file may since have
+ * been removed, and "we no longer know who" is a real answer the column holds.
+ */
 export function listAttachments(db: Db, assetId: string) {
   return db
     .select({ attachment: attachments, uploader: members })
@@ -60,7 +65,7 @@ export async function saveAttachment(
   deps: AppDeps,
   actor: Actor,
   assetId: string,
-  file: { filename: string; mimetype: string; stream: NodeJS.ReadableStream },
+  file: UploadedFile,
 ): Promise<AttachmentRow> {
   const asset = deps.db.select().from(assets).where(eq(assets.id, assetId)).get();
   if (!asset) throw notFound('That asset');
@@ -89,7 +94,7 @@ export async function saveAttachment(
 
   // @fastify/multipart truncates past the limit rather than throwing, so the
   // half-written file has to be cleaned up here.
-  if ((file.stream as { truncated?: boolean }).truncated) {
+  if (file.stream.truncated) {
     await unlink(target).catch(() => {});
     throw new AppError(413, 'file_too_large', 'Attachments are limited to 10 MB.');
   }
@@ -131,7 +136,11 @@ export async function deleteAttachment(
 ): Promise<void> {
   const row = deps.db.select().from(attachments).where(eq(attachments.id, attachmentId)).get();
   if (!row) throw notFound('That attachment');
+  // attachments.asset_id is NOT NULL and cascades on delete, so the asset an
+  // attachment names always exists. Reading it optionally would only hide the
+  // day that stops being true — and write a nameless audit line.
   const asset = deps.db.select().from(assets).where(eq(assets.id, row.assetId)).get();
+  if (!asset) throw notFound('That asset');
 
   const now = deps.now();
   deps.db.transaction((tx) => {
@@ -144,7 +153,7 @@ export async function deleteAttachment(
         actorMemberId: actor.id,
         actorName: actor.displayName,
         assetId: row.assetId,
-        params: { assetName: asset?.name, assetTag: asset?.assetTag, filename: row.filename },
+        params: { assetName: asset.name, assetTag: asset.assetTag, filename: row.filename },
       },
       now,
     );
