@@ -7,9 +7,13 @@ export function setParam(
   params: URLSearchParams,
   key: string,
   value: string,
-  options: { omitWhen?: string } = {},
+  { omitWhen = '' }: SetParamOptions = {},
 ): void {
-  const omitWhen = options.omitWhen ?? '';
   if (value === omitWhen) params.delete(key);
   else params.set(key, value);
+}
+
+interface SetParamOptions {
+  /** The value that means "unfiltered" and so stays out of the URL. */
+  omitWhen?: string;
 }

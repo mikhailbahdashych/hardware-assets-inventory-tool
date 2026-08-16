@@ -5,10 +5,17 @@ export type StubHandler = StubResponse | ((body: unknown) => StubResponse);
 /** Keyed by "METHOD /path", e.g. "POST /auth/login". */
 export type StubRoutes = Record<string, StubHandler>;
 
-export type ApiStub = {
-  calls: { method: string; path: string; body: unknown }[];
-  called: (key: string) => { method: string; path: string; body: unknown } | undefined;
-};
+/** One recorded request, as the assertions read it back. */
+export interface StubCall {
+  method: string;
+  path: string;
+  body: unknown;
+}
+
+export interface ApiStub {
+  calls: StubCall[];
+  called: (key: string) => StubCall | undefined;
+}
 
 /** Stubs global fetch with a small route table so tests exercise the real API client. */
 export function stubApi(routes: StubRoutes): ApiStub {
@@ -17,6 +24,7 @@ export function stubApi(routes: StubRoutes): ApiStub {
   vi.stubGlobal(
     'fetch',
     vi.fn(async (url: string, init: RequestInit = {}) => {
+      // fetch's own default, mirrored here.
       const method = (init.method ?? 'GET').toUpperCase();
       const path = url.replace('/api/v1', '');
       const body = typeof init.body === 'string' ? JSON.parse(init.body) : undefined;

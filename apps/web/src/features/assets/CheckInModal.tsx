@@ -9,7 +9,7 @@ import {
 } from '@inventory/shared';
 import { fieldErrors } from '@/api/formErrors';
 import { useCheckinAsset } from '@/api/mutations';
-import type { Asset } from '@/api/types';
+import type { Asset } from '@/types/api';
 import { Button, Field, Input, Modal, SegmentedControl, Select, Textarea } from '@/components/ui';
 import { useToast } from '@/providers/ToastProvider';
 import formStyles from '@/components/ui/FormModal.module.css';

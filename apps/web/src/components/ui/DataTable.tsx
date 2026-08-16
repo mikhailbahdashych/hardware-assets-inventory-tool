@@ -1,13 +1,6 @@
 import type { ReactNode } from 'react';
+import type { TableColumn } from '@/types/table';
 import styles from './DataTable.module.css';
-
-export type TableColumn<T> = {
-  header: ReactNode;
-  /** One grid-template-columns track, e.g. "minmax(210px,1.6fr)" or "95px". */
-  width: string;
-  render: (row: T) => ReactNode;
-  align?: 'left' | 'right';
-};
 
 /**
  * The design's CSS-grid table: --thead header, 1px-divided rows whose vertical

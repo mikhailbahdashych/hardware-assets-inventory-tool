@@ -1,6 +1,6 @@
 import { Navigate, Route, Routes } from 'react-router';
 import { can } from '@inventory/shared';
-import { useMe, useMeta } from './api/queries';
+import { orgMeta, useMe, useMeta } from './api/queries';
 import { AppShell } from './components/app/AppShell';
 import { Spinner } from './components/ui';
 import { AssetDetailPage } from './features/assets/AssetDetailPage';
@@ -40,7 +40,14 @@ export function AppRoutes() {
 
   if (meta.isPending || me.isPending) return <Splash />;
 
-  if (meta.data?.needsSetup) {
+  // Every route set below depends on knowing whether this instance is set up.
+  // Guessing "signed out" when /meta failed would send an uninitialized
+  // instance to a login screen nobody can pass.
+  if (!meta.data) {
+    throw new Error('GET /api/v1/meta has not answered, so no route set can be chosen.');
+  }
+
+  if (meta.data.needsSetup) {
     return (
       <Routes>
         <Route path="/setup" element={<SetupPage />} />
@@ -67,7 +74,7 @@ export function AppRoutes() {
       {/* Token screens stay reachable while signed in; they replace the session. */}
       <Route path="/reset-password" element={<ResetPasswordPage />} />
       <Route path="/accept-invite" element={<AcceptInvitePage />} />
-      <Route element={<AppShell member={member} orgName={meta.data?.orgName ?? 'Inventory'} />}>
+      <Route element={<AppShell member={member} orgName={orgMeta(meta.data).orgName} />}>
         <Route
           path="/dashboard"
           element={

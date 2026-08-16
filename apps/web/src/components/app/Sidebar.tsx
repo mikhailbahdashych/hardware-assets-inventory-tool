@@ -1,6 +1,6 @@
 import { Link, useLocation } from 'react-router';
 import { ROLE_LABELS } from '@inventory/shared';
-import type { Member } from '@/api/types';
+import type { Member } from '@/types/api';
 import { Avatar, Icon, IconButton } from '@/components/ui';
 import { isNavItemActive, navItemsForRole } from './nav';
 import styles from './Sidebar.module.css';

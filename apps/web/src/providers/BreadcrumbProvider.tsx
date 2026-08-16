@@ -28,6 +28,8 @@ export function useBreadcrumbDetail(): string | null {
 export function usePageBreadcrumb(label: string | null | undefined): void {
   const { set } = useContext(BreadcrumbDetailContext);
   useEffect(() => {
+    // A page whose record has not loaded has no label yet, which the context
+    // spells null.
     set(label ?? null);
     return () => set(null);
   }, [label, set]);

@@ -31,6 +31,8 @@ export function SearchInput({
         value={value}
         onChange={onChange}
         placeholder={placeholder}
+        // Toolbar inputs carry no visible label, so the placeholder is the
+        // accessible name unless a caller gives a better one.
         aria-label={ariaLabel ?? placeholder}
       />
     </span>

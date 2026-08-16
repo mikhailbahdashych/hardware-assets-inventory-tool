@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { Assignment } from '@/api/types';
+import type { Assignment } from '@/types/api';
 import { buildTimeline } from './timeline';
 
 const NOW = new Date('2026-08-16T12:00:00.000Z');

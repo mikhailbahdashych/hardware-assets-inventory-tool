@@ -8,7 +8,7 @@ import {
   type Role,
 } from '@inventory/shared';
 import { useAssets } from '@/api/queries';
-import type { Asset } from '@/api/types';
+import type { Asset } from '@/types/api';
 import { ListToolbar } from '@/components/app/ListToolbar';
 import { PageContainer } from '@/components/app/PageContainer';
 import {
@@ -19,12 +19,13 @@ import {
   Pill,
   SearchInput,
   Spinner,
-  type TableColumn,
 } from '@/components/ui';
+import type { StatusFilter } from '@/types/filters';
+import type { TableColumn } from '@/types/table';
 import { formatMonthYear } from '@/lib/format';
 import { setParam } from '@/lib/searchParams';
 import { AssetFormModal } from './AssetFormModal';
-import { assetStatusPills, filterAssets, parseStatusFilter, type StatusFilter } from './filters';
+import { assetStatusPills, filterAssets, parseStatusFilter } from './filters';
 import styles from './Assets.module.css';
 
 /** The design's grid: Asset · Category · Serial · Status · Assigned to · Purchased · Warranty. */
@@ -49,6 +50,7 @@ const COLUMNS: TableColumn<Asset>[] = [
   {
     header: 'Serial',
     width: '130px',
+    // The design's em dash for an empty cell, here and below.
     render: (asset) => <span className={styles.serial}>{asset.serialNumber ?? '—'}</span>,
   },
   {
@@ -86,7 +88,10 @@ export function AssetsPage({ role }: { role: Role }) {
   // Filters live in the URL so a filtered view is shareable and survives a
   // reload — and so the dashboard can link straight to /assets?status=in_repair.
   const status = parseStatusFilter(searchParams.get('status'));
+  // No `?q=` in the URL legitimately means "no filter".
   const query = searchParams.get('q') ?? '';
+  // Either filter can be set on its own, so an absent key here means "leave
+  // the other one as the URL already has it" — not "reset it".
   const setFilter = (next: { status?: StatusFilter; q?: string }) => {
     const params = new URLSearchParams(searchParams);
     setParam(params, 'status', next.status ?? parseStatusFilter(params.get('status')), {
@@ -96,6 +101,7 @@ export function AssetsPage({ role }: { role: Role }) {
     setSearchParams(params, { replace: true });
   };
 
+  // A list that has not arrived has no rows; the empty state renders below.
   const all = assets.data ?? [];
   const rows = filterAssets(all, { status, query });
 

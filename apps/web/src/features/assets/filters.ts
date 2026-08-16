@@ -1,16 +1,14 @@
 import { ASSET_STATUS_LABELS, ASSET_STATUSES, type AssetStatus } from '@inventory/shared';
-import type { Asset } from '@/api/types';
+import type { Asset } from '@/types/api';
+import type { AssetFilters, StatusFilter } from '@/types/filters';
 
 // Filtering is client-side over the full list the API returns, and the chosen
 // values live in the URL (`/assets?status=&q=`) so a filtered view is
 // shareable, survives a reload, and can be linked to from the dashboard.
 
-export type StatusFilter = AssetStatus | 'all';
-
-export type AssetFilters = { status: StatusFilter; query: string };
-
+/** No `?status=` in the URL, or one nobody recognises, both mean "unfiltered". */
 export function parseStatusFilter(value: string | null): StatusFilter {
-  return (ASSET_STATUSES as readonly string[]).includes(value ?? '')
+  return value !== null && (ASSET_STATUSES as readonly string[]).includes(value)
     ? (value as AssetStatus)
     : 'all';
 }
@@ -21,6 +19,7 @@ export function filterAssets(assets: Asset[], { status, query }: AssetFilters): 
   return assets.filter((asset) => {
     if (status !== 'all' && asset.status !== status) return false;
     if (!needle) return true;
+    // An asset without a serial matches nothing rather than everything.
     return [asset.name, asset.assetTag, asset.serialNumber ?? ''].some((field) =>
       field.toLowerCase().includes(needle),
     );

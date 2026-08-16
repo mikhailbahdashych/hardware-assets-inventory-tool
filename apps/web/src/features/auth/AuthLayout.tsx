@@ -43,6 +43,8 @@ export function AuthLayout({
         <div className={styles.card}>{children}</div>
         {below}
         <div className={styles.footer}>
+          {/* The design's em dash for a value that is not known yet, the same
+              rule empty table cells follow — never a made-up version number. */}
           v{meta?.version ?? '—'} · open source · self-hosted at {window.location.host}
         </div>
       </div>

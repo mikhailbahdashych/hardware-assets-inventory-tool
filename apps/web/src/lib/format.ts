@@ -76,6 +76,8 @@ export function formatCurrency(cents: number | null | undefined, currency: strin
 
 /** "Maya Lindqvist" → "ML"; strips non-letters ("Liam O'Connor" → "LO"). */
 export function initials(name: string): string {
+  // Splitting a blank or space-padded name yields empty words, which have no
+  // first letter — TypeScript types word[0] as string and is wrong about it.
   return name
     .split(/\s+/)
     .map((word) => word[0] ?? '')

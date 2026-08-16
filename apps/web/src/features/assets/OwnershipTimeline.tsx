@@ -1,4 +1,4 @@
-import type { Assignment } from '@/api/types';
+import type { Assignment } from '@/types/api';
 import { buildTimeline } from './timeline';
 import styles from './Timeline.module.css';
 

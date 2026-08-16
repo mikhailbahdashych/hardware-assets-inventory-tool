@@ -62,6 +62,7 @@ export function ManageFieldsModal({ onClose }: { onClose: () => void }) {
       }
     >
       <div className={styles.list}>
+        {/* Definitions that have not loaded are no definitions to list. */}
         {(fields.data ?? []).map((field) => (
           <div key={field.id} className={styles.row}>
             {renaming?.id === field.id ? (

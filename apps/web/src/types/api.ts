@@ -8,9 +8,19 @@ import type {
   EmployeeStatus,
   Role,
 } from '@inventory/shared';
-import type { Density, Theme } from '@/providers/ThemeProvider';
+import type { Density, Theme } from './theme';
 
-export type Member = {
+// Every shape the API sends back, named once. Nullable fields are nullable
+// because the column is: `null` here is a real state, not a missing value.
+
+/** What `apiFetch` accepts beyond the path. */
+export interface ApiRequest {
+  method?: 'GET' | 'POST' | 'PATCH' | 'DELETE';
+  body?: unknown;
+  signal?: AbortSignal;
+}
+
+export interface Member {
   id: string;
   email: string;
   displayName: string;
@@ -21,31 +31,45 @@ export type Member = {
   theme: Theme;
   density: Density;
   widgets: Record<string, boolean>;
-};
+}
 
-export type Meta = {
+/**
+ * Public instance metadata. `orgName` and `defaultCurrency` are absent only
+ * while `needsSetup` is true — see `OrgMeta` for the signed-in view.
+ */
+export interface Meta {
   needsSetup: boolean;
   version: string;
   orgName?: string;
   /** Currency for assets that do not carry one of their own. */
   defaultCurrency?: Currency;
-};
+}
 
-export type InviteDetails = {
+/**
+ * `Meta` once setup has run. Both fields are NOT NULL columns written by the
+ * setup flow, so inside the signed-in app they are always present.
+ */
+export interface OrgMeta {
+  version: string;
+  orgName: string;
+  defaultCurrency: Currency;
+}
+
+export interface InviteDetails {
   email: string;
   role: Role;
   orgName: string;
-};
+}
 
 /** Who holds an asset right now, read from its open ownership record. */
-export type CurrentHolder = {
+export interface CurrentHolder {
   employeeId: string | null;
   name: string;
   checkedOutAt: string;
   expectedReturnDate: string | null;
-};
+}
 
-export type Asset = {
+export interface Asset {
   id: string;
   assetTag: string;
   name: string;
@@ -62,18 +86,18 @@ export type Asset = {
   currentHolder: CurrentHolder | null;
   createdAt: string;
   updatedAt: string;
-};
+}
 
-export type CustomFieldDef = {
+export interface CustomFieldDef {
   id: string;
   key: string;
   label: string;
   type: CustomFieldType;
   sortOrder: number;
-};
+}
 
 /** One ownership record — the only truth about who has held an asset. */
-export type Assignment = {
+export interface Assignment {
   id: string;
   employeeId: string | null;
   holderName: string;
@@ -84,18 +108,18 @@ export type Assignment = {
   checkoutNotes: string | null;
   checkinCondition: CheckinCondition | null;
   checkinNotes: string | null;
-};
+}
 
 /** The same record seen from the person's side, so it names the asset. */
-export type Holding = Assignment & {
+export interface Holding extends Assignment {
   assetId: string;
   assetName: string;
   assetTag: string;
   category: AssetCategory;
   serialNumber: string | null;
-};
+}
 
-export type Attachment = {
+export interface Attachment {
   id: string;
   assetId: string;
   filename: string;
@@ -103,38 +127,38 @@ export type Attachment = {
   mime: string | null;
   uploadedByName: string | null;
   createdAt: string;
-};
+}
 
-export type AuditEntry = {
+export interface AuditEntry {
   id: string;
   at: string;
   action: string;
   actorName: string;
   params: Record<string, unknown>;
-};
+}
 
-export type CustomFieldValue = {
+export interface CustomFieldValue {
   key: string;
   label: string;
   type: CustomFieldType;
   value: string | null;
-};
+}
 
-export type AssetDetail = {
+export interface AssetDetail {
   asset: Asset;
   customFields: CustomFieldValue[];
   history: Assignment[];
   attachments: Attachment[];
   auditTrail: AuditEntry[];
-};
+}
 
-export type EmployeeDetail = {
+export interface EmployeeDetail {
   employee: Employee;
   holdings: Holding[];
   history: Holding[];
-};
+}
 
-export type Employee = {
+export interface Employee {
   id: string;
   firstName: string;
   lastName: string;
@@ -149,4 +173,4 @@ export type Employee = {
   activeAssetCount: number;
   createdAt: string;
   updatedAt: string;
-};
+}

@@ -9,7 +9,7 @@ import {
   type Role,
 } from '@inventory/shared';
 import { useEmployee } from '@/api/queries';
-import type { Holding } from '@/api/types';
+import type { Holding } from '@/types/api';
 import { PageContainer } from '@/components/app/PageContainer';
 import { usePageBreadcrumb } from '@/providers/BreadcrumbProvider';
 import {
@@ -21,8 +21,8 @@ import {
   EmptyState,
   Pill,
   Spinner,
-  type TableColumn,
 } from '@/components/ui';
+import type { TableColumn } from '@/types/table';
 import { formatFullDate, formatMonthYear } from '@/lib/format';
 import { AssignModal } from '../assets/AssignModal';
 import { CheckInModal } from '../assets/CheckInModal';
@@ -95,6 +95,7 @@ export function EmployeeDetailPage({ role }: { role: Role }) {
     {
       header: 'Serial',
       width: '130px',
+      // The design's em dash for an asset with no serial recorded.
       render: (holding) => (
         <span className={styles.holdingSerial}>{holding.serialNumber ?? '—'}</span>
       ),

@@ -7,7 +7,7 @@ import {
 } from '@inventory/shared';
 import { fieldErrors } from '@/api/formErrors';
 import { useUpdateAsset } from '@/api/mutations';
-import type { Asset } from '@/api/types';
+import type { Asset } from '@/types/api';
 import { Button, Field, Modal, Select } from '@/components/ui';
 import { useToast } from '@/providers/ToastProvider';
 import formStyles from '@/components/ui/FormModal.module.css';
@@ -19,6 +19,8 @@ import formStyles from '@/components/ui/FormModal.module.css';
  */
 export function ChangeStatusModal({ asset, onClose }: { asset: Asset; onClose: () => void }) {
   const options = ASSET_STATUSES.filter((status) => canDirectlyTransition(asset.status, status));
+  // An assigned asset can move nowhere directly, so it offers no options and
+  // stays where it is — the modal is not reachable for one from the UI.
   const [status, setStatus] = useState<AssetStatus>(options[0] ?? asset.status);
 
   const toast = useToast();

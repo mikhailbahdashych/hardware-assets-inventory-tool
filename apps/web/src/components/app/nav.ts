@@ -1,15 +1,20 @@
-import { can, type Role } from '@inventory/shared';
+import { can, type Action, type Role } from '@inventory/shared';
 import type { IconName } from '@/components/ui/Icon';
 
-export type NavItem = {
+export interface NavItem {
   label: string;
   to: string;
   icon: IconName;
   /** The design separates Admin from the other sections with a 10px gap. */
   gapBefore?: boolean;
-};
+}
 
-const ITEMS: (NavItem & { requires?: Parameters<typeof can>[1] })[] = [
+/** A nav item plus the permission that reveals it, if it needs one. */
+interface GatedNavItem extends NavItem {
+  requires?: Action;
+}
+
+const ITEMS: GatedNavItem[] = [
   { label: 'Dashboard', to: '/dashboard', icon: 'grid' },
   { label: 'Assets', to: '/assets', icon: 'cube' },
   { label: 'Employees', to: '/employees', icon: 'users' },
@@ -41,9 +46,10 @@ const SECTION_LABELS: Record<string, string> = {
  * Topbar breadcrumb: the section name, plus a detail label when one is known
  * ("Assets / AST-0142"). Detail pages show the section alone while loading.
  */
-export function breadcrumbForPath(pathname: string, detailLabel?: string): string {
+export function breadcrumbForPath(pathname: string, detailLabel?: string | null): string {
   const [section, detail] = pathname.split('/').filter(Boolean);
-  const label = SECTION_LABELS[section ?? ''];
+  if (!section) return '';
+  const label = SECTION_LABELS[section];
   if (!label) return '';
   if (section === 'admin' || !detail) return label;
   return detailLabel ? `${label} / ${detailLabel}` : label;

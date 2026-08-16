@@ -8,30 +8,32 @@ import { useToast } from '@/providers/ToastProvider';
 import formStyles from '@/components/ui/FormModal.module.css';
 import styles from './Assign.module.css';
 
-type Candidate = { id: string; title: string; subtitle: string; avatarKey: string; square?: true };
+interface Candidate {
+  id: string;
+  title: string;
+  subtitle: string;
+  avatarKey: string;
+  square?: true;
+}
+
+/**
+ * The known half of the pair, as a union rather than four optional props: in
+ * pick-employee mode the asset is always known, in pick-asset mode the person
+ * is. Optional props would have made every read of them a fallback over a
+ * value that is in fact always there.
+ */
+type AssignModalProps = { onClose: () => void } & (
+  | { mode: 'pick-employee'; assetId: string; assetName: string }
+  | { mode: 'pick-asset'; employeeId: string; employeeName: string }
+);
 
 /**
  * The design's two-mode assign modal: from an asset you pick a person, from a
  * person you pick an asset. Both end in the same POST, so the mode only
  * decides which side of the pair is already known.
  */
-export function AssignModal({
-  mode,
-  assetId,
-  assetName,
-  employeeId,
-  employeeName,
-  onClose,
-}: {
-  mode: 'pick-employee' | 'pick-asset';
-  /** Known in pick-employee mode. */
-  assetId?: string;
-  assetName?: string;
-  /** Known in pick-asset mode. */
-  employeeId?: string;
-  employeeName?: string;
-  onClose: () => void;
-}) {
+export function AssignModal(props: AssignModalProps) {
+  const { mode, onClose } = props;
   const [query, setQuery] = useState('');
   const [selected, setSelected] = useState<string | null>(null);
   const [checkoutDate, setCheckoutDate] = useState(new Date().toISOString().slice(0, 10));
@@ -42,13 +44,16 @@ export function AssignModal({
   const employees = useEmployees();
   const assets = useAssets();
   // In pick-asset mode the chosen row *is* the asset, so the endpoint is only
-  // known once something is selected.
-  const targetAssetId = mode === 'pick-employee' ? (assetId ?? '') : (selected ?? '');
+  // known once something is selected — until then there is no asset to name,
+  // and the submit button is disabled anyway.
+  const targetAssetId = props.mode === 'pick-employee' ? props.assetId : (selected ?? '');
   const assign = useAssignAsset(targetAssetId);
   const errors = fieldErrors(assign.error);
 
   const candidates = useMemo<Candidate[]>(() => {
     const needle = query.trim().toLowerCase();
+    // A list that has not arrived offers no candidates, and a person with no
+    // department recorded matches nothing rather than everything.
     if (mode === 'pick-employee') {
       return (employees.data ?? [])
         .filter((employee) => employee.status === 'active')
@@ -83,7 +88,7 @@ export function AssignModal({
     if (!selected) return;
 
     const input: AssignInput = {
-      employeeId: mode === 'pick-employee' ? selected : (employeeId ?? ''),
+      employeeId: props.mode === 'pick-employee' ? selected : props.employeeId,
       checkoutDate,
       expectedReturnDate: expectedReturnDate || null,
       notes: notes.trim() || null,
@@ -96,15 +101,13 @@ export function AssignModal({
     });
   }
 
-  const subject = mode === 'pick-employee' ? assetName : employeeName;
-
   return (
     <Modal
-      title={mode === 'pick-employee' ? `Assign ${assetName ?? 'asset'}` : 'Assign asset'}
+      title={props.mode === 'pick-employee' ? `Assign ${props.assetName}` : 'Assign asset'}
       subtitle={
-        mode === 'pick-employee'
+        props.mode === 'pick-employee'
           ? 'Hand this device to somebody'
-          : `Give ${subject ?? 'this person'} a device`
+          : `Give ${props.employeeName} a device`
       }
       width={480}
       topOffset="8vh"

@@ -3,7 +3,7 @@ export { BackLink } from './BackLink';
 export { Button } from './Button';
 export { Card } from './Card';
 export { Checkbox } from './Checkbox';
-export { DataTable, type TableColumn } from './DataTable';
+export { DataTable } from './DataTable';
 export { Dropzone } from './Dropzone';
 export { EmptyState } from './EmptyState';
 export { Field } from './Field';

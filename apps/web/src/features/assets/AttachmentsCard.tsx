@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react';
 import { can, type Role } from '@inventory/shared';
 import { useDeleteAttachment, useUploadAttachment } from '@/api/mutations';
-import type { Attachment } from '@/api/types';
+import type { Attachment } from '@/types/api';
 import { Card, Icon, IconButton } from '@/components/ui';
 import { formatFileSize } from '@/lib/format';
 import { useToast } from '@/providers/ToastProvider';

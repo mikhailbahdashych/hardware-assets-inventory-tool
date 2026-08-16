@@ -1,5 +1,5 @@
 import { ASSIGNMENT_OUTCOME_LABELS, type SemanticColor } from '@inventory/shared';
-import type { Assignment } from '@/api/types';
+import type { Assignment } from '@/types/api';
 import { formatDuration, formatMonthYear } from '@/lib/format';
 
 // The design's ownership timeline. "In stock" spells and the "Added to

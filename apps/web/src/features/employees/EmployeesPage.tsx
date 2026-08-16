@@ -2,19 +2,11 @@ import { useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router';
 import { can, EMPLOYEE_STATUS_COLORS, EMPLOYEE_STATUS_LABELS, type Role } from '@inventory/shared';
 import { useEmployees } from '@/api/queries';
-import type { Employee } from '@/api/types';
+import type { Employee } from '@/types/api';
 import { ListToolbar } from '@/components/app/ListToolbar';
 import { PageContainer } from '@/components/app/PageContainer';
-import {
-  Avatar,
-  Button,
-  DataTable,
-  EmptyState,
-  Pill,
-  SearchInput,
-  Spinner,
-  type TableColumn,
-} from '@/components/ui';
+import { Avatar, Button, DataTable, EmptyState, Pill, SearchInput, Spinner } from '@/components/ui';
+import type { TableColumn } from '@/types/table';
 import { setParam } from '@/lib/searchParams';
 import { EmployeeFormModal } from './EmployeeFormModal';
 import { filterEmployees } from './filters';
@@ -30,6 +22,7 @@ const COLUMNS: TableColumn<Employee>[] = [
         <Avatar name={employee.displayName} colorKey={employee.id} size={26} />
         <div style={{ minWidth: 0 }}>
           <div className={styles.name}>{employee.displayName}</div>
+          {/* The design's em dash for an empty cell, here and below. */}
           <div className={styles.sub}>{employee.jobTitle ?? '—'}</div>
         </div>
       </div>
@@ -68,6 +61,7 @@ export function EmployeesPage({ role }: { role: Role }) {
   const navigate = useNavigate();
   const employees = useEmployees();
 
+  // No `?q=` in the URL legitimately means "no filter".
   const query = searchParams.get('q') ?? '';
   const setQuery = (value: string) => {
     const params = new URLSearchParams(searchParams);
@@ -75,6 +69,7 @@ export function EmployeesPage({ role }: { role: Role }) {
     setSearchParams(params, { replace: true });
   };
 
+  // A list that has not arrived has no rows; the empty state renders below.
   const all = employees.data ?? [];
   const rows = filterEmployees(all, query);
 

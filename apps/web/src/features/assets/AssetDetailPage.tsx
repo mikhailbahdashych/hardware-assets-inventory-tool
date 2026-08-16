@@ -9,8 +9,8 @@ import {
   type Action,
   type Role,
 } from '@inventory/shared';
-import { useAsset, useMeta } from '@/api/queries';
-import type { Asset, CustomFieldValue } from '@/api/types';
+import { orgMeta, useAsset, useMeta } from '@/api/queries';
+import type { Asset, CustomFieldValue } from '@/types/api';
 import { PageContainer } from '@/components/app/PageContainer';
 import { usePageBreadcrumb } from '@/providers/BreadcrumbProvider';
 import { Avatar, BackLink, Button, Card, KeyValueRow, Pill, Spinner } from '@/components/ui';
@@ -82,7 +82,9 @@ export function AssetDetailPage({ role }: { role: Role }) {
   }
 
   const { asset, customFields, history, attachments, auditTrail } = detail.data;
-  const currency = asset.currency ?? meta.data?.defaultCurrency ?? 'EUR';
+  // An asset stores a currency only when it differs from the organization's,
+  // so null here means "the org's" — that one is the rule, not a fallback.
+  const currency = asset.currency ?? orgMeta(meta.data).defaultCurrency;
   const primary = primaryAction(asset);
 
   return (
@@ -117,6 +119,7 @@ export function AssetDetailPage({ role }: { role: Role }) {
           <Card title="Details">
             <div className={styles.pairs}>
               <KeyValueRow k="Category">{ASSET_CATEGORY_LABELS[asset.category]}</KeyValueRow>
+              {/* The design's em dash for an unrecorded value, here and below. */}
               <KeyValueRow k="Model">{asset.model ?? '—'}</KeyValueRow>
               <KeyValueRow k="Serial">{asset.serialNumber ?? '—'}</KeyValueRow>
               <KeyValueRow k="Asset tag">{asset.assetTag}</KeyValueRow>

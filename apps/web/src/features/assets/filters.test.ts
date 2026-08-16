@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { Asset } from '@/api/types';
+import type { Asset } from '@/types/api';
 import { assetStatusPills, filterAssets, parseStatusFilter } from './filters';
 
 function asset(overrides: Partial<Asset>): Asset {

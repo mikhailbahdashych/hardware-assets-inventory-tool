@@ -14,7 +14,7 @@ import {
 import { fieldErrors } from '@/api/formErrors';
 import { useCreateAsset, useDeleteAsset, useUpdateAsset } from '@/api/mutations';
 import { useCustomFields, useEmployees, useNextAssetTag } from '@/api/queries';
-import type { Asset, CustomFieldValue } from '@/api/types';
+import type { Asset, CustomFieldValue } from '@/types/api';
 import { Button, Checkbox, Field, Input, Modal, Select, Textarea } from '@/components/ui';
 import { useToast } from '@/providers/ToastProvider';
 import styles from '@/components/ui/FormModal.module.css';
@@ -53,6 +53,11 @@ const EMPTY: FormState = {
   customValues: {},
 };
 
+/**
+ * A NULL column and an empty input are the same state to a person filling in
+ * this form, so every `?? ''` below is the translation between them — not a
+ * value invented because one was missing.
+ */
 function fromAsset(asset: Asset, customFields: CustomFieldValue[]): FormState {
   return {
     ...EMPTY,
@@ -107,10 +112,14 @@ export function AssetFormModal({
   const employees = useEmployees();
   const nextTag = useNextAssetTag(!editing);
   const create = useCreateAsset();
+  // In create mode there is no asset to update and this hook is never fired;
+  // it still needs a string to build a URL from.
   const update = useUpdateAsset(asset?.id ?? '');
   const remove = useDeleteAsset();
 
   const pending = create.isPending || update.isPending || remove.isPending;
+  // Whichever of the three ran is the one that can have failed — this picks the
+  // failure that exists rather than defaulting to anything.
   const errors = fieldErrors(create.error ?? update.error);
   const failure = create.error ?? update.error ?? remove.error;
   const set = <K extends keyof FormState>(key: K, value: FormState[K]) =>
@@ -125,6 +134,8 @@ export function AssetFormModal({
     (status) => !editing || status !== 'assigned' || form.status === 'assigned',
   );
 
+  // `defs.data ?? []` throughout: definitions that have not loaded are no
+  // definitions to render, and a field never typed into has no entry.
   const customValuesPayload = () =>
     Object.fromEntries(
       (defs.data ?? []).map((def) => [def.key, blankToNull(form.customValues[def.key] ?? '')]),
@@ -385,6 +396,8 @@ export function AssetFormModal({
               />
             )}
           </Field>
+          {/* A price we could not read locally never reached the server, so
+              there is no server message to prefer over it. */}
           <Field label="Purchase price" error={priceError ?? errors.purchasePriceCents}>
             {(id) => (
               <Input

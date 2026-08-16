@@ -24,9 +24,11 @@ export function AppProviders({
   children: ReactNode;
   queryClient?: QueryClient;
 }) {
-  const [fallbackClient] = useState(createQueryClient);
+  // Not a fallback: the prop is an injection point for tests, and its absence
+  // means "make your own", which is what the app does in the browser.
+  const [ownClient] = useState(createQueryClient);
   return (
-    <QueryClientProvider client={queryClient ?? fallbackClient}>
+    <QueryClientProvider client={queryClient ?? ownClient}>
       <ThemeProvider>
         <ToastProvider>{children}</ToastProvider>
       </ThemeProvider>

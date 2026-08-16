@@ -9,7 +9,8 @@ import type {
   InviteDetails,
   Member,
   Meta,
-} from './types';
+  OrgMeta,
+} from '@/types/api';
 
 /**
  * The query-key catalog. Every cached read is listed here so invalidation
@@ -32,6 +33,28 @@ export function useMeta() {
     queryKey: queryKeys.meta,
     queryFn: () => apiFetch<Meta>('/meta'),
   });
+}
+
+/**
+ * The organization's own metadata, for the screens that only exist once setup
+ * has run. `orgName` and `defaultCurrency` are NOT NULL columns written by
+ * /setup, so an absent one means /meta broke its contract — and calling the
+ * workspace "Inventory" or pricing everything in EUR because the call failed
+ * would be a lie that survives to a screenshot.
+ *
+ * Safe to call anywhere inside the signed-in app: routes.tsx blocks on /meta
+ * before the shell mounts, so the query has resolved by then.
+ */
+export function orgMeta(meta: Meta | undefined): OrgMeta {
+  if (!meta) {
+    throw new Error('GET /api/v1/meta has not answered, so this instance cannot be described.');
+  }
+  if (meta.orgName === undefined || meta.defaultCurrency === undefined) {
+    throw new Error(
+      'GET /api/v1/meta reported an initialized instance without an orgName or a defaultCurrency.',
+    );
+  }
+  return { version: meta.version, orgName: meta.orgName, defaultCurrency: meta.defaultCurrency };
 }
 
 /** Resolves to the signed-in member, or null when nobody is signed in. */

@@ -1,6 +1,6 @@
 import { Outlet, useNavigate } from 'react-router';
 import { useLogout } from '@/api/mutations';
-import type { Member } from '@/api/types';
+import type { Member } from '@/types/api';
 import { BreadcrumbDetailProvider } from '@/providers/BreadcrumbProvider';
 import { Sidebar } from './Sidebar';
 import { Topbar } from './Topbar';

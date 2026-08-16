@@ -14,7 +14,7 @@ export function Topbar() {
 
   return (
     <div className={styles.topbar}>
-      <div className={styles.breadcrumb}>{breadcrumbForPath(pathname, detail ?? undefined)}</div>
+      <div className={styles.breadcrumb}>{breadcrumbForPath(pathname, detail)}</div>
       <div className={styles.actions}>
         <button
           type="button"

@@ -9,7 +9,7 @@ import {
 } from '@inventory/shared';
 import { fieldErrors } from '@/api/formErrors';
 import { useCreateEmployee, useDeleteEmployee, useUpdateEmployee } from '@/api/mutations';
-import type { Employee } from '@/api/types';
+import type { Employee } from '@/types/api';
 import { Button, Field, Input, Modal, Select } from '@/components/ui';
 import { useToast } from '@/providers/ToastProvider';
 import styles from '@/components/ui/FormModal.module.css';
@@ -61,6 +61,8 @@ export function EmployeeFormModal({
   onDeleted?: () => void;
 }) {
   const editing = employee !== undefined;
+  // Every `?? ''` below translates a NULL column into the empty input that
+  // means the same thing to the person filling the form in.
   const [form, setForm] = useState<FormState>(
     editing
       ? {
@@ -86,10 +88,12 @@ export function EmployeeFormModal({
 
   const toast = useToast();
   const create = useCreateEmployee();
+  // Create mode never fires this hook; it still needs a string to build a URL.
   const update = useUpdateEmployee(employee?.id ?? '');
   const remove = useDeleteEmployee();
 
   const pending = create.isPending || update.isPending || remove.isPending;
+  // Whichever of the three ran is the one that can have failed.
   const errors = fieldErrors(create.error ?? update.error);
   const failure = create.error ?? update.error ?? remove.error;
   const startsOffboarding =

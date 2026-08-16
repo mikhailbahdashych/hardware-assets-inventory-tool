@@ -1,4 +1,4 @@
-import type { Employee } from '@/api/types';
+import type { Employee } from '@/types/api';
 
 /**
  * The design's employee list has no filter row, but the same live filter the
@@ -8,6 +8,7 @@ import type { Employee } from '@/api/types';
 export function filterEmployees(employees: Employee[], query: string): Employee[] {
   const needle = query.trim().toLowerCase();
   if (!needle) return employees;
+  // Somebody with no department recorded matches nothing rather than everything.
   return employees.filter((employee) =>
     [employee.displayName, employee.email, employee.department ?? '', employee.jobTitle ?? ''].some(
       (field) => field.toLowerCase().includes(needle),

@@ -17,7 +17,7 @@ import type {
 import { apiFetch, apiUpload } from './client';
 import { invalidateInventory } from './invalidate';
 import { queryKeys } from './queries';
-import type { Asset, Attachment, Employee, Member } from './types';
+import type { Asset, Attachment, Employee, Member } from '@/types/api';
 
 /** Signing in, accepting an invite and resetting a password all end with a session. */
 function useSessionMutation<TInput>(path: string) {
