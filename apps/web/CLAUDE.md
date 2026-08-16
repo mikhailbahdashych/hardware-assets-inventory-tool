@@ -27,7 +27,7 @@ The alias is declared in **three** places that must agree, or you get a green ty
 
 ## Data and auth
 
-- Reads go through hooks in `api/queries.ts`; add the key to `queryKeys` first. Writes live in `api/mutations.ts` and own their cache effects. When a mutation touches assets or assignments it must invalidate every affected surface — that helper arrives with the assets PR (`api/invalidate.ts`).
+- Reads go through hooks in `api/queries.ts`; add the key to `queryKeys` first. Writes live in `api/mutations.ts` and go through `invalidateInventory` in `api/invalidate.ts` — one coarse refresh of every inventory surface. Do not hand-pick keys in a mutation: a write rarely touches only the record you were looking at, and naming subjects is how checking an asset in stopped refreshing the holder's page.
 - `useMe()` resolves to the member or `null`; a 401 is an expected signed-out state, not an error.
 - `routes.tsx` picks one of three route sets from instance + session state: uninitialized → setup only; signed out → auth screens only; signed in → the shell. Role gating uses shared `can()` (Admin section is admins-only), so permissions never drift from the API.
 - Auth screens share `features/auth/AuthLayout.tsx` (the design's 360px column, its own theme toggle, version footer) and `AuthField`. Server errors render via `FormError`; 422 field messages land under their inputs through `fieldErrors()`.

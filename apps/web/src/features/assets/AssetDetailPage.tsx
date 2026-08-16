@@ -5,16 +5,28 @@ import {
   ASSET_STATUS_COLORS,
   ASSET_STATUS_LABELS,
   can,
+  renderAuditEvent,
+  type Action,
   type Role,
 } from '@inventory/shared';
 import { useAsset, useMeta } from '@/api/queries';
-import type { CustomFieldValue } from '@/api/types';
+import type { Asset, CustomFieldValue } from '@/api/types';
 import { PageContainer } from '@/components/app/PageContainer';
 import { usePageBreadcrumb } from '@/providers/BreadcrumbProvider';
 import { Avatar, BackLink, Button, Card, KeyValueRow, Pill, Spinner } from '@/components/ui';
 import { formatCurrency, formatDuration, formatFullDate } from '@/lib/format';
 import { AssetFormModal } from './AssetFormModal';
+import { AssignModal } from './AssignModal';
+import { AttachmentsCard } from './AttachmentsCard';
+import { ChangeStatusModal } from './ChangeStatusModal';
+import { CheckInModal } from './CheckInModal';
+import { ManageFieldsModal } from './ManageFieldsModal';
+import { OwnershipTimeline } from './OwnershipTimeline';
 import styles from './Assets.module.css';
+
+type OpenModal = 'edit' | 'assign' | 'checkin' | 'status' | 'fields' | null;
+
+type PrimaryAction = { label: string; modal: OpenModal; permission: Action };
 
 /** Booleans read as Yes/No; everything else shows as stored. */
 function customValueText(field: CustomFieldValue): string {
@@ -24,9 +36,25 @@ function customValueText(field: CustomFieldValue): string {
   return field.value;
 }
 
+/**
+ * The design's contextual primary action: an assigned asset is checked in, a
+ * free one is assigned, anything else changes status. The prototype routes
+ * that third case to Assign, which cannot work — an asset in repair has no
+ * holder to change.
+ */
+function primaryAction(asset: Asset): PrimaryAction {
+  if (asset.status === 'assigned') {
+    return { label: 'Check in', modal: 'checkin', permission: 'assets.checkin' };
+  }
+  if (asset.status === 'available' || asset.status === 'ordered') {
+    return { label: 'Assign', modal: 'assign', permission: 'assets.assign' };
+  }
+  return { label: 'Change status', modal: 'status', permission: 'assets.change_status' };
+}
+
 export function AssetDetailPage({ role }: { role: Role }) {
   const { id = '' } = useParams();
-  const [editing, setEditing] = useState(false);
+  const [open, setOpen] = useState<OpenModal>(null);
   const navigate = useNavigate();
   const detail = useAsset(id);
   const meta = useMeta();
@@ -53,8 +81,9 @@ export function AssetDetailPage({ role }: { role: Role }) {
     );
   }
 
-  const { asset, customFields } = detail.data;
+  const { asset, customFields, history, attachments, auditTrail } = detail.data;
   const currency = asset.currency ?? meta.data?.defaultCurrency ?? 'EUR';
+  const primary = primaryAction(asset);
 
   return (
     <PageContainer variant="detail" maxWidth={1060} gap={16}>
@@ -74,9 +103,12 @@ export function AssetDetailPage({ role }: { role: Role }) {
           </div>
         </div>
         {can(role, 'assets.edit') && (
-          <Button variant="ghost" onClick={() => setEditing(true)}>
+          <Button variant="ghost" onClick={() => setOpen('edit')}>
             Edit
           </Button>
+        )}
+        {can(role, primary.permission) && (
+          <Button onClick={() => setOpen(primary.modal)}>{primary.label}</Button>
         )}
       </div>
 
@@ -98,7 +130,22 @@ export function AssetDetailPage({ role }: { role: Role }) {
           </Card>
 
           {customFields.length > 0 && (
-            <Card title="Custom fields">
+            <Card
+              title={
+                <span className={styles.cardHeader}>
+                  Custom fields
+                  {can(role, 'custom_fields.manage') && (
+                    <button
+                      type="button"
+                      className={styles.cardLink}
+                      onClick={() => setOpen('fields')}
+                    >
+                      Manage fields
+                    </button>
+                  )}
+                </span>
+              }
+            >
               <div className={styles.pairs}>
                 {customFields.map((field) => (
                   <KeyValueRow key={field.key} k={field.label}>
@@ -114,6 +161,26 @@ export function AssetDetailPage({ role }: { role: Role }) {
               <div className={styles.note}>{asset.notes}</div>
             </Card>
           )}
+
+          <AttachmentsCard assetId={asset.id} attachments={attachments} role={role} />
+
+          <Card title="Audit log">
+            {auditTrail.length === 0 ? (
+              <div className={styles.note}>Nothing recorded yet.</div>
+            ) : (
+              <div className={styles.trail}>
+                {auditTrail.map((entry) => (
+                  <div key={entry.id} className={styles.trailRow}>
+                    <span className={styles.trailDate}>{entry.at.slice(0, 10)}</span>
+                    <span className={styles.trailText}>
+                      {renderAuditEvent(entry)}
+                      <span className={styles.trailActor}> · {entry.actorName}</span>
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </Card>
         </div>
 
         <div className={styles.column}>
@@ -147,6 +214,9 @@ export function AssetDetailPage({ role }: { role: Role }) {
                 <div className={styles.holderMeta}>
                   Checked out {formatFullDate(asset.currentHolder.checkedOutAt)} ·{' '}
                   {formatDuration(asset.currentHolder.checkedOutAt)}
+                  {asset.currentHolder.expectedReturnDate && (
+                    <> · due back {formatFullDate(asset.currentHolder.expectedReturnDate)}</>
+                  )}
                 </div>
               </>
             ) : (
@@ -157,23 +227,31 @@ export function AssetDetailPage({ role }: { role: Role }) {
           </Card>
 
           <Card title="Ownership history">
-            <div className={styles.note}>
-              The full timeline, attachments and this asset&apos;s audit trail arrive with the
-              assignment PR.
-            </div>
+            <OwnershipTimeline history={history} assetCreatedAt={asset.createdAt} />
           </Card>
         </div>
       </div>
 
-      {editing && (
+      {open === 'edit' && (
         <AssetFormModal
           asset={asset}
           customFields={customFields}
           role={role}
-          onClose={() => setEditing(false)}
+          onClose={() => setOpen(null)}
           onDeleted={() => navigate('/assets', { replace: true })}
         />
       )}
+      {open === 'assign' && (
+        <AssignModal
+          mode="pick-employee"
+          assetId={asset.id}
+          assetName={asset.assetTag}
+          onClose={() => setOpen(null)}
+        />
+      )}
+      {open === 'checkin' && <CheckInModal asset={asset} onClose={() => setOpen(null)} />}
+      {open === 'status' && <ChangeStatusModal asset={asset} onClose={() => setOpen(null)} />}
+      {open === 'fields' && <ManageFieldsModal onClose={() => setOpen(null)} />}
     </PageContainer>
   );
 }

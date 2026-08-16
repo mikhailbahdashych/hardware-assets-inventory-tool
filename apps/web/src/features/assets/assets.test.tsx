@@ -3,9 +3,9 @@ import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   ADMIN_MEMBER,
-  CUSTOM_FIELDS,
   INVENTORY_ROUTES,
   LAPTOP,
+  LAPTOP_DETAIL,
   MONITOR,
   READY_META,
 } from '@/test/api-stub';
@@ -75,10 +75,7 @@ describe('asset list', () => {
   });
 
   it('opens the asset when its row is clicked', async () => {
-    renderApp(
-      { ...INVENTORY_ROUTES, 'GET /assets/asset-1': { body: { asset: LAPTOP, customFields: [] } } },
-      '/assets',
-    );
+    renderApp({ ...INVENTORY_ROUTES, 'GET /assets/asset-1': { body: LAPTOP_DETAIL } }, '/assets');
     await screen.findByText('MacBook Pro 14"');
 
     await userEvent.click((await rows())[0]);
@@ -196,18 +193,7 @@ describe('creating an asset', () => {
 });
 
 describe('asset detail', () => {
-  const detailRoutes = {
-    ...INVENTORY_ROUTES,
-    'GET /assets/asset-1': {
-      body: {
-        asset: LAPTOP,
-        customFields: [
-          { ...CUSTOM_FIELDS[0], value: 'true' },
-          { ...CUSTOM_FIELDS[1], value: 'maya-mbp' },
-        ],
-      },
-    },
-  };
+  const detailRoutes = { ...INVENTORY_ROUTES, 'GET /assets/asset-1': { body: LAPTOP_DETAIL } };
 
   it('shows the record, its custom fields and who holds it', async () => {
     renderApp(detailRoutes, '/assets/asset-1');

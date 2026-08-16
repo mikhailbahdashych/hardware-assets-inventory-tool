@@ -1,0 +1,71 @@
+.header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.upload {
+  border: none;
+  background: none;
+  color: var(--accent);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  padding: 0;
+}
+
+.upload:disabled {
+  color: var(--muted);
+  cursor: default;
+}
+
+.file {
+  display: none;
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 7px 0;
+  border-top: 1px solid var(--border);
+}
+
+.icon {
+  color: var(--muted);
+  flex: none;
+}
+
+.name {
+  flex: 1;
+  min-width: 0;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.size {
+  font-size: 11.5px;
+  color: var(--faint);
+  flex: none;
+}
+
+.empty,
+.error {
+  font-size: 12.5px;
+  color: var(--muted);
+}
+
+.error {
+  color: var(--err);
+}

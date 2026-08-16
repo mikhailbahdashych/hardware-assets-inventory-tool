@@ -1,4 +1,13 @@
-import type { AssetCategory, AssetStatus, Currency, EmployeeStatus, Role } from '@inventory/shared';
+import type {
+  AssetCategory,
+  AssetStatus,
+  AssignmentOutcome,
+  CheckinCondition,
+  Currency,
+  CustomFieldType,
+  EmployeeStatus,
+  Role,
+} from '@inventory/shared';
 import type { Density, Theme } from '@/providers/ThemeProvider';
 
 export type Member = {
@@ -56,16 +65,73 @@ export type Asset = {
 };
 
 export type CustomFieldDef = {
+  id: string;
   key: string;
   label: string;
-  type: 'text' | 'boolean' | 'date' | 'number';
+  type: CustomFieldType;
+  sortOrder: number;
 };
 
-export type CustomFieldValue = CustomFieldDef & { value: string | null };
+/** One ownership record — the only truth about who has held an asset. */
+export type Assignment = {
+  id: string;
+  employeeId: string | null;
+  holderName: string;
+  checkedOutAt: string;
+  expectedReturnDate: string | null;
+  returnedAt: string | null;
+  outcome: AssignmentOutcome | null;
+  checkoutNotes: string | null;
+  checkinCondition: CheckinCondition | null;
+  checkinNotes: string | null;
+};
+
+/** The same record seen from the person's side, so it names the asset. */
+export type Holding = Assignment & {
+  assetId: string;
+  assetName: string;
+  assetTag: string;
+  category: AssetCategory;
+  serialNumber: string | null;
+};
+
+export type Attachment = {
+  id: string;
+  assetId: string;
+  filename: string;
+  sizeBytes: number;
+  mime: string | null;
+  uploadedByName: string | null;
+  createdAt: string;
+};
+
+export type AuditEntry = {
+  id: string;
+  at: string;
+  action: string;
+  actorName: string;
+  params: Record<string, unknown>;
+};
+
+export type CustomFieldValue = {
+  key: string;
+  label: string;
+  type: CustomFieldType;
+  value: string | null;
+};
 
 export type AssetDetail = {
   asset: Asset;
   customFields: CustomFieldValue[];
+  history: Assignment[];
+  attachments: Attachment[];
+  auditTrail: AuditEntry[];
+};
+
+export type EmployeeDetail = {
+  employee: Employee;
+  holdings: Holding[];
+  history: Holding[];
 };
 
 export type Employee = {

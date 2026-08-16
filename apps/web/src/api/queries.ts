@@ -5,6 +5,7 @@ import type {
   AssetDetail,
   CustomFieldDef,
   Employee,
+  EmployeeDetail,
   InviteDetails,
   Member,
   Meta,
@@ -93,11 +94,11 @@ export function useEmployees() {
   });
 }
 
+/** The person, what they hold, and what they handed back — one payload. */
 export function useEmployee(id: string) {
   return useQuery({
     queryKey: queryKeys.employee(id),
-    queryFn: async () =>
-      (await apiFetch<{ employee: Employee }>(`/employees/${encodeURIComponent(id)}`)).employee,
+    queryFn: () => apiFetch<EmployeeDetail>(`/employees/${encodeURIComponent(id)}`),
     enabled: id.length > 0,
     retry: false,
   });

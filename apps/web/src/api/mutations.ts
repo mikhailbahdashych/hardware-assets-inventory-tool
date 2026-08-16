@@ -3,6 +3,10 @@ import type {
   AcceptInviteInput,
   AssetCreateInput,
   AssetPatchInput,
+  AssignInput,
+  CheckinInput,
+  CustomFieldCreateInput,
+  CustomFieldPatchInput,
   EmployeeCreateInput,
   EmployeePatchInput,
   LoginInput,
@@ -10,10 +14,10 @@ import type {
   ResetPasswordInput,
   SetupInput,
 } from '@inventory/shared';
-import { apiFetch } from './client';
+import { apiFetch, apiUpload } from './client';
 import { invalidateInventory } from './invalidate';
 import { queryKeys } from './queries';
-import type { Asset, Employee, Member } from './types';
+import type { Asset, Attachment, Employee, Member } from './types';
 
 /** Signing in, accepting an invite and resetting a password all end with a session. */
 function useSessionMutation<TInput>(path: string) {
@@ -62,19 +66,15 @@ export function useUpdatePrefs() {
   });
 }
 
-// Inventory writes. Each one hands the subject to invalidateInventory so the
-// list, the detail page and the holder's page all refetch together.
+// Inventory writes. Every one of them goes through invalidateInventory, which
+// refreshes each surface a write can touch — see the note there.
 
 export function useCreateAsset() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (input: AssetCreateInput) =>
       apiFetch<{ asset: Asset }>('/assets', { method: 'POST', body: input }),
-    onSuccess: ({ asset }) =>
-      invalidateInventory(queryClient, {
-        assetId: asset.id,
-        employeeId: asset.currentHolder?.employeeId ?? undefined,
-      }),
+    onSuccess: () => invalidateInventory(queryClient),
   });
 }
 
@@ -86,7 +86,7 @@ export function useUpdateAsset(id: string) {
         method: 'PATCH',
         body: input,
       }),
-    onSuccess: ({ asset }) => invalidateInventory(queryClient, { assetId: asset.id }),
+    onSuccess: () => invalidateInventory(queryClient),
   });
 }
 
@@ -103,7 +103,7 @@ export function useCreateEmployee() {
   return useMutation({
     mutationFn: (input: EmployeeCreateInput) =>
       apiFetch<{ employee: Employee }>('/employees', { method: 'POST', body: input }),
-    onSuccess: ({ employee }) => invalidateInventory(queryClient, { employeeId: employee.id }),
+    onSuccess: () => invalidateInventory(queryClient),
   });
 }
 
@@ -115,7 +115,7 @@ export function useUpdateEmployee(id: string) {
         method: 'PATCH',
         body: input,
       }),
-    onSuccess: ({ employee }) => invalidateInventory(queryClient, { employeeId: employee.id }),
+    onSuccess: () => invalidateInventory(queryClient),
   });
 }
 
@@ -127,3 +127,85 @@ export function useDeleteEmployee() {
     onSuccess: () => invalidateInventory(queryClient),
   });
 }
+
+// Assign and check-in are operations, not edits: they open and close ownership
+// records, so they have their own endpoints and their own hooks.
+
+export function useAssignAsset(assetId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: AssignInput) =>
+      apiFetch<{ asset: Asset }>(`/assets/${encodeURIComponent(assetId)}/assign`, {
+        method: 'POST',
+        body: input,
+      }),
+    onSuccess: () => invalidateInventory(queryClient),
+  });
+}
+
+export function useCheckinAsset(assetId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: CheckinInput) =>
+      apiFetch<{ asset: Asset }>(`/assets/${encodeURIComponent(assetId)}/checkin`, {
+        method: 'POST',
+        body: input,
+      }),
+    onSuccess: () => invalidateInventory(queryClient),
+  });
+}
+
+export function useUploadAttachment(assetId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (file: File) => {
+      const body = new FormData();
+      body.append('file', file);
+      return apiUpload<{ attachment: Attachment }>(
+        `/assets/${encodeURIComponent(assetId)}/attachments`,
+        body,
+      );
+    },
+    onSuccess: () => invalidateInventory(queryClient),
+  });
+}
+
+export function useDeleteAttachment() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) =>
+      apiFetch(`/attachments/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+    onSuccess: () => invalidateInventory(queryClient),
+  });
+}
+
+// Custom fields change the shape of every asset, so their writes invalidate
+// the definitions and everything that renders values through them.
+function useCustomFieldMutation<TInput>(request: (input: TInput) => Promise<unknown>) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: request,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.customFields });
+      invalidateInventory(queryClient);
+    },
+  });
+}
+
+export const useCreateCustomField = () =>
+  useCustomFieldMutation((input: CustomFieldCreateInput) =>
+    apiFetch('/custom-fields', { method: 'POST', body: input }),
+  );
+
+export const useUpdateCustomField = () =>
+  useCustomFieldMutation((input: { id: string } & CustomFieldPatchInput) =>
+    apiFetch(`/custom-fields/${encodeURIComponent(input.id)}`, {
+      method: 'PATCH',
+      body: { label: input.label, sortOrder: input.sortOrder },
+    }),
+  );
+
+export const useDeleteCustomField = () =>
+  useCustomFieldMutation((id: string) =>
+    apiFetch(`/custom-fields/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+  );

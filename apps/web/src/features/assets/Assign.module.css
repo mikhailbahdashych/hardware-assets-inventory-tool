@@ -1,0 +1,77 @@
+.picker {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+/* The design's scrolling candidate list: 186px tall, divided rows. */
+.list {
+  max-height: 186px;
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+
+.option {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  padding: 7px 10px;
+  border: none;
+  border-bottom: 1px solid var(--border);
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.option:last-child {
+  border-bottom: none;
+}
+
+.option:hover {
+  background: var(--hover);
+}
+
+.option[data-selected='true'] {
+  background: var(--acc-bg);
+}
+
+.optionText {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.optionTitle {
+  font-size: 12.5px;
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.optionSub {
+  font-size: 11px;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.selected {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--accent);
+  flex: none;
+}
+
+.empty {
+  padding: 14px 10px;
+  font-size: 12.5px;
+  color: var(--muted);
+  text-align: center;
+}

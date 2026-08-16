@@ -72,8 +72,8 @@ export const READY_META = {
 };
 
 export const CUSTOM_FIELDS = [
-  { key: 'mdm_enrolled', label: 'MDM enrolled', type: 'boolean' },
-  { key: 'hostname', label: 'Hostname', type: 'text' },
+  { id: 'cf-1', key: 'mdm_enrolled', label: 'MDM enrolled', type: 'boolean', sortOrder: 0 },
+  { id: 'cf-2', key: 'hostname', label: 'Hostname', type: 'text', sortOrder: 1 },
 ];
 
 export const MAYA = {
@@ -91,6 +91,28 @@ export const MAYA = {
   activeAssetCount: 1,
   createdAt: '2026-01-01T00:00:00.000Z',
   updatedAt: '2026-01-01T00:00:00.000Z',
+};
+
+export const HOLDING = {
+  id: 'assignment-1',
+  employeeId: 'emp-1',
+  holderName: 'Maya Lindqvist',
+  checkedOutAt: '2024-03-14',
+  expectedReturnDate: null,
+  returnedAt: null,
+  outcome: null,
+  checkoutNotes: null,
+  checkinCondition: null,
+  checkinNotes: null,
+};
+
+export const PAST_HOLDING = {
+  ...HOLDING,
+  id: 'assignment-0',
+  holderName: 'Elena Vasquez',
+  checkedOutAt: '2023-04-14',
+  returnedAt: '2024-01-28',
+  outcome: 'offboarded',
 };
 
 export const LAPTOP = {
@@ -126,6 +148,61 @@ export const MONITOR = {
   status: 'in_repair',
   serialNumber: 'CN0X1Y2Z',
   currentHolder: null,
+};
+
+/** The asset detail payload for LAPTOP, with a history worth rendering. */
+export const LAPTOP_DETAIL = {
+  asset: LAPTOP,
+  customFields: [
+    { ...CUSTOM_FIELDS[0], value: 'true' },
+    { ...CUSTOM_FIELDS[1], value: 'maya-mbp' },
+  ],
+  history: [HOLDING, PAST_HOLDING],
+  attachments: [
+    {
+      id: 'file-1',
+      assetId: 'asset-1',
+      filename: 'invoice-ast-0142.pdf',
+      sizeBytes: 188416,
+      mime: 'application/pdf',
+      uploadedByName: 'Tomasz Kowalski',
+      createdAt: '2026-01-02T00:00:00.000Z',
+    },
+  ],
+  auditTrail: [
+    {
+      id: 'audit-1',
+      at: '2024-03-14T09:12:00.000Z',
+      action: 'asset.assigned',
+      actorName: 'Tomasz Kowalski',
+      params: { assetName: 'MacBook Pro 14"', holderName: 'Maya Lindqvist' },
+    },
+  ],
+};
+
+/** The employee detail payload for MAYA. */
+export const MAYA_DETAIL = {
+  employee: MAYA,
+  holdings: [
+    {
+      ...HOLDING,
+      assetId: 'asset-1',
+      assetName: 'MacBook Pro 14"',
+      assetTag: 'AST-0142',
+      category: 'laptops',
+      serialNumber: 'C02XK1AZQ6L7',
+    },
+  ],
+  history: [
+    {
+      ...PAST_HOLDING,
+      assetId: 'asset-9',
+      assetName: 'MacBook Air M2',
+      assetTag: 'AST-0089',
+      category: 'laptops',
+      serialNumber: 'FVFXQ2ABC',
+    },
+  ],
 };
 
 /** Signed-in admin with an empty-but-reachable inventory. */

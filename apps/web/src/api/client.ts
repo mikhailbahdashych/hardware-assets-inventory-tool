@@ -31,20 +31,20 @@ export async function apiFetch<T = unknown>(path: string, options: ApiRequest = 
   });
 
   const payload = await readJson(response);
-
-  if (!response.ok) {
-    const envelope = (
-      payload as { error?: { code?: string; message?: string; fields?: Record<string, string> } }
-    )?.error;
-    throw new ApiError(
-      response.status,
-      envelope?.code ?? 'request_failed',
-      envelope?.message ?? 'The server could not complete that request.',
-      envelope?.fields,
-    );
-  }
-
+  if (!response.ok) throw toApiError(response, payload);
   return payload as T;
+}
+
+function toApiError(response: Response, payload: unknown): ApiError {
+  const envelope = (
+    payload as { error?: { code?: string; message?: string; fields?: Record<string, string> } }
+  )?.error;
+  return new ApiError(
+    response.status,
+    envelope?.code ?? 'request_failed',
+    envelope?.message ?? 'The server could not complete that request.',
+    envelope?.fields,
+  );
 }
 
 async function readJson(response: Response): Promise<unknown> {
@@ -56,4 +56,19 @@ async function readJson(response: Response): Promise<unknown> {
   } catch {
     return undefined;
   }
+}
+
+/**
+ * Multipart upload. The browser sets the multipart boundary itself, so this
+ * deliberately sends no content-type header of its own.
+ */
+export async function apiUpload<T = unknown>(path: string, body: FormData): Promise<T> {
+  const response = await fetch(`${API_BASE}${path}`, {
+    method: 'POST',
+    credentials: 'same-origin',
+    body,
+  });
+  const payload = await readJson(response);
+  if (!response.ok) throw toApiError(response, payload);
+  return payload as T;
 }

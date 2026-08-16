@@ -1,7 +1,7 @@
 import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { ADMIN_MEMBER, INVENTORY_ROUTES, LAPTOP, MAYA } from '@/test/api-stub';
+import { ADMIN_MEMBER, INVENTORY_ROUTES, LAPTOP, MAYA, MAYA_DETAIL } from '@/test/api-stub';
 import { renderApp, resetAppState } from '@/test/render';
 
 afterEach(() => {
@@ -25,7 +25,7 @@ const DANIEL = {
 const ROUTES = {
   ...INVENTORY_ROUTES,
   'GET /employees': { body: { employees: [DANIEL, MAYA] } },
-  'GET /employees/emp-1': { body: { employee: MAYA } },
+  'GET /employees/emp-1': { body: MAYA_DETAIL },
 };
 
 describe('employee list', () => {
@@ -129,7 +129,7 @@ describe('employee list', () => {
 });
 
 describe('employee detail', () => {
-  it('lists what the person currently holds, derived from the asset list', async () => {
+  it('lists what the person currently holds', async () => {
     renderApp(ROUTES, '/employees/emp-1');
 
     expect(await screen.findByRole('heading', { name: 'Maya Lindqvist' })).toBeInTheDocument();

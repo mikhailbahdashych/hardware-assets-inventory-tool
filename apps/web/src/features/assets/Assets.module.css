@@ -118,3 +118,58 @@
   font-size: 12.5px;
   color: var(--muted);
 }
+
+.cardHeader {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.cardLink {
+  border: none;
+  background: none;
+  color: var(--accent);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  padding: 0;
+}
+
+/* Per-asset audit trail: mono date column, sentence, actor. */
+.trail {
+  display: flex;
+  flex-direction: column;
+}
+
+.trailRow {
+  display: flex;
+  gap: 10px;
+  align-items: baseline;
+  padding: 7px 0;
+  border-top: 1px solid var(--border);
+}
+
+.trailRow:first-child {
+  border-top: none;
+  padding-top: 0;
+}
+
+.trailDate {
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  color: var(--faint);
+  width: 82px;
+  flex: none;
+}
+
+.trailText {
+  flex: 1;
+  font-size: 12.5px;
+  min-width: 0;
+}
+
+.trailActor {
+  color: var(--muted);
+}
