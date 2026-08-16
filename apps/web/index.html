@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <title>Inventory</title>
+    <script>
+      // Apply theme + density before first paint to avoid a flash.
+      // localStorage mirrors the signed-in member's server-side preference.
+      (function () {
+        var theme = localStorage.getItem('inv.theme');
+        if (theme !== 'light' && theme !== 'dark') {
+          theme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+        }
+        document.documentElement.dataset.theme = theme;
+        var density = localStorage.getItem('inv.density');
+        document.documentElement.dataset.density =
+          density === 'compact' ? 'compact' : 'comfortable';
+      })();
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
