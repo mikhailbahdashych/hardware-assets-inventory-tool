@@ -1,0 +1,26 @@
+# dependencies / builds
+node_modules/
+dist/
+coverage/
+*.tsbuildinfo
+.eslintcache
+.vite/
+
+# runtime data (SQLite + uploads live here)
+data/
+
+# env
+.env
+.env.*
+!.env.example
+
+# e2e artifacts
+e2e/test-results/
+e2e/playwright-report/
+e2e/blob-report/
+
+# local tooling state
+.claude/scheduled_tasks.lock
+.claude/settings.local.json
+.remember/
+.DS_Store

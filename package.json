@@ -1,0 +1,41 @@
+{
+  "name": "hardware-assets-inventory-tool",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Open-source, self-hosted hardware asset inventory for IT teams — track devices, who holds them, and the full ownership history.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/mikhailbahdashych/hardware-assets-inventory-tool.git"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "workspaces": [
+    "apps/*",
+    "packages/*",
+    "e2e"
+  ],
+  "scripts": {
+    "dev": "npm run dev -w apps/web",
+    "build": "npm run build --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "e2e": "npm run test -w e2e"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@types/node": "^26.2.0",
+    "eslint": "^10.8.1",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "eslint-plugin-react-refresh": "^0.5.4",
+    "prettier": "^3.9.6",
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8.67.0"
+  }
+}
