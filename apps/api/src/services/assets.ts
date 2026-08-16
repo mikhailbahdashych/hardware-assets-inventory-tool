@@ -11,6 +11,7 @@ import {
   assetCustomValues,
   assets,
   assignments,
+  auditEvents,
   customFieldDefs,
   employees,
   orgSettings,
@@ -18,9 +19,10 @@ import {
 import { AppError, invalidFields, notFound } from '@/lib/errors.js';
 import { nowIso, todayDate } from '@/lib/dates.js';
 import { newId } from '@/lib/ids.js';
-import { serializeAsset, type Actor } from '@/lib/serialize.js';
+import { serializeAsset, serializeAssignment, type Actor } from '@/lib/serialize.js';
 import { writeAudit } from './audit.js';
-import { activeAssignment, openAssignment } from './assignments.js';
+import { activeAssignment, assetHistory, openAssignment } from './assignments.js';
+import { listAttachments, storedNamesForAsset } from './attachments.js';
 import { computeNextTag } from './tag.js';
 
 export type AssetRow = typeof assets.$inferSelect;
@@ -75,7 +77,29 @@ export function getAssetDetail(db: Db, id: string) {
       value: values.get(def.id) ?? null,
     }));
 
-  return { asset: serializeAsset(asset, activeAssignment(db, id) ?? null), customFields };
+  // The last 20 events about this asset; the full log lives under Admin.
+  const auditTrail = db
+    .select()
+    .from(auditEvents)
+    .where(eq(auditEvents.assetId, id))
+    .orderBy(desc(auditEvents.at))
+    .limit(20)
+    .all()
+    .map((event) => ({
+      id: event.id,
+      at: event.at,
+      action: event.action,
+      actorName: event.actorName,
+      params: JSON.parse(event.params) as Record<string, unknown>,
+    }));
+
+  return {
+    asset: serializeAsset(asset, activeAssignment(db, id) ?? null),
+    customFields,
+    history: assetHistory(db, id).map(serializeAssignment),
+    attachments: listAttachments(db, id),
+    auditTrail,
+  };
 }
 
 /** The suggestion the New-asset form prefills; the field stays editable. */
@@ -266,8 +290,10 @@ export function updateAsset(deps: AppDeps, actor: Actor, id: string, patch: Asse
   });
 }
 
-export function deleteAsset(deps: AppDeps, actor: Actor, id: string): void {
+/** Returns the stored file names the caller should unlink once the rows are gone. */
+export function deleteAsset(deps: AppDeps, actor: Actor, id: string): string[] {
   const now = deps.now();
+  const storedNames = storedNamesForAsset(deps.db, id);
 
   deps.db.transaction((tx) => {
     const asset = tx.select().from(assets).where(eq(assets.id, id)).get();
@@ -294,6 +320,8 @@ export function deleteAsset(deps: AppDeps, actor: Actor, id: string): void {
       now,
     );
   });
+
+  return storedNames;
 }
 
 /** Writes the custom-field values in a payload; returns the keys that moved. */

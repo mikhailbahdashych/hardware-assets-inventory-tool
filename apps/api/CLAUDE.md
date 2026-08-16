@@ -17,6 +17,15 @@ REST API under `/api/v1`, one process, one SQLite file. In production it also se
 - `PATCH /assets/:id` diffs against the stored row: unchanged fields write no audit event, and a status move is audited separately as `asset.status_changed`. It refuses (409 `status_locked`) any move into or out of `assigned` — `canDirectlyTransition` in `@inventory/shared` is the rule.
 - Uniqueness (asset tag, employee email) is checked **inside** the transaction and raised as a 422 with a `fields` entry, so the form can point at the offending input. better-sqlite3 is synchronous on one connection, so that check cannot race; the UNIQUE indexes remain the backstop.
 - Deletes are guarded, not cascading surprises: an asset with a holder is 409 `asset_assigned`, a person still holding something is 409 `employee_holds_assets`. Deleting a person keeps their history — `assignments.employee_id` goes NULL and `holder_name_snapshot` carries the name.
+- `POST /assets/:id/assign` and `/checkin` are the ownership operations. Assign requires an available-or-ordered asset with no open record and an **active** employee; check-in requires an open record and a return date at or after the checkout. The check-in outcome is derived, not asked for (`deriveOutcome` in `@inventory/shared`).
+- `GET /assets/:id` returns the asset, its custom-field values, its ownership history, its attachments and its last 20 audit events. `GET /employees/:id` returns the person plus `holdings` and `history`, already split.
+- Attachments stream to `DATA_DIR/uploads` under a name **we** generate; the uploaded filename is a label, never a path. Downloads always send `content-disposition: attachment` and `nosniff`, so an uploaded file can never run as a page in the app's origin.
+
+## The one invariant
+
+`assets.status = 'assigned'` ⇔ an open ownership row exists, and never two. Only `openAssignment` and `closeAssignment` (`src/services/assignments.ts`) may change that pairing — they each write both tables together, inside the caller's transaction. The partial unique index on `(asset_id) WHERE returned_at IS NULL` is the structural backstop.
+
+`test/assignments.test.ts` asserts it after **every step** of a seeded random sequence of assigns, check-ins, status edits, deletes and creates. If you add an operation that touches assets or assignments, add it to that sequence — a new operation that breaks the pairing should fail there, not in production.
 
 ## Non-negotiable rules
 

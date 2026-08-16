@@ -6,8 +6,9 @@ import { assignments, employees } from '@/db/schema.js';
 import { AppError, invalidFields, notFound } from '@/lib/errors.js';
 import { nowIso } from '@/lib/dates.js';
 import { newId } from '@/lib/ids.js';
-import { serializeEmployee, type Actor } from '@/lib/serialize.js';
+import { serializeEmployee, serializeHolding, type Actor } from '@/lib/serialize.js';
 import { writeAudit } from './audit.js';
+import { employeeHistory } from './assignments.js';
 
 const EDITABLE = [
   'firstName',
@@ -42,10 +43,21 @@ export function listEmployees(db: Db) {
     .map((employee) => serializeEmployee(employee, counts.get(employee.id) ?? 0));
 }
 
-export function getEmployee(db: Db, id: string) {
+/**
+ * The employee page in one payload: the person, what they hold right now, and
+ * what they have handed back. Splitting here rather than in the browser keeps
+ * the page independent of whether the asset list happens to be cached.
+ */
+export function getEmployeeDetail(db: Db, id: string) {
   const employee = db.select().from(employees).where(eq(employees.id, id)).get();
   if (!employee) throw notFound('That employee');
-  return serializeEmployee(employee, countHeldBy(db, id));
+
+  const records = employeeHistory(db, id).map((row) => serializeHolding(row.assignment, row.asset));
+  return {
+    employee: serializeEmployee(employee, countHeldBy(db, id)),
+    holdings: records.filter((record) => record.returnedAt === null),
+    history: records.filter((record) => record.returnedAt !== null),
+  };
 }
 
 export function createEmployee(deps: AppDeps, actor: Actor, input: EmployeeCreateInput) {

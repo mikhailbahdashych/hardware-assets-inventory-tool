@@ -1,3 +1,6 @@
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { FastifyInstance, InjectOptions } from 'fastify';
 import type { Role } from '@inventory/shared';
@@ -16,6 +19,8 @@ export const MIGRATIONS_DIR = fileURLToPath(new URL('../src/migrations', import.
 export type TestApp = {
   app: FastifyInstance;
   db: Db;
+  /** Where uploaded files land for this test; removed on close. */
+  uploadsDir: string;
   close: () => Promise<void>;
 };
 
@@ -23,14 +28,23 @@ export async function buildTestApp(env: Record<string, string> = {}): Promise<Te
   const { db, sqlite } = createDb(':memory:');
   runMigrations(db, MIGRATIONS_DIR);
   seed(db);
-  const config = loadConfig({ NODE_ENV: 'test', LOG_LEVEL: 'silent', ...env });
+  // A throwaway data directory per test: uploads must never touch the repo.
+  const dataDir = mkdtempSync(join(tmpdir(), 'inventory-test-'));
+  const config = loadConfig({
+    NODE_ENV: 'test',
+    LOG_LEVEL: 'silent',
+    DATA_DIR: dataDir,
+    ...env,
+  });
   const app = await buildApp({ config, db, sqlite });
   return {
     app,
     db,
+    uploadsDir: join(dataDir, 'uploads'),
     close: async () => {
       await app.close();
       sqlite.close();
+      rmSync(dataDir, { recursive: true, force: true });
     },
   };
 }

@@ -1,4 +1,5 @@
 import fastifyCookie from '@fastify/cookie';
+import fastifyMultipart from '@fastify/multipart';
 import fastifyRateLimit from '@fastify/rate-limit';
 import Fastify, { type FastifyInstance } from 'fastify';
 import { serializerCompiler, validatorCompiler } from 'fastify-type-provider-zod';
@@ -9,7 +10,9 @@ import { registerErrorHandler } from './plugins/error-handler.js';
 import { registerOriginGuard } from './plugins/origin-guard.js';
 import { registerSessionAuth } from './plugins/session.js';
 import { registerStaticSpa } from './plugins/static-spa.js';
+import { MAX_ATTACHMENT_BYTES } from './services/attachments.js';
 import { registerAssetRoutes } from './modules/assets.js';
+import { registerAttachmentRoutes } from './modules/attachments.js';
 import { registerAuthRoutes } from './modules/auth.js';
 import { registerCustomFieldRoutes } from './modules/custom-fields.js';
 import { registerEmployeeRoutes } from './modules/employees.js';
@@ -52,6 +55,7 @@ export async function buildApp(opts: BuildAppOptions): Promise<FastifyInstance> 
   registerOriginGuard(app, deps.config); // before session/rate-limit: cheapest rejection first
   registerSessionAuth(app, deps);
   await app.register(fastifyRateLimit, { global: false });
+  await app.register(fastifyMultipart, { limits: { fileSize: MAX_ATTACHMENT_BYTES, files: 1 } });
 
   registerMetaRoutes(app, deps);
   registerSetupRoutes(app, deps);
@@ -60,6 +64,7 @@ export async function buildApp(opts: BuildAppOptions): Promise<FastifyInstance> 
   registerAssetRoutes(app, deps);
   registerEmployeeRoutes(app, deps);
   registerCustomFieldRoutes(app, deps);
+  registerAttachmentRoutes(app, deps);
 
   await registerStaticSpa(app, deps.config.webDist);
 

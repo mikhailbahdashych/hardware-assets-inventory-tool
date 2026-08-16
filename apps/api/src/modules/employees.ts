@@ -7,7 +7,7 @@ import { requireAction, requireAuth } from '@/plugins/rbac.js';
 import {
   createEmployee,
   deleteEmployee,
-  getEmployee,
+  getEmployeeDetail,
   listEmployees,
   updateEmployee,
 } from '@/services/employees.js';
@@ -25,7 +25,7 @@ export function registerEmployeeRoutes(app: FastifyInstance, deps: AppDeps): voi
   typed.get(
     '/api/v1/employees/:id',
     { schema: { params: idParam }, preHandler: requireAuth },
-    async (request) => ({ employee: getEmployee(deps.db, request.params.id) }),
+    async (request) => getEmployeeDetail(deps.db, request.params.id),
   );
 
   typed.post(

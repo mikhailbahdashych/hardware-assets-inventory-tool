@@ -1,7 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
 import { z } from 'zod';
-import { assetCreateInput, assetPatchInput } from '@inventory/shared';
+import { assetCreateInput, assetPatchInput, assignInput, checkinInput } from '@inventory/shared';
 import type { AppDeps } from '@/app.js';
 import { requireAction, requireAuth } from '@/plugins/rbac.js';
 import {
@@ -12,6 +12,8 @@ import {
   nextAssetTag,
   updateAsset,
 } from '@/services/assets.js';
+import { assignAsset, checkinAsset } from '@/services/assignments.js';
+import { removeStoredFiles } from '@/services/attachments.js';
 
 const idParam = z.object({ id: z.string().min(1) });
 
@@ -56,8 +58,33 @@ export function registerAssetRoutes(app: FastifyInstance, deps: AppDeps): void {
     '/api/v1/assets/:id',
     { schema: { params: idParam }, preHandler: requireAction('assets.delete') },
     async (request, reply) => {
-      deleteAsset(deps, request.member!, request.params.id);
+      const storedNames = deleteAsset(deps, request.member!, request.params.id);
+      await removeStoredFiles(deps, storedNames);
       return reply.status(204).send();
     },
+  );
+
+  // Handing an asset over and taking it back are operations, not edits: they
+  // open and close ownership records, which no PATCH may do.
+  typed.post(
+    '/api/v1/assets/:id/assign',
+    {
+      schema: { params: idParam, body: assignInput },
+      preHandler: requireAction('assets.assign'),
+    },
+    async (request) => ({
+      asset: assignAsset(deps, request.member!, request.params.id, request.body),
+    }),
+  );
+
+  typed.post(
+    '/api/v1/assets/:id/checkin',
+    {
+      schema: { params: idParam, body: checkinInput },
+      preHandler: requireAction('assets.checkin'),
+    },
+    async (request) => ({
+      asset: checkinAsset(deps, request.member!, request.params.id, request.body),
+    }),
   );
 }

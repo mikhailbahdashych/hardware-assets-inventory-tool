@@ -38,6 +38,34 @@ export function serializeAsset(asset: typeof assets.$inferSelect, holder: Assign
   };
 }
 
+/** One ownership record, as the timeline and the employee pages read it. */
+export function serializeAssignment(assignment: AssignmentRow) {
+  return {
+    id: assignment.id,
+    employeeId: assignment.employeeId,
+    holderName: assignment.holderNameSnapshot,
+    checkedOutAt: assignment.checkedOutAt,
+    expectedReturnDate: assignment.expectedReturnDate,
+    returnedAt: assignment.returnedAt,
+    outcome: assignment.outcome,
+    checkoutNotes: assignment.checkoutNotes,
+    checkinCondition: assignment.checkinCondition,
+    checkinNotes: assignment.checkinNotes,
+  };
+}
+
+/** An ownership record seen from the person's side, so it names the asset. */
+export function serializeHolding(assignment: AssignmentRow, asset: typeof assets.$inferSelect) {
+  return {
+    ...serializeAssignment(assignment),
+    assetId: asset.id,
+    assetName: asset.name,
+    assetTag: asset.assetTag,
+    category: asset.category,
+    serialNumber: asset.serialNumber,
+  };
+}
+
 export function serializeEmployee(
   employee: typeof employees.$inferSelect,
   activeAssetCount: number,
