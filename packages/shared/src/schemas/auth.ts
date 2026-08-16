@@ -1,10 +1,10 @@
 import { z } from 'zod';
+import { email } from './common.js';
 
 // Auth + preference payloads shared by the API (validation) and the web app
 // (form typing). Emails are lowercased at the schema boundary — the whole
 // system only ever sees lowercase emails.
 
-const email = z.email().transform((value) => value.toLowerCase());
 const password = z.string().min(10).max(200);
 const name = z.string().trim().min(1).max(120);
 

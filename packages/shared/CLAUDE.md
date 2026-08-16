@@ -6,7 +6,10 @@ Plain TypeScript (no runtime deps yet) imported by both apps as `@inventory/shar
 
 - `src/enums.ts` — every enum as a slug array + `…_LABELS` (exact design copy) + `…_COLORS` (semantic color key `sv`). Also `canDirectlyTransition` (Change-status rules: `assigned` is never entered/left directly — that's assign/check-in).
 - `src/rbac.ts` — `can(role, action)` over a `MIN_ROLE` map with rank `viewer < manager < admin`. Reads are open to all roles; every mutating or admin-only action must be declared here. API guards and UI affordances both call `can()` — one truth.
-- `src/schemas/` — zod entity schemas (arrive in PR 2). Field changes start here and ripple: schema → DB migration → API → forms/tables → CSV mapping → export.
+- `src/schemas/` — zod entity schemas. Field changes start here and ripple: schema → DB migration → API → forms/tables → CSV mapping → export.
+  - `common.ts` holds the field builders every entity shares: `email` (lowercased at the boundary), `nullableText(max)` and `nullableDate` (blank means NULL, so `""` never reaches a column). Build new fields from these rather than re-deriving the blank-handling.
+  - Creates and patches are deliberately different shapes: a create gives optional fields `.default(null)`, a patch leaves them `.optional()` so **absent means "leave alone" and explicit `null` means "clear it"**. API services rely on that distinction — `if (!(field in patch)) continue`.
+- `src/money.ts` — `parsePriceToCents` is the single reader of human-typed money ("€ 2,340.00", "1.299,00"), used by the asset form now and the CSV importer later. It does integer arithmetic on the digit strings, so rounding is exact; never multiply a parsed float by 100.
 
 ## The enum pattern (follow it for every new value)
 
