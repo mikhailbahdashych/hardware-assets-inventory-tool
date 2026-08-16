@@ -9,6 +9,7 @@ Plain TypeScript (no runtime deps yet) imported by both apps as `@inventory/shar
 - `src/schemas/` — zod entity schemas. Field changes start here and ripple: schema → DB migration → API → forms/tables → CSV mapping → export.
   - `common.ts` holds the field builders every entity shares: `email` (lowercased at the boundary), `nullableText(max)` and `nullableDate` (blank means NULL, so `""` never reaches a column). Build new fields from these rather than re-deriving the blank-handling.
   - Creates and patches are deliberately different shapes: a create gives optional fields `.default(null)`, a patch leaves them `.optional()` so **absent means "leave alone" and explicit `null` means "clear it"**. API services rely on that distinction — `if (!(field in patch)) continue`.
+- `src/audit-render.ts` — the **one** renderer turning stored `{action, params}` events into sentences, used by the per-asset trail, the activity log and the CSV export so they cannot drift. Adding an audited action means adding a renderer here; the test asserts every action in the registry renders something other than its own slug.
 - `src/money.ts` — `parsePriceToCents` is the single reader of human-typed money ("€ 2,340.00", "1.299,00"), used by the asset form now and the CSV importer later. It does integer arithmetic on the digit strings, so rounding is exact; never multiply a parsed float by 100.
 
 ## The enum pattern (follow it for every new value)
