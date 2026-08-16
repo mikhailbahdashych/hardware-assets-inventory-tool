@@ -9,7 +9,8 @@ npm run e2e          # from the repo root
 ## How the instance is managed
 
 - Each run wipes `e2e/.data` and starts a fresh server, so the suite always begins at first-run setup. `reuseExistingServer` is off for the same reason — a reused server is already initialized and the setup test would fail.
-- One instance means one workspace, so tests run **serially in declaration order** (`workers: 1`): the first test performs setup and creates the admin account that later tests sign in with. Keep the whole journey in one spec file; a new file is only correct if it is independent of that account.
+- One instance means one workspace, so tests run **serially in declaration order** (`workers: 1`): the first test performs setup and creates the admin account that later tests sign in with. Spec files then run in path order, so `auth.spec.ts` bootstraps the instance and every later spec signs in through `helpers/session.ts`. A spec that must run first has to sort before `auth`.
+- Later specs also inherit the _data_ earlier ones created: `inventory.spec.ts` adds an employee, then registers an asset to that person, then reads it back. Add to the end of a journey rather than assuming an empty instance.
 - Browser contexts are per-test, so every test starts signed out even though the server state carries over.
 - `NODE_ENV=production` is set deliberately: it activates the origin guard, so the suite proves the CSRF stance works with real browser requests.
 

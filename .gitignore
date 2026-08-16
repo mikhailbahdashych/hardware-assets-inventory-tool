@@ -15,6 +15,7 @@ data/
 !.env.example
 
 # e2e artifacts
+test-results/
 e2e/test-results/
 e2e/playwright-report/
 e2e/blob-report/
@@ -25,3 +26,6 @@ e2e/blob-report/
 .remember/
 .DS_Store
 e2e/.data/
+
+# browser-review screenshots (MCP)
+.playwright-mcp/
