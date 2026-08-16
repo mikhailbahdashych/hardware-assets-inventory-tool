@@ -30,7 +30,7 @@ export default defineConfig({
   ],
   webServer: {
     command: [
-      'rm -rf e2e/.data',
+      'rm -rf e2e/.data e2e/.auth',
       'npm run build',
       `NODE_ENV=production APP_URL=http://localhost:${PORT} PORT=${PORT} DATA_DIR=e2e/.data WEB_DIST=apps/web/dist LOG_LEVEL=warn node apps/api/dist/index.js`,
     ].join(' && '),

@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { ADMIN, signIn } from '../helpers/session';
+import { ADMIN, signInFresh as signIn } from '../helpers/session';
 
 // The suite shares one instance, so these run in order: the first test performs
 // first-run setup and every later test signs in with the account it created.

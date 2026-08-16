@@ -26,6 +26,7 @@ e2e/blob-report/
 .remember/
 .DS_Store
 e2e/.data/
+e2e/.auth/
 
 # browser-review screenshots (MCP)
 .playwright-mcp/
