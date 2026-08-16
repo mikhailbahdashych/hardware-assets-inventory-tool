@@ -4,11 +4,13 @@ Self-hosted hardware asset inventory for IT teams ("Inventory" in the UI): asset
 
 This repo is built to be customized by asking Claude Code. Every area has its own CLAUDE.md with patterns and recipes — read the one closest to the code you're changing.
 
+> **Continuing the build?** Read [`docs/PROJECT_STATUS.md`](docs/PROJECT_STATUS.md) first — it records what is done, what the next PR is, and the decisions already locked in. Update it at the end of each PR.
+
 ## Repo map
 
 - `apps/web` — React 19 + Vite SPA. Design system, pages, modals. See `apps/web/CLAUDE.md`.
 - `apps/api` — Fastify API + SQLite (Drizzle). REST under `/api/v1`, sessions + RBAC + audit log, serves the built SPA in production. See `apps/api/CLAUDE.md`.
-- `packages/shared` — **single source of truth** for enums, label/color maps, RBAC, and (from PR 2) zod schemas. Both apps import it; change domain vocabulary here first. See `packages/shared/CLAUDE.md`.
+- `packages/shared` — **single source of truth** for enums, label/color maps, RBAC and zod schemas. Both apps import it; change domain vocabulary here first. See `packages/shared/CLAUDE.md`.
 - `e2e` — Playwright tests against the production build. See `e2e/CLAUDE.md`.
 - `docs/design-handoff/` — the interactive HTML design prototype. **Visual source of truth**; open it in a browser and compare side-by-side when building UI.
 
