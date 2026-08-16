@@ -1,8 +1,0 @@
-dist/
-coverage/
-.angular/
-package-lock.json
-docs/superpowers/
-.playwright-mcp/
-.remember/
-.claude/settings.local.json
