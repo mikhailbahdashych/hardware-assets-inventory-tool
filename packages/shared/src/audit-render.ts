@@ -34,6 +34,9 @@ const role = (params: AuditParams, key: string): string => {
 
 /** Field names as the forms say them, so a log line reads like the UI. */
 const FIELD_LABELS: Record<string, string> = {
+  label: 'name',
+  assignableFrom: 'can be assigned from',
+  checkinTarget: 'check-in destination',
   assetTag: 'asset tag',
   serialNumber: 'serial number',
   purchaseDate: 'purchase date',
@@ -96,6 +99,27 @@ const RENDERERS: Record<string, (params: AuditParams) => string> = {
   'custom_field.created': (p) => `Added the custom field ${text(p, 'label', 'a field')}`,
   'custom_field.updated': (p) => `Renamed a custom field to ${text(p, 'label', 'a field')}`,
   'custom_field.deleted': (p) => `Deleted the custom field ${text(p, 'label', 'a field')}`,
+  'workflow.status_created': (p) => `Added the asset status ${text(p, 'label', 'a status')}`,
+  'workflow.status_updated': (p) =>
+    `Updated the asset status ${text(p, 'label', 'a status')}${fieldList(p)}`,
+  'workflow.status_deleted': (p) => {
+    const deleted = `Deleted the asset status ${text(p, 'label', 'a status')}`;
+    // A status nothing carried is deleted outright; one that assets carried
+    // took them somewhere, and the count is the part worth reading later.
+    if (typeof p.migratedToLabel !== 'string') return deleted;
+    const count = typeof p.assetCount === 'number' ? p.assetCount : 0;
+    return `${deleted} · ${count} ${count === 1 ? 'asset' : 'assets'} moved to ${p.migratedToLabel}`;
+  },
+  'workflow.transitions_updated': (p) => {
+    const added = typeof p.added === 'number' ? p.added : 0;
+    const removed = typeof p.removed === 'number' ? p.removed : 0;
+    // An event with no numbers still has to render — the sentence just stops
+    // short of counting, rather than reading "0 transitions added".
+    if (added === 0 && removed === 0) return 'Changed the workflow transitions';
+    const word = added === 1 ? 'transition' : 'transitions';
+    return `Changed the workflow (${added} ${word} added, ${removed} removed)`;
+  },
+  'workflow.statuses_reordered': () => 'Reordered the asset statuses',
   'member.invited': (p) => {
     const named = typeof p.role === 'string';
     // "an Admin" but "a Manager" — derived from the label so renaming a role

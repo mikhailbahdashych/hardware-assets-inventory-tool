@@ -22,6 +22,7 @@ import { registerMemberRoutes } from './modules/members.js';
 import { registerMeRoutes } from './modules/me.js';
 import { registerMetaRoutes } from './modules/meta.js';
 import { registerSetupRoutes } from './modules/setup.js';
+import { registerWorkflowRoutes } from './modules/workflow.js';
 
 export async function buildApp(opts: BuildAppOptions): Promise<FastifyInstance> {
   const deps: AppDeps = {
@@ -63,6 +64,7 @@ export async function buildApp(opts: BuildAppOptions): Promise<FastifyInstance> 
   registerAssetRoutes(app, deps);
   registerEmployeeRoutes(app, deps);
   registerCustomFieldRoutes(app, deps);
+  registerWorkflowRoutes(app, deps);
   registerAttachmentRoutes(app, deps);
   registerMemberRoutes(app, deps);
   registerAdminRoutes(app, deps);

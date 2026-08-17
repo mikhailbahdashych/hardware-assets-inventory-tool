@@ -14,7 +14,7 @@ import {
   transitionAllowed,
   updateStatus,
 } from '@/services/workflow.js';
-import { buildTestApp, inject, setupOrg, type TestApp } from './helpers.js';
+import { buildTestApp, inject, memberCookie, setupOrg, type TestApp } from './helpers.js';
 
 let ctx: TestApp;
 afterEach(async () => {
@@ -77,6 +77,177 @@ function addAsset(status: string, tag = 'AST-0001'): string {
     .run();
   return `asset-${tag}`;
 }
+
+describe('GET /api/v1/workflow', () => {
+  it('needs a session, and every role may read it — pills need the vocabulary', async () => {
+    ctx = await buildTestApp();
+    await setupOrg(ctx.app);
+
+    expect((await ctx.app.inject({ method: 'GET', url: '/api/v1/workflow' })).statusCode).toBe(401);
+
+    const viewer = await inject(ctx.app, {
+      method: 'GET',
+      url: '/api/v1/workflow',
+      cookie: memberCookie(ctx.db, 'viewer'),
+    });
+    expect(viewer.statusCode).toBe(200);
+    expect(viewer.json().statuses).toHaveLength(6);
+    expect(viewer.json().transitions).toHaveLength(20);
+  });
+});
+
+describe('the workflow endpoints are admin-only', () => {
+  it('turns a manager away from every one of them', async () => {
+    ctx = await buildTestApp();
+    await setupOrg(ctx.app);
+    const manager = memberCookie(ctx.db, 'manager');
+
+    const attempts = [
+      inject(ctx.app, {
+        method: 'POST',
+        url: '/api/v1/workflow/statuses',
+        cookie: manager,
+        body: { label: 'On loan', color: 'info' },
+      }),
+      inject(ctx.app, {
+        method: 'PATCH',
+        url: '/api/v1/workflow/statuses/ordered',
+        cookie: manager,
+        body: { label: 'Ordered in' },
+      }),
+      inject(ctx.app, {
+        method: 'DELETE',
+        url: '/api/v1/workflow/statuses/ordered',
+        cookie: manager,
+      }),
+      inject(ctx.app, {
+        method: 'PUT',
+        url: '/api/v1/workflow/transitions',
+        cookie: manager,
+        body: { transitions: [] },
+      }),
+      inject(ctx.app, {
+        method: 'PUT',
+        url: '/api/v1/workflow/statuses/order',
+        cookie: manager,
+        body: { ids: ['available'] },
+      }),
+    ];
+
+    for (const res of await Promise.all(attempts)) expect(res.statusCode).toBe(403);
+    expect(getWorkflow(ctx.db).statuses).toHaveLength(6);
+  });
+});
+
+describe('an admin editing the workflow over HTTP', () => {
+  it('adds, renames, reorders and removes a status', async () => {
+    ctx = await buildTestApp();
+    const { cookie } = await admin();
+
+    const created = await inject(ctx.app, {
+      method: 'POST',
+      url: '/api/v1/workflow/statuses',
+      cookie,
+      body: { label: 'On loan', color: 'info', checkinTarget: true },
+    });
+    expect(created.statusCode).toBe(201);
+    expect(created.json().status).toMatchObject({
+      id: 'on_loan',
+      label: 'On loan',
+      color: 'info',
+      assignableFrom: false,
+      checkinTarget: true,
+    });
+
+    const renamed = await inject(ctx.app, {
+      method: 'PATCH',
+      url: '/api/v1/workflow/statuses/on_loan',
+      cookie,
+      body: { label: 'Out on loan', color: 'warn' },
+    });
+    expect(renamed.statusCode).toBe(200);
+    expect(renamed.json().status).toMatchObject({ id: 'on_loan', label: 'Out on loan' });
+
+    const reordered = await inject(ctx.app, {
+      method: 'PUT',
+      url: '/api/v1/workflow/statuses/order',
+      cookie,
+      body: {
+        ids: [
+          'on_loan',
+          ...getWorkflow(ctx.db)
+            .statuses.map((s) => s.id)
+            .slice(0, 6),
+        ],
+      },
+    });
+    expect(reordered.statusCode).toBe(200);
+    expect(reordered.json().statuses[0].id).toBe('on_loan');
+
+    const saved = await inject(ctx.app, {
+      method: 'PUT',
+      url: '/api/v1/workflow/transitions',
+      cookie,
+      body: { transitions: [{ from: 'available', to: 'on_loan' }] },
+    });
+    expect(saved.statusCode).toBe(200);
+    expect(saved.json().transitions).toEqual([{ from: 'available', to: 'on_loan' }]);
+
+    const removed = await inject(ctx.app, {
+      method: 'DELETE',
+      url: '/api/v1/workflow/statuses/on_loan',
+      cookie,
+    });
+    expect(removed.statusCode).toBe(204);
+    // The edge went with it rather than pointing at nothing.
+    expect(getWorkflow(ctx.db).transitions).toEqual([]);
+  });
+
+  it('404s an unknown status and 422s a payload the contract refuses', async () => {
+    ctx = await buildTestApp();
+    const { cookie } = await admin();
+
+    const missing = await inject(ctx.app, {
+      method: 'PATCH',
+      url: '/api/v1/workflow/statuses/nowhere',
+      cookie,
+      body: { label: 'Nowhere' },
+    });
+    expect(missing.statusCode).toBe(404);
+
+    const badColor = await inject(ctx.app, {
+      method: 'POST',
+      url: '/api/v1/workflow/statuses',
+      cookie,
+      body: { label: 'On loan', color: 'purple' },
+    });
+    expect(badColor.statusCode).toBe(422);
+  });
+
+  it('refuses to delete a status assets carry until it is told where they go', async () => {
+    ctx = await buildTestApp();
+    const { cookie } = await admin();
+    addAsset('lost_stolen', 'AST-0001');
+
+    const blocked = await inject(ctx.app, {
+      method: 'DELETE',
+      url: '/api/v1/workflow/statuses/lost_stolen',
+      cookie,
+    });
+    expect(blocked.statusCode).toBe(409);
+    expect(blocked.json().error.code).toBe('status_in_use');
+    expect(blocked.json().error.message).toMatch(/1 asset/);
+
+    const migrated = await inject(ctx.app, {
+      method: 'DELETE',
+      url: '/api/v1/workflow/statuses/lost_stolen?migrateTo=retired',
+      cookie,
+    });
+    expect(migrated.statusCode).toBe(204);
+    expect(ctx.db.select().from(assets).all()[0]!.status).toBe('retired');
+    expect(getWorkflow(ctx.db).statuses.map((status) => status.id)).not.toContain('lost_stolen');
+  });
+});
 
 describe('reading the workflow', () => {
   it('answers the seeded statuses in sort order with their flags', async () => {

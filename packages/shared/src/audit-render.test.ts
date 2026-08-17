@@ -111,6 +111,45 @@ describe('renderAuditEvent', () => {
     );
   });
 
+  it('renders every workflow change as something an admin would recognise', () => {
+    expect(
+      renderAuditEvent({ action: 'workflow.status_created', params: { label: 'On loan' } }),
+    ).toBe('Added the asset status On loan');
+    expect(
+      renderAuditEvent({
+        action: 'workflow.status_updated',
+        params: { label: 'On loan', changedFields: ['label', 'checkinTarget'] },
+      }),
+    ).toBe('Updated the asset status On loan (name, check-in destination)');
+    expect(
+      renderAuditEvent({
+        action: 'workflow.status_deleted',
+        params: { label: 'Lost/Stolen', migratedToLabel: null, assetCount: 0 },
+      }),
+    ).toBe('Deleted the asset status Lost/Stolen');
+    expect(
+      renderAuditEvent({
+        action: 'workflow.status_deleted',
+        params: { label: 'Lost/Stolen', migratedToLabel: 'Retired', assetCount: 2 },
+      }),
+    ).toBe('Deleted the asset status Lost/Stolen · 2 assets moved to Retired');
+    expect(
+      renderAuditEvent({
+        action: 'workflow.status_deleted',
+        params: { label: 'On loan', migratedToLabel: 'Available', assetCount: 1 },
+      }),
+    ).toBe('Deleted the asset status On loan · 1 asset moved to Available');
+    expect(
+      renderAuditEvent({
+        action: 'workflow.transitions_updated',
+        params: { added: 1, removed: 3 },
+      }),
+    ).toBe('Changed the workflow (1 transition added, 3 removed)');
+    expect(renderAuditEvent({ action: 'workflow.statuses_reordered', params: {} })).toBe(
+      'Reordered the asset statuses',
+    );
+  });
+
   it('says which settings an admin touched', () => {
     expect(
       renderAuditEvent({
