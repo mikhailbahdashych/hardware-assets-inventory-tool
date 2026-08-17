@@ -8,8 +8,10 @@ export function computeNextTag(prefix: string, existingTags: string[]): string {
   const pattern = new RegExp(`^${escapeRegExp(prefix)}-(\\d+)$`);
   let highest = 0;
   for (const tag of existingTags) {
-    const match = pattern.exec(tag);
-    if (match) highest = Math.max(highest, Number.parseInt(match[1], 10));
+    // Group 1 is the digits; a tag that matched without them is impossible for
+    // this pattern, and reading the group directly says so without an assertion.
+    const digits = pattern.exec(tag)?.[1];
+    if (digits) highest = Math.max(highest, Number.parseInt(digits, 10));
   }
   const next = String(highest + 1).padStart(4, '0');
   return `${prefix}-${next}`;

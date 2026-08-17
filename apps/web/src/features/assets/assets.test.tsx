@@ -78,7 +78,7 @@ describe('asset list', () => {
     renderApp({ ...INVENTORY_ROUTES, 'GET /assets/asset-1': { body: LAPTOP_DETAIL } }, '/assets');
     await screen.findByText('MacBook Pro 14"');
 
-    await userEvent.click((await rows())[0]);
+    await userEvent.click((await rows())[0]!);
     expect(await screen.findByRole('button', { name: 'Edit' })).toBeInTheDocument();
   });
 

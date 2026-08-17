@@ -112,7 +112,7 @@ describe('buildTimeline', () => {
       range: 'May 2026 → present',
       sv: 'neut',
     });
-    expect(entries[1].title).toBe('Maya Lindqvist');
+    expect(entries[1]!.title).toBe('Maya Lindqvist');
   });
 
   it('is newest first, whatever order the records arrive in', () => {
@@ -129,6 +129,6 @@ describe('buildTimeline', () => {
       ADDED,
       NOW,
     );
-    expect(entries[0].title).toBe('Maya Lindqvist');
+    expect(entries[0]!.title).toBe('Maya Lindqvist');
   });
 });

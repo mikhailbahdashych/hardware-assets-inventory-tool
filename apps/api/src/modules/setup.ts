@@ -1,3 +1,4 @@
+import { eq } from 'drizzle-orm';
 import type { FastifyInstance } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
 import { setupInput } from '@inventory/shared';
@@ -61,7 +62,14 @@ export function registerSetupRoutes(app: FastifyInstance, deps: AppDeps): void {
           },
           now,
         );
-        return tx.select().from(members).all()[0];
+        // By id, not "the first row": this is only correct while the table has
+        // exactly one member, which is true today and is not a property to
+        // depend on. A miss means the insert above did not happen.
+        const created = tx.select().from(members).where(eq(members.id, memberId)).get();
+        if (!created) {
+          throw new AppError(500, 'setup_failed', 'The first admin could not be created.');
+        }
+        return created;
       });
 
       const session = createSession(deps.db, memberId, now);

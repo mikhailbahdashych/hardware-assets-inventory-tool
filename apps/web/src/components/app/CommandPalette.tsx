@@ -36,6 +36,11 @@ export function CommandPalette({ role, onClose }: { role: Role; onClose: () => v
     [query, role, assets.data, employees.data],
   );
   const rows = useMemo(() => paletteRows(groups), [groups]);
+  // `active` is an index this component maintains across renders while the
+  // results change underneath it. Reading the row once — and checking it — is
+  // the honest shape: the invariant is kept by hand, so it can be broken by
+  // hand, and ↵ on nothing should do nothing rather than throw.
+  const activeRow = rows[active];
 
   useEffect(() => {
     listRef.current?.querySelector('[aria-selected="true"]')?.scrollIntoView({ block: 'nearest' });
@@ -60,9 +65,9 @@ export function CommandPalette({ role, onClose }: { role: Role; onClose: () => v
     } else if (event.key === 'ArrowUp') {
       event.preventDefault();
       setActive((current) => (current - 1 + rows.length) % rows.length);
-    } else if (event.key === 'Enter') {
+    } else if (event.key === 'Enter' && activeRow) {
       event.preventDefault();
-      run(rows[active].effect);
+      run(activeRow.effect);
     }
   }
 
@@ -83,7 +88,7 @@ export function CommandPalette({ role, onClose }: { role: Role; onClose: () => v
             aria-label="Search assets, people, or type a command"
             aria-expanded
             aria-controls={listId}
-            aria-activedescendant={rows.length > 0 ? rows[active].id : undefined}
+            aria-activedescendant={activeRow?.id}
             autoFocus
             value={query}
             placeholder="Search assets, people, or type a command…"
@@ -108,7 +113,7 @@ export function CommandPalette({ role, onClose }: { role: Role; onClose: () => v
                   id={row.id}
                   type="button"
                   role="option"
-                  aria-selected={rows[active]?.id === row.id}
+                  aria-selected={activeRow?.id === row.id}
                   className={styles.row}
                   // The keyboard owns the highlight; hovering moves it there so
                   // the two never disagree about what ↵ would open.

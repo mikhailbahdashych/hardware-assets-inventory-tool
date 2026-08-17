@@ -2,7 +2,7 @@
 
 **Read this first when picking the project up.** It records where the build stands, what every earlier decision was, and exactly what the next piece of work is. Update it at the end of each PR.
 
-_Last updated: 2026-08-17, after PR 8 — the last planned PR. The product is complete._
+_Last updated: 2026-08-17, after the `noUncheckedIndexedAccess` cleanup. The planned build is complete._
 
 ---
 
@@ -90,7 +90,7 @@ Runs the real production artifact: built API serving the built SPA, fresh data d
 
 ### Verification status
 
-549 unit/integration tests (235 api + 216 web + 98 shared), 37 e2e tests, lint, format and typecheck clean. CI runs lint → format check → typecheck → unit tests → build → e2e, plus a second job that **builds the image, starts it, sets a workspace up, restarts the container and reads it back** — a Dockerfile that only compiles is a Dockerfile nobody has tried.
+556 unit/integration tests (242 api + 216 web + 98 shared), 37 e2e tests, lint, format and typecheck clean. CI runs lint → format check → typecheck → unit tests → build → e2e, plus a second job that **builds the image, starts it, sets a workspace up, restarts the container and reads it back** — a Dockerfile that only compiles is a Dockerfile nobody has tried.
 
 ## 5. How to work in this repo
 
@@ -127,16 +127,14 @@ Nothing is scheduled. The eight-PR plan is delivered; §7 lists what was deliber
 - **The Settings page has no Save button**, because the design draws none: selects and switches save on change, text fields on blur and only when the value actually changed. If a Save button is ever wanted, that is a design change, not a bug fix.
 - **The prototype's SSO line in the demo log** ("Signed in via SSO") has no counterpart: there is no SSO in v1, so no event says there is.
 - The origin guard is disabled in development on purpose (the Vite dev proxy forwards the browser's :5173 origin). E2E runs in production mode so the guard is still covered.
-- `noUncheckedIndexedAccess` is off in `tsconfig.base.json`, so some index reads are typed `string` while being `undefined` at runtime. Turning it on would let the compiler tell a real index guard from a dead one; it will surface work, so it deserves its own change.
 - Post-v1 and explicitly out of scope: OIDC SSO, Postgres, API tokens, pagination beyond ~10k assets, a category-management UI. The README says so too, so nobody goes looking.
 
 ### Worth picking up next
 
-1. **`noUncheckedIndexedAccess`** (above) — the largest single improvement to the type safety of what exists.
-2. **A demo seed.** `npm run seed:demo` was in the plan and never built; a prototype-like dataset would make the kitchen-sink and screenshot passes repeatable.
-3. **Screenshots in the README.** It describes the product without showing it.
-4. **`docker exec` lands as root**, because the image has no `USER` — the entrypoint drops privileges itself. The app process is uid 1000; only an exec session is not. Anyone with daemon access is already root-equivalent, so this is untidy rather than unsafe.
-5. **A retention prune for `notification_log`.** Nothing removes those rows, and they accumulate one per sent message forever. Harmless at this scale, untidy at any other.
+1. **A demo seed.** `npm run seed:demo` was in the plan and never built; a prototype-like dataset would make the kitchen-sink and screenshot passes repeatable.
+2. **Screenshots in the README.** It describes the product without showing it.
+3. **`docker exec` lands as root**, because the image has no `USER` — the entrypoint drops privileges itself. The app process is uid 1000; only an exec session is not. Anyone with daemon access is already root-equivalent, so this is untidy rather than unsafe.
+4. **A retention prune for `notification_log`.** Nothing removes those rows, and they accumulate one per sent message forever. Harmless at this scale, untidy at any other.
 
 ## 8. Deviations from the prototype, and why
 

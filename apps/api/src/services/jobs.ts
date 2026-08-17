@@ -130,8 +130,12 @@ export async function runReturnReminders(deps: AppDeps, now: Date): Promise<JobR
     .orderBy(asc(assignments.expectedReturnDate))
     .all();
 
-  // One message per person, however many things they are holding.
-  const byPerson = new Map<string, typeof due>();
+  // One message per person, however many things they are holding. The value is
+  // a non-empty tuple because it is only ever created with a row in it — which
+  // is what lets `holder` below be read without a check for a case the
+  // construction makes impossible.
+  type DueRow = (typeof due)[number];
+  const byPerson = new Map<string, [DueRow, ...DueRow[]]>();
   for (const row of due) {
     const existing = byPerson.get(row.employeeId);
     if (existing) existing.push(row);
@@ -140,9 +144,10 @@ export async function runReturnReminders(deps: AppDeps, now: Date): Promise<JobR
 
   let sent = 0;
   for (const [employeeId, rows] of byPerson) {
+    const [holder] = rows;
     const content = returnReminderEmail({
       orgName: settings.orgName,
-      holderName: `${rows[0].firstName} ${rows[0].lastName}`,
+      holderName: `${holder.firstName} ${holder.lastName}`,
       assets: rows.flatMap((row) =>
         row.expectedReturnDate === null
           ? []
@@ -160,7 +165,7 @@ export async function runReturnReminders(deps: AppDeps, now: Date): Promise<JobR
       await sendOnce(deps, {
         kind: 'return_reminder',
         dedupeKey: `return:${employeeId}:${dayOf(now)}`,
-        to: rows[0].email,
+        to: holder.email,
         content,
       })
     ) {

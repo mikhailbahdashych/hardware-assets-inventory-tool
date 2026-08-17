@@ -235,7 +235,7 @@ describe('checking an asset in', () => {
       condition: 'damaged',
     });
     expect(res.json().asset.status).toBe('in_repair');
-    expect(ctx.db.select().from(assignments).all()[0].outcome).toBe('in_repair');
+    expect(ctx.db.select().from(assignments).all()[0]!.outcome).toBe('in_repair');
     expectInvariant(ctx.db);
   });
 
@@ -250,7 +250,7 @@ describe('checking an asset in', () => {
     });
 
     await checkin(admin, asset.id, { returnDate: '2026-08-16', newStatus: 'available' });
-    expect(ctx.db.select().from(assignments).all()[0].outcome).toBe('offboarded');
+    expect(ctx.db.select().from(assignments).all()[0]!.outcome).toBe('offboarded');
   });
 
   it('refuses an asset nobody is holding', async () => {
@@ -314,7 +314,7 @@ describe('the status ⇔ ownership invariant', () => {
     ctx = await buildTestApp();
     const admin = await setupOrg(ctx.app);
     const random = mulberry32(seed);
-    const pick = <T>(items: T[]): T => items[Math.floor(random() * items.length)];
+    const pick = <T>(items: T[]): T => items[Math.floor(random() * items.length)]!;
 
     const people = [
       await createEmployee(admin, { firstName: 'Maya', lastName: 'Lindqvist' }),
@@ -497,7 +497,7 @@ describe('what the detail pages read', () => {
       'asset.assigned',
       'asset.created',
     ]);
-    expect(trail[0].actorName).toBe('Tomasz Kowalski');
+    expect(trail[0]!.actorName).toBe('Tomasz Kowalski');
     // Another asset's events never leak into this trail.
     const other = await createAsset(admin, { name: 'ThinkPad X1' });
     const otherRes = await inject(ctx.app, {

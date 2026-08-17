@@ -24,7 +24,7 @@ describe('apiFetch', () => {
   it('prefixes the versioned API base and sends same-origin credentials', async () => {
     const spy = mockFetch(200, {});
     await apiFetch('/meta');
-    const [url, init] = spy.mock.calls[0];
+    const [url, init] = spy.mock.calls[0]!;
     expect(url).toBe('/api/v1/meta');
     expect(init.credentials).toBe('same-origin');
   });
@@ -32,7 +32,7 @@ describe('apiFetch', () => {
   it('sends JSON bodies with a content type', async () => {
     const spy = mockFetch(200, {});
     await apiFetch('/auth/login', { method: 'POST', body: { email: 'a@b.co', password: 'x' } });
-    const [, init] = spy.mock.calls[0];
+    const [, init] = spy.mock.calls[0]!;
     expect(init.method).toBe('POST');
     expect(init.headers['content-type']).toBe('application/json');
     expect(JSON.parse(init.body)).toEqual({ email: 'a@b.co', password: 'x' });

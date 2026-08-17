@@ -20,5 +20,7 @@ export function avatarColor(id: string): string {
   for (let i = 0; i < id.length; i++) {
     hash = ((hash * 33) ^ id.charCodeAt(i)) >>> 0;
   }
-  return AVATAR_PALETTE[hash % AVATAR_PALETTE.length];
+  // A non-negative hash modulo the length is always a valid index; TypeScript
+  // cannot see that, and a fallback colour here would hide a real mistake.
+  return AVATAR_PALETTE[hash % AVATAR_PALETTE.length]!;
 }

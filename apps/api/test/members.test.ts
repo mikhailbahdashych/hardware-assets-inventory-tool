@@ -325,7 +325,7 @@ describe('changing a member', () => {
     ctx = await buildTestApp();
     await setupOrg(ctx.app);
     const otherCookie = memberCookie(ctx.db, 'admin');
-    const setupAdmin = ctx.db.select().from(members).where(eq(members.role, 'admin')).all()[0];
+    const setupAdmin = ctx.db.select().from(members).where(eq(members.role, 'admin')).all()[0]!;
 
     const res = await inject(ctx.app, {
       method: 'PATCH',

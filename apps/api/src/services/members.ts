@@ -293,8 +293,11 @@ function requireFreeEmail(tx: DbOrTx, email: string): void {
   }
 }
 
-/** zod has already validated the address, so the "@" is always there. */
+/**
+ * zod has already validated the address, so the "@" is always there — and an
+ * address without one is all local part, which is the right answer anyway.
+ */
 function localPart(email: string): string {
   const [local] = email.split('@');
-  return local;
+  return local ?? email;
 }

@@ -58,7 +58,7 @@ describe('attachments', () => {
       uploadedByName: 'Tomasz Kowalski',
     });
 
-    const row = ctx.db.select().from(attachments).all()[0];
+    const row = ctx.db.select().from(attachments).all()[0]!;
     // The stored name is ours, never the caller's — an uploaded name is not a path.
     expect(row.storedName).not.toBe('invoice-ast-0001.pdf');
     expect(existsSync(join(ctx.uploadsDir, row.storedName))).toBe(true);
@@ -109,7 +109,7 @@ describe('attachments', () => {
     const admin = await setupOrg(ctx.app);
     const asset = await createAsset(admin);
     const uploaded = await upload(admin, asset.id, 'warranty.pdf', 'warranty bytes');
-    const stored = ctx.db.select().from(attachments).all()[0].storedName;
+    const stored = ctx.db.select().from(attachments).all()[0]!.storedName;
 
     const res = await inject(ctx.app, {
       method: 'DELETE',
