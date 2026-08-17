@@ -30,6 +30,9 @@ export function registerSetupRoutes(app: FastifyInstance, deps: AppDeps): void {
           .values({
             id: 1,
             orgName: request.body.orgName,
+            // The column is nullable because NULL is the Settings page's
+            // "Forever"; a new workspace starts on the design's 12 months.
+            logRetentionMonths: 12,
             createdAt: nowIso(now),
             updatedAt: nowIso(now),
           })

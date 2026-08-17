@@ -1,0 +1,63 @@
+import type { AppDeps } from '@/types/app.js';
+import {
+  assetCustomValues,
+  assets,
+  assignments,
+  attachments,
+  auditEvents,
+  authTokens,
+  customFieldDefs,
+  employees,
+  members,
+  notificationLog,
+  orgSettings,
+  sessions,
+} from '@/db/schema.js';
+import { invalidFields } from '@/lib/errors.js';
+import { seed } from '@/db/seed.js';
+import { removeStoredFiles } from './attachments.js';
+import { getSettings } from './settings.js';
+
+/**
+ * The danger zone. Everything goes: the instance ends up exactly where a fresh
+ * container starts, at /setup with the default custom-field definitions and
+ * nothing else. There is no audit event because there is no log left to hold
+ * one — the deletion is the record.
+ *
+ * Deliberately not `DROP`/recreate: the tables and their migrations stay, so
+ * restarting is not part of the procedure.
+ */
+export async function deleteWorkspace(deps: AppDeps, confirmText: string): Promise<void> {
+  const settings = getSettings(deps.db);
+  if (confirmText !== settings.orgName) {
+    throw invalidFields({
+      confirmText: `Type the organization name exactly: ${settings.orgName}`,
+    });
+  }
+
+  // Read the file names before the rows go, or nothing knows what to unlink.
+  const storedNames = deps.db
+    .select({ storedName: attachments.storedName })
+    .from(attachments)
+    .all()
+    .map((row) => row.storedName);
+
+  deps.db.transaction((tx) => {
+    // Children first, so the wipe never depends on which cascades are enabled.
+    tx.delete(notificationLog).run();
+    tx.delete(auditEvents).run();
+    tx.delete(attachments).run();
+    tx.delete(assetCustomValues).run();
+    tx.delete(assignments).run();
+    tx.delete(assets).run();
+    tx.delete(customFieldDefs).run();
+    tx.delete(authTokens).run();
+    tx.delete(sessions).run();
+    tx.delete(members).run();
+    tx.delete(employees).run();
+    tx.delete(orgSettings).run();
+  });
+
+  await removeStoredFiles(deps, storedNames);
+  seed(deps.db);
+}

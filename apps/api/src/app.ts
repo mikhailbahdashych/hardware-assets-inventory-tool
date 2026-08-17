@@ -9,11 +9,13 @@ import { registerOriginGuard } from './plugins/origin-guard.js';
 import { registerSessionAuth } from './plugins/session.js';
 import { registerStaticSpa } from './plugins/static-spa.js';
 import { MAX_ATTACHMENT_BYTES } from './services/attachments.js';
+import { registerAdminRoutes } from './modules/admin.js';
 import { registerAssetRoutes } from './modules/assets.js';
 import { registerAttachmentRoutes } from './modules/attachments.js';
 import { registerAuthRoutes } from './modules/auth.js';
 import { registerCustomFieldRoutes } from './modules/custom-fields.js';
 import { registerEmployeeRoutes } from './modules/employees.js';
+import { registerMemberRoutes } from './modules/members.js';
 import { registerMeRoutes } from './modules/me.js';
 import { registerMetaRoutes } from './modules/meta.js';
 import { registerSetupRoutes } from './modules/setup.js';
@@ -50,6 +52,8 @@ export async function buildApp(opts: BuildAppOptions): Promise<FastifyInstance> 
   registerEmployeeRoutes(app, deps);
   registerCustomFieldRoutes(app, deps);
   registerAttachmentRoutes(app, deps);
+  registerMemberRoutes(app, deps);
+  registerAdminRoutes(app, deps);
 
   await registerStaticSpa(app, deps.config.webDist);
 
