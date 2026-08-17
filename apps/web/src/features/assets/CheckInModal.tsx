@@ -11,6 +11,7 @@ import { fieldErrors } from '@/api/formErrors';
 import { useCheckinAsset } from '@/api/mutations';
 import type { Asset } from '@/types/api';
 import { Button, Field, Input, Modal, SegmentedControl, Select, Textarea } from '@/components/ui';
+import { NotifyCheckbox } from '@/components/app/NotifyCheckbox';
 import { useToast } from '@/providers/ToastProvider';
 import formStyles from '@/components/ui/FormModal.module.css';
 
@@ -28,6 +29,7 @@ export function CheckInModal({ asset, onClose }: { asset: CheckinSubject; onClos
   const [condition, setCondition] = useState<CheckinCondition>('good');
   const [newStatus, setNewStatus] = useState<CheckinNewStatus>('available');
   const [notes, setNotes] = useState('');
+  const [emailConfirmation, setEmailConfirmation] = useState(false);
 
   const toast = useToast();
   const checkin = useCheckinAsset(asset.id);
@@ -36,7 +38,7 @@ export function CheckInModal({ asset, onClose }: { asset: CheckinSubject; onClos
   function submit(event: FormEvent) {
     event.preventDefault();
     checkin.mutate(
-      { returnDate, newStatus, condition, notes: notes.trim() || null },
+      { returnDate, newStatus, condition, notes: notes.trim() || null, emailConfirmation },
       {
         onSuccess: ({ asset: updated }) => {
           toast.show(`${updated.assetTag} checked in.`, 'ok');
@@ -122,6 +124,14 @@ export function CheckInModal({ asset, onClose }: { asset: CheckinSubject; onClos
             />
           )}
         </Field>
+
+        {asset.currentHolder && (
+          <NotifyCheckbox
+            checked={emailConfirmation}
+            onChange={setEmailConfirmation}
+            label={`Email confirmation to ${asset.currentHolder.name}`}
+          />
+        )}
       </form>
     </Modal>
   );

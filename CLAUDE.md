@@ -36,11 +36,18 @@ npm run format       # Prettier
 - **Semantic colors:** every status/role/type maps to `sv ∈ {ok, acc, warn, err, info, neut}` and renders via CSS vars `--{sv}` / `--{sv}-bg`. Never hardcode a status color.
 - **Dates**: date-only values are `YYYY-MM-DD` strings; timestamps are ISO-8601 UTC. **Money is integer cents** — `parsePriceToCents` in `packages/shared/src/money.ts` is the only place a typed decimal becomes cents. Emails are lowercased before storage.
 - **Who holds an asset lives in `assignments`, never on the asset.** `assets.status = 'assigned'` ⇔ an open ownership row exists, enforced by a partial unique index and maintained only inside the assignment service.
+- **Members sign in; employees hold assets.** Two tables, optionally linked, never fused — the same person can be both, and most people are only one. Nobody may change or remove their own account, which is also what guarantees the workspace keeps an admin.
+- **A CSV file is parsed in the browser and sent as canonical rows.** The API has no CSV parser and never learns what a particular spreadsheet called its columns; `packages/shared/src/schemas/import.ts` owns the vocabulary all three sides agree on.
+- **A raw token exists once, in the response that created it.** Sessions and invite/reset tokens are stored as `sha256(raw)`, so an invitation or reset link is shown to the admin who made it and never recoverable afterwards. That is why the UI displays every link as readable text rather than assuming an email carried it.
 - **TDD**: write the failing test first, watch it fail, then implement. Config files are exempt; behavior is not.
 - Work happens in sequential PRs; the repo owner merges every PR. Never merge.
+
+- **Email is optional, and that is a feature.** No `SMTP_HOST` means `deps.mailer` is null, and every path that would send has a link-based one that works instead. Delivery never fails the request that triggered it.
+- **Ship = tag.** `git tag vX.Y.Z && git push --tags` builds and publishes the image; upgrading an instance is pulling it and restarting, because migrations run at boot and are idempotent.
 
 ## Where things are decided
 
 - Product/visual spec: `docs/design-handoff/README.md` (+ the prototype HTML next to it).
 - Design tokens: `apps/web/src/styles/tokens.css` — mirrors the handoff exactly; don't invent values.
 - Permissions: `packages/shared/src/rbac.ts` (`can(role, action)`) — used by API guards and UI affordances alike.
+- How to make a common change: `docs/recipes/` — a checklist per change, each naming every file and the step people forget.

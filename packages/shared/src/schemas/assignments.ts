@@ -15,6 +15,12 @@ export const assignInput = z
     checkoutDate: requiredDate,
     expectedReturnDate: nullableDate.default(null),
     notes: nullableText(1000).default(null),
+    /**
+     * The design's "notify assignee" checkbox. Nothing is sent on an instance
+     * without SMTP, and the assignment succeeds either way — mail is a
+     * courtesy, not part of handing a device over.
+     */
+    notify: z.boolean().default(false),
   })
   .refine((input) => !input.expectedReturnDate || input.expectedReturnDate >= input.checkoutDate, {
     message: 'The return date cannot precede the checkout.',
@@ -28,6 +34,8 @@ export const checkinInput = z.object({
   newStatus: z.enum(CHECKIN_NEW_STATUSES),
   condition: z.enum(CHECKIN_CONDITIONS).nullable().default(null),
   notes: nullableText(1000).default(null),
+  /** The design's "Email confirmation to {holder}" checkbox. */
+  emailConfirmation: z.boolean().default(false),
 });
 export type CheckinInput = z.infer<typeof checkinInput>;
 

@@ -1,7 +1,14 @@
-import type { FastifyInstance } from 'fastify';
+import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
 import { z } from 'zod';
-import { assetCreateInput, assetPatchInput, assignInput, checkinInput } from '@inventory/shared';
+import {
+  assetCreateInput,
+  assetPatchInput,
+  assignInput,
+  checkinInput,
+  type AssignInput,
+  type CheckinInput,
+} from '@inventory/shared';
 import type { AppDeps } from '@/types/app.js';
 import { requireAction, requireAuth } from '@/plugins/rbac.js';
 import {
@@ -12,10 +19,15 @@ import {
   nextAssetTag,
   updateAsset,
 } from '@/services/assets.js';
-import { assignAsset, checkinAsset } from '@/services/assignments.js';
+import { assignAsset, checkinAsset, currentHolderContact } from '@/services/assignments.js';
+import { sendAssignmentMail, sendCheckinMail } from '@/services/transactional.js';
 import { removeStoredFiles } from '@/services/attachments.js';
 
 const idParam = z.object({ id: z.string().min(1) });
+
+/** The two ownership routes' requests, named so their helpers can take them. */
+type AssignRequest = FastifyRequest<{ Params: { id: string }; Body: AssignInput }>;
+type CheckinRequest = FastifyRequest<{ Params: { id: string }; Body: CheckinInput }>;
 
 /** The whole list is returned in one payload — see the ~10k ceiling in /CLAUDE.md. */
 export function registerAssetRoutes(app: FastifyInstance, deps: AppDeps): void {
@@ -73,7 +85,7 @@ export function registerAssetRoutes(app: FastifyInstance, deps: AppDeps): void {
       preHandler: requireAction('assets.assign'),
     },
     async (request) => ({
-      asset: assignAsset(deps, request.member!, request.params.id, request.body),
+      asset: await handOver(request),
     }),
   );
 
@@ -84,7 +96,48 @@ export function registerAssetRoutes(app: FastifyInstance, deps: AppDeps): void {
       preHandler: requireAction('assets.checkin'),
     },
     async (request) => ({
-      asset: checkinAsset(deps, request.member!, request.params.id, request.body),
+      asset: await takeBack(request),
     }),
   );
+
+  /**
+   * Assign, then tell the assignee if the form asked us to. The mail is sent
+   * after the transaction and never inside it: a message cannot be rolled back,
+   * and the handover has already happened by the time anyone would read it.
+   */
+  async function handOver(request: AssignRequest) {
+    const asset = assignAsset(deps, request.member!, request.params.id, request.body);
+    if (!request.body.notify) return asset;
+
+    const holder = currentHolderContact(deps.db, request.params.id);
+    if (holder) {
+      await sendAssignmentMail(deps, request.log, {
+        to: holder.email,
+        assetName: asset.name,
+        assetTag: asset.assetTag,
+        checkedOutAt: request.body.checkoutDate,
+        expectedReturnDate: request.body.expectedReturnDate,
+        url: `${deps.config.appUrl}/assets/${asset.id}`,
+      });
+    }
+    return asset;
+  }
+
+  /** The holder is read *before* the check-in: afterwards there is not one. */
+  async function takeBack(request: CheckinRequest) {
+    const holder = request.body.emailConfirmation
+      ? currentHolderContact(deps.db, request.params.id)
+      : null;
+    const asset = checkinAsset(deps, request.member!, request.params.id, request.body);
+
+    if (holder) {
+      await sendCheckinMail(deps, request.log, {
+        to: holder.email,
+        assetName: asset.name,
+        assetTag: asset.assetTag,
+        returnedAt: request.body.returnDate,
+      });
+    }
+    return asset;
+  }
 }

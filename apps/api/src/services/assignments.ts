@@ -8,7 +8,11 @@ import {
 import type { AppDeps } from '@/types/app.js';
 import type { DbOrTx } from '@/types/db.js';
 import type { Actor } from '@/types/audit.js';
-import type { CloseAssignmentParams, OpenAssignmentParams } from '@/types/assignments.js';
+import type {
+  CloseAssignmentParams,
+  HolderContact,
+  OpenAssignmentParams,
+} from '@/types/assignments.js';
 import { assets, assignments, employees } from '@/db/schema.js';
 import { nowIso } from '@/lib/dates.js';
 import { newId } from '@/lib/ids.js';
@@ -111,6 +115,19 @@ export function employeeHistory(db: DbOrTx, employeeId: string) {
     .where(eq(assignments.employeeId, employeeId))
     .orderBy(desc(assignments.checkedOutAt), desc(assignments.createdAt))
     .all();
+}
+
+/**
+ * Who to write to about an asset that is out right now. Read separately from
+ * the operations themselves, and *before* a check-in, because afterwards there
+ * is by definition nobody holding it any more.
+ */
+export function currentHolderContact(db: DbOrTx, assetId: string): HolderContact | null {
+  const open = activeAssignment(db, assetId);
+  if (!open?.employeeId) return null;
+  const holder = db.select().from(employees).where(eq(employees.id, open.employeeId)).get();
+  if (!holder) return null;
+  return { email: holder.email, name: `${holder.firstName} ${holder.lastName}` };
 }
 
 export function assignAsset(deps: AppDeps, actor: Actor, assetId: string, input: AssignInput) {

@@ -1,0 +1,37 @@
+import type { Member } from '@/types/api';
+import { AssetFormModal } from '@/features/assets/AssetFormModal';
+import { CustomizeWidgetsModal } from '@/features/dashboard/CustomizeWidgetsModal';
+import { EmployeeFormModal } from '@/features/employees/EmployeeFormModal';
+import { ImportWizardModal } from '@/features/import/ImportWizardModal';
+import { InviteMemberModal } from '@/features/members/InviteMemberModal';
+import { useModals } from '@/providers/ModalProvider';
+import { CommandPalette } from './CommandPalette';
+
+/**
+ * Renders whichever app-level modal is open. Mounted once in the shell, so the
+ * command palette can open any of them from any page — and so a toolbar button
+ * and a palette action are the same call rather than two copies of one modal.
+ *
+ * Lazily rendered: nothing here exists until it is asked for, so the palette's
+ * query subscriptions and the wizard's file state start clean each time.
+ */
+export function ModalHost({ member }: { member: Member }) {
+  const { open, closeModal } = useModals();
+
+  switch (open) {
+    case 'palette':
+      return <CommandPalette role={member.role} onClose={closeModal} />;
+    case 'newAsset':
+      return <AssetFormModal role={member.role} onClose={closeModal} />;
+    case 'addEmployee':
+      return <EmployeeFormModal role={member.role} onClose={closeModal} />;
+    case 'inviteMember':
+      return <InviteMemberModal onClose={closeModal} />;
+    case 'import':
+      return <ImportWizardModal onClose={closeModal} />;
+    case 'widgets':
+      return <CustomizeWidgetsModal member={member} onClose={closeModal} />;
+    case null:
+      return null;
+  }
+}

@@ -2,11 +2,16 @@ import type {
   AssetCategory,
   AssetStatus,
   AssignmentOutcome,
+  AuditType,
   CheckinCondition,
   Currency,
   CustomFieldType,
   EmployeeStatus,
+  ImportKind,
+  LogRetention,
+  MemberStatus,
   Role,
+  WarrantyLeadDays,
 } from '@inventory/shared';
 import type { Density, Theme } from './theme';
 
@@ -43,6 +48,12 @@ export interface Meta {
   orgName?: string;
   /** Currency for assets that do not carry one of their own. */
   defaultCurrency?: Currency;
+  /**
+   * Whether this instance can send email at all. Not a secret — it says
+   * nothing about where mail goes — and the UI needs it to stop offering
+   * checkboxes nothing would act on.
+   */
+  smtpConfigured: boolean;
 }
 
 /**
@@ -156,6 +167,114 @@ export interface EmployeeDetail {
   employee: Employee;
   holdings: Holding[];
   history: Holding[];
+}
+
+/**
+ * A member as the Members page reads them — never the theme, density and
+ * widget layout `Member` carries, which belong to the signed-in person alone.
+ */
+export interface MemberSummary {
+  id: string;
+  email: string;
+  displayName: string;
+  role: Role;
+  status: MemberStatus;
+  employeeId: string | null;
+  /** The employee record for the same person, named so the list need not join. */
+  linkedEmployee: { id: string; displayName: string } | null;
+  lastActiveAt: string | null;
+  createdAt: string;
+}
+
+export interface OrgSettings {
+  id: number;
+  orgName: string;
+  defaultCurrency: Currency;
+  assetTagPrefix: string;
+  warrantyLeadDays: WarrantyLeadDays;
+  /** null is "Forever" — a choice, not an absence. */
+  logRetentionMonths: LogRetention;
+  emailWarrantyAlerts: boolean;
+  emailReturnReminders: boolean;
+  emailInvites: boolean;
+  emailWeeklyDigest: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** One activity-log row. `AuditEntry` is the same event on an asset's own trail. */
+export interface AuditLogItem extends AuditEntry {
+  type: AuditType;
+  assetId: string | null;
+  employeeId: string | null;
+  memberId: string | null;
+}
+
+export interface AuditPage {
+  items: AuditLogItem[];
+  /** How many events sit behind each filter pill, over the whole log. */
+  typeCounts: Record<AuditType | 'all', number>;
+  /** Events matching the current filter — what "Load more" counts against. */
+  total: number;
+}
+
+export interface CategoryCount {
+  category: AssetCategory;
+  count: number;
+}
+
+/** A warranty running out soon; `daysLeft` picks the pill's urgency colour. */
+export interface WarrantyExpiry {
+  assetId: string;
+  name: string;
+  assetTag: string;
+  warrantyUntil: string;
+  daysLeft: number;
+}
+
+export interface PendingReturn {
+  assetId: string;
+  assetName: string;
+  assetTag: string;
+  employeeId: string | null;
+  holderName: string;
+  expectedReturnDate: string;
+}
+
+/** Five widgets, one request — see `useDashboard`. */
+export interface DashboardPayload {
+  assetCount: number;
+  statusCounts: Record<AssetStatus, number>;
+  categoryCounts: CategoryCount[];
+  recentActivity: AuditLogItem[];
+  warrantyExpirations: WarrantyExpiry[];
+  pendingReturns: PendingReturn[];
+}
+
+/** One thing wrong (or worth saying) about one cell of an imported file. */
+export interface ImportIssue {
+  /** 1-based including the header, so it matches what a spreadsheet shows. */
+  row: number;
+  column: string;
+  message: string;
+}
+
+export interface ImportReport {
+  totalRows: number;
+  validCount: number;
+  createCount: number;
+  updateCount: number;
+  errors: ImportIssue[];
+  warnings: ImportIssue[];
+  /** The lists are capped; the counts above are still exact. */
+  errorsTruncated: boolean;
+  warningsTruncated: boolean;
+}
+
+export interface ImportResult {
+  kind: ImportKind;
+  created: number;
+  updated: number;
 }
 
 export interface Employee {

@@ -70,6 +70,59 @@ describe('renderAuditEvent', () => {
     ).toBe('Set up Acme Corp');
   });
 
+  it('renders the membership events, naming roles as the UI does', () => {
+    expect(
+      renderAuditEvent({
+        action: 'member.invited',
+        params: { email: 'grace@acme.io', role: 'manager' },
+      }),
+    ).toBe('Invited grace@acme.io as a Manager');
+    expect(
+      renderAuditEvent({
+        action: 'member.role_changed',
+        params: { memberName: 'Grace Chen', from: 'manager', to: 'admin' },
+      }),
+    ).toBe('Changed Grace Chen from Manager to Admin');
+    expect(
+      renderAuditEvent({
+        action: 'member.link_changed',
+        params: { memberName: 'Grace Chen', employeeName: 'Grace Chen' },
+      }),
+    ).toBe('Linked Grace Chen to the employee record for Grace Chen');
+    expect(
+      renderAuditEvent({
+        action: 'member.link_changed',
+        params: { memberName: 'Grace Chen', employeeName: null },
+      }),
+    ).toBe('Unlinked Grace Chen from their employee record');
+    expect(
+      renderAuditEvent({ action: 'member.invite_resent', params: { email: 'grace@acme.io' } }),
+    ).toBe('Resent the invitation to grace@acme.io');
+    expect(
+      renderAuditEvent({ action: 'member.reset_issued', params: { memberName: 'Grace Chen' } }),
+    ).toBe('Issued a password reset link for Grace Chen');
+    expect(
+      renderAuditEvent({ action: 'member.removed', params: { memberName: 'Grace Chen' } }),
+    ).toBe('Removed Grace Chen from the workspace');
+    // Written by /auth/reset-password since PR 2, but nothing rendered it until
+    // the activity log existed to show it.
+    expect(renderAuditEvent({ action: 'auth.password_reset', params: {} })).toBe(
+      'Reset their password',
+    );
+  });
+
+  it('says which settings an admin touched', () => {
+    expect(
+      renderAuditEvent({
+        action: 'system.settings_updated',
+        params: { changedFields: ['orgName', 'assetTagPrefix'] },
+      }),
+    ).toBe('Updated workspace settings (organization name, asset tag prefix)');
+    expect(renderAuditEvent({ action: 'system.settings_updated', params: {} })).toBe(
+      'Updated workspace settings',
+    );
+  });
+
   it('never renders a blank line for an action it does not know', () => {
     expect(renderAuditEvent({ action: 'asset.teleported', params: {} })).toBe('asset.teleported');
     expect(renderAuditEvent({ action: 'asset.created', params: {} })).toBe(
@@ -90,6 +143,8 @@ describe('auditTypeForAction', () => {
     expect(auditTypeForAction('employee.created')).toBe('people');
     expect(auditTypeForAction('auth.login')).toBe('auth');
     expect(auditTypeForAction('member.joined')).toBe('auth');
+    expect(auditTypeForAction('member.invited')).toBe('auth');
+    expect(auditTypeForAction('system.settings_updated')).toBe('system');
     expect(auditTypeForAction('system.setup_completed')).toBe('system');
     expect(auditTypeForAction('custom_field.created')).toBe('system');
     expect(auditTypeForAction('something.else')).toBe('system');

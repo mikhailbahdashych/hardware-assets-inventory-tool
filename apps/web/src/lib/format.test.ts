@@ -3,6 +3,7 @@ import {
   formatCurrency,
   formatDuration,
   formatFullDate,
+  formatLogTime,
   formatMonthYear,
   formatRelativeTime,
   initials,
@@ -40,6 +41,17 @@ describe('formatRelativeTime', () => {
 
   it('adds the year for dates outside the current year', () => {
     expect(formatRelativeTime('2025-12-20T12:00:00Z', NOW)).toBe('Dec 20, 2025');
+  });
+});
+
+describe('formatLogTime', () => {
+  it('stamps the activity log to the minute, in UTC', () => {
+    expect(formatLogTime('2026-08-16T09:41:00.000Z')).toBe('Aug 16 09:41');
+    expect(formatLogTime('2026-08-09T18:22:00.000Z')).toBe('Aug 09 18:22');
+  });
+
+  it('writes midnight as 00, not 24', () => {
+    expect(formatLogTime('2026-08-16T00:05:00.000Z')).toBe('Aug 16 00:05');
   });
 });
 

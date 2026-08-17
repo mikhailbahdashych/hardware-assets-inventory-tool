@@ -8,6 +8,13 @@ afterEach(() => {
   cleanup();
 });
 
+// jsdom implements no layout, so it has no scrollIntoView. Anything that keeps
+// a keyboard-driven highlight in view (the command palette) calls it, and a
+// missing method would throw where a real browser simply scrolls.
+if (typeof Element !== 'undefined' && !Element.prototype.scrollIntoView) {
+  Element.prototype.scrollIntoView = () => {};
+}
+
 // Node's experimental localStorage global (undefined without --localstorage-file)
 // shadows jsdom's implementation in Vitest's jsdom environment. Install a real
 // in-memory Storage so code under test sees the browser API.

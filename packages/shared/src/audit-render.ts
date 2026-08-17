@@ -1,4 +1,10 @@
-import { ASSET_STATUS_LABELS, type AssetStatus, type AuditType } from './enums.js';
+import {
+  ASSET_STATUS_LABELS,
+  ROLE_LABELS,
+  type AssetStatus,
+  type AuditType,
+  type Role,
+} from './enums.js';
 import type { AuditParams, RenderableAuditEvent } from './types/audit.js';
 
 // Audit events are stored structured — an action plus params with name
@@ -19,6 +25,13 @@ const status = (params: AuditParams, key: string): string => {
     : 'unknown';
 };
 
+const role = (params: AuditParams, key: string): string => {
+  const value = params[key];
+  // Same rule as `status` above: a role slug this build has no label for still
+  // renders as itself rather than vanishing from the sentence.
+  return typeof value === 'string' ? (ROLE_LABELS[value as Role] ?? value) : 'unknown';
+};
+
 /** Field names as the forms say them, so a log line reads like the UI. */
 const FIELD_LABELS: Record<string, string> = {
   assetTag: 'asset tag',
@@ -31,6 +44,13 @@ const FIELD_LABELS: Record<string, string> = {
   jobTitle: 'job title',
   employeeCode: 'employee ID',
   startDate: 'start date',
+  orgName: 'organization name',
+  warrantyLeadDays: 'warranty alert lead time',
+  logRetentionMonths: 'activity log retention',
+  emailWarrantyAlerts: 'warranty alert emails',
+  emailReturnReminders: 'return reminder emails',
+  emailInvites: 'member invite emails',
+  emailWeeklyDigest: 'weekly digest emails',
 };
 
 function fieldList(params: AuditParams): string {
@@ -76,9 +96,30 @@ const RENDERERS: Record<string, (params: AuditParams) => string> = {
   'custom_field.created': (p) => `Added the custom field ${text(p, 'label', 'a field')}`,
   'custom_field.updated': (p) => `Renamed a custom field to ${text(p, 'label', 'a field')}`,
   'custom_field.deleted': (p) => `Deleted the custom field ${text(p, 'label', 'a field')}`,
+  'member.invited': (p) => {
+    const named = typeof p.role === 'string';
+    // "an Admin" but "a Manager" — derived from the label so renaming a role
+    // in enums.ts cannot leave the article behind saying the wrong thing.
+    const what = named
+      ? `${/^[aeiou]/i.test(role(p, 'role')) ? 'an' : 'a'} ${role(p, 'role')}`
+      : 'a member';
+    return `Invited ${text(p, 'email', 'somebody')} as ${what}`;
+  },
   'member.joined': (p) => `${text(p, 'memberName', 'A member')} joined the workspace`,
+  'member.role_changed': (p) =>
+    `Changed ${text(p, 'memberName', 'a member')} from ${role(p, 'from')} to ${role(p, 'to')}`,
+  'member.link_changed': (p) =>
+    typeof p.employeeName === 'string'
+      ? `Linked ${text(p, 'memberName', 'a member')} to the employee record for ${p.employeeName}`
+      : `Unlinked ${text(p, 'memberName', 'a member')} from their employee record`,
+  'member.invite_resent': (p) => `Resent the invitation to ${text(p, 'email', 'a member')}`,
+  'member.reset_issued': (p) =>
+    `Issued a password reset link for ${text(p, 'memberName', 'a member')}`,
+  'member.removed': (p) => `Removed ${text(p, 'memberName', 'a member')} from the workspace`,
   'auth.login': () => 'Signed in',
+  'auth.password_reset': () => 'Reset their password',
   'system.setup_completed': (p) => `Set up ${text(p, 'orgName', 'the workspace')}`,
+  'system.settings_updated': (p) => `Updated workspace settings${fieldList(p)}`,
 };
 
 /** Every action the API writes today. The test asserts each one renders. */

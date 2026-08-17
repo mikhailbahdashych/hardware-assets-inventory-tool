@@ -1,5 +1,7 @@
 import { and, eq, isNull } from 'drizzle-orm';
 import type { Db, DbOrTx } from '@/types/db.js';
+// issueAuthToken takes DbOrTx so an invite can be written in the same
+// transaction as the member row it belongs to.
 import { authTokens } from '@/db/schema.js';
 import { nowIso } from '@/lib/dates.js';
 import { createRawToken, hashToken } from '@/lib/tokens.js';
@@ -16,7 +18,7 @@ const TTL_MS: Record<TokenPurpose, number> = {
  * invalidates any earlier unconsumed token of the same purpose for the member.
  */
 export function issueAuthToken(
-  db: Db,
+  db: DbOrTx,
   memberId: string,
   purpose: TokenPurpose,
   now: Date = new Date(),

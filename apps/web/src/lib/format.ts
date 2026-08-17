@@ -29,6 +29,15 @@ export function formatRelativeTime(iso: string | null | undefined, now: Date = n
   return utcFormat(date, { month: 'short', day: 'numeric', year: 'numeric' });
 }
 
+/** "Aug 16 09:41" — the activity log's mono Time column, to the minute. */
+export function formatLogTime(iso: string): string {
+  const date = new Date(iso);
+  const day = utcFormat(date, { month: 'short', day: '2-digit' });
+  // hourCycle h23 rather than hour12:false, which renders midnight as "24".
+  const time = utcFormat(date, { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
+  return `${day} ${time}`;
+}
+
 /** "Mar 2023" — table cells for purchased/warranty. */
 export function formatMonthYear(date: string | null | undefined): string {
   if (!date) return '—';

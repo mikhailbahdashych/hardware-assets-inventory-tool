@@ -6,12 +6,19 @@ export function Dropzone({
   onFiles,
   accept,
   label,
+  inputLabel,
   hint,
   compact = false,
 }: {
   onFiles: (files: FileList) => void;
   accept?: string;
   label: ReactNode;
+  /**
+   * Accessible name for the file input itself. The visible `label` is prose
+   * around a "browse" link; this is what a screen reader — and a test — reaches
+   * the control by.
+   */
+  inputLabel: string;
   hint?: ReactNode;
   compact?: boolean;
 }) {
@@ -47,6 +54,7 @@ export function Dropzone({
         ref={inputRef}
         type="file"
         accept={accept}
+        aria-label={inputLabel}
         hidden
         onChange={(event) => {
           if (event.target.files && event.target.files.length > 0) onFiles(event.target.files);

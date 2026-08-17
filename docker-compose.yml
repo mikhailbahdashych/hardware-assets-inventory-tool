@@ -1,0 +1,34 @@
+# The whole deployment. One service, one volume, one port.
+#
+#   docker compose up -d      → http://localhost:3000, first run lands on /setup
+#   docker compose pull && docker compose up -d   → that is the upgrade
+#
+# Migrations run at every boot and are idempotent, so restarting a newer image
+# is the entire procedure. Back up by copying ./data while the container is
+# stopped — see docs/backup-restore.md for doing it hot.
+
+services:
+  inventory:
+    image: ghcr.io/mikhailbahdashych/hardware-assets-inventory-tool:latest
+    # To build from a checkout instead of pulling: docker compose up --build
+    build: .
+    restart: unless-stopped
+    ports:
+      - '3000:3000'
+    volumes:
+      # The SQLite database and the uploaded attachments. Nothing else is state.
+      - ./data:/data
+    environment:
+      # The address a browser reaches this instance at. Invitation and reset
+      # links are built from it, and an https value switches session cookies to
+      # Secure on its own.
+      APP_URL: http://localhost:3000
+      # Optional. Without SMTP the app still works: invitations and password
+      # resets are links an admin copies from the UI.
+      # SMTP_HOST: smtp.example.com
+      # SMTP_PORT: '587'
+      # SMTP_USER: inventory
+      # SMTP_PASS: change-me
+      # SMTP_FROM: Inventory <inventory@example.com>
+      # Affects when the nightly jobs run — they are wall-clock, not UTC.
+      TZ: UTC

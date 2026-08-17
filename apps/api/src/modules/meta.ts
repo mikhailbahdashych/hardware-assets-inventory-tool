@@ -14,6 +14,9 @@ export function registerMetaRoutes(app: FastifyInstance, deps: AppDeps): void {
       // Assets store a currency only when it differs from the organization's;
       // the UI needs this to render every other price.
       defaultCurrency: settings?.defaultCurrency,
+      // Not a secret — it says this instance can send mail, nothing about
+      // where. The UI needs it to stop offering checkboxes nothing acts on.
+      smtpConfigured: deps.config.smtp !== null,
     };
   });
 

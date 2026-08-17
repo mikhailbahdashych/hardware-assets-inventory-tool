@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
+import { can, type Role } from '@inventory/shared';
 import { Button, SegmentedControl } from '@/components/ui';
-import { useToast } from '@/providers/ToastProvider';
+import { useModals } from '@/providers/ModalProvider';
 import { useThemeControls } from './useThemeControls';
 
 const DENSITY_OPTIONS = [
@@ -14,31 +15,31 @@ export function DensityControl() {
   return <SegmentedControl options={DENSITY_OPTIONS} value={density} onChange={changeDensity} />;
 }
 
-/**
- * The Import CSV affordance the list toolbars carry. The wizard itself lands
- * with the import PR; until then the button says so rather than disappearing
- * and changing the toolbar the design specifies.
- */
+/** Opens the import wizard — the same one the command palette's action opens. */
 export function ImportCsvButton() {
-  const toast = useToast();
+  const { openModal } = useModals();
   return (
-    <Button
-      variant="ghost"
-      icon="upload"
-      onClick={() => toast.show('CSV import arrives with the import wizard.')}
-    >
+    <Button variant="ghost" icon="upload" onClick={() => openModal('import')}>
       Import CSV
     </Button>
   );
 }
 
 /** Title · density · import · primary action, in the design's order. */
-export function ListToolbar({ title, children }: { title: string; children?: ReactNode }) {
+export function ListToolbar({
+  title,
+  role,
+  children,
+}: {
+  title: string;
+  role: Role;
+  children?: ReactNode;
+}) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
       <h1 style={{ fontSize: 18, fontWeight: 600, margin: 0, marginRight: 'auto' }}>{title}</h1>
       <DensityControl />
-      <ImportCsvButton />
+      {can(role, 'import.run') && <ImportCsvButton />}
       {children}
     </div>
   );

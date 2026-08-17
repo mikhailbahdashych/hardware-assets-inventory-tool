@@ -36,6 +36,7 @@ import {
   SegmentedControl,
   Select,
   Spinner,
+  Menu,
   Tabs,
   Textarea,
   ToggleSwitch,
@@ -215,6 +216,14 @@ export function KitchenSink() {
           />
           <Kbd>⌘K</Kbd>
           <Kbd>esc</Kbd>
+          <Menu
+            label="Row actions"
+            items={[
+              { label: 'Resend invitation', onSelect: () => {} },
+              { label: 'Change role', onSelect: () => {} },
+              { label: 'Remove from workspace', onSelect: () => {}, danger: true },
+            ]}
+          />
         </Row>
       </Section>
 
@@ -333,6 +342,7 @@ export function KitchenSink() {
             onFiles={(files) => show(`${files.length} file(s) selected`, 'ok')}
             accept=".csv"
             label="Drop your CSV here or"
+            inputLabel="Demo CSV file"
             hint="Up to 5,000 rows per import · you'll review column mapping next"
           />
         </div>

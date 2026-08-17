@@ -177,6 +177,9 @@ export function registerAuthRoutes(app: FastifyInstance, deps: AppDeps): void {
             actorMemberId: updated.id,
             actorName: updated.displayName,
             memberId: updated.id,
+            // The name arrives with the invitation being accepted — without it
+            // the activity log could only say "A member joined".
+            params: { memberName: updated.displayName, email: updated.email },
           },
           now,
         );

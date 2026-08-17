@@ -9,15 +9,30 @@ import type {
   CustomFieldPatchInput,
   EmployeeCreateInput,
   EmployeePatchInput,
+  ImportCommitInput,
+  ImportValidateInput,
+  InviteInput,
   LoginInput,
+  MemberPatchInput,
   PrefsPatchInput,
   ResetPasswordInput,
+  SettingsPatchInput,
   SetupInput,
+  WorkspaceDeleteInput,
 } from '@inventory/shared';
 import { apiFetch, apiUpload } from './client';
-import { invalidateInventory } from './invalidate';
+import { invalidateAdmin, invalidateInventory } from './invalidate';
 import { queryKeys } from './queries';
-import type { Asset, Attachment, Employee, Member } from '@/types/api';
+import type {
+  Asset,
+  Attachment,
+  Employee,
+  ImportReport,
+  ImportResult,
+  Member,
+  MemberSummary,
+  OrgSettings,
+} from '@/types/api';
 
 /** Signing in, accepting an invite and resetting a password all end with a session. */
 function useSessionMutation<TInput>(path: string) {
@@ -209,3 +224,101 @@ export const useDeleteCustomField = () =>
   useCustomFieldMutation((id: string) =>
     apiFetch(`/custom-fields/${encodeURIComponent(id)}`, { method: 'DELETE' }),
   );
+
+// Admin writes: members, invitations and workspace settings. They all go
+// through invalidateAdmin for the same reason inventory writes go through
+// invalidateInventory — see the note there.
+
+function useAdminMutation<TInput, TResult>(request: (input: TInput) => Promise<TResult>) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: request,
+    onSuccess: () => invalidateAdmin(queryClient),
+  });
+}
+
+const member = (id: string) => `/members/${encodeURIComponent(id)}`;
+
+/**
+ * The response carries the invitation link in full. It is the only time the
+ * raw token exists — the database keeps its hash — so the modal shows it
+ * rather than assuming an email went out.
+ */
+export const useInviteMember = () =>
+  useAdminMutation((input: InviteInput) =>
+    apiFetch<{ member: MemberSummary; inviteUrl: string }>('/members/invites', {
+      method: 'POST',
+      body: input,
+    }),
+  );
+
+export const useResendInvite = () =>
+  useAdminMutation((id: string) =>
+    apiFetch<{ inviteUrl: string }>(`${member(id)}/resend-invite`, { method: 'POST' }),
+  );
+
+/** The recovery path on an instance with no SMTP: an admin hands this over. */
+export const useIssueResetLink = () =>
+  useAdminMutation((id: string) =>
+    apiFetch<{ resetUrl: string }>(`${member(id)}/reset-link`, { method: 'POST' }),
+  );
+
+export const useUpdateMember = () =>
+  useAdminMutation((input: { id: string } & MemberPatchInput) =>
+    apiFetch<{ member: MemberSummary }>(member(input.id), {
+      method: 'PATCH',
+      body: { role: input.role, employeeId: input.employeeId },
+    }),
+  );
+
+export const useRemoveMember = () =>
+  useAdminMutation((id: string) => apiFetch(member(id), { method: 'DELETE' }));
+
+/**
+ * The dry run. It writes nothing, so it is a mutation only in the sense that it
+ * is a POST — nothing is invalidated because nothing changed.
+ */
+export function useValidateImport() {
+  return useMutation({
+    mutationFn: (input: ImportValidateInput) =>
+      apiFetch<{ report: ImportReport }>('/import/validate', { method: 'POST', body: input }),
+  });
+}
+
+/** A bulk load touches every inventory surface at once. */
+export function useCommitImport() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: ImportCommitInput) =>
+      apiFetch<ImportResult>('/import/commit', { method: 'POST', body: input }),
+    onSuccess: () => {
+      invalidateInventory(queryClient);
+      invalidateAdmin(queryClient);
+    },
+  });
+}
+
+export const useUpdateSettings = () =>
+  useAdminMutation((input: SettingsPatchInput) =>
+    apiFetch<{ settings: OrgSettings }>('/settings', { method: 'PATCH', body: input }),
+  );
+
+/**
+ * Everything goes, including the session that asked for it, so every cached
+ * read is now a lie — invalidating all of them refetches what is still mounted
+ * and `/meta` then reports an uninitialized instance, which is what sends the
+ * router back to /setup.
+ *
+ * Not `clear()` (it empties the mutation cache too, dropping this mutation's
+ * own callbacks mid-flight) and not `removeQueries()` (a removed query leaves
+ * its live observers holding the last result, so nothing refetches and the app
+ * carries on showing a workspace that no longer exists).
+ */
+export function useDeleteWorkspace() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: WorkspaceDeleteInput) =>
+      apiFetch('/workspace/delete', { method: 'POST', body: input }),
+    onSuccess: () => queryClient.invalidateQueries(),
+  });
+}

@@ -13,10 +13,23 @@ import type { QueryClient } from '@tanstack/react-query';
  * At this scale a refetch is cheap; correctness is not. Extend this function
  * rather than invalidating ad hoc inside a mutation hook.
  */
-const INVENTORY_PREFIXES = [['assets'], ['asset'], ['employees'], ['employee']];
+const INVENTORY_PREFIXES = [['assets'], ['asset'], ['employees'], ['employee'], ['dashboard']];
 
 export function invalidateInventory(queryClient: QueryClient): void {
   for (const queryKey of INVENTORY_PREFIXES) {
+    queryClient.invalidateQueries({ queryKey });
+  }
+}
+
+/**
+ * The same idea for the admin surfaces. Every member and settings write also
+ * writes an audit event, and renaming the workspace changes `/meta`, so all
+ * four refresh together rather than each mutation remembering which it moved.
+ */
+const ADMIN_PREFIXES = [['members'], ['settings'], ['audit'], ['meta']];
+
+export function invalidateAdmin(queryClient: QueryClient): void {
+  for (const queryKey of ADMIN_PREFIXES) {
     queryClient.invalidateQueries({ queryKey });
   }
 }

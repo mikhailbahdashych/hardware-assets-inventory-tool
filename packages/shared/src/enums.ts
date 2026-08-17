@@ -145,6 +145,28 @@ export const AUDIT_TYPE_COLORS: Record<AuditType, SemanticColor> = {
   system: 'warn',
 };
 
+/**
+ * How far ahead of a warranty expiring the nightly scan (PR 8) mails admins.
+ * The column is a plain integer, so widening this list is a code-only change —
+ * the same reasoning as the enum columns having no CHECK constraints.
+ */
+export const WARRANTY_LEAD_DAY_OPTIONS = [30, 60, 90] as const;
+export type WarrantyLeadDays = (typeof WARRANTY_LEAD_DAY_OPTIONS)[number];
+export const WARRANTY_LEAD_DAY_LABELS: Record<WarrantyLeadDays, string> = {
+  30: '30 days before expiry',
+  60: '60 days before expiry',
+  90: '90 days before expiry',
+};
+
+/** Activity-log retention in months; `null` is the design's "Forever". */
+export const LOG_RETENTION_OPTIONS = [12, 24, null] as const;
+export type LogRetention = (typeof LOG_RETENTION_OPTIONS)[number];
+export const LOG_RETENTION_LABELS: Record<`${LogRetention}`, string> = {
+  12: '12 months',
+  24: '24 months',
+  null: 'Forever',
+};
+
 export const CURRENCIES = ['EUR', 'USD', 'GBP', 'PLN'] as const;
 export type Currency = (typeof CURRENCIES)[number];
 export const CURRENCY_LABELS: Record<Currency, string> = {

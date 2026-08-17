@@ -1,0 +1,180 @@
+import { eq } from 'drizzle-orm';
+import type { ImportCommitInput, ImportValidateInput } from '@inventory/shared';
+import type { AppDeps } from '@/types/app.js';
+import type { Actor } from '@/types/audit.js';
+import type { DbOrTx } from '@/types/db.js';
+import type {
+  ImportContext,
+  ImportReport,
+  ImportResult,
+  PlannedAsset,
+  PlannedEmployee,
+} from '@/types/import.js';
+import { assets, employees } from '@/db/schema.js';
+import { nowIso } from '@/lib/dates.js';
+import { AppError } from '@/lib/errors.js';
+import { newId } from '@/lib/ids.js';
+import { writeAudit } from './audit.js';
+import { openAssignment } from './assignments.js';
+import { planImport } from './import-validator.js';
+
+/** Note left on the ownership records an import opens, so history says why. */
+const IMPORT_NOTE = 'Imported via CSV';
+
+/** Reads the state a row is judged against: existing tags, people, statuses. */
+function importContext(db: DbOrTx): ImportContext {
+  const tags = db.select({ assetTag: assets.assetTag }).from(assets).all();
+  const people = db
+    .select({ id: employees.id, email: employees.email, status: employees.status })
+    .from(employees)
+    .all();
+
+  return {
+    existingAssetTags: new Set(tags.map((row) => row.assetTag)),
+    employeeIdByEmail: new Map(people.map((row) => [row.email, row.id])),
+    employeeStatusById: new Map(people.map((row) => [row.id, row.status])),
+  };
+}
+
+/** The dry run: the same plan commit will make, with nothing written. */
+export function validateImport(deps: AppDeps, input: ImportValidateInput): ImportReport {
+  return planImport(input, importContext(deps.db)).report;
+}
+
+/**
+ * Writes a file in one transaction, having re-planned it from scratch — a
+ * client cannot post straight here to skip the dry run, and nothing half-lands:
+ * any error at all and the whole file is refused.
+ */
+export function commitImport(deps: AppDeps, actor: Actor, input: ImportCommitInput): ImportResult {
+  const now = deps.now();
+
+  return deps.db.transaction((tx) => {
+    const plan = planImport(input, importContext(tx));
+    const { errors, errorsTruncated } = plan.report;
+    if (errors.length > 0) {
+      const count = errorsTruncated ? `${errors.length}+` : `${errors.length}`;
+      throw new AppError(
+        422,
+        'import_invalid',
+        `${count} ${errors.length === 1 ? 'row' : 'rows'} in this file cannot be imported.`,
+      );
+    }
+
+    const result: ImportResult =
+      plan.kind === 'assets' ? writeAssets(tx, plan.rows, now) : writeEmployees(tx, plan.rows, now);
+
+    // One event for the import, not one per row: a log that scrolls for pages
+    // after a bulk load is a log nobody reads afterwards.
+    writeAudit(
+      tx,
+      {
+        type: 'system',
+        action: 'system.import_completed',
+        actorMemberId: actor.id,
+        actorName: actor.displayName,
+        params: { kind: result.kind, created: result.created, updated: result.updated },
+      },
+      now,
+    );
+    return result;
+  });
+}
+
+function writeAssets(tx: DbOrTx, rows: PlannedAsset[], now: Date): ImportResult {
+  const at = nowIso(now);
+
+  for (const row of rows) {
+    const id = newId();
+    tx.insert(assets)
+      .values({
+        id,
+        assetTag: row.assetTag,
+        name: row.name,
+        category: row.category,
+        model: null,
+        serialNumber: row.serialNumber,
+        // openAssignment below is what actually sets 'assigned', so the row
+        // never exists in that state without its ownership record.
+        status: row.status === 'assigned' ? 'available' : row.status,
+        purchaseDate: row.purchaseDate,
+        purchasePriceCents: row.purchasePriceCents,
+        currency: row.currency,
+        supplier: row.supplier,
+        warrantyUntil: row.warrantyUntil,
+        notes: row.notes,
+        createdAt: at,
+        updatedAt: at,
+      })
+      .run();
+
+    if (row.status === 'assigned' && row.assignedToEmployeeId !== null) {
+      const holder = tx
+        .select()
+        .from(employees)
+        .where(eq(employees.id, row.assignedToEmployeeId))
+        .get();
+      // The planner only sets this id from the employee table inside the same
+      // transaction, so a miss here is a broken invariant, not a missing row.
+      if (!holder) {
+        throw new AppError(
+          500,
+          'import_holder_missing',
+          `Row ${row.rowNumber} names an employee that vanished mid-import.`,
+        );
+      }
+      openAssignment(
+        tx,
+        {
+          assetId: id,
+          employeeId: holder.id,
+          holderName: `${holder.firstName} ${holder.lastName}`,
+          checkedOutAt: row.purchaseDate ?? at.slice(0, 10),
+          expectedReturnDate: null,
+          notes: IMPORT_NOTE,
+        },
+        now,
+      );
+    }
+  }
+
+  return { kind: 'assets', created: rows.length, updated: 0 };
+}
+
+function writeEmployees(tx: DbOrTx, rows: PlannedEmployee[], now: Date): ImportResult {
+  const at = nowIso(now);
+  let created = 0;
+  let updated = 0;
+
+  for (const row of rows) {
+    const values = {
+      firstName: row.firstName,
+      lastName: row.lastName,
+      email: row.email,
+      jobTitle: row.jobTitle,
+      department: row.department,
+      location: row.location,
+      employeeCode: row.employeeCode,
+      startDate: row.startDate,
+    };
+
+    if (row.existingId === null) {
+      tx.insert(employees)
+        .values({ id: newId(), ...values, status: 'active', createdAt: at, updatedAt: at })
+        .run();
+      created += 1;
+      continue;
+    }
+
+    // An update keeps the row — its id is what assignments and member links
+    // hang off — and never touches `status`: an import is not a way to bring
+    // somebody back from offboarding.
+    tx.update(employees)
+      .set({ ...values, updatedAt: at })
+      .where(eq(employees.id, row.existingId))
+      .run();
+    updated += 1;
+  }
+
+  return { kind: 'employees', created, updated };
+}

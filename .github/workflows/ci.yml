@@ -39,3 +39,53 @@ jobs:
 
       - name: End-to-end tests
         run: npm run e2e
+
+  # The artifact people actually run. Built and started for real, because a
+  # Dockerfile that only compiles is a Dockerfile nobody has tried.
+  image:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Build the image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          load: true
+          tags: inventory:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Start it on a fresh volume
+        run: |
+          mkdir -p /tmp/inventory-data
+          docker run -d --name inventory \
+            -p 3000:3000 -v /tmp/inventory-data:/data \
+            -e APP_URL=http://localhost:3000 inventory:ci
+
+      - name: Wait for the healthcheck to pass
+        run: timeout 60 bash -c 'until curl -sf http://localhost:3000/api/v1/healthz; do sleep 2; done'
+
+      - name: Set up a workspace and read it back
+        run: |
+          set -euo pipefail
+          curl -sf -X POST http://localhost:3000/api/v1/setup \
+            -H 'content-type: application/json' -H 'origin: http://localhost:3000' \
+            -d '{"orgName":"CI","name":"CI Admin","email":"ci@example.com","password":"correct-horse-battery"}' \
+            -c /tmp/cookies > /dev/null
+          curl -sf http://localhost:3000/api/v1/meta | grep -q '"needsSetup":false'
+          # The SPA is served by the same process, deep links included.
+          test "$(curl -s -o /dev/null -w '%{http_code}' http://localhost:3000/assets)" = 200
+
+      - name: Survive a restart with its data
+        run: |
+          set -euo pipefail
+          docker restart inventory
+          timeout 60 bash -c 'until curl -sf http://localhost:3000/api/v1/healthz; do sleep 2; done'
+          curl -sf http://localhost:3000/api/v1/meta | grep -q '"orgName":"CI"'
+
+      - name: Container logs
+        if: always()
+        run: docker logs inventory

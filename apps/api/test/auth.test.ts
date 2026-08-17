@@ -236,8 +236,17 @@ describe('invites', () => {
     expect(member?.status).toBe('active');
     expect(member?.passwordHash).toBeTruthy();
 
-    const events = ctx.db.select().from(auditEvents).all();
-    expect(events.some((e) => e.action === 'member.joined')).toBe(true);
+    // The name arrives with the invitation being accepted, so the event has to
+    // carry it — otherwise the activity log can only say "A member joined".
+    const joined = ctx.db
+      .select()
+      .from(auditEvents)
+      .where(eq(auditEvents.action, 'member.joined'))
+      .get();
+    expect(JSON.parse(joined!.params)).toMatchObject({
+      memberName: 'Daniel Okafor',
+      email: 'daniel@acme.io',
+    });
   });
 
   it('rejects consumed and expired invite tokens', async () => {

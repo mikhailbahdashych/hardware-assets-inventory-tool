@@ -1,6 +1,8 @@
+import type { MemberStatus, Role } from '@inventory/shared';
 import type { assets, employees } from '@/db/schema.js';
 import type { AssignmentRow } from '@/services/assignments.js';
 import type { MemberRow } from '@/plugins/session.js';
+import type { MemberSummary } from '@/types/members.js';
 
 export function serializeMember(member: MemberRow) {
   return {
@@ -17,6 +19,34 @@ export function serializeMember(member: MemberRow) {
     // JSON.stringify in /me/prefs, so it always parses. If it ever does not,
     // the row is corrupt and the throw is the bug report.
     widgets: JSON.parse(member.widgetsJson) as Record<string, boolean>,
+  };
+}
+
+/**
+ * A member as everyone else sees them on the Members page — never their theme,
+ * density or widget layout, which belong to `serializeMember` above and to the
+ * person themselves. The linked employee is named here so the list needs no
+ * second request to render its "Linked employee" column.
+ */
+export function serializeMemberSummary(
+  member: MemberRow,
+  linked: typeof employees.$inferSelect | null,
+): MemberSummary {
+  return {
+    id: member.id,
+    email: member.email,
+    displayName: member.displayName,
+    // Enum columns are TEXT with no CHECK constraint on purpose (adding a role
+    // is a code-only change); the zod schema on every write is what holds them
+    // to the slugs these types name.
+    role: member.role as Role,
+    status: member.status as MemberStatus,
+    employeeId: member.employeeId,
+    linkedEmployee: linked
+      ? { id: linked.id, displayName: `${linked.firstName} ${linked.lastName}` }
+      : null,
+    lastActiveAt: member.lastActiveAt,
+    createdAt: member.createdAt,
   };
 }
 
