@@ -108,11 +108,18 @@
   margin: 0 0 14px;
 }
 
-/* The switch and data cards sit closer to their first divider. */
+/* Each card's title sits its own distance from the first divider, per the
+   design: 14px on Organization, 6px on the switches, 10px on Data. */
 .cardTitleTight {
   font-weight: 600;
   font-size: 13px;
   margin: 0 0 6px;
+}
+
+.cardTitleData {
+  font-weight: 600;
+  font-size: 13px;
+  margin: 0 0 10px;
 }
 
 .grid {
@@ -121,8 +128,12 @@
   gap: 12px 16px;
 }
 
-.mono {
-  font-family: var(--font-mono);
+/* A select inside a card row keeps its own width, so the label beside it is not
+   squeezed into two lines. The design draws it at 29px, shorter than a form one. */
+.rowSelect {
+  width: auto;
+  height: 29px;
+  flex: none;
 }
 
 .row {

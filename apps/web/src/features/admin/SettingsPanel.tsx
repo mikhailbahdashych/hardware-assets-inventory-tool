@@ -126,7 +126,7 @@ function SettingsForm({ settings }: { settings: OrgSettings }) {
             {(id) => (
               <Input
                 id={id}
-                className={styles.mono}
+                mono
                 value={assetTagPrefix}
                 onChange={(event) => setAssetTagPrefix(event.target.value)}
                 onBlur={() =>
@@ -178,7 +178,7 @@ function SettingsForm({ settings }: { settings: OrgSettings }) {
       </section>
 
       <section className={styles.card}>
-        <h2 className={styles.cardTitle}>Data</h2>
+        <h2 className={styles.cardTitleData}>Data</h2>
         <div className={styles.row}>
           <div className={styles.rowText}>
             <div className={styles.rowLabel}>CSV templates</div>
@@ -201,6 +201,7 @@ function SettingsForm({ settings }: { settings: OrgSettings }) {
           </div>
           <Select
             aria-label="Activity log retention"
+            className={styles.rowSelect}
             value={String(settings.logRetentionMonths)}
             onChange={(event) => save({ logRetentionMonths: readRetention(event.target.value) })}
           >
