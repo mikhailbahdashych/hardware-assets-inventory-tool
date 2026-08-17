@@ -62,8 +62,10 @@ test('invites a viewer, who accepts and finds every mutation gone', async ({ pag
   await expect(viewer.getByRole('button', { name: 'Edit' })).toHaveCount(0);
   await expect(viewer.getByRole('button', { name: 'Assign' })).toHaveCount(0);
 
-  // The Admin URL is guarded, not just hidden from the sidebar.
-  await viewer.goto('/admin/settings');
+  // Both admin URLs are guarded, not just hidden from the sidebar.
+  await viewer.goto('/admin');
+  await expect(viewer.getByRole('heading', { name: 'Dashboard' })).toBeVisible();
+  await viewer.goto('/activity');
   await expect(viewer.getByRole('heading', { name: 'Dashboard' })).toBeVisible();
 
   await viewerContext.close();
@@ -71,11 +73,13 @@ test('invites a viewer, who accepts and finds every mutation gone', async ({ pag
 
 test('the activity log tells the story, in sentences', async ({ page }) => {
   await signIn(page);
-  await page.goto('/admin/activity');
+  await page.goto('/activity');
 
-  await expect(page.getByRole('tab', { name: 'Activity log' })).toHaveAttribute(
-    'aria-selected',
-    'true',
+  // A page of its own now, reached from the sidebar rather than a tab.
+  await expect(page.getByRole('heading', { name: 'Activity log' })).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Activity log' })).toHaveAttribute(
+    'aria-current',
+    'page',
   );
   const table = page.getByRole('table');
   await expect(table).toContainText(`Invited ${GRACE.email} as a Viewer`);
@@ -93,7 +97,7 @@ test('the activity log tells the story, in sentences', async ({ page }) => {
 
 test('exports the log as a CSV attachment whose rows match the screen', async ({ page }) => {
   await signIn(page);
-  await page.goto('/admin/activity');
+  await page.goto('/activity');
 
   const href = await page.getByRole('link', { name: 'Export log' }).getAttribute('href');
   const response = await page.request.get(href!);
@@ -109,12 +113,12 @@ test('exports the log as a CSV attachment whose rows match the screen', async ({
 
 test('changes the tag prefix, and the next asset is numbered under it', async ({ page }) => {
   await signIn(page);
-  await page.goto('/admin/settings');
+  await page.goto('/admin');
 
   const prefix = page.getByLabel('Asset tag prefix');
   await expect(prefix).toHaveValue('AST');
   await prefix.fill('inv');
-  await prefix.blur();
+  await page.getByRole('button', { name: 'Save changes' }).click();
   await expect(page.getByText('Settings saved.')).toBeVisible();
   // Uppercased on the way in, so INV-0001 and inv-0001 can never both exist.
   await expect(page.getByLabel('Asset tag prefix')).toHaveValue('INV');

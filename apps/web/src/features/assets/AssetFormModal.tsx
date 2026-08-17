@@ -15,7 +15,7 @@ import { fieldErrors } from '@/api/formErrors';
 import { useCreateAsset, useDeleteAsset, useUpdateAsset } from '@/api/mutations';
 import { useCustomFields, useEmployees, useNextAssetTag } from '@/api/queries';
 import type { Asset, CustomFieldValue } from '@/types/api';
-import { Button, Checkbox, Field, Input, Modal, Select, Textarea } from '@/components/ui';
+import { Button, Checkbox, Dropdown, Field, Input, Modal, Textarea } from '@/components/ui';
 import { useToast } from '@/providers/ToastProvider';
 import styles from '@/components/ui/FormModal.module.css';
 
@@ -275,17 +275,15 @@ export function AssetFormModal({
         <div className={styles.pair}>
           <Field label="Category" required error={errors.category}>
             {(id) => (
-              <Select
+              <Dropdown
                 id={id}
                 value={form.category}
-                onChange={(event) => set('category', event.target.value as AssetCategory)}
-              >
-                {ASSET_CATEGORIES.map((category) => (
-                  <option key={category} value={category}>
-                    {ASSET_CATEGORY_LABELS[category]}
-                  </option>
-                ))}
-              </Select>
+                options={ASSET_CATEGORIES.map((category) => ({
+                  value: category,
+                  label: ASSET_CATEGORY_LABELS[category],
+                }))}
+                onChange={(category) => set('category', category)}
+              />
             )}
           </Field>
 
@@ -296,18 +294,16 @@ export function AssetFormModal({
             hint={holderLocked ? 'Check the asset in to change its status.' : undefined}
           >
             {(id) => (
-              <Select
+              <Dropdown
                 id={id}
                 value={form.status}
                 disabled={holderLocked}
-                onChange={(event) => set('status', event.target.value as AssetStatus)}
-              >
-                {statusOptions.map((status) => (
-                  <option key={status} value={status}>
-                    {ASSET_STATUS_LABELS[status]}
-                  </option>
-                ))}
-              </Select>
+                options={statusOptions.map((status) => ({
+                  value: status,
+                  label: ASSET_STATUS_LABELS[status],
+                }))}
+                onChange={(status) => set('status', status)}
+              />
             )}
           </Field>
 
@@ -356,20 +352,21 @@ export function AssetFormModal({
               error={errors.assignedToEmployeeId}
             >
               {(id) => (
-                <Select
+                <Dropdown
                   id={id}
                   value={form.assignedToEmployeeId}
-                  onChange={(event) => set('assignedToEmployeeId', event.target.value)}
-                >
-                  <option value="">— Choose an employee —</option>
-                  {(employees.data ?? [])
-                    .filter((employee) => employee.status === 'active')
-                    .map((employee) => (
-                      <option key={employee.id} value={employee.id}>
-                        {employee.displayName}
-                      </option>
-                    ))}
-                </Select>
+                  options={[
+                    { value: '', label: '— Choose an employee —' },
+                    // People that have not loaded are no people to offer.
+                    ...(employees.data ?? [])
+                      .filter((employee) => employee.status === 'active')
+                      .map((employee) => ({
+                        value: employee.id,
+                        label: employee.displayName,
+                      })),
+                  ]}
+                  onChange={(employeeId) => set('assignedToEmployeeId', employeeId)}
+                />
               )}
             </Field>
             <Field label="Checkout date" hint="Defaults to today" error={errors.checkoutDate}>

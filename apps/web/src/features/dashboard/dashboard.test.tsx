@@ -74,10 +74,7 @@ describe('the widget cards', () => {
     expect(card.getByText(/Assigned MacBook Pro 14" to Maya Lindqvist/)).toBeInTheDocument();
     // Two of the three events are theirs, which is why this counts.
     expect(card.getAllByText(/Tomasz Kowalski/)).toHaveLength(2);
-    expect(card.getByRole('link', { name: 'Audit log' })).toHaveAttribute(
-      'href',
-      '/admin/activity',
-    );
+    expect(card.getByRole('link', { name: 'Audit log' })).toHaveAttribute('href', '/activity');
   });
 
   it('colours a warranty by how soon it runs out, and opens the asset', async () => {

@@ -216,3 +216,47 @@
   margin: 0 0 13px;
   font-size: 12.5px;
 }
+
+/* A number input with its unit beside it, rather than in the placeholder where
+   it disappears the moment somebody types. */
+.suffixed {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.suffixed input {
+  width: 84px;
+}
+
+.suffix {
+  font-size: 12px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+/* Keeps a control from stretching across a card row. */
+.rowControl {
+  flex: none;
+  width: 150px;
+}
+
+/* One Save for the whole page, pinned so it is reachable from any card. */
+.actions {
+  position: sticky;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 14px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: var(--mshadow);
+}
+
+.actionsNote {
+  margin-right: auto;
+  font-size: 12px;
+  color: var(--muted);
+}

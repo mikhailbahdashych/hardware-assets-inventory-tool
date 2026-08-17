@@ -3,7 +3,7 @@ import type { Role } from '@inventory/shared';
 import { fieldErrors } from '@/api/formErrors';
 import { useInviteMember } from '@/api/mutations';
 import { useEmployees } from '@/api/queries';
-import { Button, Field, Input, Modal, Select } from '@/components/ui';
+import { Button, Dropdown, Field, Input, Modal } from '@/components/ui';
 import { NotifyCheckbox } from '@/components/app/NotifyCheckbox';
 import formStyles from '@/components/ui/FormModal.module.css';
 import { CopyLinkModal } from './CopyLinkModal';
@@ -87,19 +87,19 @@ export function InviteMemberModal({ onClose }: { onClose: () => void }) {
           error={errors.employeeId}
         >
           {(id) => (
-            <Select
+            <Dropdown
               id={id}
               value={employeeId}
-              onChange={(event) => setEmployeeId(event.target.value)}
-            >
-              <option value="">— No link —</option>
-              {/* Employees that have not loaded are no employees to offer. */}
-              {(employees.data ?? []).map((employee) => (
-                <option key={employee.id} value={employee.id}>
-                  {employee.displayName}
-                </option>
-              ))}
-            </Select>
+              options={[
+                { value: '', label: '— No link —' },
+                // Employees that have not loaded are no employees to offer.
+                ...(employees.data ?? []).map((employee) => ({
+                  value: employee.id,
+                  label: employee.displayName,
+                })),
+              ]}
+              onChange={setEmployeeId}
+            />
           )}
         </Field>
 

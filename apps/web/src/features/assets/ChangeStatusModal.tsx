@@ -8,7 +8,7 @@ import {
 import { fieldErrors } from '@/api/formErrors';
 import { useUpdateAsset } from '@/api/mutations';
 import type { Asset } from '@/types/api';
-import { Button, Field, Modal, Select } from '@/components/ui';
+import { Button, Dropdown, Field, Modal } from '@/components/ui';
 import { useToast } from '@/providers/ToastProvider';
 import formStyles from '@/components/ui/FormModal.module.css';
 
@@ -72,17 +72,15 @@ export function ChangeStatusModal({ asset, onClose }: { asset: Asset; onClose: (
           error={errors.status}
         >
           {(id) => (
-            <Select
+            <Dropdown
               id={id}
               value={status}
-              onChange={(event) => setStatus(event.target.value as AssetStatus)}
-            >
-              {options.map((option) => (
-                <option key={option} value={option}>
-                  {ASSET_STATUS_LABELS[option]}
-                </option>
-              ))}
-            </Select>
+              options={options.map((option) => ({
+                value: option,
+                label: ASSET_STATUS_LABELS[option],
+              }))}
+              onChange={setStatus}
+            />
           )}
         </Field>
       </form>

@@ -27,7 +27,9 @@ export const ASSET_STATUS_COLORS: Record<AssetStatus, SemanticColor> = {...};
 
 The DB has **no CHECK constraints** on enum columns (deliberate): adding a status or category is a code-only change — extend the array + both maps, and TypeScript's `Record` types force every map to stay complete. Tests in `enums.test.ts` pin the label copy and color maps to the design; update them together with intent.
 
-Two option lists are numbers rather than slugs — `WARRANTY_LEAD_DAY_OPTIONS` (30/60/90) and `LOG_RETENTION_OPTIONS` (12/24/`null` = Forever). They follow the same pattern with a keyed label map; `LOG_RETENTION_LABELS` is keyed by `` `${LogRetention}` `` so `null` becomes the string `"null"` and the compiler still checks completeness. Their columns are plain integers, so widening either list is a code-only change too.
+One option list is numbers rather than slugs — `LOG_RETENTION_OPTIONS` (12/24/`null` = Forever). It follows the same pattern with a keyed label map; `LOG_RETENTION_LABELS` is keyed by `` `${LogRetention}` `` so `null` becomes the string `"null"` and the compiler still checks completeness. Its column is a plain integer, so widening the list is a code-only change too.
+
+**Not everything with a few sensible values is an enum.** The warranty lead time was one — 30/60/90 in a dropdown — and it is now `MIN_WARRANTY_LEAD_DAYS`/`MAX_WARRANTY_LEAD_DAYS` with a plain number field behind it. The test for the difference is whether the code ever _branches_ on the value: a status decides what may happen next, so its set is closed and shared; a lead time is only compared to a date, so fixing it to three choices told admins their policy was wrong. A bounded number needs bounds and their message, not a label map.
 
 ## Rules
 

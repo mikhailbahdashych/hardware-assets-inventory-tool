@@ -10,6 +10,7 @@ import {
   MONITOR,
 } from '@/test/api-stub';
 import { renderApp, resetAppState } from '@/test/render';
+import { choose } from '@/test/dropdown';
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -183,7 +184,7 @@ describe('checking in', () => {
     fireEvent.change(within(dialog).getByLabelText(/return date/i), {
       target: { value: '2026-08-16' },
     });
-    await userEvent.selectOptions(within(dialog).getByLabelText(/condition/i), 'needs_repair');
+    await choose(within(dialog), /condition/i, 'Needs repair');
     await userEvent.click(within(dialog).getByRole('button', { name: 'In repair' }));
     await userEvent.click(within(dialog).getByRole('button', { name: 'Check in asset' }));
 
@@ -217,9 +218,9 @@ describe('changing status', () => {
     await userEvent.click(await screen.findByRole('button', { name: 'Change status' }));
 
     const dialog = await screen.findByRole('dialog');
-    const options = within(dialog)
-      .getAllByRole('option')
-      .map((option) => option.textContent);
+    await userEvent.click(within(dialog).getByRole('combobox', { name: /new status/i }));
+    // The list is portalled to the body, so it is read from the screen.
+    const options = screen.getAllByRole('option').map((option) => option.textContent);
     expect(options).toContain('Available');
     expect(options).toContain('Retired');
     expect(options).not.toContain('Assigned');
@@ -237,7 +238,7 @@ describe('changing status', () => {
     );
     await userEvent.click(await screen.findByRole('button', { name: 'Change status' }));
     const dialog = await screen.findByRole('dialog');
-    await userEvent.selectOptions(within(dialog).getByLabelText(/new status/i), 'retired');
+    await choose(within(dialog), /new status/i, 'Retired');
     await userEvent.click(within(dialog).getByRole('button', { name: 'Change status' }));
 
     await waitFor(() => expect(api.called('PATCH /assets/asset-1')).toBeDefined());
@@ -362,7 +363,7 @@ describe('managing custom fields', () => {
     const dialog = await screen.findByRole('dialog');
     expect(dialog).toHaveTextContent('mdm_enrolled');
     await userEvent.type(within(dialog).getByLabelText(/new field/i), 'Warranty provider');
-    await userEvent.selectOptions(within(dialog).getByLabelText(/type/i), 'text');
+    await choose(within(dialog), /type/i, 'Text');
     await userEvent.click(within(dialog).getByRole('button', { name: 'Add field' }));
 
     await waitFor(() => expect(api.called('POST /custom-fields')).toBeDefined());

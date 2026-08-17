@@ -4,28 +4,23 @@ import {
   CURRENCY_LABELS,
   LOG_RETENTION_LABELS,
   LOG_RETENTION_OPTIONS,
-  WARRANTY_LEAD_DAY_LABELS,
-  WARRANTY_LEAD_DAY_OPTIONS,
+  MAX_WARRANTY_LEAD_DAYS,
+  MIN_WARRANTY_LEAD_DAYS,
   type Currency,
   type LogRetention,
-  type SettingsPatchInput,
-  type WarrantyLeadDays,
 } from '@inventory/shared';
+import { fieldErrors } from '@/api/formErrors';
 import { useUpdateSettings } from '@/api/mutations';
 import { useMeta, useSettings } from '@/api/queries';
-import { Field, Input, Select, Spinner, ToggleSwitch } from '@/components/ui';
+import { Button, Dropdown, Field, Input, Spinner, ToggleSwitch } from '@/components/ui';
 import { useToast } from '@/providers/ToastProvider';
 import type { OrgSettings } from '@/types/api';
 import { DeleteWorkspaceModal } from './DeleteWorkspaceModal';
+import { changedSettings, type SettingsDraft } from './settingsDraft';
 import styles from './Admin.module.css';
 
 type EmailToggleKey =
   'emailWarrantyAlerts' | 'emailReturnReminders' | 'emailInvites' | 'emailWeeklyDigest';
-
-/** One switch is one field; the return type is what keeps the key honest. */
-function emailPatch(key: EmailToggleKey, checked: boolean): SettingsPatchInput {
-  return { [key]: checked };
-}
 
 /** The design's four switches, in its order and its words. */
 const EMAIL_TOGGLES = [
@@ -61,18 +56,21 @@ export function SettingsPanel() {
       </div>
     );
   }
-  // Keyed on the row so a save from elsewhere re-seeds the text inputs.
+  // Keyed on the row so a save from elsewhere re-seeds the whole form.
   return <SettingsForm key={settings.data.updatedAt} settings={settings.data} />;
 }
 
 /**
- * The design draws no Save button, so nothing waits for one: selects and
- * switches save the moment they change, and a text field saves when it is
- * left — and only if it actually changed.
+ * One form, one Save. Everything is edited locally and written together when
+ * the button is pressed, so nothing reaches the server as a side effect of
+ * touching a control and a half-considered change can be abandoned by leaving.
+ *
+ * The design draws no Save button — this is a deliberate departure, recorded in
+ * docs/PROJECT_STATUS.md §8. Saving on blur meant a stray keystroke in
+ * "Company name" renamed the workspace for everybody, with no way back.
  */
 function SettingsForm({ settings }: { settings: OrgSettings }) {
-  const [orgName, setOrgName] = useState(settings.orgName);
-  const [assetTagPrefix, setAssetTagPrefix] = useState(settings.assetTagPrefix);
+  const [draft, setDraft] = useState<SettingsDraft>(() => toDraft(settings));
   const [deleting, setDeleting] = useState(false);
 
   const toast = useToast();
@@ -80,84 +78,73 @@ function SettingsForm({ settings }: { settings: OrgSettings }) {
   const meta = useMeta();
   // Metadata that has not arrived cannot promise email works.
   const canSendEmail = meta.data?.smtpConfigured === true;
+  const errors = fieldErrors(update.error);
 
-  const save = (patch: SettingsPatchInput) =>
-    update.mutate(patch, {
-      onSuccess: () => toast.show('Settings saved.', 'ok'),
-      onError: (error) => toast.show(error.message, 'err'),
-    });
-
-  /** Nothing to send when a field is left exactly as it was found. */
-  const saveIfChanged = (patch: SettingsPatchInput, current: string, stored: string) => {
-    if (current.trim() === stored) return;
-    save(patch);
-  };
+  // The diff *is* the dirty check, so the button and the payload cannot
+  // disagree about whether there is anything to save.
+  const patch = changedSettings(settings, draft);
+  const dirty = Object.keys(patch).length > 0;
+  const set = <K extends keyof SettingsDraft>(key: K, value: SettingsDraft[K]) =>
+    setDraft((current) => ({ ...current, [key]: value }));
 
   return (
     <div className={styles.settings}>
       <section className={styles.card}>
         <h2 className={styles.cardTitle}>Organization</h2>
         <div className={styles.grid}>
-          <Field label="Company name">
+          <Field label="Company name" error={errors.orgName}>
             {(id) => (
               <Input
                 id={id}
-                value={orgName}
-                onChange={(event) => setOrgName(event.target.value)}
-                onBlur={() => saveIfChanged({ orgName: orgName.trim() }, orgName, settings.orgName)}
+                value={draft.orgName}
+                onChange={(event) => set('orgName', event.target.value)}
               />
             )}
           </Field>
 
           <Field label="Default currency">
             {(id) => (
-              <Select
+              <Dropdown
                 id={id}
-                value={settings.defaultCurrency}
-                onChange={(event) => save({ defaultCurrency: event.target.value as Currency })}
-              >
-                {CURRENCIES.map((currency) => (
-                  <option key={currency} value={currency}>
-                    {CURRENCY_LABELS[currency]}
-                  </option>
-                ))}
-              </Select>
-            )}
-          </Field>
-
-          <Field label="Asset tag prefix">
-            {(id) => (
-              <Input
-                id={id}
-                mono
-                value={assetTagPrefix}
-                onChange={(event) => setAssetTagPrefix(event.target.value)}
-                onBlur={() =>
-                  saveIfChanged(
-                    { assetTagPrefix: assetTagPrefix.trim() },
-                    assetTagPrefix,
-                    settings.assetTagPrefix,
-                  )
-                }
+                value={draft.defaultCurrency}
+                options={CURRENCIES.map((currency) => ({
+                  value: currency,
+                  label: CURRENCY_LABELS[currency],
+                }))}
+                onChange={(currency: Currency) => set('defaultCurrency', currency)}
               />
             )}
           </Field>
 
-          <Field label="Warranty alert lead time">
+          <Field label="Asset tag prefix" error={errors.assetTagPrefix}>
             {(id) => (
-              <Select
+              <Input
                 id={id}
-                value={settings.warrantyLeadDays}
-                onChange={(event) =>
-                  save({ warrantyLeadDays: Number(event.target.value) as WarrantyLeadDays })
-                }
-              >
-                {WARRANTY_LEAD_DAY_OPTIONS.map((days) => (
-                  <option key={days} value={days}>
-                    {WARRANTY_LEAD_DAY_LABELS[days]}
-                  </option>
-                ))}
-              </Select>
+                mono
+                value={draft.assetTagPrefix}
+                onChange={(event) => set('assetTagPrefix', event.target.value)}
+              />
+            )}
+          </Field>
+
+          <Field
+            label="Warranty alert lead time"
+            hint={`Any number from ${MIN_WARRANTY_LEAD_DAYS} to ${MAX_WARRANTY_LEAD_DAYS}`}
+            error={errors.warrantyLeadDays}
+          >
+            {(id) => (
+              <div className={styles.suffixed}>
+                <Input
+                  id={id}
+                  type="number"
+                  inputMode="numeric"
+                  min={MIN_WARRANTY_LEAD_DAYS}
+                  max={MAX_WARRANTY_LEAD_DAYS}
+                  value={draft.warrantyLeadDays}
+                  onChange={(event) => set('warrantyLeadDays', event.target.value)}
+                />
+                <span className={styles.suffix}>days before expiry</span>
+              </div>
             )}
           </Field>
         </div>
@@ -178,8 +165,8 @@ function SettingsForm({ settings }: { settings: OrgSettings }) {
             <ToggleSwitch
               label={toggle.label}
               disabled={!canSendEmail}
-              checked={settings[toggle.key]}
-              onChange={(checked) => save(emailPatch(toggle.key, checked))}
+              checked={draft[toggle.key]}
+              onChange={(checked) => set(toggle.key, checked)}
             />
           </div>
         ))}
@@ -217,20 +204,41 @@ function SettingsForm({ settings }: { settings: OrgSettings }) {
             <div className={styles.rowLabel}>Activity log retention</div>
             <div className={styles.rowHint}>Older events are pruned automatically</div>
           </div>
-          <Select
-            aria-label="Activity log retention"
-            className={styles.rowSelect}
-            value={String(settings.logRetentionMonths)}
-            onChange={(event) => save({ logRetentionMonths: readRetention(event.target.value) })}
-          >
-            {LOG_RETENTION_OPTIONS.map((months) => (
-              <option key={String(months)} value={String(months)}>
-                {LOG_RETENTION_LABELS[`${months}`]}
-              </option>
-            ))}
-          </Select>
+          <div className={styles.rowControl}>
+            <Dropdown
+              aria-label="Activity log retention"
+              value={`${draft.logRetentionMonths}`}
+              options={LOG_RETENTION_OPTIONS.map((months) => ({
+                value: `${months}`,
+                label: LOG_RETENTION_LABELS[`${months}`],
+              }))}
+              onChange={(value) => set('logRetentionMonths', readRetention(value))}
+            />
+          </div>
         </div>
       </section>
+
+      {/* Sticky: the fields it saves are taller than a screen, and a Save
+          button you have to scroll to find is a Save button people miss. */}
+      <div className={styles.actions}>
+        <span className={styles.actionsNote}>
+          {dirty ? 'Unsaved changes' : 'Everything here is saved'}
+        </span>
+        <Button variant="ghost" disabled={!dirty} onClick={() => setDraft(toDraft(settings))}>
+          Discard
+        </Button>
+        <Button
+          disabled={!dirty || update.isPending}
+          onClick={() =>
+            update.mutate(patch, {
+              onSuccess: () => toast.show('Settings saved.', 'ok'),
+              onError: (error) => toast.show(error.message, 'err'),
+            })
+          }
+        >
+          {update.isPending ? 'Saving…' : 'Save changes'}
+        </Button>
+      </div>
 
       <section className={styles.danger}>
         <h2 className={styles.dangerTitle}>Danger zone</h2>
@@ -252,11 +260,26 @@ function SettingsForm({ settings }: { settings: OrgSettings }) {
   );
 }
 
-/** The select's option values are strings; "null" is the design's "Forever". */
+/** The stored row as the form edits it: a number becomes an input's text. */
+function toDraft(settings: OrgSettings): SettingsDraft {
+  return {
+    orgName: settings.orgName,
+    defaultCurrency: settings.defaultCurrency,
+    assetTagPrefix: settings.assetTagPrefix,
+    warrantyLeadDays: String(settings.warrantyLeadDays),
+    logRetentionMonths: settings.logRetentionMonths,
+    emailWarrantyAlerts: settings.emailWarrantyAlerts,
+    emailReturnReminders: settings.emailReturnReminders,
+    emailInvites: settings.emailInvites,
+    emailWeeklyDigest: settings.emailWeeklyDigest,
+  };
+}
+
+/** The dropdown's values are strings; "null" is the design's "Forever". */
 function readRetention(value: string): LogRetention {
   const match = LOG_RETENTION_OPTIONS.find((months) => `${months}` === value);
   if (match === undefined) {
-    throw new Error(`The retention select offered "${value}", which is not one of its options.`);
+    throw new Error(`The retention control offered "${value}", which is not one of its options.`);
   }
   return match;
 }

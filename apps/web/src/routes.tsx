@@ -1,8 +1,10 @@
-import { Navigate, Route, Routes } from 'react-router';
+import { lazy, Suspense } from 'react';
+import { Navigate, Route, Routes, useLocation } from 'react-router';
 import { can } from '@inventory/shared';
 import { orgMeta, useMe, useMeta } from './api/queries';
 import { AppShell } from './components/app/AppShell';
 import { Spinner } from './components/ui';
+import { ActivityLogPage } from './features/admin/ActivityLogPage';
 import { AdminPage } from './features/admin/AdminPage';
 import { AssetDetailPage } from './features/assets/AssetDetailPage';
 import { AssetsPage } from './features/assets/AssetsPage';
@@ -15,6 +17,22 @@ import { DashboardPage } from './features/dashboard/DashboardPage';
 import { EmployeeDetailPage } from './features/employees/EmployeeDetailPage';
 import { EmployeesPage } from './features/employees/EmployeesPage';
 import { MembersPage } from './features/members/MembersPage';
+
+/**
+ * The design-system review page. `import.meta.env.DEV` is statically false in a
+ * production build, so the chunk is dropped entirely rather than shipped and
+ * guarded. It sits above the three route sets below because reviewing a
+ * primitive should not require a workspace, a session or a role.
+ */
+const KitchenSink = import.meta.env.DEV
+  ? lazy(() => import('./features/dev/KitchenSink').then((m) => ({ default: m.KitchenSink })))
+  : null;
+
+/** `/admin/activity?type=auth` was a shareable link; the filter travels with it. */
+function LegacyActivityRedirect() {
+  const { search } = useLocation();
+  return <Navigate to={`/activity${search}`} replace />;
+}
 
 function Splash() {
   return (
@@ -39,6 +57,18 @@ function Splash() {
 export function AppRoutes() {
   const meta = useMeta();
   const me = useMe();
+  const { pathname } = useLocation();
+
+  // Ahead of all three: the review page reads no data and needs no session, so
+  // waiting on /meta to look at a Button would be absurd — and it must not be
+  // swallowed by the signed-out set's catch-all redirect to /login.
+  if (KitchenSink && pathname === '/kitchen-sink') {
+    return (
+      <Suspense fallback={<Splash />}>
+        <KitchenSink />
+      </Suspense>
+    );
+  }
 
   if (meta.isPending || me.isPending) return <Splash />;
 
@@ -83,14 +113,31 @@ export function AppRoutes() {
         <Route path="/employees" element={<EmployeesPage role={member.role} />} />
         <Route path="/employees/:id" element={<EmployeeDetailPage role={member.role} />} />
         <Route path="/members" element={<MembersPage role={member.role} memberId={member.id} />} />
-        {/* The activity log and settings are two URLs, not two pieces of
-            component state, so a filtered log stays shareable. */}
+        {/* Reading what happened and changing how the workspace behaves are
+            different jobs, so they are different pages rather than two tabs. */}
         <Route
-          path="/admin/*"
+          path="/activity"
           element={
-            can(member.role, 'audit.view') ? <AdminPage /> : <Navigate to="/dashboard" replace />
+            can(member.role, 'audit.view') ? (
+              <ActivityLogPage />
+            ) : (
+              <Navigate to="/dashboard" replace />
+            )
           }
         />
+        <Route
+          path="/admin"
+          element={
+            can(member.role, 'settings.manage') ? (
+              <AdminPage />
+            ) : (
+              <Navigate to="/dashboard" replace />
+            )
+          }
+        />
+        {/* The tabs shipped, so their URLs exist in somebody's history. */}
+        <Route path="/admin/activity" element={<LegacyActivityRedirect />} />
+        <Route path="/admin/settings" element={<Navigate to="/admin" replace />} />
         <Route path="*" element={<Navigate to="/dashboard" replace />} />
       </Route>
     </Routes>

@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { choose } from '../helpers/dropdown';
 import { signIn } from '../helpers/session';
 
 // One continuous journey against the real API: add a person, register a device
@@ -24,7 +25,7 @@ test('adds an employee', async ({ page }) => {
   await dialog.getByLabel('Last name').fill(EMPLOYEE.lastName);
   await dialog.getByLabel('Work email').fill(EMPLOYEE.email);
   await dialog.getByLabel('Job title').fill('Product Designer');
-  await dialog.getByLabel('Department').selectOption('Design');
+  await choose(page, dialog, 'Department', 'Design');
   await dialog.getByLabel('Location').fill('Stockholm');
   await dialog.getByRole('button', { name: 'Add employee' }).click();
 
@@ -47,9 +48,9 @@ test('registers an asset that is already in somebody’s hands', async ({ page }
   await expect(dialog.getByLabel('Asset tag')).toHaveValue('AST-0001');
 
   await dialog.getByLabel('Name', { exact: true }).fill('MacBook Pro 14"');
-  await dialog.getByLabel('Category').selectOption('laptops');
-  await dialog.getByLabel('Status').selectOption('assigned');
-  await dialog.getByLabel('Assigned to').selectOption({ label: 'Maya Lindqvist' });
+  await choose(page, dialog, 'Category', 'Laptops');
+  await choose(page, dialog, 'Status', 'Assigned');
+  await choose(page, dialog, 'Assigned to', 'Maya Lindqvist');
   await dialog.getByLabel('Checkout date').fill('2026-03-14');
   await dialog.getByLabel('Serial number').fill('C02XK1AZQ6L7');
   await dialog.getByLabel('Purchase price').fill('2,340.00');

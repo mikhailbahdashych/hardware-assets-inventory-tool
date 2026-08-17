@@ -1,5 +1,10 @@
 import { z } from 'zod';
-import { CURRENCIES, LOG_RETENTION_OPTIONS, WARRANTY_LEAD_DAY_OPTIONS } from '../enums.js';
+import {
+  CURRENCIES,
+  LOG_RETENTION_OPTIONS,
+  MAX_WARRANTY_LEAD_DAYS,
+  MIN_WARRANTY_LEAD_DAYS,
+} from '../enums.js';
 
 // The Admin → Settings card, one optional field per input. Absent means "leave
 // alone"; `logRetentionMonths: null` is a value ("Forever"), not an absence.
@@ -20,7 +25,13 @@ export const settingsPatchInput = z.object({
     .regex(/^[A-Za-z0-9]+$/, 'Use letters and digits only')
     .transform((value) => value.toUpperCase())
     .optional(),
-  warrantyLeadDays: z.union(WARRANTY_LEAD_DAY_OPTIONS.map((days) => z.literal(days))).optional(),
+  /** Whole days, so "45" is a workspace's answer as readily as 30, 60 or 90. */
+  warrantyLeadDays: z
+    .number()
+    .int('Use a whole number of days.')
+    .min(MIN_WARRANTY_LEAD_DAYS, `At least ${MIN_WARRANTY_LEAD_DAYS} day of notice.`)
+    .max(MAX_WARRANTY_LEAD_DAYS, `At most ${MAX_WARRANTY_LEAD_DAYS} days of notice.`)
+    .optional(),
   logRetentionMonths: z.union(LOG_RETENTION_OPTIONS.map((months) => z.literal(months))).optional(),
   emailWarrantyAlerts: z.boolean().optional(),
   emailReturnReminders: z.boolean().optional(),

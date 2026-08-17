@@ -20,6 +20,7 @@ import {
   Card,
   Checkbox,
   DataTable,
+  Dropdown,
   Dropzone,
   EmptyState,
   Field,
@@ -34,7 +35,6 @@ import {
   RadioCard,
   SearchInput,
   SegmentedControl,
-  Select,
   Spinner,
   Menu,
   Tabs,
@@ -88,6 +88,8 @@ export function KitchenSink() {
   const [role, setRole] = useState<Role>('viewer');
   const [toggles, setToggles] = useState({ warranty: true, digest: false });
   const [modal, setModal] = useState<'none' | 'plain' | 'scroll'>('none');
+  const [category, setCategory] = useState('laptops');
+  const [condition, setCondition] = useState('good');
 
   return (
     <div
@@ -293,10 +295,15 @@ export function KitchenSink() {
           </Field>
           <Field label="Category">
             {(id) => (
-              <Select id={id} defaultValue="laptops">
-                <option value="laptops">Laptops</option>
-                <option value="monitors">Monitors</option>
-              </Select>
+              <Dropdown
+                id={id}
+                value={category}
+                onChange={setCategory}
+                options={[
+                  { value: 'laptops', label: 'Laptops' },
+                  { value: 'monitors', label: 'Monitors' },
+                ]}
+              />
             )}
           </Field>
           <Field label="Purchase date" error="Enter a valid date">
@@ -410,11 +417,16 @@ export function KitchenSink() {
           </Field>
           <Field label="Condition">
             {(id) => (
-              <Select id={id}>
-                <option>Good</option>
-                <option>Needs repair</option>
-                <option>Damaged</option>
-              </Select>
+              <Dropdown
+                id={id}
+                value={condition}
+                onChange={setCondition}
+                options={[
+                  { value: 'good', label: 'Good' },
+                  { value: 'needs_repair', label: 'Needs repair' },
+                  { value: 'damaged', label: 'Damaged' },
+                ]}
+              />
             )}
           </Field>
         </Modal>

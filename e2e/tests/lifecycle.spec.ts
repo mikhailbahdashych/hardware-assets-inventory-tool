@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { choose } from '../helpers/dropdown';
 import { signIn } from '../helpers/session';
 
 // Continues where inventory.spec.ts stops: AST-0001 exists and Maya Lindqvist
@@ -19,7 +20,7 @@ test('checks the asset in and writes the return into its history', async ({ page
   const dialog = page.getByRole('dialog');
   await expect(dialog).toContainText('Returning from Maya Lindqvist');
   await dialog.getByLabel('Return date').fill('2026-07-01');
-  await dialog.getByLabel('Condition').selectOption('good');
+  await choose(page, dialog, 'Condition', 'Good');
   await dialog.getByRole('button', { name: 'Return to stock' }).click();
   await dialog.getByRole('button', { name: 'Check in asset' }).click();
 
@@ -49,7 +50,7 @@ test('refuses to hand out an asset that is in repair, offering a status change i
   // the prototype wires this button to Assign, which has no holder to change.
   await page.getByRole('button', { name: 'Edit' }).click();
   const edit = page.getByRole('dialog');
-  await edit.getByLabel('Status').selectOption('in_repair');
+  await choose(page, edit, 'Status', 'In repair');
   await edit.getByRole('button', { name: 'Save changes' }).click();
   await expect(edit).toBeHidden();
 
@@ -58,8 +59,10 @@ test('refuses to hand out an asset that is in repair, offering a status change i
 
   await page.getByRole('button', { name: 'Change status' }).click();
   const status = page.getByRole('dialog');
-  await expect(status.getByRole('option', { name: 'Assigned' })).toHaveCount(0);
-  await status.getByLabel('New status').selectOption('available');
+  await status.getByRole('combobox', { name: 'New status' }).click();
+  // Nothing reaches Assigned except an assignment, so it is not on offer.
+  await expect(page.getByRole('option', { name: 'Assigned' })).toHaveCount(0);
+  await page.getByRole('option', { name: 'Available', exact: true }).click();
   await status.getByRole('button', { name: 'Change status' }).click();
   await expect(status).toBeHidden();
 });
@@ -127,7 +130,7 @@ test('adds a custom field, which then appears on every asset form', async ({ pag
   await page.getByRole('button', { name: 'Manage fields' }).click();
   const dialog = page.getByRole('dialog');
   await dialog.getByLabel('New field').fill('Warranty provider');
-  await dialog.getByLabel('Type').selectOption('text');
+  await choose(page, dialog, 'Type', 'Text');
   await dialog.getByRole('button', { name: 'Add field' }).click();
 
   // The key is derived from the label, because values hang off the key.

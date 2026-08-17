@@ -2,8 +2,8 @@ import { describe, expect, it } from 'vitest';
 import {
   LOG_RETENTION_LABELS,
   LOG_RETENTION_OPTIONS,
-  WARRANTY_LEAD_DAY_LABELS,
-  WARRANTY_LEAD_DAY_OPTIONS,
+  MAX_WARRANTY_LEAD_DAYS,
+  MIN_WARRANTY_LEAD_DAYS,
 } from '../enums.js';
 import { settingsPatchInput } from './settings.js';
 
@@ -51,11 +51,26 @@ describe('settingsPatchInput', () => {
   });
 });
 
-describe('the settings option lists', () => {
-  it('labels every warranty lead time and retention period the select offers', () => {
-    for (const days of WARRANTY_LEAD_DAY_OPTIONS) {
-      expect(WARRANTY_LEAD_DAY_LABELS[days]).toMatch(/before expiry$/);
+describe('the warranty lead time', () => {
+  it('takes any whole number of days a workspace wants', () => {
+    for (const days of [MIN_WARRANTY_LEAD_DAYS, 14, 45, 100, MAX_WARRANTY_LEAD_DAYS]) {
+      expect(settingsPatchInput.parse({ warrantyLeadDays: days })).toEqual({
+        warrantyLeadDays: days,
+      });
     }
+  });
+
+  it('refuses a number that is not a lead time', () => {
+    // Below a day there is no notice to give; beyond a year it is not a warning.
+    expect(settingsPatchInput.safeParse({ warrantyLeadDays: 0 }).success).toBe(false);
+    expect(settingsPatchInput.safeParse({ warrantyLeadDays: -30 }).success).toBe(false);
+    expect(settingsPatchInput.safeParse({ warrantyLeadDays: 366 }).success).toBe(false);
+    expect(settingsPatchInput.safeParse({ warrantyLeadDays: 30.5 }).success).toBe(false);
+  });
+});
+
+describe('the retention list', () => {
+  it('labels every retention period the control offers', () => {
     for (const months of LOG_RETENTION_OPTIONS) {
       expect(LOG_RETENTION_LABELS[`${months}`]).toBeTruthy();
     }

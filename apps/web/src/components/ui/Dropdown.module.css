@@ -1,0 +1,101 @@
+/* The closed control is a native select to the pixel — same height, padding,
+   border and focus ring — so swapping one for the other changes no layout. */
+.trigger {
+  height: 31px;
+  width: 100%;
+  padding: 0 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+  font-size: 12.5px;
+  outline: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  text-align: left;
+}
+
+.trigger:focus-visible,
+.trigger[aria-expanded='true'] {
+  border-color: var(--accent);
+}
+
+.trigger:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.trigger > svg {
+  color: var(--muted);
+  flex: none;
+}
+
+.value {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.value[data-placeholder='true'] {
+  color: var(--faint);
+}
+
+/* Portalled to the body: a table cell clips its overflow and a card clips to
+   its radius, so a panel rendered in place is a panel the row eats. */
+.panel {
+  position: fixed;
+  z-index: 60;
+  padding: 4px;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: var(--mshadow);
+}
+
+.option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 9px;
+  border-radius: 5px;
+  font-size: 12.5px;
+  cursor: pointer;
+}
+
+.option[data-active='true'] {
+  background: var(--hover);
+}
+
+.option[aria-selected='true'] {
+  color: var(--accent);
+}
+
+.option > svg {
+  flex: none;
+}
+
+.optionText {
+  flex: 1;
+  min-width: 0;
+}
+
+.optionLabel {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.optionDescription {
+  display: block;
+  font-size: 11.5px;
+  color: var(--muted);
+}
