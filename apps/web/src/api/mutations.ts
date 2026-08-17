@@ -23,6 +23,7 @@ import type {
   StatusCreateInput,
   StatusPatchInput,
   WorkflowStatus,
+  WorkflowTransition,
   WorkspaceDeleteInput,
 } from '@inventory/shared';
 import { apiFetch, apiUpload } from './client';
@@ -351,6 +352,19 @@ export const useReorderStatuses = () =>
     apiFetch<{ statuses: WorkflowStatus[] }>('/workflow/statuses/order', {
       method: 'PUT',
       body: { ids },
+    }),
+  );
+
+/**
+ * The matrix saves the graph it holds — every edge, not a diff. That is what a
+ * grid of checkboxes naturally is, and it makes the write idempotent: two
+ * admins saving the same matrix land on the same graph.
+ */
+export const useSaveTransitions = () =>
+  useWorkflowMutation((transitions: WorkflowTransition[]) =>
+    apiFetch<{ transitions: WorkflowTransition[] }>('/workflow/transitions', {
+      method: 'PUT',
+      body: { transitions },
     }),
   );
 

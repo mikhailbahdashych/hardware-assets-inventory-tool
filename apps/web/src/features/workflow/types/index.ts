@@ -3,4 +3,4 @@
 // forming an import cycle.
 export type { DeleteStatusModalProps } from './deleteStatusModal';
 export type { StatusFormModalProps, StatusFormState } from './statusFormModal';
-export type { StatusesCardProps, StatusRowProps } from './workflowPage';
+export type { MatrixCardProps, StatusesCardProps } from './workflowPage';

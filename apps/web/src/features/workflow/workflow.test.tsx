@@ -130,7 +130,7 @@ describe('the statuses card', () => {
       assignableFrom: false,
       checkinTarget: false,
     });
-    expect(await screen.findByText('On loan')).toBeInTheDocument();
+    await waitFor(async () => expect(rowLabels(await statusRows())).toContain('On loan'));
   });
 
   it('renames a status without touching its id', async () => {
@@ -160,7 +160,7 @@ describe('the statuses card', () => {
       label: 'At the shop',
       color: 'warn',
     });
-    expect(await screen.findByText('At the shop')).toBeInTheDocument();
+    await waitFor(async () => expect(rowLabels(await statusRows())).toContain('At the shop'));
   });
 
   it('flips a behaviour flag straight from the row', async () => {
@@ -280,5 +280,74 @@ describe('the statuses card', () => {
 
     await waitFor(() => expect(api.called('DELETE /workflow/statuses/lost_stolen')).toBeDefined());
     await waitFor(() => expect(screen.queryByText('Lost/Stolen')).toBeNull());
+  });
+});
+
+describe('the transition matrix', () => {
+  /** One cell of the grid, by the move it stands for. */
+  const cell = (from: string, to: string) =>
+    screen.getByRole('checkbox', { name: `${from} → ${to}` });
+
+  it('draws a cell per ordered pair, with the diagonal and Assigned left out', async () => {
+    renderApp(workspace().routes, '/workflow');
+    await screen.findByRole('table', { name: 'Transitions' });
+
+    // Five statuses can be moved between directly; the sixth is entered by
+    // assigning and left by checking in.
+    expect(screen.getAllByRole('checkbox')).toHaveLength(25);
+    expect(screen.queryByRole('checkbox', { name: /Assigned/ })).toBeNull();
+    expect(cell('Available', 'Retired')).toBeChecked();
+    // A status cannot transition to itself, so that cell is never a choice.
+    expect(cell('Available', 'Available')).toBeDisabled();
+    expect(cell('Available', 'Available')).not.toBeChecked();
+  });
+
+  it('saves the graph the boxes hold, and only once something has changed', async () => {
+    const { routes } = workspace();
+    let stored = WORKFLOW.transitions;
+    const api = renderApp(
+      {
+        ...routes,
+        'GET /workflow': () => ({ body: { statuses: WORKFLOW.statuses, transitions: stored } }),
+        'PUT /workflow/transitions': (body) => {
+          stored = (body as { transitions: typeof stored }).transitions;
+          return { body: { transitions: stored } };
+        },
+      },
+      '/workflow',
+    );
+    await screen.findByRole('table', { name: 'Transitions' });
+
+    const save = screen.getByRole('button', { name: 'Save workflow' });
+    expect(save).toBeDisabled();
+
+    await userEvent.click(cell('Available', 'Retired'));
+    expect(save).toBeEnabled();
+    await userEvent.click(save);
+
+    await waitFor(() => expect(api.called('PUT /workflow/transitions')).toBeDefined());
+    const sent = api.called('PUT /workflow/transitions')!.body as {
+      transitions: { from: string; to: string }[];
+    };
+    expect(sent.transitions).toHaveLength(WORKFLOW.transitions.length - 1);
+    expect(sent.transitions).not.toContainEqual({ from: 'available', to: 'retired' });
+
+    // Saved is the new starting point: the draft re-seeds from what came back.
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: 'Save workflow' })).toBeDisabled(),
+    );
+    expect(cell('Available', 'Retired')).not.toBeChecked();
+  });
+
+  it('lets a change be abandoned', async () => {
+    renderApp(workspace().routes, '/workflow');
+    await screen.findByRole('table', { name: 'Transitions' });
+
+    await userEvent.click(cell('In repair', 'Available'));
+    expect(cell('In repair', 'Available')).not.toBeChecked();
+
+    await userEvent.click(screen.getByRole('button', { name: 'Discard' }));
+    expect(cell('In repair', 'Available')).toBeChecked();
+    expect(screen.getByRole('button', { name: 'Save workflow' })).toBeDisabled();
   });
 });

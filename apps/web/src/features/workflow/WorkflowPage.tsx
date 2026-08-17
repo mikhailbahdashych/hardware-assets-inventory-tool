@@ -1,14 +1,28 @@
 import { useState } from 'react';
 import { ASSIGNED_STATUS, type WorkflowStatus } from '@inventory/shared';
-import { useReorderStatuses, useUpdateStatus } from '@/api/mutations';
+import { useReorderStatuses, useSaveTransitions, useUpdateStatus } from '@/api/mutations';
 import { useWorkflow } from '@/api/queries';
 import { PageContainer } from '@/components/app/PageContainer';
-import { Button, DataTable, IconButton, Pill, Spinner, ToggleSwitch } from '@/components/ui';
+import {
+  Button,
+  Checkbox,
+  DataTable,
+  IconButton,
+  Pill,
+  Spinner,
+  ToggleSwitch,
+} from '@/components/ui';
 import type { TableColumn } from '@/types/table';
 import { useToast } from '@/providers/ToastProvider';
 import { DeleteStatusModal } from './DeleteStatusModal';
 import { StatusFormModal } from './StatusFormModal';
-import type { StatusesCardProps } from './types/workflowPage';
+import {
+  draftChanged,
+  draftFromTransitions,
+  draftKey,
+  transitionsFromDraft,
+} from './workflowDraft';
+import type { MatrixCardProps, StatusesCardProps } from './types/workflowPage';
 import styles from './Workflow.module.css';
 
 /**
@@ -34,7 +48,17 @@ export function WorkflowPage() {
           <Spinner size={18} />
         </div>
       ) : (
-        <StatusesCard statuses={workflow.data.statuses} />
+        <>
+          <StatusesCard statuses={workflow.data.statuses} />
+          {/* Keyed on the stored graph, so a save — this admin's or anybody
+              else's — re-seeds the draft instead of leaving stale boxes on
+              screen. The same trick the settings form plays on `updatedAt`. */}
+          <MatrixCard
+            key={workflow.data.transitions.map((edge) => draftKey(edge.from, edge.to)).join()}
+            statuses={workflow.data.statuses}
+            transitions={workflow.data.transitions}
+          />
+        </>
       )}
     </PageContainer>
   );
@@ -199,6 +223,111 @@ function StatusesCard({ statuses }: StatusesCardProps) {
           onClose={() => setDeleting(null)}
         />
       )}
+    </section>
+  );
+}
+
+/**
+ * The graph, as a grid of checkboxes: a row is where an asset is, a column is
+ * where it may go next. The whole thing is one draft in local state and Save
+ * sends the whole graph — which is what a grid of checkboxes naturally holds,
+ * and what makes the operation idempotent.
+ *
+ * The diff against the stored set is also the dirty check, so the button and
+ * the payload cannot disagree; the same reasoning as the settings form, which
+ * says why at length in apps/web/CLAUDE.md.
+ *
+ * `assigned` is not on either axis. It is entered by assigning and left by
+ * checking in, so a cell for it would be a move the API refuses.
+ */
+function MatrixCard({ statuses, transitions }: MatrixCardProps) {
+  const stored = draftFromTransitions(transitions);
+  const [draft, setDraft] = useState<Set<string>>(stored);
+
+  const toast = useToast();
+  const save = useSaveTransitions();
+  const dirty = draftChanged(stored, draft);
+  const movable = statuses.filter((status) => status.id !== ASSIGNED_STATUS);
+
+  const toggle = (from: string, to: string) =>
+    setDraft((current) => {
+      const next = new Set(current);
+      const key = draftKey(from, to);
+      if (!next.delete(key)) next.add(key);
+      return next;
+    });
+
+  const columns: TableColumn<WorkflowStatus>[] = [
+    {
+      header: 'From ↓ · To →',
+      width: 'minmax(120px, 1fr)',
+      render: (from) => (
+        <Pill sv={from.color} dot>
+          {from.label}
+        </Pill>
+      ),
+    },
+    ...movable.map((to): TableColumn<WorkflowStatus> => ({
+      header: <span className={styles.cell}>{to.label}</span>,
+      width: 'minmax(72px, 1fr)',
+      render: (from) => (
+        <span className={styles.cell}>
+          <Checkbox
+            // The box is the whole control; its name is the move it stands for.
+            label={null}
+            aria-label={`${from.label} → ${to.label}`}
+            checked={draft.has(draftKey(from.id, to.id))}
+            disabled={from.id === to.id || save.isPending}
+            onChange={() => toggle(from.id, to.id)}
+          />
+        </span>
+      ),
+    })),
+  ];
+
+  return (
+    <section className={styles.card}>
+      <div className={styles.cardHead}>
+        <div>
+          <h2 className={styles.cardTitle}>Transitions</h2>
+          <p className={styles.cardHint}>
+            Which direct moves the Change-status modal offers. Assigning and checking in are not
+            transitions — they open and close an ownership record.
+          </p>
+        </div>
+        <div className={styles.actions}>
+          <span className={styles.actionsNote}>
+            {dirty ? 'Unsaved changes' : 'Everything here is saved'}
+          </span>
+          <Button
+            variant="ghost"
+            disabled={!dirty || save.isPending}
+            onClick={() => setDraft(stored)}
+          >
+            Discard
+          </Button>
+          <Button
+            disabled={!dirty || save.isPending}
+            onClick={() =>
+              save.mutate(transitionsFromDraft(draft), {
+                onSuccess: () => toast.show('Workflow saved.', 'ok'),
+                onError: (error) => toast.show(error.message, 'err'),
+              })
+            }
+          >
+            {save.isPending ? 'Saving…' : 'Save workflow'}
+          </Button>
+        </div>
+      </div>
+
+      <div className={styles.matrix}>
+        <DataTable
+          columns={columns}
+          rows={movable}
+          rowKey={(status) => status.id}
+          label="Transitions"
+        />
+      </div>
     </section>
   );
 }
