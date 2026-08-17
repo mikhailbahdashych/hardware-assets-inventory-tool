@@ -55,6 +55,10 @@ Remove it when a value should have been there. `meta.data?.orgName ?? 'Inventory
 
 Run `npm run dev` and open `http://localhost:5173/kitchen-sink` (dev-only route, excluded from production builds). Compare against the prototype in `docs/design-handoff/` side-by-side, in **both themes and both densities**, before calling UI work done.
 
+## When email does not exist
+
+`/meta` reports `smtpConfigured`, and `components/app/NotifyCheckbox.tsx` is the one control that reads it: disabled, with the reason where the switch is, rather than hidden. Somebody wondering why nobody got an email should find the answer where they went looking for the switch. The Settings page's four notification toggles do the same thing inline.
+
 ## The import wizard
 
 `features/import/` is five steps over one modal. The file is read in the browser (`parseCsv.ts`, papaparse) and the **mapping step turns it into canonical rows**, so the API never sees CSV and never has to know what a particular spreadsheet called its columns. The auto-matcher and the column list live in `@inventory/shared` — the same ones the template endpoint serves.

@@ -2,7 +2,7 @@
 
 **Read this first when picking the project up.** It records where the build stands, what every earlier decision was, and exactly what the next piece of work is. Update it at the end of each PR.
 
-_Last updated: 2026-08-17, after PR 7 (dashboard, palette, import, export)._
+_Last updated: 2026-08-17, after PR 8 — the last planned PR. The product is complete._
 
 ---
 
@@ -13,7 +13,7 @@ _Last updated: 2026-08-17, after PR 7 (dashboard, palette, import, export)._
 Two first-class goals, equally binding:
 
 1. **Faithful to the design handoff.** `docs/design-handoff/` holds the interactive HTML prototype that is the visual source of truth. Its inline `style="…"` attributes are the spec. Recreate, don't reinterpret.
-2. **Customizable by asking Claude Code.** CLAUDE.md files across the repo explain the patterns so an adopting team changes the product through Claude Code instead of reading source. `docs/recipes/` (arrives in PR 8) will hold end-to-end checklists.
+2. **Customizable by asking Claude Code.** CLAUDE.md files across the repo explain the patterns so an adopting team changes the product through Claude Code instead of reading source. [`docs/recipes/`](recipes/) holds end-to-end checklists for the changes teams actually make.
 
 ## 2. Locked decisions — do not revisit without the owner
 
@@ -43,7 +43,7 @@ The full approved plan lives at `~/.claude/plans/hello-there-i-want-valiant-sunb
 
 Everything up to PR 5 is merged, so PR 6 branches from `main` rather than stacking. To start PR 7: `git checkout feat/06-members-admin && git checkout -b feat/07-dashboard-palette-import` (it stacks on 6 until 6 merges).
 
-The app is now a complete product for a small team: set up an instance, add people, register devices, hand them out, take them back, read the full ownership history, invite colleagues at three permission levels, and audit or configure the workspace. What is left is convenience and delivery — the dashboard, command palette and CSV import (PR 7), and email, cron, Docker and the release (PR 8).
+The app is a complete product: set up an instance, add people, register devices, hand them out, take them back, read the full ownership history, invite colleagues at three permission levels, audit and configure the workspace, import a spreadsheet, and run the whole thing from one container with or without email.
 
 ## 4. What exists today
 
@@ -82,9 +82,15 @@ Domain enums as slugs with exact design labels and semantic color maps (`ok|acc|
 
 Runs the real production artifact: built API serving the built SPA, fresh data directory per run, `NODE_ENV=production` so the origin guard is genuinely exercised. Serial (`workers: 1`) because one instance means one workspace — the first test does setup, later tests sign in with that account.
 
+### Delivery
+
+- **Docker**: multi-stage `node:22-bookworm-slim`, one process serving the API and the built SPA, SQLite on `/data`. `--ignore-scripts` on both installs, because better-sqlite3 and @node-rs/argon2 ship their binaries and npm's automatic `node-gyp rebuild` would need Python in the image to redo them. SIGTERM closes the server and the SQLite handle.
+- **Release**: `git tag vX.Y.Z && git push --tags` → `.github/workflows/release.yml` builds amd64 + arm64 and publishes to ghcr.
+- **Docs**: `README.md` (quick start, env table, security, deployment), `docs/backup-restore.md`, and `docs/recipes/` — six checklists written to be handed to Claude Code.
+
 ### Verification status
 
-491 unit/integration tests (179 api + 214 web + 98 shared), 37 e2e tests, lint, format and typecheck clean. CI (`.github/workflows/ci.yml`) runs lint → format check → typecheck → unit tests → build → e2e.
+549 unit/integration tests (235 api + 216 web + 98 shared), 37 e2e tests, lint, format and typecheck clean. CI runs lint → format check → typecheck → unit tests → build → e2e, plus a second job that **builds the image, starts it, sets a workspace up, restarts the container and reads it back** — a Dockerfile that only compiles is a Dockerfile nobody has tried.
 
 ## 5. How to work in this repo
 
@@ -113,20 +119,23 @@ Rules that keep the codebase coherent:
 
 ## 6. What comes next
 
-### PR 8 — Email, cron, Docker, release, docs _(next up)_
+Nothing is scheduled. The eight-PR plan is delivered; §7 lists what was deliberately left out and the follow-ups worth picking up.
 
-Mailer and seven templates, cron jobs with `notification_log` idempotency, multi-stage Dockerfile + compose + healthcheck, ghcr release workflow, README with screenshots and the env table, `docs/backup-restore.md`, and the `docs/recipes/` set (add-asset-field, add-asset-status, add-page, add-dashboard-widget, add-email, rebrand).
+## 7. Known gaps, deliberate omissions, and follow-ups
 
-## 7. Known gaps and deliberate deferrals
-
-- **`POST /auth/forgot-password` is intentionally inert**: it always answers 204 and does not yet issue a token or send mail. Email infrastructure lands in PR 8. The recovery path that exists today is an admin issuing a reset link from the Members page — a reset link is never handed to an anonymous requester.
-- `pruneExpiredSessions` and `revokeMemberSessions` exist and are tested, but nothing schedules the pruning yet — the cron job arrives in PR 8.
+- **`POST /auth/forgot-password` is permanently inert**: it always answers 204 and issues nothing. This is not a gap — handing a reset link to whoever asked for it is the thing to avoid. The recovery path is an admin issuing one from the Members page, which now emails it as well as showing it.
 - **The Settings page has no Save button**, because the design draws none: selects and switches save on change, text fields on blur and only when the value actually changed. If a Save button is ever wanted, that is a design change, not a bug fix.
 - **The prototype's SSO line in the demo log** ("Signed in via SSO") has no counterpart: there is no SSO in v1, so no event says there is.
 - The origin guard is disabled in development on purpose (the Vite dev proxy forwards the browser's :5173 origin). E2E runs in production mode so the guard is still covered.
-- **Email is still absent**, so the invite modal's "Send invitation email now" checkbox is recorded but acted on by nobody, and the Pending-returns widget's footnote says reminders arrive in PR 8. The copyable link is what actually delivers an invitation today.
 - `noUncheckedIndexedAccess` is off in `tsconfig.base.json`, so some index reads are typed `string` while being `undefined` at runtime. Turning it on would let the compiler tell a real index guard from a dead one; it will surface work, so it deserves its own change.
-- Post-v1 and explicitly out of scope for now: OIDC SSO, Postgres, API tokens, pagination beyond ~10k assets, a category-management UI.
+- Post-v1 and explicitly out of scope: OIDC SSO, Postgres, API tokens, pagination beyond ~10k assets, a category-management UI. The README says so too, so nobody goes looking.
+
+### Worth picking up next
+
+1. **`noUncheckedIndexedAccess`** (above) — the largest single improvement to the type safety of what exists.
+2. **A demo seed.** `npm run seed:demo` was in the plan and never built; a prototype-like dataset would make the kitchen-sink and screenshot passes repeatable.
+3. **Screenshots in the README.** It describes the product without showing it.
+4. **A retention prune for `notification_log`.** Nothing removes those rows, and they accumulate one per sent message forever. Harmless at this scale, untidy at any other.
 
 ## 8. Deviations from the prototype, and why
 

@@ -42,8 +42,12 @@ npm run format       # Prettier
 - **TDD**: write the failing test first, watch it fail, then implement. Config files are exempt; behavior is not.
 - Work happens in sequential PRs; the repo owner merges every PR. Never merge.
 
+- **Email is optional, and that is a feature.** No `SMTP_HOST` means `deps.mailer` is null, and every path that would send has a link-based one that works instead. Delivery never fails the request that triggered it.
+- **Ship = tag.** `git tag vX.Y.Z && git push --tags` builds and publishes the image; upgrading an instance is pulling it and restarting, because migrations run at boot and are idempotent.
+
 ## Where things are decided
 
 - Product/visual spec: `docs/design-handoff/README.md` (+ the prototype HTML next to it).
 - Design tokens: `apps/web/src/styles/tokens.css` — mirrors the handoff exactly; don't invent values.
 - Permissions: `packages/shared/src/rbac.ts` (`can(role, action)`) — used by API guards and UI affordances alike.
+- How to make a common change: `docs/recipes/` — a checklist per change, each naming every file and the step people forget.

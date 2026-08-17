@@ -42,6 +42,15 @@ REST API under `/api/v1`, one process, one SQLite file. In production it also se
 - Employees are matched by email and updated in place, keeping the id that assignments and member links hang off, and never touching `status` — an import is not a way to bring somebody back from offboarding.
 - `GET /export` is a **reporting format, not a backup**, and the code says so: no password hashes, no sessions or tokens, no attachment bytes. Restoring means replacing the `/data` directory.
 
+## Email, and running without it
+
+- **`config.smtp` is null without a host, and `deps.mailer` is null with it.** Null rather than a no-op object on purpose: the compiler then makes every send site say what it does without email, and every one has an answer — invitations and resets put the link in the response.
+- **Delivery never fails a request.** `deliver` in `src/services/transactional.ts` catches and logs; the operation that triggered the message still succeeded, because it did. The copyable link is the contract, the message is the convenience.
+- **Mail is sent after a transaction, never inside one.** A message cannot be rolled back.
+- `src/services/jobs.ts` holds the four scheduled jobs as plain functions of `(deps, now)`; `scheduler.ts` decides only the clock. That is what makes every rule testable with a fixed date, and why a missed run is skipped rather than queued.
+- **`notification_log` is what stops a repeat, and the row is written _after_ a successful send.** At-least-once on purpose: a crash between the two sends a duplicate next run, where writing first would lose the message forever. Choose the dedupe key carefully — it is the whole design (`warranty:{assetId}:{date}` re-arms when the date is corrected; `return:{employeeId}:{day}` repeats daily while an item is out).
+- Templates in `src/services/mail-templates.ts` are pure and plain-text first. The table-driven test fails on any unfilled slot and on a message that does not name the workspace.
+
 ## The one invariant
 
 `assets.status = 'assigned'` ⇔ an open ownership row exists, and never two. Only `openAssignment` and `closeAssignment` (`src/services/assignments.ts`) may change that pairing — they each write both tables together, inside the caller's transaction. The partial unique index on `(asset_id) WHERE returned_at IS NULL` is the structural backstop.
