@@ -4,14 +4,14 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "APP_URL=http://localhost:5173 tsx watch src/index.ts",
+    "dev": "DATA_DIR=${DATA_DIR:-../../data} APP_URL=${APP_URL:-http://localhost:5173} HOST=${HOST:-127.0.0.1} tsx watch src/index.ts",
     "build": "tsup && node -e \"fs.cpSync('src/migrations','dist/migrations',{recursive:true})\"",
     "start": "node dist/index.js",
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc",
     "db:generate": "drizzle-kit generate",
-    "seed:demo": "tsx src/db/seed-demo-cli.ts",
+    "seed:demo": "DATA_DIR=${DATA_DIR:-../../data} tsx src/db/seed-demo-cli.ts",
     "seed:demo:dist": "node dist/db/seed-demo-cli.js"
   },
   "dependencies": {
@@ -33,6 +33,7 @@
     "@types/better-sqlite3": "^9.6.0",
     "@types/nodemailer": "^8.0.1",
     "drizzle-kit": "^0.31.10",
+    "pino-pretty": "^13.1.2",
     "tsup": "^8.5.1",
     "tsx": "^4.23.12",
     "vitest": "^4.1.10"

@@ -1,5 +1,5 @@
 import { mkdirSync } from 'node:fs';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { loadConfig } from '@/config.js';
 import { createDb } from '@/db/client.js';
@@ -44,7 +44,9 @@ async function main(): Promise<void> {
 
     const width = Math.max(...result.signIn.map((account) => account.email.length));
     process.stdout.write(
-      `\n  ${result.orgName} is ready in ${config.dataDir}\n\n` +
+      // Absolute, because `./data` is relative to whichever workspace npm
+      // ran this in — which is not where somebody at the repo root looks.
+      `\n  ${result.orgName} is ready in ${resolve(config.dataDir)}\n\n` +
         `  ${result.counts.assets} assets · ${result.counts.employees} employees · ` +
         `${result.counts.assignments} ownership records · ${result.counts.auditEvents} logged events\n\n` +
         result.signIn

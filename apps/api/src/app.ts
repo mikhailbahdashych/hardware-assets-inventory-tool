@@ -1,9 +1,10 @@
 import fastifyCookie from '@fastify/cookie';
 import fastifyMultipart from '@fastify/multipart';
 import fastifyRateLimit from '@fastify/rate-limit';
-import Fastify, { type FastifyInstance } from 'fastify';
+import Fastify, { type FastifyInstance, type FastifyServerOptions } from 'fastify';
 import { serializerCompiler, validatorCompiler } from 'fastify-type-provider-zod';
 import type { AppDeps, BuildAppOptions } from './types/app.js';
+import type { Config } from './types/config.js';
 import { registerErrorHandler } from './plugins/error-handler.js';
 import { registerOriginGuard } from './plugins/origin-guard.js';
 import { registerSessionAuth } from './plugins/session.js';
@@ -22,6 +23,25 @@ import { registerMeRoutes } from './modules/me.js';
 import { registerMetaRoutes } from './modules/meta.js';
 import { registerSetupRoutes } from './modules/setup.js';
 
+/**
+ * JSON in production, because that is what log shippers read. A readable line
+ * in development, because the first thing a new contributor sees should not be
+ * a wall of it — `pino-pretty` is resolved by pino at runtime and is a
+ * devDependency, which is exactly the set present when NODE_ENV says
+ * development. Tests pass `LOG_LEVEL=silent` and get no logger at all.
+ */
+function loggerOptions(config: Config): FastifyServerOptions['logger'] {
+  if (config.logLevel === 'silent') return false;
+  if (config.nodeEnv !== 'development') return { level: config.logLevel };
+  return {
+    level: config.logLevel,
+    transport: {
+      target: 'pino-pretty',
+      options: { translateTime: 'HH:MM:ss', ignore: 'pid,hostname', singleLine: true },
+    },
+  };
+}
+
 export async function buildApp(opts: BuildAppOptions): Promise<FastifyInstance> {
   const deps: AppDeps = {
     config: opts.config,
@@ -35,9 +55,7 @@ export async function buildApp(opts: BuildAppOptions): Promise<FastifyInstance> 
     mailer: opts.mailer !== undefined ? opts.mailer : createMailer(opts.config),
   };
 
-  const app = Fastify({
-    logger: opts.config.logLevel === 'silent' ? false : { level: opts.config.logLevel },
-  });
+  const app = Fastify({ logger: loggerOptions(opts.config) });
 
   app.setValidatorCompiler(validatorCompiler);
   app.setSerializerCompiler(serializerCompiler);
