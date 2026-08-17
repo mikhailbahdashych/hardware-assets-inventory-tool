@@ -3,6 +3,7 @@ import { can } from '@inventory/shared';
 import { orgMeta, useMe, useMeta } from './api/queries';
 import { AppShell } from './components/app/AppShell';
 import { Spinner } from './components/ui';
+import { AdminPage } from './features/admin/AdminPage';
 import { AssetDetailPage } from './features/assets/AssetDetailPage';
 import { AssetsPage } from './features/assets/AssetsPage';
 import { AcceptInvitePage } from './features/auth/AcceptInvitePage';
@@ -12,6 +13,7 @@ import { ResetPasswordPage } from './features/auth/ResetPasswordPage';
 import { SetupPage } from './features/auth/SetupPage';
 import { EmployeeDetailPage } from './features/employees/EmployeeDetailPage';
 import { EmployeesPage } from './features/employees/EmployeesPage';
+import { MembersPage } from './features/members/MembersPage';
 import { SectionPlaceholder } from './features/placeholder/SectionPlaceholder';
 
 function Splash() {
@@ -88,28 +90,13 @@ export function AppRoutes() {
         <Route path="/assets/:id" element={<AssetDetailPage role={member.role} />} />
         <Route path="/employees" element={<EmployeesPage role={member.role} />} />
         <Route path="/employees/:id" element={<EmployeeDetailPage role={member.role} />} />
-        <Route
-          path="/members"
-          element={
-            <SectionPlaceholder
-              title="Members"
-              maxWidth={960}
-              summary="Member roles and invitations arrive with the members PR."
-            />
-          }
-        />
+        <Route path="/members" element={<MembersPage role={member.role} memberId={member.id} />} />
+        {/* The activity log and settings are two URLs, not two pieces of
+            component state, so a filtered log stays shareable. */}
         <Route
           path="/admin/*"
           element={
-            can(member.role, 'audit.view') ? (
-              <SectionPlaceholder
-                title="Admin"
-                maxWidth={1060}
-                summary="The activity log and workspace settings arrive with the admin PR."
-              />
-            ) : (
-              <Navigate to="/dashboard" replace />
-            )
+            can(member.role, 'audit.view') ? <AdminPage /> : <Navigate to="/dashboard" replace />
           }
         />
         <Route path="*" element={<Navigate to="/dashboard" replace />} />

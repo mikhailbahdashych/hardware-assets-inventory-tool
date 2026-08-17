@@ -2,11 +2,15 @@ import type {
   AssetCategory,
   AssetStatus,
   AssignmentOutcome,
+  AuditType,
   CheckinCondition,
   Currency,
   CustomFieldType,
   EmployeeStatus,
+  LogRetention,
+  MemberStatus,
   Role,
+  WarrantyLeadDays,
 } from '@inventory/shared';
 import type { Density, Theme } from './theme';
 
@@ -156,6 +160,55 @@ export interface EmployeeDetail {
   employee: Employee;
   holdings: Holding[];
   history: Holding[];
+}
+
+/**
+ * A member as the Members page reads them — never the theme, density and
+ * widget layout `Member` carries, which belong to the signed-in person alone.
+ */
+export interface MemberSummary {
+  id: string;
+  email: string;
+  displayName: string;
+  role: Role;
+  status: MemberStatus;
+  employeeId: string | null;
+  /** The employee record for the same person, named so the list need not join. */
+  linkedEmployee: { id: string; displayName: string } | null;
+  lastActiveAt: string | null;
+  createdAt: string;
+}
+
+export interface OrgSettings {
+  id: number;
+  orgName: string;
+  defaultCurrency: Currency;
+  assetTagPrefix: string;
+  warrantyLeadDays: WarrantyLeadDays;
+  /** null is "Forever" — a choice, not an absence. */
+  logRetentionMonths: LogRetention;
+  emailWarrantyAlerts: boolean;
+  emailReturnReminders: boolean;
+  emailInvites: boolean;
+  emailWeeklyDigest: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** One activity-log row. `AuditEntry` is the same event on an asset's own trail. */
+export interface AuditLogItem extends AuditEntry {
+  type: AuditType;
+  assetId: string | null;
+  employeeId: string | null;
+  memberId: string | null;
+}
+
+export interface AuditPage {
+  items: AuditLogItem[];
+  /** How many events sit behind each filter pill, over the whole log. */
+  typeCounts: Record<AuditType | 'all', number>;
+  /** Events matching the current filter — what "Load more" counts against. */
+  total: number;
 }
 
 export interface Employee {

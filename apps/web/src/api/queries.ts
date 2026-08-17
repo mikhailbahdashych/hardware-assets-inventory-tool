@@ -1,15 +1,19 @@
 import { useQuery } from '@tanstack/react-query';
+import type { AuditType } from '@inventory/shared';
 import { ApiError, apiFetch } from './client';
 import type {
   Asset,
   AssetDetail,
+  AuditPage,
   CustomFieldDef,
   Employee,
   EmployeeDetail,
   InviteDetails,
   Member,
+  MemberSummary,
   Meta,
   OrgMeta,
+  OrgSettings,
 } from '@/types/api';
 
 /**
@@ -26,7 +30,16 @@ export const queryKeys = {
   employees: ['employees'] as const,
   employee: (id: string) => ['employee', id] as const,
   customFields: ['custom-fields'] as const,
+  members: ['members'] as const,
+  settings: ['settings'] as const,
+  audit: (filter: AuditFilter) => ['audit', filter] as const,
 };
+
+/** What the activity log is currently showing — both halves live in the URL. */
+export interface AuditFilter {
+  type?: AuditType;
+  limit: number;
+}
 
 export function useMeta() {
   return useQuery({
@@ -134,4 +147,41 @@ export function useCustomFields() {
       (await apiFetch<{ customFields: CustomFieldDef[] }>('/custom-fields')).customFields,
     staleTime: 5 * 60 * 1000,
   });
+}
+
+/** Everyone can read the member list; only admins can change anything on it. */
+export function useMembers() {
+  return useQuery({
+    queryKey: queryKeys.members,
+    queryFn: async () => (await apiFetch<{ members: MemberSummary[] }>('/members')).members,
+  });
+}
+
+/** Admin-only, like every screen that reads it. */
+export function useSettings() {
+  return useQuery({
+    queryKey: queryKeys.settings,
+    queryFn: async () => (await apiFetch<{ settings: OrgSettings }>('/settings')).settings,
+  });
+}
+
+/**
+ * One page of the activity log. "Load more" raises the limit and refetches
+ * from the top rather than appending pages: the log grows at the head, so an
+ * appended page would duplicate whatever arrived while you were reading.
+ */
+export function useAuditLog(filter: AuditFilter) {
+  return useQuery({
+    queryKey: queryKeys.audit(filter),
+    queryFn: () => apiFetch<AuditPage>(`/audit?${auditParams(filter)}`),
+    // Keeps the previous page on screen while a wider one loads, so the table
+    // does not blank out every time the filter changes.
+    placeholderData: (previous) => previous,
+  });
+}
+
+export function auditParams(filter: AuditFilter): string {
+  const params = new URLSearchParams({ limit: String(filter.limit) });
+  if (filter.type) params.set('type', filter.type);
+  return params.toString();
 }

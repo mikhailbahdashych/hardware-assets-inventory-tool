@@ -8,6 +8,7 @@ import { Button } from './Button';
 import { Checkbox } from './Checkbox';
 import { DataTable } from './DataTable';
 import { FilterPills } from './FilterPills';
+import { Menu } from './Menu';
 import { Modal } from './Modal';
 import { Pill } from './Pill';
 import { RadioCard } from './RadioCard';
@@ -92,6 +93,46 @@ describe('Modal', () => {
     );
     await userEvent.click(screen.getByRole('button', { name: /close/i }));
     expect(onClose).toHaveBeenCalledOnce();
+  });
+});
+
+describe('Menu', () => {
+  const items = [
+    { label: 'Change role', onSelect: vi.fn() },
+    { label: 'Remove', onSelect: vi.fn(), danger: true },
+  ];
+
+  it('opens on the trigger and closes once something is chosen', async () => {
+    render(<Menu label="Actions for Grace Chen" items={items} />);
+    const trigger = screen.getByRole('button', { name: 'Actions for Grace Chen' });
+    expect(trigger).toHaveAttribute('aria-expanded', 'false');
+    expect(screen.queryByRole('menu')).toBeNull();
+
+    await userEvent.click(trigger);
+    expect(trigger).toHaveAttribute('aria-expanded', 'true');
+
+    await userEvent.click(screen.getByRole('menuitem', { name: 'Change role' }));
+    expect(items[0].onSelect).toHaveBeenCalled();
+    // A menu left open over the row it just changed points at stale data.
+    expect(screen.queryByRole('menu')).toBeNull();
+  });
+
+  it('closes on Escape and on a click elsewhere', async () => {
+    render(<Menu label="Actions" items={items} />);
+
+    await userEvent.click(screen.getByRole('button', { name: 'Actions' }));
+    await userEvent.keyboard('{Escape}');
+    expect(screen.queryByRole('menu')).toBeNull();
+
+    await userEvent.click(screen.getByRole('button', { name: 'Actions' }));
+    await userEvent.click(document.body);
+    expect(screen.queryByRole('menu')).toBeNull();
+  });
+
+  it('marks a destructive item so it does not read like the others', async () => {
+    render(<Menu label="Actions" items={items} />);
+    await userEvent.click(screen.getByRole('button', { name: 'Actions' }));
+    expect(screen.getByRole('menuitem', { name: 'Remove' })).toHaveAttribute('data-danger', 'true');
   });
 });
 

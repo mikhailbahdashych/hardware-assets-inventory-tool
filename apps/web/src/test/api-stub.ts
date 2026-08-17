@@ -1,20 +1,29 @@
 import { vi } from 'vitest';
 
 export type StubResponse = { status?: number; body?: unknown };
-export type StubHandler = StubResponse | ((body: unknown) => StubResponse);
-/** Keyed by "METHOD /path", e.g. "POST /auth/login". */
+export type StubHandler = StubResponse | ((body: unknown, search: string) => StubResponse);
+/**
+ * Keyed by "METHOD /path", e.g. "POST /auth/login". A key may carry a query
+ * string ("GET /audit?type=assets") to answer only that exact request; the
+ * bare path is the fallback, so most routes need no query at all.
+ */
 export type StubRoutes = Record<string, StubHandler>;
 
 /** One recorded request, as the assertions read it back. */
 export interface StubCall {
   method: string;
   path: string;
+  /** The query string including "?", or "" — filters live in the URL. */
+  search: string;
   body: unknown;
 }
 
 export interface ApiStub {
   calls: StubCall[];
+  /** The first call to a path, ignoring its query string. */
   called: (key: string) => StubCall | undefined;
+  /** Every call to a path, in order — for assertions about refetching. */
+  calledAll: (key: string) => StubCall[];
 }
 
 /** Stubs global fetch with a small route table so tests exercise the real API client. */
@@ -23,14 +32,16 @@ export function stubApi(routes: StubRoutes): ApiStub {
 
   vi.stubGlobal(
     'fetch',
-    vi.fn(async (url: string, init: RequestInit = {}) => {
+    vi.fn(async (rawUrl: string, init: RequestInit = {}) => {
       // fetch's own default, mirrored here.
       const method = (init.method ?? 'GET').toUpperCase();
-      const path = url.replace('/api/v1', '');
+      const url = new URL(rawUrl, 'http://localhost');
+      const path = url.pathname.replace('/api/v1', '');
+      const search = url.search;
       const body = typeof init.body === 'string' ? JSON.parse(init.body) : undefined;
-      calls.push({ method, path, body });
+      calls.push({ method, path, search, body });
 
-      const handler = routes[`${method} ${path}`];
+      const handler = routes[`${method} ${path}${search}`] ?? routes[`${method} ${path}`];
       if (!handler) {
         return new Response(
           JSON.stringify({ error: { code: 'not_found', message: 'Not found.' } }),
@@ -42,7 +53,7 @@ export function stubApi(routes: StubRoutes): ApiStub {
       }
 
       const { status = 200, body: responseBody } =
-        typeof handler === 'function' ? handler(body) : handler;
+        typeof handler === 'function' ? handler(body, search) : handler;
       return new Response(responseBody === undefined ? null : JSON.stringify(responseBody), {
         status,
         headers: responseBody === undefined ? {} : { 'content-type': 'application/json' },
@@ -50,12 +61,15 @@ export function stubApi(routes: StubRoutes): ApiStub {
     }),
   );
 
+  const matching = (key: string) => {
+    const [method, path] = key.split(' ');
+    return calls.filter((call) => call.method === method && call.path === path);
+  };
+
   return {
     calls,
-    called: (key) => {
-      const [method, path] = key.split(' ');
-      return calls.find((call) => call.method === method && call.path === path);
-    },
+    called: (key) => matching(key)[0],
+    calledAll: matching,
   };
 }
 
@@ -213,6 +227,98 @@ export const MAYA_DETAIL = {
   ],
 };
 
+/** The signed-in admin as the Members page reads them (no preferences). */
+export const ADMIN_SUMMARY = {
+  id: 'member-1',
+  email: 'tomasz@acme.io',
+  displayName: 'Tomasz Kowalski',
+  role: 'admin',
+  status: 'active',
+  employeeId: null,
+  linkedEmployee: null,
+  lastActiveAt: '2026-08-17T08:00:00.000Z',
+  createdAt: '2026-01-01T00:00:00.000Z',
+};
+
+export const INVITED_SUMMARY = {
+  id: 'member-2',
+  email: 'grace@acme.io',
+  displayName: 'grace',
+  role: 'manager',
+  status: 'invited',
+  employeeId: null,
+  linkedEmployee: null,
+  lastActiveAt: null,
+  createdAt: '2026-02-01T00:00:00.000Z',
+};
+
+export const LINKED_SUMMARY = {
+  id: 'member-3',
+  email: 'maya.lindqvist@acme.io',
+  displayName: 'Maya Lindqvist',
+  role: 'viewer',
+  status: 'active',
+  employeeId: 'emp-1',
+  linkedEmployee: { id: 'emp-1', displayName: 'Maya Lindqvist' },
+  lastActiveAt: '2026-08-10T08:00:00.000Z',
+  createdAt: '2026-03-01T00:00:00.000Z',
+};
+
+export const SETTINGS = {
+  id: 1,
+  orgName: 'Acme Corp',
+  defaultCurrency: 'EUR',
+  assetTagPrefix: 'AST',
+  warrantyLeadDays: 60,
+  logRetentionMonths: 12,
+  emailWarrantyAlerts: true,
+  emailReturnReminders: true,
+  emailInvites: true,
+  emailWeeklyDigest: false,
+  createdAt: '2026-01-01T00:00:00.000Z',
+  updatedAt: '2026-01-01T00:00:00.000Z',
+};
+
+export const AUDIT_PAGE = {
+  items: [
+    {
+      id: 'audit-3',
+      at: '2026-08-16T09:41:00.000Z',
+      type: 'assets',
+      action: 'asset.assigned',
+      actorName: 'Tomasz Kowalski',
+      assetId: 'asset-1',
+      employeeId: 'emp-1',
+      memberId: null,
+      params: { assetName: 'MacBook Pro 14"', holderName: 'Maya Lindqvist' },
+    },
+    {
+      id: 'audit-2',
+      at: '2026-08-16T08:12:00.000Z',
+      type: 'auth',
+      action: 'member.invited',
+      actorName: 'Tomasz Kowalski',
+      assetId: null,
+      employeeId: null,
+      memberId: 'member-2',
+      params: { email: 'grace@acme.io', role: 'manager' },
+    },
+    {
+      id: 'audit-1',
+      at: '2026-08-15T17:03:00.000Z',
+      type: 'people',
+      action: 'employee.offboarding_started',
+      actorName: 'Priya Sharma',
+      assetId: null,
+      employeeId: 'emp-2',
+      memberId: null,
+      params: { employeeName: "Liam O'Connor", scheduledReturns: 2 },
+    },
+  ],
+  typeCounts: { all: 3, assets: 1, people: 1, auth: 1, system: 0 },
+  total: 3,
+};
+
 /** Signed-in admin with an empty-but-reachable inventory. */
 export const INVENTORY_ROUTES: StubRoutes = {
   'GET /meta': { body: READY_META },
@@ -221,4 +327,14 @@ export const INVENTORY_ROUTES: StubRoutes = {
   'GET /employees': { body: { employees: [MAYA] } },
   'GET /custom-fields': { body: { customFields: CUSTOM_FIELDS } },
   'GET /assets/next-tag': { body: { assetTag: 'AST-0144' } },
+};
+
+/** The signed-in admin plus everything the Members and Admin pages read. */
+export const ADMIN_ROUTES: StubRoutes = {
+  'GET /meta': { body: READY_META },
+  'GET /auth/me': { body: { member: ADMIN_MEMBER } },
+  'GET /employees': { body: { employees: [MAYA] } },
+  'GET /members': { body: { members: [ADMIN_SUMMARY, INVITED_SUMMARY, LINKED_SUMMARY] } },
+  'GET /settings': { body: { settings: SETTINGS } },
+  'GET /audit': { body: AUDIT_PAGE },
 };

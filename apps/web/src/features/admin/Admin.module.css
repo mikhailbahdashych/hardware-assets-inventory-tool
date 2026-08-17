@@ -1,0 +1,207 @@
+.title {
+  font-size: 18px;
+  font-weight: 600;
+  margin: 0;
+}
+
+.summary {
+  color: var(--muted);
+  font-size: 12.5px;
+  margin: 2px 0 0;
+}
+
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.loading {
+  display: flex;
+  justify-content: center;
+  padding: 40px 0;
+}
+
+/* Activity log */
+
+.logToolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.export {
+  margin-left: auto;
+  height: 27px;
+  padding: 0 10px;
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 500;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.export:hover {
+  background: var(--hover);
+  text-decoration: none;
+}
+
+.time {
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  color: var(--muted);
+}
+
+.actor {
+  font-size: 12.5px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.event {
+  font-size: 12.5px;
+}
+
+.loadMore {
+  align-self: center;
+  height: 29px;
+  padding: 0 14px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: none;
+  color: var(--muted);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.loadMore:hover {
+  background: var(--hover);
+}
+
+/* Settings */
+
+.settings {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  max-width: 680px;
+}
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: var(--shadow);
+  padding: 16px 18px;
+}
+
+.cardTitle {
+  font-weight: 600;
+  font-size: 13px;
+  margin: 0 0 14px;
+}
+
+/* The switch and data cards sit closer to their first divider. */
+.cardTitleTight {
+  font-weight: 600;
+  font-size: 13px;
+  margin: 0 0 6px;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px 16px;
+}
+
+.mono {
+  font-family: var(--font-mono);
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 0;
+  border-top: 1px solid var(--border);
+}
+
+.rowText {
+  flex: 1;
+}
+
+.rowLabel {
+  font-size: 12.5px;
+  font-weight: 500;
+}
+
+.rowHint {
+  font-size: 11.5px;
+  color: var(--muted);
+}
+
+.rowAction {
+  border: none;
+  background: none;
+  padding: 0;
+  color: var(--accent);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.rowAction:hover {
+  text-decoration: underline;
+}
+
+/* Danger zone */
+
+.danger {
+  background: var(--surface);
+  border: 1px solid var(--err);
+  border-radius: 8px;
+  padding: 16px 18px;
+}
+
+.dangerTitle {
+  font-weight: 600;
+  font-size: 13px;
+  color: var(--err);
+  margin: 0 0 10px;
+}
+
+.danger .row {
+  border-top: none;
+  padding: 0;
+}
+
+.dangerButton {
+  height: 27px;
+  padding: 0 10px;
+  border: 1px solid var(--err);
+  border-radius: 6px;
+  background: none;
+  color: var(--err);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.dangerButton:hover {
+  background: var(--err-bg);
+}
+
+.dangerCopy {
+  margin: 0 0 13px;
+  font-size: 12.5px;
+}

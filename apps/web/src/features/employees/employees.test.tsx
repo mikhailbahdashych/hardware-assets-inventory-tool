@@ -126,6 +126,58 @@ describe('employee list', () => {
 
     expect(await within(dialog).findByText(/already uses that email/i)).toBeInTheDocument();
   });
+
+  it('can invite the new person as a member in the same breath', async () => {
+    const created = { ...MAYA, id: 'emp-9', displayName: 'Sofia Reyes', email: 'sofia@acme.io' };
+    const api = renderApp(
+      {
+        ...ROUTES,
+        'POST /employees': { body: { employee: created } },
+        'POST /members/invites': {
+          body: { member: {}, inviteUrl: 'http://localhost:3000/accept-invite?token=xyz' },
+        },
+      },
+      '/employees',
+    );
+    await screen.findByText('Maya Lindqvist');
+
+    await userEvent.click(screen.getByRole('button', { name: /add employee/i }));
+    const dialog = await screen.findByRole('dialog');
+    await userEvent.type(within(dialog).getByLabelText(/first name/i), 'Sofia');
+    await userEvent.type(within(dialog).getByLabelText(/last name/i), 'Reyes');
+    await userEvent.type(within(dialog).getByLabelText(/work email/i), 'sofia@acme.io');
+    await userEvent.click(within(dialog).getByRole('checkbox', { name: /also invite/i }));
+    await userEvent.selectOptions(within(dialog).getByLabelText(/^role$/i), 'manager');
+    await userEvent.click(within(dialog).getByRole('button', { name: /add employee/i }));
+
+    await waitFor(() => expect(api.called('POST /members/invites')).toBeDefined());
+    // The invite links itself to the record that was just created, which is
+    // the whole point of doing both here rather than on two screens.
+    expect(api.called('POST /members/invites')!.body).toEqual({
+      email: 'sofia@acme.io',
+      role: 'manager',
+      employeeId: 'emp-9',
+      sendEmail: true,
+    });
+    expect(await screen.findByLabelText('Invitation link')).toHaveValue(
+      'http://localhost:3000/accept-invite?token=xyz',
+    );
+  });
+
+  it('hides the invite section from a role that cannot invite', async () => {
+    renderApp(
+      {
+        ...ROUTES,
+        'GET /auth/me': { body: { member: { ...ADMIN_MEMBER, role: 'manager' } } },
+      },
+      '/employees',
+    );
+    await screen.findByText('Maya Lindqvist');
+
+    await userEvent.click(screen.getByRole('button', { name: /add employee/i }));
+    const dialog = await screen.findByRole('dialog');
+    expect(within(dialog).queryByRole('checkbox', { name: /also invite/i })).toBeNull();
+  });
 });
 
 describe('employee detail', () => {

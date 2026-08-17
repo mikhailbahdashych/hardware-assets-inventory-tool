@@ -13,6 +13,7 @@ export { IconButton } from './IconButton';
 export { Input } from './Input';
 export { Kbd } from './Kbd';
 export { KeyValueRow } from './KeyValueRow';
+export { Menu, type MenuItem } from './Menu';
 export { Modal } from './Modal';
 export { PageHeader } from './PageHeader';
 export { Pill } from './Pill';

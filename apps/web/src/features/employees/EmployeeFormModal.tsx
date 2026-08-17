@@ -4,13 +4,23 @@ import {
   DEPARTMENT_SUGGESTIONS,
   EMPLOYEE_STATUS_LABELS,
   EMPLOYEE_STATUSES,
+  ROLE_LABELS,
+  ROLES,
   type EmployeeStatus,
   type Role,
 } from '@inventory/shared';
 import { fieldErrors } from '@/api/formErrors';
-import { useCreateEmployee, useDeleteEmployee, useUpdateEmployee } from '@/api/mutations';
+import {
+  useCreateEmployee,
+  useDeleteEmployee,
+  useInviteMember,
+  useUpdateEmployee,
+} from '@/api/mutations';
 import type { Employee } from '@/types/api';
-import { Button, Field, Input, Modal, Select } from '@/components/ui';
+import { Button, Checkbox, Field, Input, Modal, Select } from '@/components/ui';
+// Inviting is a members concern; this form borrows it rather than growing a
+// second way to show a one-time link.
+import { CopyLinkModal } from '@/features/members/CopyLinkModal';
 import { useToast } from '@/providers/ToastProvider';
 import styles from '@/components/ui/FormModal.module.css';
 
@@ -85,14 +95,20 @@ export function EmployeeFormModal({
       !(DEPARTMENT_SUGGESTIONS as readonly string[]).includes(form.department),
   );
   const [confirmingDelete, setConfirmingDelete] = useState(false);
+  // The design's "Also invite as a member of this app", admin-only because
+  // inviting is. Viewer is the least a new account can be given.
+  const [inviting, setInviting] = useState(false);
+  const [inviteRole, setInviteRole] = useState<Role>('viewer');
+  const [inviteUrl, setInviteUrl] = useState<string | null>(null);
 
   const toast = useToast();
   const create = useCreateEmployee();
   // Create mode never fires this hook; it still needs a string to build a URL.
   const update = useUpdateEmployee(employee?.id ?? '');
   const remove = useDeleteEmployee();
+  const invite = useInviteMember();
 
-  const pending = create.isPending || update.isPending || remove.isPending;
+  const pending = create.isPending || update.isPending || remove.isPending || invite.isPending;
   // Whichever of the three ran is the one that can have failed.
   const errors = fieldErrors(create.error ?? update.error);
   const failure = create.error ?? update.error ?? remove.error;
@@ -133,10 +149,39 @@ export function EmployeeFormModal({
 
     create.mutate(shared, {
       onSuccess: ({ employee: created }) => {
-        toast.show(`${created.displayName} added.`, 'ok');
-        onClose();
+        if (!inviting) {
+          toast.show(`${created.displayName} added.`, 'ok');
+          onClose();
+          return;
+        }
+        // Two requests, deliberately: if the invitation fails the person is
+        // still on file and can be invited from the Members page. Rolling the
+        // record back to keep the pair atomic would throw away typed-in work.
+        invite.mutate(
+          { email: created.email, role: inviteRole, employeeId: created.id, sendEmail: true },
+          {
+            onSuccess: ({ inviteUrl: url }) => setInviteUrl(url),
+            onError: (error) =>
+              toast.show(
+                `${created.displayName} was added, but the invitation failed: ${error.message}`,
+                'err',
+              ),
+          },
+        );
       },
     });
+  }
+
+  if (inviteUrl) {
+    return (
+      <CopyLinkModal
+        title="Invitation ready"
+        subtitle={`${form.email} is on file and can now sign in`}
+        label="Invitation link"
+        url={inviteUrl}
+        onClose={onClose}
+      />
+    );
   }
 
   return (
@@ -311,6 +356,36 @@ export function EmployeeFormModal({
             />
           )}
         </Field>
+
+        {!editing && can(role, 'members.manage') && (
+          <div className={styles.custom}>
+            <Checkbox
+              checked={inviting}
+              onChange={(event) => setInviting(event.target.checked)}
+              label="Also invite as a member of this app"
+            />
+            {inviting && (
+              <Field
+                label="Role"
+                hint="They get an invitation link straight after the record is created"
+              >
+                {(id) => (
+                  <Select
+                    id={id}
+                    value={inviteRole}
+                    onChange={(event) => setInviteRole(event.target.value as Role)}
+                  >
+                    {ROLES.map((option) => (
+                      <option key={option} value={option}>
+                        {ROLE_LABELS[option]}
+                      </option>
+                    ))}
+                  </Select>
+                )}
+              </Field>
+            )}
+          </div>
+        )}
 
         {editing && (
           <div className={styles.custom}>

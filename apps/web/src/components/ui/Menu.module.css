@@ -1,0 +1,63 @@
+.wrapper {
+  position: relative;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.trigger {
+  width: 24px;
+  height: 24px;
+  border: none;
+  border-radius: 5px;
+  background: none;
+  color: var(--faint);
+  cursor: pointer;
+  font: inherit;
+  font-size: 14px;
+  line-height: 1;
+}
+
+.trigger:hover,
+.trigger[aria-expanded='true'] {
+  background: var(--hover);
+}
+
+.menu {
+  position: absolute;
+  top: 26px;
+  right: 0;
+  z-index: 20;
+  min-width: 190px;
+  padding: 4px;
+  display: flex;
+  flex-direction: column;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: var(--mshadow);
+}
+
+.item {
+  padding: 7px 9px;
+  border: none;
+  border-radius: 5px;
+  background: none;
+  color: var(--text);
+  font: inherit;
+  font-size: 12.5px;
+  text-align: left;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.item:hover {
+  background: var(--hover);
+}
+
+.item[data-danger='true'] {
+  color: var(--err);
+}
+
+.item[data-danger='true']:hover {
+  background: var(--err-bg);
+}
