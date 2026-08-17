@@ -3,6 +3,7 @@ import type { AuditType } from '@inventory/shared';
 import { ApiError, apiFetch } from './client';
 import type {
   Asset,
+  Session,
   AssetDetail,
   AuditPage,
   CustomFieldDef,
@@ -10,7 +11,6 @@ import type {
   Employee,
   EmployeeDetail,
   InviteDetails,
-  Member,
   MemberSummary,
   Meta,
   OrgMeta,
@@ -72,14 +72,13 @@ export function orgMeta(meta: Meta | undefined): OrgMeta {
   return { version: meta.version, orgName: meta.orgName, defaultCurrency: meta.defaultCurrency };
 }
 
-/** Resolves to the signed-in member, or null when nobody is signed in. */
+/** Resolves to the signed-in session, or null when nobody is signed in. */
 export function useMe() {
   return useQuery({
     queryKey: queryKeys.me,
     queryFn: async () => {
       try {
-        const { member } = await apiFetch<{ member: Member }>('/auth/me');
-        return member;
+        return await apiFetch<Session>('/auth/me');
       } catch (error) {
         if (error instanceof ApiError && error.status === 401) return null;
         throw error;

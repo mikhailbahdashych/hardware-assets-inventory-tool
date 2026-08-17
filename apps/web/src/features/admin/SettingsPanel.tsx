@@ -173,6 +173,25 @@ function SettingsForm({ settings }: SettingsFormProps) {
       </section>
 
       <section className={styles.card}>
+        <h2 className={styles.cardTitleTight}>Security</h2>
+        <div className={styles.row}>
+          <div className={styles.rowText}>
+            <div className={styles.rowLabel}>Require two-factor authentication</div>
+            <div className={styles.rowHint}>
+              {draft.mfaRequired
+                ? 'Every member sets up an authenticator before they can use the workspace. Turning this off deletes every stored secret and recovery code.'
+                : 'Members sign in with a password alone.'}
+            </div>
+          </div>
+          <ToggleSwitch
+            label="Require two-factor authentication"
+            checked={draft.mfaRequired}
+            onChange={(checked) => set('mfaRequired', checked)}
+          />
+        </div>
+      </section>
+
+      <section className={styles.card}>
         <h2 className={styles.cardTitleData}>Data</h2>
         <div className={styles.row}>
           <div className={styles.rowText}>
@@ -272,6 +291,7 @@ function toDraft(settings: OrgSettings): SettingsDraft {
     emailReturnReminders: settings.emailReturnReminders,
     emailInvites: settings.emailInvites,
     emailWeeklyDigest: settings.emailWeeklyDigest,
+    mfaRequired: settings.mfaRequired,
   };
 }
 

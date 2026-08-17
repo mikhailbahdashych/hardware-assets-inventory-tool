@@ -10,6 +10,9 @@ import { createRawToken, hashToken } from '@/lib/tokens.js';
 const TTL_MS: Record<TokenPurpose, number> = {
   invite: 7 * 24 * 60 * 60 * 1000,
   password_reset: 60 * 60 * 1000,
+  // Long enough to read a code off a phone, short enough that a stolen
+  // challenge is worthless by the time anybody finds it.
+  mfa_challenge: 5 * 60 * 1000,
 };
 
 /**

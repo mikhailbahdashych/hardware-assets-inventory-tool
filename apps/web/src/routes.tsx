@@ -11,6 +11,7 @@ import { AssetsPage } from './features/assets/AssetsPage';
 import { AcceptInvitePage } from './features/auth/AcceptInvitePage';
 import { ForgotPasswordPage } from './features/auth/ForgotPasswordPage';
 import { LoginPage } from './features/auth/LoginPage';
+import { MfaEnrollPage } from './features/auth/MfaEnrollPage';
 import { ResetPasswordPage } from './features/auth/ResetPasswordPage';
 import { SetupPage } from './features/auth/SetupPage';
 import { DashboardPage } from './features/dashboard/DashboardPage';
@@ -88,8 +89,8 @@ export function AppRoutes() {
     );
   }
 
-  const member = me.data;
-  if (!member) {
+  const session = me.data;
+  if (!session) {
     return (
       <Routes>
         <Route path="/login" element={<LoginPage />} />
@@ -97,6 +98,23 @@ export function AppRoutes() {
         <Route path="/reset-password" element={<ResetPasswordPage />} />
         <Route path="/accept-invite" element={<AcceptInvitePage />} />
         <Route path="*" element={<Navigate to="/login" replace />} />
+      </Routes>
+    );
+  }
+
+  const { member } = session;
+
+  /**
+   * A fourth state, between signed out and signed in: the workspace requires a
+   * second factor and this member has not set one up. There is exactly one
+   * screen, and no way past it — the API refuses everything else with
+   * `mfa_enrolment_required`, so a router that let them through would only
+   * produce a page of failed requests.
+   */
+  if (session.mustEnrolMfa) {
+    return (
+      <Routes>
+        <Route path="*" element={<MfaEnrollPage member={member} />} />
       </Routes>
     );
   }

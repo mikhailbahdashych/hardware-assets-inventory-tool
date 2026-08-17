@@ -14,6 +14,8 @@ import {
   updateMember,
 } from '@/services/members.js';
 import { sendInviteMail, sendResetMail } from '@/services/transactional.js';
+import { writeAudit } from '@/services/audit.js';
+import { resetMemberMfa } from '@/services/mfa.js';
 
 const idParam = z.object({ id: z.string().min(1) });
 
@@ -72,6 +74,40 @@ export function registerMemberRoutes(app: FastifyInstance, deps: AppDeps): void 
       const member = memberById(deps.db, request.params.id);
       await sendResetMail(deps, request.log, { to: member.email, url: result.resetUrl });
       return result;
+    },
+  );
+
+  /**
+   * Clear somebody's authenticator. Admins only, and there is deliberately no
+   * self-service equivalent: a member who could reset their own second factor
+   * has a second factor that a stolen password gets past.
+   *
+   * Allowed on your own account, unlike role changes and removal — locking
+   * yourself out is not a way to end up without an admin, and the alternative
+   * is telling the only admin to phone themselves.
+   */
+  typed.post(
+    '/api/v1/members/:id/mfa/reset',
+    { schema: { params: idParam }, preHandler: requireAction('members.manage') },
+    async (request, reply) => {
+      const now = deps.now();
+      const target = memberById(deps.db, request.params.id);
+      deps.db.transaction((tx) => {
+        resetMemberMfa(tx, target.id, now);
+        writeAudit(
+          tx,
+          {
+            type: 'auth',
+            action: 'member.mfa_reset',
+            actorMemberId: request.member!.id,
+            actorName: request.member!.displayName,
+            memberId: target.id,
+            params: { memberName: target.displayName },
+          },
+          now,
+        );
+      });
+      return reply.status(204).send();
     },
   );
 

@@ -7,7 +7,7 @@ import {
   ROLE_COLORS,
   ROLE_LABELS,
 } from '@inventory/shared';
-import { useIssueResetLink, useResendInvite } from '@/api/mutations';
+import { useIssueResetLink, useResetMemberMfa, useResendInvite } from '@/api/mutations';
 import { useMembers } from '@/api/queries';
 import { PageContainer } from '@/components/app/PageContainer';
 import { Avatar, Button, DataTable, EmptyState, Menu, Pill, Spinner } from '@/components/ui';
@@ -30,6 +30,7 @@ export function MembersPage({ role, memberId }: MembersPageProps) {
   const members = useMembers();
   const resend = useResendInvite();
   const reset = useIssueResetLink();
+  const resetMfa = useResetMemberMfa();
   const manages = can(role, 'members.manage');
 
   // A list that has not arrived has no rows; the empty state renders below.
@@ -68,6 +69,25 @@ export function MembersPage({ role, memberId }: MembersPageProps) {
               }),
             onError: (error) => toast.show(error.message, 'err'),
           }),
+      });
+    }
+
+    // Unlike role and removal, this *is* allowed on your own account: locking
+    // yourself out of an authenticator is not a way to leave the workspace
+    // without an admin, and the alternative is telling the only admin to phone
+    // themselves.
+    if (member.mfaEnrolled) {
+      items.push({
+        label: 'Reset two-factor',
+        onSelect: () =>
+          resetMfa.mutate(
+            { id: member.id },
+            {
+              onSuccess: () =>
+                toast.show(`${member.displayName} will set up an authenticator again.`, 'ok'),
+              onError: (error) => toast.show(error.message, 'err'),
+            },
+          ),
       });
     }
 

@@ -3,4 +3,4 @@
  * and which unconsumed token a new one retires, so a reset link never quietly
  * cancels an outstanding invitation.
  */
-export type TokenPurpose = 'invite' | 'password_reset';
+export type TokenPurpose = 'invite' | 'password_reset' | 'mfa_challenge';

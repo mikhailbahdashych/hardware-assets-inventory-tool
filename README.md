@@ -40,6 +40,7 @@ docker compose up -d
 - **⌘K** — search assets and people or run a command, entirely from the keyboard.
 - **CSV import** — a mapping step, a dry run that names the row and column of every problem, then one transaction.
 - **Email, optionally** — warranty alerts, return reminders, invitations, a weekly digest. All of it works without SMTP too; see below.
+- **Two-factor authentication** — TOTP, off by default, switched on for the whole workspace by an admin. Recovery codes included, and a break-glass command for the day somebody loses both.
 
 ## Configuration
 
@@ -67,6 +68,23 @@ This is a first-class way to run it, not a degraded one.
 - **Invitations** come back as a link the admin copies and hands over.
 - **Password resets** are the same: an admin issues a link from the Members page. `/auth/forgot-password` always answers 204 and issues nothing, because a reset link must never be handed to whoever asked for it.
 - **Everything that would email** — the invite checkbox, the assign and check-in notifications, the four notification switches — shows disabled with the reason where the control is.
+
+## Two-factor authentication
+
+Off by default. An admin turns it on for the whole workspace in **Admin → Settings → Security**, and from that moment every member — existing sessions included, on their next request — has to set up an authenticator before they can do anything else.
+
+- **TOTP**, so any authenticator works: 1Password, Bitwarden, Aegis, Google Authenticator. Enrolment shows a QR and the key in text for entering by hand.
+- **Ten recovery codes**, shown once at enrolment and stored only as hashes. Each works once, in place of a code from the app.
+- **Only admins reset it**, from the Members page. There is no self-service reset, because a second factor you can clear with a stolen password is not a second factor.
+- **Turning the requirement off deletes every stored secret and recovery code.** A disabled second factor that quietly kept its secrets would come back on with authenticators nobody remembers adding.
+
+If the last admin loses both their phone and their recovery codes, break glass from the host:
+
+```bash
+docker compose exec inventory node apps/api/dist/db/mfa-reset-cli.js admin@example.com
+```
+
+That needs shell access to the instance, which is already root-equivalent over a SQLite file — it grants nothing that was not already possible, it just makes it survivable.
 
 ## Security
 

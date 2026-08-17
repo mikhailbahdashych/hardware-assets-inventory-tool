@@ -12,7 +12,8 @@
     "typecheck": "tsc",
     "db:generate": "drizzle-kit generate",
     "seed:demo": "DATA_DIR=${DATA_DIR:-../../data} tsx src/db/seed-demo-cli.ts",
-    "seed:demo:dist": "node dist/db/seed-demo-cli.js"
+    "seed:demo:dist": "node dist/db/seed-demo-cli.js",
+    "mfa:reset": "DATA_DIR=${DATA_DIR:-../../data} tsx src/db/mfa-reset-cli.ts"
   },
   "dependencies": {
     "@fastify/cookie": "^11.1.2",

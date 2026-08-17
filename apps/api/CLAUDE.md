@@ -91,6 +91,19 @@ Each of these was a decision. Change one only on purpose.
 - The `assignments` table is the only truth for who holds an asset: at most one active row per asset (partial unique index). Asset `status='assigned'` ⇔ an active assignment exists — maintained only inside single transactions in the assignment service (arrives PR 5).
 - Boot seed (`src/db/seed.ts`) is idempotent and only creates default custom-field defs; org settings come from the `/setup` flow. It runs on every start, so it must stay cheap and repeatable.
 
+## Two-factor authentication
+
+TOTP only, and the shape of it is two facts: `org_settings.mfa_required` is true or false for the whole workspace, and a member either has a confirmed authenticator or does not.
+
+- **`src/lib/totp.ts`** is hand-written over `node:crypto` rather than a package, because it is an HMAC over a counter and **RFC 6238 publishes test vectors** — `totp.test.ts` runs all six, which is what makes it verifiable rather than trusted. Do not swap it for a library without keeping those vectors.
+- **A secret is written at the start of enrolment and confirmed only when a live code proves the authenticator has it.** Until then the member is not enrolled, so an abandoned enrolment leaves nothing to be locked out by.
+- **Login is two steps when a member is enrolled.** The password step creates no session at all — it returns a 5-minute `mfa_challenge` token (an `auth_tokens` row like every other, hashed), and `POST /auth/mfa/verify` is what mints the session. One input takes either an authenticator code or a recovery code; the server decides by what matches, because asking somebody to declare which they are holding is a choice they should not have to make.
+- **Recovery codes are ten, single-use, hashed.** They exist in readable form exactly once, in the response that created them — same rule as invite and reset tokens. `mfa_enrolment_required` is a 409, not a 403, because it describes a state to fix rather than a permission you lack.
+- **`requireSession` vs `requireAuth`.** The first is "signed in"; the second is "signed in and done with setup" and is what almost every route wants. Enrolment and `/auth/me` use the first, because enrolment has to be reachable from inside the state it exits. Putting the check in the guard rather than each route means a new endpoint is covered by default — forgetting produces a locked door, not an open one.
+- **Turning the requirement off wipes every secret and recovery code**, in the same transaction as the setting. A disabled second factor that kept its secrets would come back on with authenticators nobody remembers adding.
+- **Only admins reset it**, and deliberately there is no self-service equivalent: a member who could reset their own second factor has a second factor that a stolen password gets past. Unlike role changes, resetting _your own_ is allowed — locking yourself out is not a way to leave the workspace without an admin.
+- **The break-glass path is `src/db/mfa-reset-cli.ts`** (`node dist/db/mfa-reset-cli.js <email>`), for the last admin losing both phone and codes. It needs shell access, which is already root-equivalent over a SQLite file — it grants nothing a hex editor did not, it just makes it survivable.
+
 ## Two log systems, and which is which
 
 They answer different questions and share nothing. Do not put a domain event in one or an HTTP detail in the other.

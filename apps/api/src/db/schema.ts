@@ -29,6 +29,8 @@ export const orgSettings = sqliteTable('org_settings', {
     .default(true),
   emailInvites: integer('email_invites', { mode: 'boolean' }).notNull().default(true),
   emailWeeklyDigest: integer('email_weekly_digest', { mode: 'boolean' }).notNull().default(false),
+  /** Global: every member must hold a confirmed authenticator to use the app. */
+  mfaRequired: integer('mfa_required', { mode: 'boolean' }).notNull().default(false),
   createdAt: text('created_at').notNull(),
   updatedAt: text('updated_at').notNull(),
 });
@@ -65,6 +67,15 @@ export const members = sqliteTable(
     status: text('status').notNull(),
     employeeId: text('employee_id').references(() => employees.id, { onDelete: 'set null' }),
     lastActiveAt: text('last_active_at'),
+    /**
+     * The base32 TOTP secret. Reversible by necessity — verifying a code
+     * means recomputing it, which a hash cannot do. Whoever can read this
+     * column can mint codes, so it is exactly as sensitive as the database
+     * file, which already holds every session and token hash.
+     */
+    mfaSecret: text('mfa_secret'),
+    /** Set when a first code verified. Null with a secret set = mid-enrolment. */
+    mfaConfirmedAt: text('mfa_confirmed_at'),
     theme: text('theme').notNull().default('light'),
     density: text('density').notNull().default('comfortable'),
     widgetsJson: text('widgets_json').notNull().default('{}'),
@@ -234,6 +245,26 @@ export const auditEvents = sqliteTable(
     index('audit_asset_idx').on(table.assetId, table.at),
     index('audit_type_idx').on(table.type, table.at),
   ],
+);
+
+/**
+ * Single-use recovery codes, hashed exactly like sessions and invite tokens:
+ * the raw code exists once, in the response that created the set. Ten per
+ * member, and `usedAt` is what makes one single-use rather than a password.
+ */
+export const mfaRecoveryCodes = sqliteTable(
+  'mfa_recovery_codes',
+  {
+    id: text('id').primaryKey(),
+    memberId: text('member_id')
+      .notNull()
+      .references(() => members.id, { onDelete: 'cascade' }),
+    /** sha256(raw). A recovery code is a password that works once. */
+    codeHash: text('code_hash').notNull(),
+    usedAt: text('used_at'),
+    createdAt: text('created_at').notNull(),
+  },
+  (table) => [index('mfa_recovery_member_idx').on(table.memberId)],
 );
 
 /** Email idempotency — one row per notification actually sent. */

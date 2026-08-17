@@ -27,6 +27,8 @@ export interface MemberSummary {
   status: MemberStatus;
   employeeId: string | null;
   linkedEmployee: LinkedEmployee | null;
+  /** Whether they hold a confirmed authenticator — the Members page shows it. */
+  mfaEnrolled: boolean;
   lastActiveAt: string | null;
   createdAt: string;
 }
