@@ -20,6 +20,9 @@ import type {
   ResetPasswordInput,
   SettingsPatchInput,
   SetupInput,
+  StatusCreateInput,
+  StatusPatchInput,
+  WorkflowStatus,
   WorkspaceDeleteInput,
 } from '@inventory/shared';
 import { apiFetch, apiUpload } from './client';
@@ -284,6 +287,71 @@ export const useUpdateCustomField = () =>
 export const useDeleteCustomField = () =>
   useCustomFieldMutation((id: string) =>
     apiFetch(`/custom-fields/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+  );
+
+// The workflow: the statuses this workspace has and the moves between them.
+// Every one of these writes changes what a pill says on every screen, so they
+// refresh the workflow itself and the inventory that renders through it — and
+// the admin surfaces too, because each one writes an audit event.
+function useWorkflowMutation<TInput, TResult>(request: (input: TInput) => Promise<TResult>) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: request,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.workflow });
+      invalidateInventory(queryClient);
+      invalidateAdmin(queryClient);
+    },
+  });
+}
+
+const status = (id: string) => `/workflow/statuses/${encodeURIComponent(id)}`;
+
+export const useCreateStatus = () =>
+  useWorkflowMutation((input: StatusCreateInput) =>
+    apiFetch<{ status: WorkflowStatus }>('/workflow/statuses', { method: 'POST', body: input }),
+  );
+
+/**
+ * A patch carries only what changed — the row's toggles send one field, the
+ * form sends its two — and an absent key means "leave it alone" all the way
+ * down to the service.
+ */
+export const useUpdateStatus = () =>
+  useWorkflowMutation((input: { id: string } & StatusPatchInput) =>
+    apiFetch<{ status: WorkflowStatus }>(status(input.id), {
+      method: 'PATCH',
+      body: {
+        label: input.label,
+        color: input.color,
+        assignableFrom: input.assignableFrom,
+        checkinTarget: input.checkinTarget,
+      },
+    }),
+  );
+
+/**
+ * `migrateTo` is where the assets in this status go. Absent is a real answer —
+ * "nothing carries it" — and the API refuses the delete rather than orphaning
+ * rows if that turns out to be wrong.
+ */
+export const useDeleteStatus = () =>
+  useWorkflowMutation((input: { id: string; migrateTo?: string }) =>
+    apiFetch(
+      input.migrateTo === undefined
+        ? status(input.id)
+        : `${status(input.id)}?migrateTo=${encodeURIComponent(input.migrateTo)}`,
+      { method: 'DELETE' },
+    ),
+  );
+
+/** The arrows send the whole order, so the result is always coherent. */
+export const useReorderStatuses = () =>
+  useWorkflowMutation((ids: string[]) =>
+    apiFetch<{ statuses: WorkflowStatus[] }>('/workflow/statuses/order', {
+      method: 'PUT',
+      body: { ids },
+    }),
   );
 
 // Admin writes: members, invitations and workspace settings. They all go

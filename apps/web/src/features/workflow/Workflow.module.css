@@ -1,0 +1,65 @@
+.title {
+  font-size: 18px;
+  font-weight: 600;
+  margin: 0;
+}
+
+.summary {
+  color: var(--muted);
+  font-size: 12.5px;
+  margin: 2px 0 0;
+}
+
+.loading {
+  display: flex;
+  justify-content: center;
+  padding: 40px 0;
+}
+
+/* A card that holds a table: the table draws its own surface, so this one is
+   only the heading above it. */
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.cardHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.cardTitle {
+  font-weight: 600;
+  font-size: 13px;
+  margin: 0;
+}
+
+.cardHint {
+  font-size: 11.5px;
+  color: var(--muted);
+  margin: 2px 0 0;
+}
+
+/* Icon buttons inside a table cell, which clips its own overflow. */
+.rowActions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+/* The form's live pill, so a colour is chosen by looking at it. */
+.preview {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding-top: 2px;
+}
+
+.previewLabel {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--muted);
+}

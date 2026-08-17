@@ -19,7 +19,8 @@ import type { Density, Theme } from './theme';
 
 /** What `apiFetch` accepts beyond the path. */
 export interface ApiRequest {
-  method?: 'GET' | 'POST' | 'PATCH' | 'DELETE';
+  /** PUT is for the two workflow endpoints that replace a whole collection. */
+  method?: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
   body?: unknown;
   signal?: AbortSignal;
 }

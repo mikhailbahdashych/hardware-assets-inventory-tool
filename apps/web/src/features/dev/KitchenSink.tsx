@@ -118,8 +118,11 @@ const ICON_NAMES: IconName[] = [
   'pencil',
   'chevronLeft',
   'chevronDown',
+  'chevronUp',
+  'trash',
   'check',
   'activity',
+  'workflow',
   'logOut',
   'x',
 ];

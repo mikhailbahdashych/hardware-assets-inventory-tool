@@ -9,6 +9,8 @@ export interface DataTableProps<T> {
   /** Titled variant ("Currently holding · 3"), which the design draws without
    *  a column-header row — pass `showHeader={false}` with it. */
   title?: ReactNode;
+  /** Accessible name. Needed when a page draws more than one table. */
+  label?: string;
   showHeader?: boolean;
   footer?: ReactNode;
   /** Rendered instead of rows when the list is empty. */
