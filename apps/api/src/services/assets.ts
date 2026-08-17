@@ -1,10 +1,5 @@
 import { and, desc, eq, isNull, ne } from 'drizzle-orm';
-import {
-  canDirectlyTransition,
-  type AssetCreateInput,
-  type AssetPatchInput,
-  type AssetStatus,
-} from '@inventory/shared';
+import { ASSIGNED_STATUS, type AssetCreateInput, type AssetPatchInput } from '@inventory/shared';
 import type { AppDeps } from '@/types/app.js';
 import type { Db, DbOrTx } from '@/types/db.js';
 import {
@@ -26,6 +21,7 @@ import { writeAudit } from './audit.js';
 import { activeAssignment, assetHistory, openAssignment } from './assignments.js';
 import { listAttachments, storedNamesForAsset } from './attachments.js';
 import { computeNextTag } from './tag.js';
+import { requireStatus, transitionAllowed } from './workflow.js';
 
 export type AssetRow = typeof assets.$inferSelect;
 
@@ -142,8 +138,13 @@ export function createAsset(deps: AppDeps, actor: Actor, input: AssetCreateInput
       throw invalidFields({ assetTag: 'That asset tag is already in use.' });
     }
 
+    // Registering an asset is not a transition — any status the workspace has
+    // is a legal starting point, which is also what keeps the CSV import
+    // insert-only. It just has to be a status that exists.
+    requireStatus(tx, input.status);
+
     let holder: typeof employees.$inferSelect | null = null;
-    if (input.status === 'assigned') {
+    if (input.status === ASSIGNED_STATUS) {
       const found = tx
         .select()
         .from(employees)
@@ -255,18 +256,32 @@ export function updateAsset(deps: AppDeps, actor: Actor, id: string, patch: Asse
       if (clash) throw invalidFields({ assetTag: 'That asset tag is already in use.' });
     }
 
-    // Moving in or out of `assigned` is what assign and check-in are for.
     let statusMove: StatusMove | null = null;
     if (patch.status && patch.status !== current.status) {
-      if (!canDirectlyTransition(current.status as AssetStatus, patch.status)) {
+      const to = requireStatus(tx, patch.status);
+      // The status the asset is leaving. A slug with no row would be a broken
+      // invariant — a deleted status takes its assets somewhere — so the same
+      // 422 says which one, rather than letting the move proceed unchecked.
+      const from = requireStatus(tx, current.status);
+
+      // Moving in or out of `assigned` is what assign and check-in are for.
+      if (from.isSystem || to.isSystem) {
         throw new AppError(
           409,
           'status_locked',
           'Assign or check the asset in to change who holds it.',
         );
       }
-      values.status = patch.status;
-      statusMove = { from: current.status, to: patch.status };
+      if (!transitionAllowed(tx, from.id, to.id)) {
+        throw new AppError(
+          409,
+          'transition_not_allowed',
+          `The workflow does not allow ${from.label} → ${to.label}.`,
+        );
+      }
+
+      values.status = to.id;
+      statusMove = { from: from.id, to: to.id };
     }
 
     changedFields.push(...applyCustomValues(tx, id, patch.customValues));

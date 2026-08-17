@@ -1,6 +1,13 @@
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { afterEach, describe, expect, it } from 'vitest';
-import { assets, assetCustomValues, assignments, auditEvents, orgSettings } from '@/db/schema.js';
+import {
+  assets,
+  assetCustomValues,
+  assetStatusTransitions,
+  assignments,
+  auditEvents,
+  orgSettings,
+} from '@/db/schema.js';
 import { buildTestApp, inject, memberCookie, setupOrg, type TestApp } from './helpers.js';
 
 let ctx: TestApp;
@@ -305,6 +312,54 @@ describe('editing an asset', () => {
       body: { status: 'available' },
     });
     expect(outOfAssigned.statusCode).toBe(409);
+  });
+
+  it('lets the workflow graph, not the code, decide a direct move', async () => {
+    ctx = await buildTestApp();
+    const admin = await setupOrg(ctx.app);
+    const id = (await createAsset(admin)).json().asset.id;
+    const move = (status: string) =>
+      inject(ctx.app, { method: 'PATCH', url: `/api/v1/assets/${id}`, cookie: admin, body: { status } }); // prettier-ignore
+
+    // The seeded mesh connects everything, so this is the behaviour that shipped.
+    expect((await move('retired')).statusCode).toBe(200);
+    expect((await move('available')).statusCode).toBe(200);
+
+    ctx.db
+      .delete(assetStatusTransitions)
+      .where(
+        and(
+          eq(assetStatusTransitions.fromStatus, 'available'),
+          eq(assetStatusTransitions.toStatus, 'retired'),
+        ),
+      )
+      .run();
+
+    const refused = await move('retired');
+    expect(refused.statusCode).toBe(409);
+    expect(refused.json().error.code).toBe('transition_not_allowed');
+    expect(refused.json().error.message).toBe('The workflow does not allow Available → Retired.');
+    // The move that is still on the graph is still allowed.
+    expect((await move('in_repair')).statusCode).toBe(200);
+  });
+
+  it('refuses a status this workspace has never heard of', async () => {
+    ctx = await buildTestApp();
+    const admin = await setupOrg(ctx.app);
+    const id = (await createAsset(admin)).json().asset.id;
+
+    const created = await createAsset(admin, { name: 'Ghost', status: 'teleported' });
+    expect(created.statusCode).toBe(422);
+    expect(created.json().error.fields).toMatchObject({ status: expect.any(String) });
+
+    const patched = await inject(ctx.app, {
+      method: 'PATCH',
+      url: `/api/v1/assets/${id}`,
+      cookie: admin,
+      body: { status: 'teleported' },
+    });
+    expect(patched.statusCode).toBe(422);
+    expect(patched.json().error.fields).toMatchObject({ status: expect.any(String) });
   });
 
   it('replaces custom values and clears the ones set to null', async () => {

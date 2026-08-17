@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { ASSET_CATEGORIES, ASSET_STATUSES, CURRENCIES } from '../enums.js';
+import { ASSET_CATEGORIES, ASSIGNED_STATUS, CURRENCIES } from '../enums.js';
 import { MAX_PRICE_CENTS } from '../money.js';
 import { nullableDate, nullableText } from './common.js';
 
@@ -26,7 +26,10 @@ export const assetCreateInput = z
   .object({
     name,
     category: z.enum(ASSET_CATEGORIES),
-    status: z.enum(ASSET_STATUSES),
+    // Statuses are rows, not an enum: no build knows the vocabulary, so the
+    // shape is "a slug" and the workflow service is what says whether it names
+    // anything. Categories stayed an enum — nothing in the product edits those.
+    status: z.string().min(1),
     assetTag: optionalTag,
     model: nullableText(120).default(null),
     serialNumber: nullableText(120).default(null),
@@ -42,7 +45,7 @@ export const assetCreateInput = z
     assignedToEmployeeId: z.string().min(1).nullable().default(null),
     checkoutDate: nullableDate.default(null),
   })
-  .refine((input) => input.status !== 'assigned' || Boolean(input.assignedToEmployeeId), {
+  .refine((input) => input.status !== ASSIGNED_STATUS || Boolean(input.assignedToEmployeeId), {
     message: 'Choose who this asset is assigned to.',
     path: ['assignedToEmployeeId'],
   });
@@ -51,12 +54,13 @@ export type AssetCreateInput = z.infer<typeof assetCreateInput>;
 /**
  * Editing an asset never moves it in or out of `assigned` — that is what
  * assign and check-in are for — so there are no holder fields here. Other
- * status moves are allowed and checked against `canDirectlyTransition`.
+ * status moves are allowed if the workspace's transition graph has the edge,
+ * which only the API can know.
  */
 export const assetPatchInput = z.object({
   name: name.optional(),
   category: z.enum(ASSET_CATEGORIES).optional(),
-  status: z.enum(ASSET_STATUSES).optional(),
+  status: z.string().min(1).optional(),
   assetTag: z.string().trim().min(1).max(60).optional(),
   model: nullableText(120).optional(),
   serialNumber: nullableText(120).optional(),
