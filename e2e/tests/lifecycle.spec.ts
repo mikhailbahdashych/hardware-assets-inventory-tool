@@ -21,7 +21,9 @@ test('checks the asset in and writes the return into its history', async ({ page
   await expect(dialog).toContainText('Returning from Maya Lindqvist');
   await dialog.getByLabel('Return date').fill('2026-07-01');
   await choose(page, dialog, 'Condition', 'Good');
-  await dialog.getByRole('button', { name: 'Return to stock' }).click();
+  // The destinations are the workspace's own check-in targets now, so the
+  // button says what the status is called rather than "Return to stock".
+  await dialog.getByRole('button', { name: 'Available' }).click();
   await dialog.getByRole('button', { name: 'Check in asset' }).click();
 
   await expect(dialog).toBeHidden();
