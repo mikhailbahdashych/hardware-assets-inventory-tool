@@ -7,6 +7,7 @@ import type {
   Currency,
   CustomFieldType,
   EmployeeStatus,
+  ImportKind,
   LogRetention,
   MemberStatus,
   Role,
@@ -209,6 +210,65 @@ export interface AuditPage {
   typeCounts: Record<AuditType | 'all', number>;
   /** Events matching the current filter — what "Load more" counts against. */
   total: number;
+}
+
+export interface CategoryCount {
+  category: AssetCategory;
+  count: number;
+}
+
+/** A warranty running out soon; `daysLeft` picks the pill's urgency colour. */
+export interface WarrantyExpiry {
+  assetId: string;
+  name: string;
+  assetTag: string;
+  warrantyUntil: string;
+  daysLeft: number;
+}
+
+export interface PendingReturn {
+  assetId: string;
+  assetName: string;
+  assetTag: string;
+  employeeId: string | null;
+  holderName: string;
+  expectedReturnDate: string;
+}
+
+/** Five widgets, one request — see `useDashboard`. */
+export interface DashboardPayload {
+  assetCount: number;
+  statusCounts: Record<AssetStatus, number>;
+  categoryCounts: CategoryCount[];
+  recentActivity: AuditLogItem[];
+  warrantyExpirations: WarrantyExpiry[];
+  pendingReturns: PendingReturn[];
+}
+
+/** One thing wrong (or worth saying) about one cell of an imported file. */
+export interface ImportIssue {
+  /** 1-based including the header, so it matches what a spreadsheet shows. */
+  row: number;
+  column: string;
+  message: string;
+}
+
+export interface ImportReport {
+  totalRows: number;
+  validCount: number;
+  createCount: number;
+  updateCount: number;
+  errors: ImportIssue[];
+  warnings: ImportIssue[];
+  /** The lists are capped; the counts above are still exact. */
+  errorsTruncated: boolean;
+  warningsTruncated: boolean;
+}
+
+export interface ImportResult {
+  kind: ImportKind;
+  created: number;
+  updated: number;
 }
 
 export interface Employee {

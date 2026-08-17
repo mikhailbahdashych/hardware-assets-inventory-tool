@@ -14,18 +14,19 @@ import { PageContainer } from '@/components/app/PageContainer';
 import { Avatar, Button, DataTable, EmptyState, Menu, Pill, Spinner } from '@/components/ui';
 import type { MenuItem } from '@/components/ui';
 import { formatRelativeTime } from '@/lib/format';
+import { useModals } from '@/providers/ModalProvider';
 import { useToast } from '@/providers/ToastProvider';
 import type { MemberSummary } from '@/types/api';
 import type { TableColumn } from '@/types/table';
 import { ChangeRoleModal } from './ChangeRoleModal';
 import { CopyLinkModal } from './CopyLinkModal';
-import { InviteMemberModal } from './InviteMemberModal';
 import { RemoveMemberModal } from './RemoveMemberModal';
 import styles from './Members.module.css';
 
-/** Which of the page's modals is open, and about whom. */
+/** Which of the page's own modals is open, and about whom. Inviting is not
+ *  here: it carries no subject and the command palette opens it too, so it
+ *  belongs to ModalProvider. */
 type MembersDialog =
-  | { kind: 'invite' }
   | { kind: 'role'; member: MemberSummary }
   | { kind: 'remove'; member: MemberSummary }
   | { kind: 'link'; title: string; subtitle: string; label: string; url: string };
@@ -33,6 +34,7 @@ type MembersDialog =
 export function MembersPage({ role, memberId }: { role: Role; memberId: string }) {
   const [dialog, setDialog] = useState<MembersDialog | null>(null);
   const toast = useToast();
+  const { openModal } = useModals();
   const members = useMembers();
   const resend = useResendInvite();
   const reset = useIssueResetLink();
@@ -158,7 +160,7 @@ export function MembersPage({ role, memberId }: { role: Role; memberId: string }
           </p>
         </div>
         {manages && (
-          <Button icon="plus" onClick={() => setDialog({ kind: 'invite' })}>
+          <Button icon="plus" onClick={() => openModal('inviteMember')}>
             Invite member
           </Button>
         )}
@@ -178,7 +180,6 @@ export function MembersPage({ role, memberId }: { role: Role; memberId: string }
         />
       )}
 
-      {dialog?.kind === 'invite' && <InviteMemberModal onClose={() => setDialog(null)} />}
       {dialog?.kind === 'role' && (
         <ChangeRoleModal member={dialog.member} onClose={() => setDialog(null)} />
       )}

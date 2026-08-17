@@ -11,10 +11,10 @@ import { ForgotPasswordPage } from './features/auth/ForgotPasswordPage';
 import { LoginPage } from './features/auth/LoginPage';
 import { ResetPasswordPage } from './features/auth/ResetPasswordPage';
 import { SetupPage } from './features/auth/SetupPage';
+import { DashboardPage } from './features/dashboard/DashboardPage';
 import { EmployeeDetailPage } from './features/employees/EmployeeDetailPage';
 import { EmployeesPage } from './features/employees/EmployeesPage';
 import { MembersPage } from './features/members/MembersPage';
-import { SectionPlaceholder } from './features/placeholder/SectionPlaceholder';
 
 function Splash() {
   return (
@@ -77,15 +77,7 @@ export function AppRoutes() {
       <Route path="/reset-password" element={<ResetPasswordPage />} />
       <Route path="/accept-invite" element={<AcceptInvitePage />} />
       <Route element={<AppShell member={member} orgName={orgMeta(meta.data).orgName} />}>
-        <Route
-          path="/dashboard"
-          element={
-            <SectionPlaceholder
-              title="Dashboard"
-              summary="Status counts, assets by category, recent activity, warranty expirations and pending returns arrive with the dashboard PR."
-            />
-          }
-        />
+        <Route path="/dashboard" element={<DashboardPage member={member} />} />
         <Route path="/assets" element={<AssetsPage role={member.role} />} />
         <Route path="/assets/:id" element={<AssetDetailPage role={member.role} />} />
         <Route path="/employees" element={<EmployeesPage role={member.role} />} />

@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router';
 import {
   ASSET_CATEGORY_LABELS,
@@ -10,6 +9,7 @@ import {
 import { useAssets } from '@/api/queries';
 import type { Asset } from '@/types/api';
 import { ListToolbar } from '@/components/app/ListToolbar';
+import { useModals } from '@/providers/ModalProvider';
 import { PageContainer } from '@/components/app/PageContainer';
 import {
   Button,
@@ -24,7 +24,6 @@ import type { StatusFilter } from '@/types/filters';
 import type { TableColumn } from '@/types/table';
 import { formatMonthYear } from '@/lib/format';
 import { setParam } from '@/lib/searchParams';
-import { AssetFormModal } from './AssetFormModal';
 import { assetStatusPills, filterAssets, parseStatusFilter } from './filters';
 import styles from './Assets.module.css';
 
@@ -81,8 +80,8 @@ const COLUMNS: TableColumn<Asset>[] = [
 
 export function AssetsPage({ role }: { role: Role }) {
   const [searchParams, setSearchParams] = useSearchParams();
-  const [creating, setCreating] = useState(false);
   const navigate = useNavigate();
+  const { openModal } = useModals();
   const assets = useAssets();
 
   // Filters live in the URL so a filtered view is shareable and survives a
@@ -107,9 +106,9 @@ export function AssetsPage({ role }: { role: Role }) {
 
   return (
     <PageContainer>
-      <ListToolbar title="Assets">
+      <ListToolbar title="Assets" role={role}>
         {can(role, 'assets.create') && (
-          <Button icon="plus" onClick={() => setCreating(true)}>
+          <Button icon="plus" onClick={() => openModal('newAsset')}>
             New asset
           </Button>
         )}
@@ -149,8 +148,6 @@ export function AssetsPage({ role }: { role: Role }) {
           }
         />
       )}
-
-      {creating && <AssetFormModal role={role} onClose={() => setCreating(false)} />}
     </PageContainer>
   );
 }

@@ -1,14 +1,13 @@
-import { useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router';
 import { can, EMPLOYEE_STATUS_COLORS, EMPLOYEE_STATUS_LABELS, type Role } from '@inventory/shared';
 import { useEmployees } from '@/api/queries';
 import type { Employee } from '@/types/api';
 import { ListToolbar } from '@/components/app/ListToolbar';
+import { useModals } from '@/providers/ModalProvider';
 import { PageContainer } from '@/components/app/PageContainer';
 import { Avatar, Button, DataTable, EmptyState, Pill, SearchInput, Spinner } from '@/components/ui';
 import type { TableColumn } from '@/types/table';
 import { setParam } from '@/lib/searchParams';
-import { EmployeeFormModal } from './EmployeeFormModal';
 import { filterEmployees } from './filters';
 import styles from './Employees.module.css';
 
@@ -57,8 +56,8 @@ const COLUMNS: TableColumn<Employee>[] = [
 
 export function EmployeesPage({ role }: { role: Role }) {
   const [searchParams, setSearchParams] = useSearchParams();
-  const [creating, setCreating] = useState(false);
   const navigate = useNavigate();
+  const { openModal } = useModals();
   const employees = useEmployees();
 
   // No `?q=` in the URL legitimately means "no filter".
@@ -75,9 +74,9 @@ export function EmployeesPage({ role }: { role: Role }) {
 
   return (
     <PageContainer maxWidth={1060}>
-      <ListToolbar title="Employees">
+      <ListToolbar title="Employees" role={role}>
         {can(role, 'employees.create') && (
-          <Button icon="plus" onClick={() => setCreating(true)}>
+          <Button icon="plus" onClick={() => openModal('addEmployee')}>
             Add employee
           </Button>
         )}
@@ -110,8 +109,6 @@ export function EmployeesPage({ role }: { role: Role }) {
           }
         />
       )}
-
-      {creating && <EmployeeFormModal role={role} onClose={() => setCreating(false)} />}
     </PageContainer>
   );
 }

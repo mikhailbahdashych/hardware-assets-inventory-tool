@@ -184,15 +184,25 @@ function SettingsForm({ settings }: { settings: OrgSettings }) {
             <div className={styles.rowLabel}>CSV templates</div>
             <div className={styles.rowHint}>Starter files for bulk import</div>
           </div>
-          <ComingWithImport label="assets.csv" />
-          <ComingWithImport label="employees.csv" />
+          {/* Plain links: the browser downloads the attachment itself and the
+              session cookie rides along, so there is no blob to build. */}
+          <a className={styles.rowAction} href="/api/v1/import/template?kind=assets" download>
+            assets.csv
+          </a>
+          <a className={styles.rowAction} href="/api/v1/import/template?kind=employees" download>
+            employees.csv
+          </a>
         </div>
         <div className={styles.row}>
           <div className={styles.rowText}>
             <div className={styles.rowLabel}>Export all data</div>
-            <div className={styles.rowHint}>Assets, people, history and settings as JSON</div>
+            <div className={styles.rowHint}>
+              Assets, people, history and settings as JSON · a reporting format, not a backup
+            </div>
           </div>
-          <ComingWithImport label="Export" />
+          <a className={styles.rowAction} href="/api/v1/export" download>
+            Export
+          </a>
         </div>
         <div className={styles.row}>
           <div className={styles.rowText}>
@@ -231,24 +241,6 @@ function SettingsForm({ settings }: { settings: OrgSettings }) {
         <DeleteWorkspaceModal orgName={settings.orgName} onClose={() => setDeleting(false)} />
       )}
     </div>
-  );
-}
-
-/**
- * The template downloads and the JSON export belong to the import/export PR.
- * They stay visible because the card's shape is part of the design, and they
- * say so rather than pretending to be links that go nowhere.
- */
-function ComingWithImport({ label }: { label: string }) {
-  const toast = useToast();
-  return (
-    <button
-      type="button"
-      className={styles.rowAction}
-      onClick={() => toast.show('CSV templates and the JSON export arrive with the import PR.')}
-    >
-      {label}
-    </button>
   );
 }
 

@@ -319,6 +319,52 @@ export const AUDIT_PAGE = {
   total: 3,
 };
 
+export const DASHBOARD = {
+  assetCount: 13,
+  statusCounts: {
+    available: 4,
+    assigned: 6,
+    in_repair: 1,
+    ordered: 1,
+    retired: 1,
+    lost_stolen: 0,
+  },
+  categoryCounts: [
+    { category: 'laptops', count: 6 },
+    { category: 'desktops', count: 1 },
+    { category: 'monitors', count: 3 },
+    { category: 'phones', count: 2 },
+    { category: 'peripherals', count: 1 },
+  ],
+  recentActivity: AUDIT_PAGE.items,
+  warrantyExpirations: [
+    {
+      assetId: 'asset-1',
+      name: 'MacBook Pro 14"',
+      assetTag: 'AST-0142',
+      warrantyUntil: '2026-09-12',
+      daysLeft: 26,
+    },
+    {
+      assetId: 'asset-2',
+      name: 'Dell U2723QE',
+      assetTag: 'AST-0143',
+      warrantyUntil: '2026-10-17',
+      daysLeft: 61,
+    },
+  ],
+  pendingReturns: [
+    {
+      assetId: 'asset-1',
+      assetName: 'MacBook Pro 14"',
+      assetTag: 'AST-0142',
+      employeeId: 'emp-1',
+      holderName: 'Maya Lindqvist',
+      expectedReturnDate: '2026-08-24',
+    },
+  ],
+};
+
 /** Signed-in admin with an empty-but-reachable inventory. */
 export const INVENTORY_ROUTES: StubRoutes = {
   'GET /meta': { body: READY_META },
@@ -327,6 +373,18 @@ export const INVENTORY_ROUTES: StubRoutes = {
   'GET /employees': { body: { employees: [MAYA] } },
   'GET /custom-fields': { body: { customFields: CUSTOM_FIELDS } },
   'GET /assets/next-tag': { body: { assetTag: 'AST-0144' } },
+};
+
+/**
+ * The signed-in admin looking at a dashboard with something in every widget.
+ * Includes the two detail routes, because the dashboard and the palette both
+ * click through to a record.
+ */
+export const DASHBOARD_ROUTES: StubRoutes = {
+  ...INVENTORY_ROUTES,
+  'GET /dashboard': { body: DASHBOARD },
+  'GET /assets/asset-1': { body: LAPTOP_DETAIL },
+  'GET /employees/emp-1': { body: MAYA_DETAIL },
 };
 
 /** The signed-in admin plus everything the Members and Admin pages read. */

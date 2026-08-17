@@ -1,0 +1,318 @@
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.title {
+  font-size: 18px;
+  font-weight: 600;
+  margin: 0;
+}
+
+.summary {
+  color: var(--muted);
+  font-size: 12.5px;
+  margin: 2px 0 0;
+}
+
+.loading {
+  display: flex;
+  justify-content: center;
+  padding: 60px 0;
+}
+
+/* KPI tiles */
+
+.kpis {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 10px;
+}
+
+.kpi {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px 14px;
+  box-shadow: var(--shadow);
+  text-align: left;
+  font: inherit;
+  color: var(--text);
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+}
+
+.kpi:hover {
+  border-color: var(--faint);
+}
+
+.kpiLabel {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.kpiDot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex: none;
+}
+
+.kpiDot[data-sv='ok'] {
+  background: var(--ok);
+}
+.kpiDot[data-sv='acc'] {
+  background: var(--accent);
+}
+.kpiDot[data-sv='warn'] {
+  background: var(--warn);
+}
+.kpiDot[data-sv='err'] {
+  background: var(--err);
+}
+.kpiDot[data-sv='info'] {
+  background: var(--info);
+}
+.kpiDot[data-sv='neut'] {
+  background: var(--neut);
+}
+
+.kpiCount {
+  font-size: 20px;
+  font-weight: 600;
+  margin-top: 5px;
+}
+
+/* The two-column body */
+
+.columns {
+  display: grid;
+  grid-template-columns: 1.35fr 1fr;
+  gap: 14px;
+  align-items: start;
+}
+
+.column {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: var(--shadow);
+  padding: 16px 18px;
+}
+
+.cardHead {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 12px;
+}
+
+.cardTitle {
+  font-weight: 600;
+  font-size: 13px;
+  margin: 0 0 14px;
+}
+
+.cardHead .cardTitle {
+  margin: 0;
+}
+
+.cardTitleTight {
+  font-weight: 600;
+  font-size: 13px;
+  margin: 0 0 10px;
+}
+
+.cardLink {
+  font-size: 12px;
+}
+
+/* Assets by category */
+
+.bars {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+
+.bar {
+  display: grid;
+  grid-template-columns: 88px 1fr 24px;
+  gap: 10px;
+  align-items: center;
+}
+
+.barLabel {
+  font-size: 12.5px;
+  color: var(--muted);
+}
+
+.track {
+  height: 7px;
+  border-radius: 4px;
+  background: var(--hover);
+  overflow: hidden;
+}
+
+.fill {
+  height: 100%;
+  border-radius: 4px;
+  background: var(--accent);
+}
+
+.barCount {
+  font-size: 12px;
+  font-weight: 600;
+  text-align: right;
+}
+
+/* Row lists */
+
+.rows {
+  display: flex;
+  flex-direction: column;
+}
+
+.activityRow {
+  display: flex;
+  gap: 10px;
+  padding: 8px 0;
+  border-top: 1px solid var(--border);
+  align-items: baseline;
+}
+
+.activityDot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex: none;
+  position: relative;
+  top: -1px;
+}
+
+.activityDot[data-sv='acc'] {
+  background: var(--accent);
+}
+.activityDot[data-sv='info'] {
+  background: var(--info);
+}
+.activityDot[data-sv='neut'] {
+  background: var(--neut);
+}
+.activityDot[data-sv='warn'] {
+  background: var(--warn);
+}
+
+.activityText {
+  flex: 1;
+  font-size: 12.5px;
+}
+
+.activityActor {
+  color: var(--muted);
+}
+
+.activityWhen {
+  font-size: 11.5px;
+  color: var(--faint);
+  flex: none;
+}
+
+.listRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 0;
+  border: none;
+  border-top: 1px solid var(--border);
+  background: none;
+  font: inherit;
+  color: var(--text);
+  cursor: pointer;
+  text-align: left;
+}
+
+.listRow:hover {
+  opacity: 0.75;
+}
+
+.listText {
+  flex: 1;
+  min-width: 0;
+}
+
+.listTitle {
+  display: block;
+  font-size: 12.5px;
+  font-weight: 500;
+}
+
+.listTag {
+  display: block;
+  font-size: 11.5px;
+  color: var(--muted);
+  font-family: var(--font-mono);
+}
+
+.listSub {
+  display: block;
+  font-size: 11.5px;
+  color: var(--muted);
+}
+
+.listDue {
+  font-size: 11.5px;
+  color: var(--muted);
+  flex: none;
+}
+
+.blank {
+  margin: 0;
+  padding: 8px 0;
+  border-top: 1px solid var(--border);
+  font-size: 12.5px;
+  color: var(--muted);
+}
+
+.footnote {
+  font-size: 11.5px;
+  color: var(--faint);
+  margin: 8px 0 0;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+}
+
+/* Customize-widgets modal */
+
+.toggleRow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.toggleRow:last-of-type {
+  border-bottom: none;
+}
+
+.toggleLabel {
+  font-size: 12.5px;
+  font-weight: 500;
+}
+
+.toggleHint {
+  font-size: 11.5px;
+  color: var(--muted);
+}

@@ -342,6 +342,7 @@ export function KitchenSink() {
             onFiles={(files) => show(`${files.length} file(s) selected`, 'ok')}
             accept=".csv"
             label="Drop your CSV here or"
+            inputLabel="Demo CSV file"
             hint="Up to 5,000 rows per import · you'll review column mapping next"
           />
         </div>

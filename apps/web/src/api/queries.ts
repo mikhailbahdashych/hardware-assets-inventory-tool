@@ -6,6 +6,7 @@ import type {
   AssetDetail,
   AuditPage,
   CustomFieldDef,
+  DashboardPayload,
   Employee,
   EmployeeDetail,
   InviteDetails,
@@ -32,6 +33,7 @@ export const queryKeys = {
   customFields: ['custom-fields'] as const,
   members: ['members'] as const,
   settings: ['settings'] as const,
+  dashboard: ['dashboard'] as const,
   audit: (filter: AuditFilter) => ['audit', filter] as const,
 };
 
@@ -146,6 +148,17 @@ export function useCustomFields() {
     queryFn: async () =>
       (await apiFetch<{ customFields: CustomFieldDef[] }>('/custom-fields')).customFields,
     staleTime: 5 * 60 * 1000,
+  });
+}
+
+/**
+ * All five widgets in one request. They read the same few tables, and toggling
+ * a widget off should not change how many round trips the page makes.
+ */
+export function useDashboard() {
+  return useQuery({
+    queryKey: queryKeys.dashboard,
+    queryFn: () => apiFetch<DashboardPayload>('/dashboard'),
   });
 }
 

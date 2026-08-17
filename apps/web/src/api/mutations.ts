@@ -9,6 +9,8 @@ import type {
   CustomFieldPatchInput,
   EmployeeCreateInput,
   EmployeePatchInput,
+  ImportCommitInput,
+  ImportValidateInput,
   InviteInput,
   LoginInput,
   MemberPatchInput,
@@ -21,7 +23,16 @@ import type {
 import { apiFetch, apiUpload } from './client';
 import { invalidateAdmin, invalidateInventory } from './invalidate';
 import { queryKeys } from './queries';
-import type { Asset, Attachment, Employee, Member, MemberSummary, OrgSettings } from '@/types/api';
+import type {
+  Asset,
+  Attachment,
+  Employee,
+  ImportReport,
+  ImportResult,
+  Member,
+  MemberSummary,
+  OrgSettings,
+} from '@/types/api';
 
 /** Signing in, accepting an invite and resetting a password all end with a session. */
 function useSessionMutation<TInput>(path: string) {
@@ -262,6 +273,30 @@ export const useUpdateMember = () =>
 
 export const useRemoveMember = () =>
   useAdminMutation((id: string) => apiFetch(member(id), { method: 'DELETE' }));
+
+/**
+ * The dry run. It writes nothing, so it is a mutation only in the sense that it
+ * is a POST — nothing is invalidated because nothing changed.
+ */
+export function useValidateImport() {
+  return useMutation({
+    mutationFn: (input: ImportValidateInput) =>
+      apiFetch<{ report: ImportReport }>('/import/validate', { method: 'POST', body: input }),
+  });
+}
+
+/** A bulk load touches every inventory surface at once. */
+export function useCommitImport() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: ImportCommitInput) =>
+      apiFetch<ImportResult>('/import/commit', { method: 'POST', body: input }),
+    onSuccess: () => {
+      invalidateInventory(queryClient);
+      invalidateAdmin(queryClient);
+    },
+  });
+}
 
 export const useUpdateSettings = () =>
   useAdminMutation((input: SettingsPatchInput) =>

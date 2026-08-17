@@ -1,7 +1,7 @@
 import { useLocation } from 'react-router';
 import { Icon, IconButton, Kbd } from '@/components/ui';
 import { useBreadcrumbDetail } from '@/providers/BreadcrumbProvider';
-import { useToast } from '@/providers/ToastProvider';
+import { useModals } from '@/providers/ModalProvider';
 import { useThemeControls } from './useThemeControls';
 import { breadcrumbForPath } from './nav';
 import styles from './Topbar.module.css';
@@ -9,18 +9,15 @@ import styles from './Topbar.module.css';
 export function Topbar() {
   const { pathname } = useLocation();
   const { theme, toggleTheme } = useThemeControls();
-  const { show } = useToast();
+  const { openModal } = useModals();
   const detail = useBreadcrumbDetail();
 
   return (
     <div className={styles.topbar}>
       <div className={styles.breadcrumb}>{breadcrumbForPath(pathname, detail)}</div>
       <div className={styles.actions}>
-        <button
-          type="button"
-          className={styles.search}
-          onClick={() => show('Search arrives with the command palette.', 'info')}
-        >
+        {/* The same palette ⌘K opens: one search, two ways in. */}
+        <button type="button" className={styles.search} onClick={() => openModal('palette')}>
           <Icon name="search" size={13} strokeWidth={1.8} />
           <span className={styles.searchLabel}>Search assets, people…</span>
           <Kbd>⌘K</Kbd>
