@@ -16,6 +16,7 @@ import type { TableColumn } from '@/types/table';
 import { useToast } from '@/providers/ToastProvider';
 import { DeleteStatusModal } from './DeleteStatusModal';
 import { StatusFormModal } from './StatusFormModal';
+import { WorkflowDiagram } from './WorkflowDiagram';
 import {
   draftChanged,
   draftFromTransitions,
@@ -320,13 +321,18 @@ function MatrixCard({ statuses, transitions }: MatrixCardProps) {
         </div>
       </div>
 
-      <div className={styles.matrix}>
-        <DataTable
-          columns={columns}
-          rows={movable}
-          rowKey={(status) => status.id}
-          label="Transitions"
-        />
+      <div className={styles.graph}>
+        <div className={styles.matrix}>
+          <DataTable
+            columns={columns}
+            rows={movable}
+            rowKey={(status) => status.id}
+            label="Transitions"
+          />
+        </div>
+        {/* Fed the draft, not the stored graph: a box you have just unchecked
+            should leave the picture before you decide to save it. */}
+        <WorkflowDiagram statuses={statuses} transitions={transitionsFromDraft(draft)} />
       </div>
     </section>
   );

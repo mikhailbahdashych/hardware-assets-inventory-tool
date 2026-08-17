@@ -339,6 +339,18 @@ describe('the transition matrix', () => {
     expect(cell('Available', 'Retired')).not.toBeChecked();
   });
 
+  it('redraws the diagram from the draft, before anything is saved', async () => {
+    renderApp(workspace().routes, '/workflow');
+    await screen.findByRole('table', { name: 'Transitions' });
+    const diagram = () => screen.getByRole('img', { name: /Workflow diagram/ });
+
+    expect(diagram().querySelector('[data-edge="available→retired"]')).not.toBeNull();
+    await userEvent.click(cell('Available', 'Retired'));
+    // Unsaved, and already gone from the picture.
+    expect(diagram().querySelector('[data-edge="available→retired"]')).toBeNull();
+    expect(diagram().querySelector('[data-edge="retired→available"]')).not.toBeNull();
+  });
+
   it('lets a change be abandoned', async () => {
     renderApp(workspace().routes, '/workflow');
     await screen.findByRole('table', { name: 'Transitions' });

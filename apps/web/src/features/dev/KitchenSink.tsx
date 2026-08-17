@@ -41,9 +41,25 @@ import {
   ToggleSwitch,
   type IconName,
 } from '@/components/ui';
+import { WorkflowDiagram } from '@/features/workflow/WorkflowDiagram';
 import { useTheme } from '@/providers/ThemeProvider';
 import { useToast } from '@/providers/ToastProvider';
 import type { RowProps, SectionProps } from './types/kitchenSink';
+
+/**
+ * The workflow a fresh instance is seeded with, in the shape the API serves —
+ * six statuses and the full mesh among the five that are not `assigned`.
+ */
+const DEMO_WORKFLOW = (() => {
+  const statuses = DEFAULT_ASSET_STATUSES.map((status, sortOrder) => ({ ...status, sortOrder }));
+  const movable = statuses.filter((status) => !status.isSystem);
+  return {
+    statuses,
+    transitions: movable.flatMap((from) =>
+      movable.filter((to) => to.id !== from.id).map((to) => ({ from: from.id, to: to.id })),
+    ),
+  };
+})();
 
 // The status is a label and a colour rather than a slug, because that is what
 // a row carries once the workspace owns its own statuses.
@@ -653,6 +669,20 @@ export function KitchenSink() {
               <a href="#top">Audit log →</a>
             </div>
           </Card>
+        </div>
+      </Section>
+
+      <Section title="Workflow diagram">
+        {/* The one drawing in the product. It is here because it is built from
+            the tokens like everything else: a node takes its status's
+            `--{sv}` pair, the solid edges are --faint and the dashed pair
+            --acc, so both themes come free. This is the seeded default
+            workflow; /workflow draws whatever the workspace has. */}
+        <div style={{ maxWidth: 380 }}>
+          <WorkflowDiagram
+            statuses={DEMO_WORKFLOW.statuses}
+            transitions={DEMO_WORKFLOW.transitions}
+          />
         </div>
       </Section>
 
