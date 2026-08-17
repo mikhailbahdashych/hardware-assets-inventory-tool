@@ -51,7 +51,13 @@ ENV DATA_DIR=/data \
 RUN mkdir -p /data && chown -R node:node /data /app
 VOLUME /data
 EXPOSE 3000
-USER node
+
+# Deliberately no `USER node`: the entrypoint starts as root only long enough
+# to take ownership of a bind-mounted /data, then drops to node itself. A
+# bind mount carries the host's ownership, so an image that simply ran as node
+# would fail its first mkdir on somebody's very first start.
+COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
+ENTRYPOINT ["docker-entrypoint.sh"]
 
 # No curl or wget in a slim image, and no reason to add one.
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \

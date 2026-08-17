@@ -84,7 +84,7 @@ Runs the real production artifact: built API serving the built SPA, fresh data d
 
 ### Delivery
 
-- **Docker**: multi-stage `node:22-bookworm-slim`, one process serving the API and the built SPA, SQLite on `/data`. `--ignore-scripts` on both installs, because better-sqlite3 and @node-rs/argon2 ship their binaries and npm's automatic `node-gyp rebuild` would need Python in the image to redo them. SIGTERM closes the server and the SQLite handle.
+- **Docker**: multi-stage `node:22-bookworm-slim`, one process serving the API and the built SPA, SQLite on `/data`. Two details are load-bearing: `--ignore-scripts` on both installs (better-sqlite3 and @node-rs/argon2 ship their binaries, and npm's automatic `node-gyp rebuild` would need Python in the image to redo them), and an entrypoint that starts as root only long enough to take ownership of `/data` before dropping to `node` — a bind mount carries the _host_ directory's ownership, so an image that simply ran as `node` fails its first mkdir on somebody's very first start. SIGTERM closes the server and the SQLite handle.
 - **Release**: `git tag vX.Y.Z && git push --tags` → `.github/workflows/release.yml` builds amd64 + arm64 and publishes to ghcr.
 - **Docs**: `README.md` (quick start, env table, security, deployment), `docs/backup-restore.md`, and `docs/recipes/` — six checklists written to be handed to Claude Code.
 
@@ -135,7 +135,8 @@ Nothing is scheduled. The eight-PR plan is delivered; §7 lists what was deliber
 1. **`noUncheckedIndexedAccess`** (above) — the largest single improvement to the type safety of what exists.
 2. **A demo seed.** `npm run seed:demo` was in the plan and never built; a prototype-like dataset would make the kitchen-sink and screenshot passes repeatable.
 3. **Screenshots in the README.** It describes the product without showing it.
-4. **A retention prune for `notification_log`.** Nothing removes those rows, and they accumulate one per sent message forever. Harmless at this scale, untidy at any other.
+4. **`docker exec` lands as root**, because the image has no `USER` — the entrypoint drops privileges itself. The app process is uid 1000; only an exec session is not. Anyone with daemon access is already root-equivalent, so this is untidy rather than unsafe.
+5. **A retention prune for `notification_log`.** Nothing removes those rows, and they accumulate one per sent message forever. Harmless at this scale, untidy at any other.
 
 ## 8. Deviations from the prototype, and why
 

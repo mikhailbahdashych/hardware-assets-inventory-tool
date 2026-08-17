@@ -9,7 +9,13 @@ const envSchema = z.object({
   PORT: z.coerce.number().int().positive().default(3000),
   HOST: z.string().default('0.0.0.0'),
   DATA_DIR: z.string().default('./data'),
-  APP_URL: z.url().default('http://localhost:3000'),
+  // http(s) only: APP_URL is the base of every invitation and reset link, and
+  // z.url() alone would happily accept `javascript:` — which is a scheme that
+  // executes when somebody clicks the link in their email.
+  APP_URL: z
+    .url()
+    .refine((value) => /^https?:\/\//i.test(value), 'APP_URL must be an http(s) URL')
+    .default('http://localhost:3000'),
   COOKIE_SECURE: z.enum(['true', 'false']).optional(),
   LOG_LEVEL: z.string().default('info'),
   WEB_DIST: z.string().optional(),

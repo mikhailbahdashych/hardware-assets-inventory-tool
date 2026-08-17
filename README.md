@@ -84,6 +84,7 @@ Copy `DATA_DIR`. See [`docs/backup-restore.md`](docs/backup-restore.md), which a
 ## Deployment notes
 
 - **Single replica.** The scheduler runs in-process and SQLite is one file; two containers on one volume would both fire the nightly jobs. Scale the machine, not the count.
+- **The mounted data directory is taken over on start.** The container's entrypoint runs as root only long enough to `chown` it, then drops to an unprivileged user — so `-v ./data:/data` works whoever owns the directory on the host. Starting the image with an explicit `--user` skips that, and then the directory has to be writable by that user already.
 - Put it behind a reverse proxy for TLS and set `APP_URL` to the public address.
 - Roughly 10,000 assets is the point where the unpaginated list endpoints stop being comfortable. Past that, open an issue — the schema is ready for Postgres, the code is not yet.
 

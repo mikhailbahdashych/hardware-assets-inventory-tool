@@ -27,6 +27,15 @@ describe('loadConfig', () => {
     expect(() => loadConfig({ PORT: 'abc' })).toThrow();
   });
 
+  it('rejects an APP_URL whose scheme a browser would execute', () => {
+    // It is the base of every link this app emails or shows for copying.
+    expect(() => loadConfig({ APP_URL: 'javascript:alert(1)' })).toThrow();
+    expect(() => loadConfig({ APP_URL: 'data:text/html,<script>x</script>' })).toThrow();
+    expect(loadConfig({ APP_URL: 'https://inventory.acme.io' }).appUrl).toBe(
+      'https://inventory.acme.io',
+    );
+  });
+
   describe('SMTP', () => {
     it('is absent by default — an instance without email still runs', () => {
       expect(loadConfig({}).smtp).toBeNull();

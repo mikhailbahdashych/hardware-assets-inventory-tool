@@ -107,6 +107,88 @@ describe('every template', () => {
   });
 });
 
+describe('text that arrives from somebody else', () => {
+  // A manager names assets and people; an admin names the workspace. All three
+  // end up in a message somebody else opens, so none of them may carry markup.
+  const HOSTILE = '<img src=x onerror="alert(1)"> & "quoted" \'apostrophe\'';
+
+  it('escapes an asset name on its way into the HTML half', () => {
+    const mail = assignmentEmail({
+      orgName: ORG,
+      assetName: HOSTILE,
+      assetTag: 'AST-0142',
+      checkedOutAt: '2026-03-14',
+      expectedReturnDate: null,
+      url: URL,
+    });
+    // No tag survives as a tag. The words inside one are just words.
+    expect(mail.html).not.toContain('<img');
+    expect(mail.html).toContain('&lt;img src=x onerror=&quot;alert(1)&quot;&gt;');
+    expect(mail.html).toContain('&amp; &quot;quoted&quot; &#39;apostrophe&#39;');
+    // The plain-text half is not markup and is left exactly as written.
+    expect(mail.text).toContain(HOSTILE);
+  });
+
+  it('escapes a workspace name, which reaches every message', () => {
+    const mail = checkinEmail({
+      orgName: HOSTILE,
+      assetName: 'MacBook Pro 14"',
+      assetTag: 'AST-0142',
+      returnedAt: '2026-07-01',
+    });
+    expect(mail.html).not.toContain('<img');
+    expect(mail.html.match(/&lt;img/g)).toHaveLength(2); // the header and the sentence
+  });
+
+  it('escapes every row of a list', () => {
+    const mail = warrantyAlertEmail({
+      orgName: ORG,
+      assets: [{ name: HOSTILE, assetTag: 'AST-1', warrantyUntil: '2026-09-12', daysLeft: 3 }],
+      url: URL,
+    });
+    expect(mail.html).not.toContain('<img');
+    expect(mail.html).toContain('<li');
+  });
+
+  it('escapes the rendered activity sentences a digest repeats', () => {
+    const mail = weeklyDigestEmail({
+      orgName: ORG,
+      assetCount: 1,
+      assignedCount: 0,
+      availableCount: 1,
+      recentActivity: [`Added ${HOSTILE} to the inventory`],
+      url: URL,
+    });
+    expect(mail.html).not.toContain('<img');
+  });
+
+  it('escapes an ampersand in a link, which is what makes it a valid href', () => {
+    const mail = inviteEmail({
+      orgName: ORG,
+      inviterName: 'Tomasz Kowalski',
+      role: 'admin',
+      url: 'https://inventory.acme.io/accept-invite?token=abc&next=/assets',
+    });
+    expect(mail.html).toContain(
+      'href="https://inventory.acme.io/accept-invite?token=abc&amp;next=/assets"',
+    );
+    // The plain-text copy stays literally usable.
+    expect(mail.text).toContain('https://inventory.acme.io/accept-invite?token=abc&next=/assets');
+  });
+
+  it('refuses to build a link out of a scheme a browser would execute', () => {
+    expect(() =>
+      inviteEmail({
+        orgName: ORG,
+        inviterName: 'T',
+        role: 'admin',
+        // Only reachable by setting APP_URL to this, which config also rejects.
+        url: 'javascript:alert(1)',
+      }),
+    ).toThrow(/http/i);
+  });
+});
+
 describe('the links', () => {
   it('are readable in the plain-text half, where nothing is clickable', () => {
     const invite = inviteEmail({

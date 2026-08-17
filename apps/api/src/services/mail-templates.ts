@@ -18,29 +18,64 @@ import type {
 // colours close to them. That is the one place in this repo where a colour is
 // written out rather than referenced.
 
+/**
+ * Everything that reaches the HTML half goes through `layout`, `para`, `list`
+ * or `button`, and all four escape — so a template cannot forget to, and a new
+ * one written the same way is safe by construction.
+ *
+ * It matters because the values are not ours: a manager names assets and
+ * people, an admin names the workspace, and those names land in a message
+ * somebody else opens. Mail clients strip `<script>`, but they render enough
+ * markup for injected text to forge a link or a layout, and "the client will
+ * probably sanitize it" is not a guarantee this app gets to make.
+ *
+ * The plain-text half is not markup and is left exactly as written.
+ */
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 const INK = '#18181b';
 const MUTED = '#71717a';
 const ACCENT = '#6d5ae0';
 const BORDER = '#e4e4e7';
 
-/** The shell every message shares: org name, body, and a quiet footer. */
+/**
+ * The shell every message shares: org name, body, and a quiet footer. `body` is
+ * HTML this file built and is not escaped again; `orgName` is somebody's text.
+ */
 function layout(orgName: string, body: string): string {
   return [
     `<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;color:${INK};font-size:14px;line-height:1.55;max-width:520px">`,
-    `<div style="font-weight:600;font-size:15px;padding-bottom:12px;border-bottom:1px solid ${BORDER}">${orgName} · Inventory</div>`,
+    `<div style="font-weight:600;font-size:15px;padding-bottom:12px;border-bottom:1px solid ${BORDER}">${escapeHtml(orgName)} · Inventory</div>`,
     `<div style="padding:16px 0">${body}</div>`,
     `<div style="padding-top:12px;border-top:1px solid ${BORDER};color:${MUTED};font-size:12px">Sent by Inventory, your team's hardware asset tracker.</div>`,
     `</div>`,
   ].join('');
 }
 
-const button = (url: string, label: string): string =>
-  `<p><a href="${url}" style="display:inline-block;background:${ACCENT};color:#fff;text-decoration:none;padding:9px 16px;border-radius:6px;font-weight:600">${label}</a></p>`;
+/**
+ * A link, whose scheme is checked as well as escaped. Every URL here is built
+ * from `APP_URL`, which config already restricts to http(s) — this is the
+ * second lock on the same door, because an `href` is the one attribute where
+ * getting it wrong executes something.
+ */
+const button = (url: string, label: string): string => {
+  if (!/^https?:\/\//i.test(url)) {
+    throw new Error(`Refusing to put a non-http(s) URL in an email: ${url}`);
+  }
+  return `<p><a href="${escapeHtml(url)}" style="display:inline-block;background:${ACCENT};color:#fff;text-decoration:none;padding:9px 16px;border-radius:6px;font-weight:600">${escapeHtml(label)}</a></p>`;
+};
 
-const para = (text: string): string => `<p style="margin:0 0 12px">${text}</p>`;
+const para = (text: string): string => `<p style="margin:0 0 12px">${escapeHtml(text)}</p>`;
 
 const list = (items: string[]): string =>
-  `<ul style="margin:0 0 12px;padding-left:18px">${items.map((item) => `<li style="margin-bottom:4px">${item}</li>`).join('')}</ul>`;
+  `<ul style="margin:0 0 12px;padding-left:18px">${items.map((item) => `<li style="margin-bottom:4px">${escapeHtml(item)}</li>`).join('')}</ul>`;
 
 /** The URL again as text, because a plain-text reader cannot click a button. */
 const linkLine = (url: string): string => `\n${url}\n`;
