@@ -294,7 +294,8 @@ describe('editing an asset', () => {
       .from(auditEvents)
       .all()
       .find((e) => e.action === 'asset.status_changed');
-    expect(JSON.parse(event!.params)).toMatchObject({ from: 'available', to: 'in_repair' });
+    // Labels, snapshotted at write time — the same rule as holder_name_snapshot.
+    expect(JSON.parse(event!.params)).toMatchObject({ from: 'Available', to: 'In repair' });
 
     const intoAssigned = await inject(ctx.app, {
       method: 'PATCH',

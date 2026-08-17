@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { CHECKIN_CONDITIONS, CHECKIN_NEW_STATUSES, type AssignmentOutcome } from '../enums.js';
+import { CHECKIN_CONDITIONS, type AssignmentOutcome } from '../enums.js';
 import type { OutcomeInput } from '../types/assignments.js';
 import { nullableDate, nullableText } from './common.js';
 
@@ -28,10 +28,14 @@ export const assignInput = z
   });
 export type AssignInput = z.infer<typeof assignInput>;
 
-/** A returned asset lands in stock, in repair, or retired — never assigned. */
+/**
+ * A returned asset lands in whichever status the workspace marks as a check-in
+ * destination — never `assigned`, which is the one it is leaving. Which slugs
+ * those are is a fact about rows, so the API checks it and answers 422.
+ */
 export const checkinInput = z.object({
   returnDate: requiredDate,
-  newStatus: z.enum(CHECKIN_NEW_STATUSES),
+  newStatus: z.string().min(1),
   condition: z.enum(CHECKIN_CONDITIONS).nullable().default(null),
   notes: nullableText(1000).default(null),
   /** The design's "Email confirmation to {holder}" checkbox. */
@@ -46,6 +50,10 @@ export type CheckinInput = z.infer<typeof checkinInput>;
  * Offboarding is checked first: "offboarded" explains the return better than
  * where the device happened to land. `upgraded` exists in the vocabulary for
  * history imported from elsewhere; nothing derives it yet.
+ *
+ * The one status slug this reads by name stays `in_repair`, because the
+ * outcome vocabulary is still a closed enum: a workspace's own custom
+ * destination has no outcome of its own and derives `returned`.
  */
 export function deriveOutcome(input: OutcomeInput): AssignmentOutcome {
   if (input.holderStatus === 'offboarding') return 'offboarded';

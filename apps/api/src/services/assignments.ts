@@ -20,9 +20,21 @@ import { newId } from '@/lib/ids.js';
 import { AppError, invalidFields, notFound } from '@/lib/errors.js';
 import { serializeAsset } from '@/lib/serialize.js';
 import { writeAudit } from './audit.js';
+import { assignableStatuses, requireStatus } from './workflow.js';
 
-/** Statuses an asset can be handed out from. */
-const ASSIGNABLE_FROM = new Set(['available', 'ordered']);
+/**
+ * "Available or Ordered" as the workspace currently writes it — the message
+ * has to name the admin's own statuses, because a hard-coded pair stops being
+ * true the moment somebody edits the workflow.
+ */
+function assignableList(tx: DbOrTx): string {
+  const labels = assignableStatuses(tx).map((row) => row.label);
+  // The guard below only runs when the asset's own status is not assignable,
+  // and the workflow service refuses to leave a workspace with none — so this
+  // list is never empty when a caller reads it.
+  if (labels.length <= 1) return labels.join('');
+  return `${labels.slice(0, -1).join(', ')} or ${labels.at(-1)}`;
+}
 
 /**
  * The open ownership record for an asset, or null when nobody holds it.
@@ -137,12 +149,14 @@ export function assignAsset(deps: AppDeps, actor: Actor, assetId: string, input:
     if (!asset) throw notFound('That asset');
 
     // Both halves of the invariant are checked, not just the status column:
-    // whichever one is wrong, the answer is the same.
-    if (!ASSIGNABLE_FROM.has(asset.status) || activeAssignment(tx, assetId)) {
+    // whichever one is wrong, the answer is the same. An asset somebody holds
+    // reads `assigned`, which is never assignable, so the message is true of
+    // the reachable cases either way.
+    if (!requireStatus(tx, asset.status).assignableFrom || activeAssignment(tx, assetId)) {
       throw new AppError(
         409,
         'asset_unavailable',
-        'Only an available or ordered asset can be handed out.',
+        `Only an asset that is ${assignableList(tx)} can be handed out.`,
       );
     }
 
@@ -202,6 +216,16 @@ export function checkinAsset(deps: AppDeps, actor: Actor, assetId: string, input
     if (!open) {
       throw new AppError(409, 'asset_not_assigned', 'Nobody is holding this asset.');
     }
+
+    // Where it lands has to be somewhere the workspace says an asset can come
+    // back to — a real status is not enough, or a device would return straight
+    // into Ordered.
+    const target = requireStatus(tx, input.newStatus, 'newStatus');
+    if (!target.checkinTarget) {
+      throw invalidFields({
+        newStatus: `${target.label} is not one of the statuses an asset can be checked in to.`,
+      });
+    }
     if (input.returnDate < open.checkedOutAt) {
       throw invalidFields({
         returnDate: `This asset was checked out on ${open.checkedOutAt}.`,
@@ -245,7 +269,9 @@ export function checkinAsset(deps: AppDeps, actor: Actor, assetId: string, input
           assetTag: asset.assetTag,
           holderName: open.holderNameSnapshot,
           outcome,
-          to: input.newStatus,
+          // The label at write time, like `holderName` beside it: a status
+          // renamed next year must not rewrite this sentence.
+          to: target.label,
           condition: input.condition ?? null,
         },
       },

@@ -1,10 +1,4 @@
-import {
-  ASSET_STATUS_LABELS,
-  ROLE_LABELS,
-  type AssetStatus,
-  type AuditType,
-  type Role,
-} from './enums.js';
+import { DEFAULT_ASSET_STATUSES, ROLE_LABELS, type AuditType, type Role } from './enums.js';
 import type { AuditParams, RenderableAuditEvent } from './types/audit.js';
 
 // Audit events are stored structured — an action plus params with name
@@ -16,13 +10,25 @@ const text = (params: AuditParams, key: string, fallback: string): string => {
   return typeof value === 'string' && value.length > 0 ? value : fallback;
 };
 
+/** The labels the six default slugs were written with, for the fallback below. */
+const LEGACY_STATUS_LABELS = new Map<string, string>(
+  DEFAULT_ASSET_STATUSES.map((entry) => [entry.id, entry.label]),
+);
+
+/**
+ * A status as the event recorded it. Events written since statuses became data
+ * carry the **label** — snapshotted at write time, the same rule as
+ * `holder_name_snapshot`, so renaming or deleting a status never rewrites what
+ * the log already said. This is purely the fallback for what came before:
+ * older events carry slugs, and the six defaults are the only slugs that ever
+ * reached the log through a build that stored them.
+ *
+ * Anything else renders as itself. Same rule as the unknown-action fallback
+ * below: a log that hides an event is worse than an ugly one.
+ */
 const status = (params: AuditParams, key: string): string => {
   const value = params[key];
-  // Same rule as the unknown-action fallback below: a status slug this build
-  // has no label for still renders as itself rather than vanishing.
-  return typeof value === 'string'
-    ? (ASSET_STATUS_LABELS[value as AssetStatus] ?? value)
-    : 'unknown';
+  return typeof value === 'string' ? (LEGACY_STATUS_LABELS.get(value) ?? value) : 'unknown';
 };
 
 const role = (params: AuditParams, key: string): string => {

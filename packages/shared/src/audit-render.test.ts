@@ -25,9 +25,32 @@ describe('renderAuditEvent', () => {
     expect(
       renderAuditEvent({
         action: 'asset.status_changed',
-        params: { assetName: 'iPhone 15', from: 'available', to: 'in_repair' },
+        params: { assetName: 'iPhone 15', from: 'Available', to: 'In repair' },
       }),
     ).toBe('Changed iPhone 15 from Available to In repair');
+  });
+
+  /**
+   * Status events snapshot the label at write time, the same rule as
+   * `holder_name_snapshot`: renaming or deleting a status must not rewrite what
+   * the log already said. Everything written before that change carries slugs,
+   * and those still have to read like sentences.
+   */
+  it('still reads events written back when statuses were slugs', () => {
+    expect(
+      renderAuditEvent({
+        action: 'asset.status_changed',
+        params: { assetName: 'iPhone 15', from: 'available', to: 'lost_stolen' },
+      }),
+    ).toBe('Changed iPhone 15 from Available to Lost/Stolen');
+    // A slug from no vocabulary this build knows renders as itself — a log
+    // that hides an event is worse than an ugly one.
+    expect(
+      renderAuditEvent({
+        action: 'asset.status_changed',
+        params: { assetName: 'iPhone 15', from: 'On loan', to: 'wiped' },
+      }),
+    ).toBe('Changed iPhone 15 from On loan to wiped');
   });
 
   it('lists what an edit touched, in the words the form uses', () => {

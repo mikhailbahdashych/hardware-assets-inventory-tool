@@ -281,7 +281,9 @@ export function updateAsset(deps: AppDeps, actor: Actor, id: string, patch: Asse
       }
 
       values.status = to.id;
-      statusMove = { from: from.id, to: to.id };
+      // Labels, not slugs: the event snapshots how the statuses read at the
+      // moment of the move, exactly like `holder_name_snapshot`.
+      statusMove = { from: from.label, to: to.label };
     }
 
     changedFields.push(...applyCustomValues(tx, id, patch.customValues));
