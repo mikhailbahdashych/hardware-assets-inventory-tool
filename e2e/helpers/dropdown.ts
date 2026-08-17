@@ -9,14 +9,20 @@ import { expect, type Locator, type Page } from '@playwright/test';
  * portalled to `<body>`, so it is deliberately looked up on the **page** even
  * when the trigger lives inside a dialog. Options are matched by their label,
  * because that is what is on screen; the value never appears in the DOM.
+ *
+ * `shown` is for the few options that carry a description: the option's
+ * accessible name is label and description together ("Blue info"), while the
+ * closed field only ever shows the label. Everywhere else the two are the same
+ * words, which is why it defaults to `option`.
  */
 export async function choose(
   page: Page,
   scope: Locator | Page,
   field: string,
   option: string,
+  shown: string = option,
 ): Promise<void> {
   await scope.getByRole('combobox', { name: field }).click();
   await page.getByRole('option', { name: option, exact: true }).click();
-  await expect(scope.getByRole('combobox', { name: field })).toHaveText(option);
+  await expect(scope.getByRole('combobox', { name: field })).toHaveText(shown);
 }
