@@ -270,7 +270,10 @@ function MatrixCard({ statuses, transitions }: MatrixCardProps) {
     },
     ...movable.map((to): TableColumn<WorkflowStatus> => ({
       header: <span className={styles.cell}>{to.label}</span>,
-      width: 'minmax(72px, 1fr)',
+      // 64px holds a checkbox with room to breathe; the workspace's seven-
+      // status default fits beside the diagram at the 1440 design width, and
+      // the column only stretches from here.
+      width: 'minmax(64px, 1fr)',
       render: (from) => (
         <span className={styles.cell}>
           <Checkbox

@@ -57,20 +57,24 @@
 }
 
 /* A grid this wide scrolls sideways rather than squeezing its columns into
-   ellipses — a matrix you cannot read the headers of is not a matrix. */
+   ellipses — a matrix you cannot read the headers of is not a matrix.
+   `min-content` rather than a hardcoded width: the table's own minimum grows
+   with every status an admin adds, and a fixed number would let the table's
+   rounded box clip the last column instead of handing the overflow to this
+   scroll container. */
 .matrix {
   overflow-x: auto;
 }
 
 .matrix > * {
-  min-width: 560px;
+  min-width: min-content;
 }
 
 /* The matrix and the diagram side by side: the same graph, edited on the left
    and read on the right. The matrix scrolls inside its own column. */
 .graph {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 360px;
+  grid-template-columns: minmax(0, 1fr) 348px;
   gap: 14px;
   align-items: start;
 }
