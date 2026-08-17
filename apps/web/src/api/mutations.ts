@@ -269,15 +269,21 @@ export const useUpdateSettings = () =>
   );
 
 /**
- * Everything goes, including the session that asked for it — so the cache is
- * cleared rather than invalidated: there is nothing left to refetch, and the
- * router sends the browser back to /setup on the next `/meta`.
+ * Everything goes, including the session that asked for it, so every cached
+ * read is now a lie — invalidating all of them refetches what is still mounted
+ * and `/meta` then reports an uninitialized instance, which is what sends the
+ * router back to /setup.
+ *
+ * Not `clear()` (it empties the mutation cache too, dropping this mutation's
+ * own callbacks mid-flight) and not `removeQueries()` (a removed query leaves
+ * its live observers holding the last result, so nothing refetches and the app
+ * carries on showing a workspace that no longer exists).
  */
 export function useDeleteWorkspace() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (input: WorkspaceDeleteInput) =>
       apiFetch('/workspace/delete', { method: 'POST', body: input }),
-    onSuccess: () => queryClient.clear(),
+    onSuccess: () => queryClient.invalidateQueries(),
   });
 }

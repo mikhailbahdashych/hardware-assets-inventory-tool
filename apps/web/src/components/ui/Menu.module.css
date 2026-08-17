@@ -1,10 +1,5 @@
-.wrapper {
-  position: relative;
-  display: flex;
-  justify-content: flex-end;
-}
-
 .trigger {
+  margin-left: auto;
   width: 24px;
   height: 24px;
   border: none;
@@ -22,15 +17,16 @@
   background: var(--hover);
 }
 
+/* Portalled to the body: a table cell clips its overflow and the card clips to
+   its radius, so a menu rendered in place would be eaten by the row. */
 .menu {
-  position: absolute;
-  top: 26px;
-  right: 0;
-  z-index: 20;
+  position: fixed;
+  z-index: 60;
   min-width: 190px;
   padding: 4px;
   display: flex;
   flex-direction: column;
+  overflow-y: auto;
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 8px;
