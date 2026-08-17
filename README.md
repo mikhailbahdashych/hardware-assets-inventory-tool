@@ -93,10 +93,29 @@ Copy `DATA_DIR`. See [`docs/backup-restore.md`](docs/backup-restore.md), which a
 ```bash
 npm install
 npm run dev        # api :3000, web :5173 (Vite proxies /api)
+npm run seed:demo  # optional: fill it with a demo workspace
 npm test           # unit and integration, all workspaces
 npm run e2e        # Playwright against a production build
 npm run lint && npm run typecheck && npm run format
 ```
+
+### Seeing it with data in it
+
+A fresh instance is empty, which is correct and makes a poor first impression. `npm run seed:demo` gives you a fictional company — twelve people, twenty-six devices, four months of assignments, returns and audit history — and prints one login per role so you can see what an admin, a manager and a viewer each get:
+
+```
+  Northwind Robotics is ready in ./data
+
+  26 assets · 12 employees · 19 ownership records · 73 logged events
+
+  ada.okafor@northwind.example    demo-password  (admin)
+  marco.rossi@northwind.example   demo-password  (manager)
+  lena.fischer@northwind.example  demo-password  (viewer)
+```
+
+Every date is relative to the moment you run it, so warranties are always about to lapse and returns are always about to fall due — the dashboard is never a museum. It refuses to touch a workspace that already has data; `npm run seed:demo -- --reset` empties one first, which deletes everything in it.
+
+The seeder ships in the Docker image too (`node dist/db/seed-demo-cli.js --reset`, honouring `DEMO_PASSWORD`), so a public demo instance can restore itself on a schedule.
 
 **`http://localhost:5173/kitchen-sink` is the design system.** Colour tokens with their resolved values, the type scale, the whole icon inventory, and every primitive in every state it ships with — in both themes and both densities. Open it beside whatever you are changing. It is a dev-only route, excluded from production builds, and it cannot drift from the app because it renders the same components.
 

@@ -217,7 +217,9 @@ function PendingReturns({ data }: PendingReturnsProps) {
           <p className={styles.blank}>Nothing is due back right now.</p>
         )}
       </div>
-      <p className={styles.footnote}>Triggered by offboarding · email reminders arrive in PR 8</p>
+      <p className={styles.footnote}>
+        Triggered by offboarding · holders are reminded by email when SMTP is configured
+      </p>
     </section>
   );
 }

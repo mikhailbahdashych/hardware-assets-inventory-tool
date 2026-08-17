@@ -19,6 +19,7 @@ This repo is built to be customized by asking Claude Code. Every area has its ow
 ```bash
 npm install          # once, at the root (npm workspaces)
 npm run dev          # api on :3000 + web on http://localhost:5173 (dev-only /kitchen-sink; /api proxied)
+npm run seed:demo    # fill this instance with a demo workspace (add -- --reset to replace one)
 npm test             # unit tests, all workspaces
 npm run e2e          # Playwright against the production build
 npm run lint         # ESLint
@@ -26,6 +27,8 @@ npm run typecheck    # tsc across workspaces
 npm run build        # production build
 npm run format       # Prettier
 ```
+
+**A fresh clone starts empty**, at `/setup`. `npm run seed:demo` is the shortcut: a fictional company, its people, 26 devices and four months of history, so every screen has something on it. It prints the logins — one per role — and refuses to touch a workspace that already has data unless you pass `--reset`.
 
 ## Non-negotiable conventions
 

@@ -89,7 +89,19 @@ Each of these was a decision. Change one only on purpose.
 
 - Schema in `src/db/schema.ts` (see conventions in the root CLAUDE.md). After changing it: `npm run db:generate -w apps/api` writes SQL into `src/migrations/` — check it in, **never edit a merged migration**. Migrations run at every boot (that is the upgrade story).
 - The `assignments` table is the only truth for who holds an asset: at most one active row per asset (partial unique index). Asset `status='assigned'` ⇔ an active assignment exists — maintained only inside single transactions in the assignment service (arrives PR 5).
-- Boot seed (`src/db/seed.ts`) is idempotent and only creates default custom-field defs; org settings come from the `/setup` flow.
+- Boot seed (`src/db/seed.ts`) is idempotent and only creates default custom-field defs; org settings come from the `/setup` flow. It runs on every start, so it must stay cheap and repeatable.
+
+## The demo seed
+
+`npm run seed:demo` (`src/db/demo.ts`, dataset in `src/db/demo-data.ts`) fills an instance with a fictional company so every screen has something on it. Three properties are what make it worth maintaining, and each is pinned by a test in `test/demo-seed.test.ts`:
+
+- **It dates itself from the clock.** Every date in the dataset is an offset in days, resolved against `deps.now()` when it runs — so a warranty always expires next week, a return is always due in a few days, and the dashboard is never a museum. Nothing is hardcoded to a calendar date, which is what stops the demo rotting.
+- **It goes through the real services.** Ownership is opened and closed by `openAssignment`/`closeAssignment`, and every event by `writeAudit`. The demo is subject to the one invariant rather than a second way of writing rows around it — which is also why seeding order is employees → members → the events naming either: `audit_events.actor_member_id` is a real foreign key.
+- **It is deterministic.** No randomness, so the same clock gives the same workspace and `--reset` restores rather than reshuffles.
+
+It refuses a workspace that already holds anything unless `--reset` is passed, so it can never be the thing that ate a real inventory. `--reset` goes through `emptyWorkspace` — the same wipe the danger zone performs, minus the type-the-name guard. Do not expose that function to a route.
+
+**For a hosted demo**, the seeder is built into the image (`dist/db/seed-demo-cli.js`, a second tsup entry) and reads `DEMO_PASSWORD`. Because it is deterministic and dated from the clock, a scheduled `node dist/db/seed-demo-cli.js --reset` inside the container restores a public instance to a known state and re-dates the whole story to that moment.
 
 ## Testing
 
