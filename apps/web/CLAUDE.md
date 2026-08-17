@@ -10,6 +10,7 @@ React 19 + Vite + TypeScript, react-router (declarative `BrowserRouter` mode), T
 - **Semantic colors**: components take an `sv` key (`ok|acc|warn|err|info|neut`) from `@inventory/shared` maps and style via `var(--{sv})` / `var(--{sv}-bg)`. `Pill` shows the pattern.
 - Typography: UI font Instrument Sans, mono JetBrains Mono (`var(--font-sans)` / `var(--font-mono)`), self-hosted via @fontsource — never add a font CDN (the app runs on-prem). Mono is for identifiers: asset tags, serials, hostnames, kbd hints, log timestamps.
 - Icons: `components/ui/Icon.tsx` holds the design's Feather-style path inventory (stroke 1.7). Add new icons there in the same style; don't add an icon library.
+- **Anything that floats over a table is portalled to the body.** `Menu` (the design's `···` overflow) positions itself from the trigger's own rect for a reason: a `DataTable` cell clips its overflow — that clip is what gives the other cells their ellipsis — and the card around it clips to its border radius. A popover rendered in place is a popover the row eats, and no z-index fixes it.
 
 ## Structure
 
@@ -17,7 +18,7 @@ React 19 + Vite + TypeScript, react-router (declarative `BrowserRouter` mode), T
 - `api/` — `client.ts` (fetch wrapper; see below), `queries.ts` (**the query-key catalog** + read hooks), `mutations.ts` (write hooks and their cache updates).
 - `components/ui/` — primitives (Button, Pill, DataTable, Modal, …), one component + one CSS module each, exported from `index.ts`. Interactive primitives have behavior tests in `primitives.test.tsx`.
 - `components/app/` — shell chrome: `AppShell`, `Sidebar`, `Topbar`, `PageContainer`, `nav.ts` (pure section/breadcrumb logic), `useThemeControls.ts`.
-- `features/<area>/` — pages and feature modals per area (auth, dashboard, assets, employees, members, admin, import).
+- `features/<area>/` — pages and feature modals per area (auth, dashboard, assets, employees, members, admin, import). `members/CopyLinkModal.tsx` is shared with the employee form, which can invite the person it just created; inviting is a members concern, so the form borrows it rather than growing a second way to show a one-time link.
 - `providers/` — ThemeProvider, ToastProvider (and later ModalProvider). Hooks live next to their provider.
 - `lib/` — `format.ts` (dates, relative time, durations, currency, initials) and `avatar.ts` (stable hash → 9-color palette). Reuse these; never re-implement formatting inline.
 - `routes.tsx` — the whole route map and its guards. `App.tsx` only wires providers.
@@ -42,7 +43,8 @@ Remove it when a value should have been there. `meta.data?.orgName ?? 'Inventory
 
 ## Data and auth
 
-- Reads go through hooks in `api/queries.ts`; add the key to `queryKeys` first. Writes live in `api/mutations.ts` and go through `invalidateInventory` in `api/invalidate.ts` — one coarse refresh of every inventory surface. Do not hand-pick keys in a mutation: a write rarely touches only the record you were looking at, and naming subjects is how checking an asset in stopped refreshing the holder's page.
+- Reads go through hooks in `api/queries.ts`; add the key to `queryKeys` first. Writes live in `api/mutations.ts` and go through one of the two coarse invalidators in `api/invalidate.ts`: `invalidateInventory` for assets/employees/assignments, `invalidateAdmin` for members, settings, the activity log and `/meta`. Do not hand-pick keys in a mutation: a write rarely touches only the record you were looking at, and naming subjects is how checking an asset in stopped refreshing the holder's page.
+- **Deleting the workspace is the one write that invalidates everything** (`queryClient.invalidateQueries()`), so `/meta` speaks again and the router lands on `/setup`. Not `clear()` — it empties the mutation cache too and drops the mutation's own callbacks mid-flight — and not `removeQueries()`, which leaves live observers holding their last result, so nothing refetches and the app keeps showing a workspace that no longer exists.
 - `useMe()` resolves to the member or `null`; a 401 is an expected signed-out state, not an error.
 - `routes.tsx` picks one of three route sets from instance + session state: uninitialized → setup only; signed out → auth screens only; signed in → the shell. Role gating uses shared `can()` (Admin section is admins-only), so permissions never drift from the API.
 - Auth screens share `features/auth/AuthLayout.tsx` (the design's 360px column, its own theme toggle, version footer) and `AuthField`. Server errors render via `FormError`; 422 field messages land under their inputs through `fieldErrors()`.
@@ -56,7 +58,7 @@ Run `npm run dev` and open `http://localhost:5173/kitchen-sink` (dev-only route,
 Vitest + Testing Library (jsdom). `vitest.setup.ts` registers cleanup and a localStorage shim (Node's experimental global shadows jsdom's). Write the failing test first.
 
 - Component tests assert behavior via roles/attributes (`data-variant`, `aria-current`), never CSS class names.
-- Route, guard and data-flow tests live in `src/app.test.tsx` and drive the real API client against `src/test/api-stub.ts` (a small `"METHOD /path"` route table over stubbed `fetch`). Prefer it over mocking hooks — it exercises the client, the query cache and the routing together.
+- Route, guard and data-flow tests live in `src/app.test.tsx` and drive the real API client against `src/test/api-stub.ts` (a small `"METHOD /path"` route table over stubbed `fetch`). Prefer it over mocking hooks — it exercises the client, the query cache and the routing together. Feature journeys use the same helper from their own feature folder. A route key may carry a query string to answer one exact request; the bare path is the fallback, and `api.called(...)`/`api.calledAll(...)` report each call's `search` so filter behavior is assertable.
 - Theme state outlives a render: reset `localStorage` and the `<html>` dataset in `afterEach` for any test that touches it.
 
 ## Adding a primitive
