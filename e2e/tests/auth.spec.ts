@@ -16,8 +16,10 @@ test('first-run setup creates the workspace and signs the admin in', async ({ pa
   await page.getByRole('button', { name: 'Create workspace' }).click();
 
   await expect(page).toHaveURL(/\/dashboard$/);
-  await expect(page.getByText(ADMIN.orgName)).toBeVisible();
-  await expect(page.getByText(ADMIN.name)).toBeVisible();
+  // Exact: the dashboard's activity feed names the same org and person in a
+  // sentence, and the sidebar is what this is about.
+  await expect(page.getByText(ADMIN.orgName, { exact: true })).toBeVisible();
+  await expect(page.getByText(ADMIN.name, { exact: true })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Dashboard' })).toBeVisible();
 });
 

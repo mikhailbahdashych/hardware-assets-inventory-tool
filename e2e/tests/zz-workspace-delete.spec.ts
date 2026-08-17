@@ -50,7 +50,7 @@ test('deletes the workspace and leaves an instance asking to be set up', async (
   await page.getByRole('button', { name: 'Create workspace' }).click();
 
   await expect(page.getByRole('navigation')).toBeVisible();
-  await expect(page.getByText('Globex')).toBeVisible();
+  await expect(page.getByText('Globex', { exact: true })).toBeVisible();
   // Nothing came back with it.
   await page.goto('/assets');
   await expect(page.getByText(/No assets yet/)).toBeVisible();
