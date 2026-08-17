@@ -57,11 +57,11 @@ describe('inviting somebody', () => {
     expect(res.statusCode).toBe(200);
 
     expect(ctx.sent).toHaveLength(1);
-    expect(ctx.sent[0].to).toBe('grace@acme.io');
-    expect(ctx.sent[0].subject).toBe('Join Acme Corp on Inventory');
-    expect(ctx.sent[0].text).toContain('as a Manager');
+    expect(ctx.sent[0]!.to).toBe('grace@acme.io');
+    expect(ctx.sent[0]!.subject).toBe('Join Acme Corp on Inventory');
+    expect(ctx.sent[0]!.text).toContain('as a Manager');
     // The same link either way: email is the convenience, not the contract.
-    expect(ctx.sent[0].text).toContain(res.json().inviteUrl);
+    expect(ctx.sent[0]!.text).toContain(res.json().inviteUrl);
   });
 
   it('sends nothing when the box was unticked', async () => {
@@ -130,7 +130,7 @@ describe('inviting somebody', () => {
       cookie: admin,
     });
     expect(ctx.sent).toHaveLength(1);
-    expect(ctx.sent[0].text).toContain(res.json().inviteUrl);
+    expect(ctx.sent[0]!.text).toContain(res.json().inviteUrl);
   });
 });
 
@@ -149,8 +149,8 @@ describe('a reset link an admin issues', () => {
       cookie: admin,
     });
     expect(ctx.sent).toHaveLength(1);
-    expect(ctx.sent[0].to).toBe('tomasz@acme.io');
-    expect(ctx.sent[0].text).toContain(res.json().resetUrl);
+    expect(ctx.sent[0]!.to).toBe('tomasz@acme.io');
+    expect(ctx.sent[0]!.text).toContain(res.json().resetUrl);
   });
 });
 
@@ -182,9 +182,9 @@ describe('handing an asset over', () => {
       },
     });
     expect(ctx.sent).toHaveLength(1);
-    expect(ctx.sent[0].to).toBe('maya@acme.io');
-    expect(ctx.sent[0].subject).toBe('MacBook Pro 14" is assigned to you');
-    expect(ctx.sent[0].text).toContain('due back on 2026-09-01');
+    expect(ctx.sent[0]!.to).toBe('maya@acme.io');
+    expect(ctx.sent[0]!.subject).toBe('MacBook Pro 14" is assigned to you');
+    expect(ctx.sent[0]!.text).toContain('due back on 2026-09-01');
   });
 
   it('confirms a check-in to whoever was holding it', async () => {
@@ -205,8 +205,8 @@ describe('handing an asset over', () => {
     });
 
     expect(ctx.sent).toHaveLength(1);
-    expect(ctx.sent[0].to).toBe('maya@acme.io');
-    expect(ctx.sent[0].text).toContain('checked back in at Acme Corp on 2026-07-01');
+    expect(ctx.sent[0]!.to).toBe('maya@acme.io');
+    expect(ctx.sent[0]!.text).toContain('checked back in at Acme Corp on 2026-07-01');
   });
 
   it('does not fail the assignment when the relay is down', async () => {

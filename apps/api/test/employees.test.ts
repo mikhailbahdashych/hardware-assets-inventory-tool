@@ -174,7 +174,7 @@ describe('editing an employee', () => {
       body: { status: 'offboarding' },
     });
     const open = ctx.db.select().from(assignments).where(eq(assignments.employeeId, id)).all();
-    expect(open[0].expectedReturnDate).toBeNull();
+    expect(open[0]!.expectedReturnDate).toBeNull();
   });
 
   it('refuses an email that another employee already uses', async () => {

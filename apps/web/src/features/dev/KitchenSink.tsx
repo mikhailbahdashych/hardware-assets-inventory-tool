@@ -339,7 +339,7 @@ export function KitchenSink() {
         </Row>
         <div style={{ maxWidth: 560 }}>
           <Dropzone
-            onFiles={(files) => show(`${files.length} file(s) selected`, 'ok')}
+            onFile={(file) => show(`${file.name} selected`, 'ok')}
             accept=".csv"
             label="Drop your CSV here or"
             inputLabel="Demo CSV file"

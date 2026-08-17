@@ -3,14 +3,18 @@ import { Icon } from './Icon';
 import styles from './Dropzone.module.css';
 
 export function Dropzone({
-  onFiles,
+  onFile,
   accept,
   label,
   inputLabel,
   hint,
   compact = false,
 }: {
-  onFiles: (files: FileList) => void;
+  /**
+   * One file, because every caller wants the first one — handing over a
+   * FileList only moved the "is there one?" question to each of them.
+   */
+  onFile: (file: File) => void;
   accept?: string;
   label: ReactNode;
   /**
@@ -47,7 +51,8 @@ export function Dropzone({
       onDrop={(event) => {
         event.preventDefault();
         setOver(false);
-        if (event.dataTransfer.files.length > 0) onFiles(event.dataTransfer.files);
+        const dropped = event.dataTransfer.files[0];
+        if (dropped) onFile(dropped);
       }}
     >
       <input
@@ -57,8 +62,9 @@ export function Dropzone({
         aria-label={inputLabel}
         hidden
         onChange={(event) => {
-          if (event.target.files && event.target.files.length > 0) onFiles(event.target.files);
+          const chosen = event.target.files?.[0];
           event.target.value = '';
+          if (chosen) onFile(chosen);
         }}
       />
       <Icon name="upload" size={compact ? 14 : 18} strokeWidth={1.6} />

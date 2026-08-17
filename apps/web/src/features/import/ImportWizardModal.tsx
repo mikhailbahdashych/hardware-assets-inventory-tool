@@ -194,7 +194,7 @@ export function ImportWizardModal({ onClose }: { onClose: () => void }) {
           inputLabel="CSV file"
           accept=".csv,text/csv"
           hint={`Up to ${MAX_IMPORT_ROWS.toLocaleString('en-US')} rows per import · you'll review column mapping next`}
-          onFiles={(files) => void readFile(files[0])}
+          onFile={(file) => void readFile(file)}
         />
 
         {parsed?.ok === false && <p className={styles.error}>{parsed.reason}</p>}

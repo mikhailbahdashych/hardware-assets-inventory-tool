@@ -101,7 +101,7 @@ export function memberCookie(db: Db, role: Role): string {
     .values({
       id,
       email: `${role}-${id.slice(0, 8)}@acme.io`,
-      displayName: `${role[0].toUpperCase()}${role.slice(1)} Person`,
+      displayName: `${role[0]!.toUpperCase()}${role.slice(1)} Person`,
       passwordHash: 'not-used',
       role,
       status: 'active',

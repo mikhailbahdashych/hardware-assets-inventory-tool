@@ -153,7 +153,7 @@ describe('login / logout / me', () => {
     ctx.db.update(sessions).set({ expiresAt: soon }).run();
 
     await inject(ctx.app, { method: 'GET', url: '/api/v1/auth/me', cookie });
-    const [session] = ctx.db.select().from(sessions).all();
+    const session = ctx.db.select().from(sessions).all()[0]!;
     expect(new Date(session.expiresAt).getTime()).toBeGreaterThan(
       Date.now() + 20 * 24 * 60 * 60 * 1000,
     );
@@ -276,7 +276,7 @@ describe('password reset', () => {
   it('resets the password, revokes other sessions, and audits', async () => {
     ctx = await buildTestApp();
     const adminCookie = await setupOrg(ctx.app);
-    const admin = ctx.db.select().from(members).all()[0];
+    const admin = ctx.db.select().from(members).all()[0]!;
     const raw = issueAuthToken(ctx.db, admin.id, 'password_reset');
 
     const res = await ctx.app.inject({

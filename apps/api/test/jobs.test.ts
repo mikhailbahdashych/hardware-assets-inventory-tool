@@ -58,12 +58,12 @@ describe('the warranty scan', () => {
 
     expect(await runWarrantyScan(ctx.deps, MONDAY)).toEqual({ sent: 1, skipped: 0 });
     expect(ctx.sent).toHaveLength(1);
-    expect(ctx.sent[0].to).toBe('tomasz@acme.io');
-    expect(ctx.sent[0].text).toContain('Due soon');
-    expect(ctx.sent[0].text).toContain('20 days left');
+    expect(ctx.sent[0]!.to).toBe('tomasz@acme.io');
+    expect(ctx.sent[0]!.text).toContain('Due soon');
+    expect(ctx.sent[0]!.text).toContain('20 days left');
     // Outside the 60-day lead time, and one whose alert is already moot.
-    expect(ctx.sent[0].text).not.toContain('Due later');
-    expect(ctx.sent[0].text).not.toContain('Already gone');
+    expect(ctx.sent[0]!.text).not.toContain('Due later');
+    expect(ctx.sent[0]!.text).not.toContain('Already gone');
 
     // Running again the same day sends nothing.
     expect(await runWarrantyScan(ctx.deps, MONDAY)).toEqual({ sent: 0, skipped: 1 });
@@ -85,7 +85,7 @@ describe('the warranty scan', () => {
 
     // A different date is a different alert, so the corrected one goes out.
     expect(await runWarrantyScan(ctx.deps, MONDAY)).toEqual({ sent: 1, skipped: 0 });
-    expect(ctx.sent[1].text).toContain('30 days left');
+    expect(ctx.sent[1]!.text).toContain('30 days left');
   });
 
   it('does nothing when the workspace has the alerts switched off', async () => {
@@ -135,9 +135,9 @@ describe('return reminders', () => {
     await assetDueBack(admin, 2);
 
     expect(await runReturnReminders(ctx.deps, MONDAY)).toEqual({ sent: 1, skipped: 0 });
-    expect(ctx.sent[0].to).toBe('maya@acme.io');
-    expect(ctx.sent[0].text).toContain('MacBook Pro 14"');
-    expect(ctx.sent[0].text).toContain('Maya Lindqvist');
+    expect(ctx.sent[0]!.to).toBe('maya@acme.io');
+    expect(ctx.sent[0]!.text).toContain('MacBook Pro 14"');
+    expect(ctx.sent[0]!.text).toContain('Maya Lindqvist');
   });
 
   it('nags about something overdue and stays quiet about something far off', async () => {
@@ -193,10 +193,10 @@ describe('the weekly digest', () => {
     });
 
     expect(await runWeeklyDigest(ctx.deps, MONDAY)).toEqual({ sent: 1, skipped: 0 });
-    expect(ctx.sent[0].subject).toBe('Acme Corp Inventory · this week');
-    expect(ctx.sent[0].text).toContain('1 assets tracked');
+    expect(ctx.sent[0]!.subject).toBe('Acme Corp Inventory · this week');
+    expect(ctx.sent[0]!.text).toContain('1 assets tracked');
     // Sentences from the same renderer the activity log uses.
-    expect(ctx.sent[0].text).toContain('Added MacBook Pro 14" to the inventory');
+    expect(ctx.sent[0]!.text).toContain('Added MacBook Pro 14" to the inventory');
 
     expect(await runWeeklyDigest(ctx.deps, MONDAY)).toEqual({ sent: 0, skipped: 1 });
   });

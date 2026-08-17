@@ -112,7 +112,7 @@ describe('Menu', () => {
     expect(trigger).toHaveAttribute('aria-expanded', 'true');
 
     await userEvent.click(screen.getByRole('menuitem', { name: 'Change role' }));
-    expect(items[0].onSelect).toHaveBeenCalled();
+    expect(items[0]!.onSelect).toHaveBeenCalled();
     // A menu left open over the row it just changed points at stale data.
     expect(screen.queryByRole('menu')).toBeNull();
   });

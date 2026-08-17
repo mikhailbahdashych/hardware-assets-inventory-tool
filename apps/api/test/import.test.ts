@@ -133,7 +133,7 @@ describe('committing an asset import', () => {
       .where(eq(auditEvents.action, 'system.import_completed'))
       .all();
     expect(events).toHaveLength(1);
-    expect(JSON.parse(events[0].params)).toEqual({ kind: 'assets', created: 2, updated: 0 });
+    expect(JSON.parse(events[0]!.params)).toEqual({ kind: 'assets', created: 2, updated: 0 });
   });
 
   it('opens an ownership record for a row that arrives already assigned', async () => {
@@ -255,7 +255,7 @@ describe('committing an employee import', () => {
 
     const rows = ctx.db.select().from(employees).all();
     expect(rows).toHaveLength(1);
-    expect(rows[0].id).toBe(maya.id);
-    expect(rows[0].firstName).toBe('Maja');
+    expect(rows[0]!.id).toBe(maya.id);
+    expect(rows[0]!.firstName).toBe('Maja');
   });
 });

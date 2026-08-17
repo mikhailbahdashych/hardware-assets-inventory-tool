@@ -80,7 +80,7 @@ describe('planning an asset import', () => {
 
   it('numbers rows the way a spreadsheet does, header included', () => {
     const plan = planAssets([assetRow({ name: '' }), assetRow({ asset_tag: 'AST-0101' })]);
-    expect(plan.report.errors[0].row).toBe(2);
+    expect(plan.report.errors[0]!.row).toBe(2);
   });
 
   it('leaves every optional column NULL when it is blank or absent', () => {
@@ -132,7 +132,7 @@ describe('planning an asset import', () => {
   it('refuses a tag the inventory already has — assets are only ever created', () => {
     const plan = planAssets([assetRow()], context({ existingAssetTags: new Set(['AST-0100']) }));
     expect(plan.report.errors[0]).toMatchObject({ column: 'asset_tag' });
-    expect(plan.report.errors[0].message).toMatch(/already/i);
+    expect(plan.report.errors[0]!.message).toMatch(/already/i);
   });
 
   it('imports an asset as unassigned when its assignee is unknown, and says so', () => {
@@ -153,7 +153,7 @@ describe('planning an asset import', () => {
       }),
     );
     expect(plan.report.errors[0]).toMatchObject({ row: 2, column: 'assigned_to_email' });
-    expect(plan.report.errors[0].message).toMatch(/offboarding/i);
+    expect(plan.report.errors[0]!.message).toMatch(/offboarding/i);
   });
 
   it('ignores an assignee on a row that is not assigned, and says so', () => {
@@ -165,7 +165,7 @@ describe('planning an asset import', () => {
       }),
     );
     expect(plan.report.errors).toEqual([]);
-    expect(plan.report.warnings[0].message).toMatch(/ignored/i);
+    expect(plan.report.warnings[0]!.message).toMatch(/ignored/i);
     expect(plan.rows[0]).toMatchObject({ status: 'in_repair', assignedToEmployeeId: null });
   });
 
@@ -229,7 +229,7 @@ describe('planning an employee import', () => {
       [employeeRow()],
       context({ employeeIdByEmail: new Map([['maya.lindqvist@acme.io', 'emp-1']]) }),
     );
-    expect(plan.rows[0].existingId).toBe('emp-1');
+    expect(plan.rows[0]!.existingId).toBe('emp-1');
     expect(plan.report).toMatchObject({ createCount: 0, updateCount: 1, validCount: 1 });
   });
 

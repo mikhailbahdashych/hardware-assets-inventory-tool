@@ -37,6 +37,10 @@ The alias is declared in **three** places that must agree, or you get a green ty
 - **No body at all** — a proxy, a gateway, a dropped connection, never this API answering → `HttpError`, whose code and message are read off the response (`http_502`). It extends `ApiError`, so `instanceof` checks still work.
 - **A body that is not the envelope**, or a 2xx whose body is not JSON → `MalformedApiResponse`, quoting what actually arrived. That is the API breaking its own contract; the throw is the bug report.
 
+## Indexing, under `noUncheckedIndexedAccess`
+
+`array[i]` is `T | undefined`. Prefer removing the doubt over asserting it away: `Dropzone` hands its caller a single `File` rather than a `FileList` because every caller wanted the first one, and the palette reads `rows[active]` into one `activeRow` and checks it, because that index is maintained by hand across renders and ↵ on nothing should do nothing. The one assertion in this workspace is `avatar.ts`, where a hash modulo the palette length is provably in range and a fallback colour would hide a real mistake.
+
 ## When a `??` is legitimate here
 
 Keep it when absence is the answer: a nullable column becoming an empty form input, `searchParams.get('q') ?? ''` (no parameter means no filter), `?? '—'` where the design specifies an em dash, `query.data ?? []` (a list that has not arrived has no rows), an optional prop's default. Say why in a comment.

@@ -64,7 +64,7 @@ describe('the activity log', () => {
       'asset.created',
       'system.setup_completed',
     ]);
-    expect(items[0].actorName).toBe(SETUP_BODY.name);
+    expect(items[0]!.actorName).toBe(SETUP_BODY.name);
     expect(total).toBe(3);
     expect(typeCounts).toEqual({ all: 3, assets: 1, people: 1, auth: 0, system: 1 });
   });
@@ -115,8 +115,8 @@ describe('the activity log', () => {
     const items = (
       await inject(ctx.app, { method: 'GET', url: '/api/v1/audit?type=assets', cookie: admin })
     ).json().items as { assetId: string | null; employeeId: string | null }[];
-    expect(items[0].assetId).toBe(asset.id);
-    expect(items[0].employeeId).toBeNull();
+    expect(items[0]!.assetId).toBe(asset.id);
+    expect(items[0]!.employeeId).toBeNull();
   });
 });
 
