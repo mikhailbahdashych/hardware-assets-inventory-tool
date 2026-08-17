@@ -19,6 +19,12 @@ const envSchema = z.object({
     .default('http://localhost:3000'),
   COOKIE_SECURE: z.enum(['true', 'false']).optional(),
   LOG_LEVEL: z.string().default('info'),
+  /**
+   * Whether an upstream proxy's `X-Forwarded-For` may be believed. Off by
+   * default, because trusting that header when nothing sets it lets any client
+   * claim any address — and rate limits are keyed on the result.
+   */
+  TRUST_PROXY: z.string().optional(),
   WEB_DIST: z.string().optional(),
   SMTP_HOST: z.string().optional(),
   SMTP_PORT: z.coerce.number().int().positive().default(587),
@@ -41,10 +47,24 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
         ? parsed.COOKIE_SECURE === 'true'
         : parsed.APP_URL.startsWith('https://'),
     logLevel: parsed.LOG_LEVEL,
+    trustProxy: readTrustProxy(parsed.TRUST_PROXY),
     // fastify-static needs an absolute root.
     webDist: parsed.WEB_DIST ? resolve(parsed.WEB_DIST) : undefined,
     smtp: readSmtp(parsed),
   };
+}
+
+/**
+ * `true`, `false`, a hop count, or a comma-separated list of trusted addresses
+ * — the shapes Fastify accepts, so an operator can name their proxy's subnet
+ * rather than trusting whatever arrives.
+ */
+function readTrustProxy(value: string | undefined): boolean | number | string[] {
+  if (value === undefined || value === '' || value === 'false') return false;
+  if (value === 'true') return true;
+  const hops = Number(value);
+  if (Number.isInteger(hops) && hops > 0) return hops;
+  return value.split(',').map((entry) => entry.trim());
 }
 
 /**

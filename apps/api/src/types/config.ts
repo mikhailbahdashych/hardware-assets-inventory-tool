@@ -30,6 +30,8 @@ export interface Config {
   appUrl: string;
   cookieSecure: boolean;
   logLevel: string;
+  /** What Fastify should believe about `X-Forwarded-For`; `false` unless set. */
+  trustProxy: boolean | number | string[];
   /** Absolute path to the built SPA; when set (and existing) the API serves it. */
   webDist?: string;
   smtp: SmtpConfig | null;

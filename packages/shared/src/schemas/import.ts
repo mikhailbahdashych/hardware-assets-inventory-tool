@@ -167,7 +167,12 @@ export function matchEnumValue<T extends string>(
  * applies the column mapping, so the server only ever sees canonical keys and
  * never has to know what the file's own headers were called.
  */
-const importRow = z.record(z.string(), z.string());
+const importRow = z.record(
+  z.string(),
+  // Bounded because every validator runs over these strings, and an
+  // unbounded cell makes any per-character cost somebody else's outage.
+  z.string().max(2000, 'That cell is too long to import.'),
+);
 
 export const importValidateInput = z.object({
   kind: z.enum(IMPORT_KINDS),

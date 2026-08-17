@@ -37,5 +37,11 @@ export const settingsPatchInput = z.object({
   emailReturnReminders: z.boolean().optional(),
   emailInvites: z.boolean().optional(),
   emailWeeklyDigest: z.boolean().optional(),
+  /**
+   * Turning this on makes every member enrol before they can use the app;
+   * turning it off deletes every stored secret and recovery code, because a
+   * disabled second factor that quietly kept its secrets is a lie.
+   */
+  mfaRequired: z.boolean().optional(),
 });
 export type SettingsPatchInput = z.infer<typeof settingsPatchInput>;

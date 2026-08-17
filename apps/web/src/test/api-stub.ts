@@ -84,6 +84,7 @@ export const ADMIN_MEMBER = {
   theme: 'light',
   density: 'comfortable',
   widgets: {},
+  mfaEnrolled: false,
 };
 
 export const READY_META = {
@@ -279,6 +280,7 @@ export const SETTINGS = {
   emailReturnReminders: true,
   emailInvites: true,
   emailWeeklyDigest: false,
+  mfaRequired: false,
   createdAt: '2026-01-01T00:00:00.000Z',
   updatedAt: '2026-01-01T00:00:00.000Z',
 };

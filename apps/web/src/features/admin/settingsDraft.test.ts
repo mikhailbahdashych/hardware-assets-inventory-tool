@@ -14,6 +14,7 @@ const STORED: OrgSettings = {
   emailReturnReminders: true,
   emailInvites: true,
   emailWeeklyDigest: false,
+  mfaRequired: false,
   createdAt: '2026-01-01T00:00:00.000Z',
   updatedAt: '2026-01-01T00:00:00.000Z',
 };
@@ -28,6 +29,7 @@ const untouched: SettingsDraft = {
   emailReturnReminders: true,
   emailInvites: true,
   emailWeeklyDigest: false,
+  mfaRequired: false,
 };
 
 const draft = (overrides: Partial<SettingsDraft> = {}): SettingsDraft => ({

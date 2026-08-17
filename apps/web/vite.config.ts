@@ -13,6 +13,11 @@ export default defineConfig({
     },
   },
   server: {
+    // Localhost by default: a dev server on every interface hands an
+    // un-set-up instance to whoever else is on the coffee-shop wifi. The
+    // Docker dev stack sets VITE_HOST=0.0.0.0, because there the container
+    // boundary is what a request has to cross to arrive at all.
+    host: process.env.VITE_HOST ?? 'localhost',
     proxy: {
       '/api': 'http://localhost:3000',
     },

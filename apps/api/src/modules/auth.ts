@@ -6,6 +6,7 @@ import {
   acceptInviteInput,
   forgotPasswordInput,
   loginInput,
+  mfaChallengeInput,
   resetPasswordInput,
 } from '@inventory/shared';
 import type { AppDeps } from '@/types/app.js';
@@ -14,9 +15,10 @@ import { AppError, invalidCredentials, invalidToken } from '@/lib/errors.js';
 import { nowIso } from '@/lib/dates.js';
 import { DUMMY_HASH_PROMISE, hashPassword, verifyPassword } from '@/lib/password.js';
 import { serializeMember } from '@/lib/serialize.js';
-import { requireAuth } from '@/plugins/rbac.js';
+import { requireSession } from '@/plugins/rbac.js';
 import { writeAudit } from '@/services/audit.js';
-import { consumeToken, findValidToken } from '@/services/auth-tokens.js';
+import { consumeToken, findValidToken, issueAuthToken } from '@/services/auth-tokens.js';
+import { verifyChallenge } from '@/services/mfa.js';
 import {
   clearSessionCookie,
   createSession,
@@ -54,6 +56,60 @@ export function registerAuthRoutes(app: FastifyInstance, deps: AppDeps): void {
         throw invalidCredentials();
       }
 
+      // A confirmed authenticator means the password is only half of it. The
+      // session is not created here at all — the caller gets a short-lived
+      // challenge token and has to come back with a code for it.
+      if (member.mfaConfirmedAt) {
+        return {
+          mfaRequired: true,
+          challengeToken: issueAuthToken(deps.db, member.id, 'mfa_challenge', now),
+        };
+      }
+
+      writeAudit(
+        deps.db,
+        {
+          type: 'auth',
+          action: 'auth.login',
+          actorMemberId: member.id,
+          actorName: member.displayName,
+          memberId: member.id,
+        },
+        now,
+      );
+      const session = createSession(deps.db, member.id, now);
+      setSessionCookie(reply, session.raw, session.expiresAt, deps.config);
+      return { member: serializeMember(member) };
+    },
+  );
+
+  /**
+   * The second half of a login. Takes the challenge token the password step
+   * returned and either an authenticator code or a recovery code — the server
+   * decides which by what matches, so the screen needs one input.
+   *
+   * Rate-limited like the password step: a six-digit code is a million
+   * possibilities, which is only enough if guessing is slow.
+   */
+  typed.post(
+    '/api/v1/auth/mfa/verify',
+    { schema: { body: mfaChallengeInput }, config: { rateLimit: LOGIN_RATE } },
+    async (request, reply) => {
+      const now = deps.now();
+      const token = findValidToken(deps.db, request.body.challengeToken, 'mfa_challenge', now);
+      if (!token) throw invalidToken();
+
+      const member = deps.db.select().from(members).where(eq(members.id, token.memberId)).get();
+      if (!member || member.status !== 'active') throw invalidCredentials();
+
+      if (!verifyChallenge(deps.db, member, request.body.code, now)) {
+        // The challenge survives a wrong code — a mistyped digit should not
+        // send somebody back to the password screen — and the rate limit is
+        // what stops that being useful to anybody else.
+        throw new AppError(422, 'mfa_code_invalid', 'That code is not right.');
+      }
+
+      consumeToken(deps.db, token.id, now);
       writeAudit(
         deps.db,
         {
@@ -192,7 +248,13 @@ export function registerAuthRoutes(app: FastifyInstance, deps: AppDeps): void {
     },
   );
 
-  typed.get('/api/v1/auth/me', { preHandler: requireAuth }, async (request) => ({
+  // requireSession, not requireAuth: somebody mid-enrolment still needs to be
+  // able to ask who they are — that answer is what puts the setup screen up.
+  typed.get('/api/v1/auth/me', { preHandler: requireSession }, async (request) => ({
     member: serializeMember(request.member!),
+    // A sibling rather than part of the member: it is a fact about this member
+    // *and* this workspace's policy, and a non-admin cannot read settings to
+    // work it out for themselves. It is what puts the setup screen up.
+    mustEnrolMfa: request.mustEnrolMfa,
   }));
 }

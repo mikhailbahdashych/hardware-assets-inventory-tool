@@ -14,6 +14,7 @@ playwright-report
 # not invalidate the layer cache and rebuild the whole image. `e2e/` stays:
 # it is a declared npm workspace, so `npm ci` fails without its package.json.
 docs
+media
 *.md
 .claude
 .remember

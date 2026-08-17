@@ -6,6 +6,10 @@ Built to be **customized by asking Claude Code**: every area of the repo carries
 
 MIT licensed.
 
+![The Inventory dashboard: six status tiles, assets broken down by category, recent activity, warranties running out and returns due back](media/dashboard.png)
+
+_The demo workspace, as `npm run seed:demo` leaves it._
+
 ---
 
 ## Quick start
@@ -40,25 +44,47 @@ docker compose up -d
 - **⌘K** — search assets and people or run a command, entirely from the keyboard.
 - **CSV import** — a mapping step, a dry run that names the row and column of every problem, then one transaction.
 - **Email, optionally** — warranty alerts, return reminders, invitations, a weekly digest. All of it works without SMTP too; see below.
+- **Two-factor authentication** — TOTP, off by default, switched on for the whole workspace by an admin. Recovery codes included, and a break-glass command for the day somebody loses both.
+
+![The asset list: a filter pill per status carrying its own count, and a column naming who currently holds each device](media/assets.png)
+
+_The pills carry their counts, so the shape of the fleet is readable before you filter anything._
+
+![The detail page for one laptop: specification, custom fields, its current holder, an ownership timeline and the audit trail for that asset](media/asset-detail.png)
+
+_AST-0001 has had two holders and a spell on the shelf between them. The "In stock" gap is derived from the ownership rows rather than stored, which is why it cannot disagree with them._
+
+![The activity log: filter pills counting assets, people, auth and system events, above a table of events written as sentences](media/activity-log.png)
+
+_Every mutation, written as a sentence by the same renderer that produces the CSV export — so the screen and the file cannot drift apart._
+
+![The command palette open over the dashboard, one query matching both assets and an employee, grouped under separate headings](media/command-palette.png)
+
+_⌘K from anywhere. Results group by what they are, and the same list runs commands._
+
+![The dashboard again in dark theme, with the same tiles, category bars and widgets](media/dashboard-dark.png)
+
+_Both themes ship. Signed in, it follows the preference stored with your account and travels between browsers with you; before that, it takes whatever your system asks for._
 
 ## Configuration
 
 Every value has a default. An instance with no configuration at all runs.
 
-| Variable                  | Default                           | What it does                                                                                                                                              |
-| ------------------------- | --------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `PORT`                    | `3000`                            | Port the server listens on.                                                                                                                               |
-| `HOST`                    | `0.0.0.0`                         | Interface to bind.                                                                                                                                        |
-| `DATA_DIR`                | `/data`                           | SQLite file and uploaded attachments. **The one directory to back up.**                                                                                   |
-| `APP_URL`                 | `http://localhost:3000`           | Where a browser reaches this instance. Invitation and reset links are built from it; an `https://` value switches session cookies to `Secure` on its own. |
-| `COOKIE_SECURE`           | derived from `APP_URL`            | Override, for a proxy that terminates TLS in a way the URL does not describe.                                                                             |
-| `LOG_LEVEL`               | `info`                            | pino level.                                                                                                                                               |
-| `TZ`                      | container default                 | The scheduled jobs run on wall-clock time, so this decides when 08:00 is.                                                                                 |
-| `SMTP_HOST`               | —                                 | Set it and the instance can send email. Leave it and it cannot; nothing else changes.                                                                     |
-| `SMTP_PORT`               | `587`                             | `465` implies TLS on its own.                                                                                                                             |
-| `SMTP_SECURE`             | derived from the port             | Force implicit TLS on or off.                                                                                                                             |
-| `SMTP_USER` / `SMTP_PASS` | —                                 | Both or neither; a relay on a private network usually wants neither.                                                                                      |
-| `SMTP_FROM`               | `Inventory <inventory@localhost>` | The From header, as written.                                                                                                                              |
+| Variable                  | Default                           | What it does                                                                                                                                                                                                                   |
+| ------------------------- | --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `PORT`                    | `3000`                            | Port the server listens on.                                                                                                                                                                                                    |
+| `HOST`                    | `0.0.0.0`                         | Interface to bind.                                                                                                                                                                                                             |
+| `DATA_DIR`                | `/data`                           | SQLite file and uploaded attachments. **The one directory to back up.**                                                                                                                                                        |
+| `APP_URL`                 | `http://localhost:3000`           | Where a browser reaches this instance. Invitation and reset links are built from it; an `https://` value switches session cookies to `Secure` on its own.                                                                      |
+| `COOKIE_SECURE`           | derived from `APP_URL`            | Override, for a proxy that terminates TLS in a way the URL does not describe.                                                                                                                                                  |
+| `LOG_LEVEL`               | `info`                            | pino level.                                                                                                                                                                                                                    |
+| `TRUST_PROXY`             | `false`                           | Set to `true`, a hop count, or a comma-separated list of proxy addresses when something terminates TLS in front. Rate limits are keyed on the client address, and without this every request behind a proxy shares one bucket. |
+| `TZ`                      | container default                 | The scheduled jobs run on wall-clock time, so this decides when 08:00 is.                                                                                                                                                      |
+| `SMTP_HOST`               | —                                 | Set it and the instance can send email. Leave it and it cannot; nothing else changes.                                                                                                                                          |
+| `SMTP_PORT`               | `587`                             | `465` implies TLS on its own.                                                                                                                                                                                                  |
+| `SMTP_SECURE`             | derived from the port             | Force implicit TLS on or off.                                                                                                                                                                                                  |
+| `SMTP_USER` / `SMTP_PASS` | —                                 | Both or neither; a relay on a private network usually wants neither.                                                                                                                                                           |
+| `SMTP_FROM`               | `Inventory <inventory@localhost>` | The From header, as written.                                                                                                                                                                                                   |
 
 ### Running without email
 
@@ -67,6 +93,23 @@ This is a first-class way to run it, not a degraded one.
 - **Invitations** come back as a link the admin copies and hands over.
 - **Password resets** are the same: an admin issues a link from the Members page. `/auth/forgot-password` always answers 204 and issues nothing, because a reset link must never be handed to whoever asked for it.
 - **Everything that would email** — the invite checkbox, the assign and check-in notifications, the four notification switches — shows disabled with the reason where the control is.
+
+## Two-factor authentication
+
+Off by default. An admin turns it on for the whole workspace in **Admin → Settings → Security**, and from that moment every member — existing sessions included, on their next request — has to set up an authenticator before they can do anything else.
+
+- **TOTP**, so any authenticator works: 1Password, Bitwarden, Aegis, Google Authenticator. Enrolment shows a QR and the key in text for entering by hand.
+- **Ten recovery codes**, shown once at enrolment and stored only as hashes. Each works once, in place of a code from the app.
+- **Only admins reset it**, from the Members page. There is no self-service reset, because a second factor you can clear with a stolen password is not a second factor.
+- **Turning the requirement off deletes every stored secret and recovery code.** A disabled second factor that quietly kept its secrets would come back on with authenticators nobody remembers adding.
+
+If the last admin loses both their phone and their recovery codes, break glass from the host:
+
+```bash
+docker compose exec inventory node apps/api/dist/db/mfa-reset-cli.js admin@example.com
+```
+
+That needs shell access to the instance, which is already root-equivalent over a SQLite file — it grants nothing that was not already possible, it just makes it survivable.
 
 ## Security
 
@@ -88,11 +131,48 @@ Copy `DATA_DIR`. See [`docs/backup-restore.md`](docs/backup-restore.md), which a
 - Put it behind a reverse proxy for TLS and set `APP_URL` to the public address.
 - Roughly 10,000 assets is the point where the unpaginated list endpoints stop being comfortable. Past that, open an issue — the schema is ready for Postgres, the code is not yet.
 
-## Development
+## Running it locally
+
+Two ways, and they do the same thing. Full instructions in [`docs/development.md`](docs/development.md).
+
+**With Node 22+:**
 
 ```bash
 npm install
-npm run dev        # api :3000, web :5173 (Vite proxies /api)
+npm run seed:demo     # optional: fill it with a demo workspace
+npm run dev           # → http://localhost:5173
+```
+
+**With only Docker:**
+
+```bash
+docker compose -f docker-compose.dev.yml run --rm app npm run seed:demo
+docker compose -f docker-compose.dev.yml up     # → http://localhost:5173
+```
+
+Either way the API runs on `:3000` and Vite on `:5173` and proxies to it — **open `:5173`**. Both give you hot reload; the Docker one mounts your checkout, so editing a file on the host still restarts the API and refreshes the browser.
+
+### Seeing it with data in it
+
+A fresh instance is empty and lands on `/setup`, which is the real first-run experience but leaves every screen blank — and this app is largely about history. `npm run seed:demo` gives you a fictional company: twelve people, twenty-six devices, four months of assignments, returns and audit history. It prints one login per role, so you can see what an admin, a manager and a viewer each get:
+
+```
+  Northwind Robotics is ready in /path/to/repo/data
+
+  26 assets · 12 employees · 19 ownership records · 72 logged events
+
+  ada.okafor@northwind.example    demo-password  (admin)
+  marco.rossi@northwind.example   demo-password  (manager)
+  lena.fischer@northwind.example  demo-password  (viewer)
+```
+
+Every date is relative to the moment you run it, so warranties are always about to lapse and returns are always about to fall due — the dashboard is never a museum. It refuses to touch a workspace that already has data; add `--reset` to replace one.
+
+The seeder ships in the production image too (`node dist/db/seed-demo-cli.js --reset`, honouring `DEMO_PASSWORD`), so a public demo instance can restore itself on a schedule.
+
+### Other commands
+
+```bash
 npm test           # unit and integration, all workspaces
 npm run e2e        # Playwright against a production build
 npm run lint && npm run typecheck && npm run format

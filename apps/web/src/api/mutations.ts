@@ -14,6 +14,8 @@ import type {
   InviteInput,
   LoginInput,
   MemberPatchInput,
+  MfaChallengeInput,
+  MfaConfirmInput,
   PrefsPatchInput,
   ResetPasswordInput,
   SettingsPatchInput,
@@ -29,8 +31,11 @@ import type {
   Employee,
   ImportReport,
   ImportResult,
+  LoginResult,
   Member,
   MemberSummary,
+  MfaEnrolment,
+  Session,
   OrgSettings,
 } from '@/types/api';
 
@@ -41,13 +46,64 @@ function useSessionMutation<TInput>(path: string) {
     mutationFn: (input: TInput) =>
       apiFetch<{ member: Member }>(path, { method: 'POST', body: input }),
     onSuccess: ({ member }) => {
-      queryClient.setQueryData(queryKeys.me, member);
+      // A member who just signed in owes no enrolment — the API would have
+      // answered with a challenge instead of a session if they did.
+      queryClient.setQueryData(queryKeys.me, { member, mustEnrolMfa: false });
       queryClient.invalidateQueries({ queryKey: queryKeys.meta });
     },
   });
 }
 
-export const useLogin = () => useSessionMutation<LoginInput>('/auth/login');
+/**
+ * The password step. Unlike the others it may *not* end in a session: an
+ * account with an authenticator gets a challenge back, and `LoginPage` asks
+ * for a code. Nothing is written to the cache until a session actually exists.
+ */
+export function useLogin() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: LoginInput) =>
+      apiFetch<LoginResult>('/auth/login', { method: 'POST', body: input }),
+    onSuccess: (result) => {
+      if ('mfaRequired' in result) return;
+      queryClient.setQueryData(queryKeys.me, { member: result.member, mustEnrolMfa: false });
+      queryClient.invalidateQueries({ queryKey: queryKeys.meta });
+    },
+  });
+}
+
+/** The code step: a challenge token plus an authenticator or recovery code. */
+export const useMfaVerify = () => useSessionMutation<MfaChallengeInput>('/auth/mfa/verify');
+
+/** Begins enrolment — a fresh secret, not yet confirmed. */
+export function useMfaEnroll() {
+  return useMutation({
+    mutationFn: () => apiFetch<MfaEnrolment>('/me/mfa/enroll', { method: 'POST' }),
+  });
+}
+
+/**
+ * Finishes it. The recovery codes come back once and are never recoverable,
+ * so the screen that receives them is the only place they will ever exist.
+ */
+export function useMfaConfirm() {
+  return useMutation({
+    mutationFn: (input: MfaConfirmInput) =>
+      apiFetch<{ recoveryCodes: string[] }>('/me/mfa/confirm', { method: 'POST', body: input }),
+    // Deliberately does NOT invalidate `me`. The gate in routes.tsx renders on
+    // `mustEnrolMfa`, so refreshing it here would unmount the enrolment page
+    // the instant the code was accepted — taking the recovery codes with it,
+    // which are the one thing this whole flow exists to hand over. The
+    // "Continue" button does a full navigation, and that is what re-asks.
+  });
+}
+
+/** Admin-only: send somebody back through setup. */
+export function useResetMemberMfa() {
+  return useAdminMutation((input: { id: string }) =>
+    apiFetch(`/members/${input.id}/mfa/reset`, { method: 'POST' }),
+  );
+}
 export const useSetup = () => useSessionMutation<SetupInput>('/setup');
 export const useAcceptInvite = () => useSessionMutation<AcceptInviteInput>('/auth/accept-invite');
 export const useResetPassword = () =>
@@ -77,7 +133,12 @@ export function useUpdatePrefs() {
   return useMutation({
     mutationFn: (input: PrefsPatchInput) =>
       apiFetch<{ member: Member }>('/me/prefs', { method: 'PATCH', body: input }),
-    onSuccess: ({ member }) => queryClient.setQueryData(queryKeys.me, member),
+    // Merge, don't replace: the cache entry is the whole session, and prefs
+    // say nothing about whether an enrolment is owed.
+    onSuccess: ({ member }) =>
+      queryClient.setQueryData(queryKeys.me, (current: Session | null | undefined) =>
+        current ? { ...current, member } : current,
+      ),
   });
 }
 

@@ -8,6 +8,7 @@ import { orgSettings } from '@/db/schema.js';
 import { nowIso } from '@/lib/dates.js';
 import { AppError } from '@/lib/errors.js';
 import { writeAudit } from './audit.js';
+import { wipeAllMfa } from './mfa.js';
 
 /** In the order the Settings page draws them, which is the order the audit reads. */
 const EDITABLE = [
@@ -20,6 +21,7 @@ const EDITABLE = [
   'emailReturnReminders',
   'emailInvites',
   'emailWeeklyDigest',
+  'mfaRequired',
 ] as const;
 
 /**
@@ -63,6 +65,12 @@ export function updateSettings(
 
     values.updatedAt = nowIso(now);
     tx.update(orgSettings).set(values).where(eq(orgSettings.id, current.id)).run();
+
+    // Switching the requirement off takes every secret and recovery code with
+    // it, in the same transaction as the setting that stopped needing them.
+    // Leaving them behind would mean a later re-enable silently restored
+    // authenticators nobody remembers adding.
+    if (patch.mfaRequired === false) wipeAllMfa(tx, now);
     writeAudit(
       tx,
       {

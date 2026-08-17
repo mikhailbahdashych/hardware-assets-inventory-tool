@@ -19,6 +19,7 @@ This repo is built to be customized by asking Claude Code. Every area has its ow
 ```bash
 npm install          # once, at the root (npm workspaces)
 npm run dev          # api on :3000 + web on http://localhost:5173 (dev-only /kitchen-sink; /api proxied)
+npm run seed:demo    # fill this instance with a demo workspace (add -- --reset to replace one)
 npm test             # unit tests, all workspaces
 npm run e2e          # Playwright against the production build
 npm run lint         # ESLint
@@ -26,6 +27,19 @@ npm run typecheck    # tsc across workspaces
 npm run build        # production build
 npm run format       # Prettier
 ```
+
+**A fresh clone starts empty**, at `/setup`. `npm run seed:demo` is the shortcut: a fictional company, its people, 26 devices and four months of history, so every screen has something on it. It prints the logins — one per role — and refuses to touch a workspace that already has data unless you pass `--reset`.
+
+**Two ways to run it, documented in [`docs/development.md`](docs/development.md).** The commands above are the native one. The other needs only Docker:
+
+```bash
+docker compose -f docker-compose.dev.yml run --rm app npm run seed:demo
+docker compose -f docker-compose.dev.yml up          # → http://localhost:5173
+```
+
+Same two processes, same ports, your checkout bind-mounted so hot reload still works. It exists because contributing should not require a Node toolchain — and because the npm scripts set env vars inline, which `cmd.exe` cannot parse, so it is also the Windows answer. Don't confuse it with `docker-compose.yml`, which is the deployment: the built image, no toolchain, no source.
+
+**Dev data lives in `./data` at the repo root** — `apps/api`'s `dev` and `seed:demo` scripts both default `DATA_DIR` to it, and they have to agree or the seed lands somewhere the server never reads. Delete the directory to start over. In dev the API binds `127.0.0.1` and Vite binds `localhost`: both are reached through the proxy, and a dev box handing an un-set-up workspace to the local network is not a feature.
 
 ## Non-negotiable conventions
 
@@ -41,6 +55,7 @@ npm run format       # Prettier
 - **Who holds an asset lives in `assignments`, never on the asset.** `assets.status = 'assigned'` ⇔ an open ownership row exists, enforced by a partial unique index and maintained only inside the assignment service.
 - **Members sign in; employees hold assets.** Two tables, optionally linked, never fused — the same person can be both, and most people are only one. Nobody may change or remove their own account, which is also what guarantees the workspace keeps an admin.
 - **A CSV file is parsed in the browser and sent as canonical rows.** The API has no CSV parser and never learns what a particular spreadsheet called its columns; `packages/shared/src/schemas/import.ts` owns the vocabulary all three sides agree on.
+- **Two-factor is a workspace switch, not a personal setting.** `org_settings.mfa_required` turns it on for everybody; a member is enrolled or not. Only admins reset it, turning it off wipes every secret and recovery code, and `apps/api/src/db/mfa-reset-cli.ts` is the break-glass path when the last admin loses both phone and codes. TOTP is hand-written in `apps/api/src/lib/totp.ts` against RFC 6238's published test vectors — keep those tests if you ever replace it.
 - **A raw token exists once, in the response that created it.** Sessions and invite/reset tokens are stored as `sha256(raw)`, so an invitation or reset link is shown to the admin who made it and never recoverable afterwards. That is why the UI displays every link as readable text rather than assuming an email carried it.
 - **TDD**: write the failing test first, watch it fail, then implement. Config files are exempt; behavior is not.
 - Work happens in sequential PRs; the repo owner merges every PR. Never merge.

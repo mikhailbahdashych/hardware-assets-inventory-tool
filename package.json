@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "Open-source, self-hosted hardware asset inventory for IT teams — track devices, who holds them, and the full ownership history.",
+  "description": "Open-source, self-hosted hardware asset inventory for IT teams \u2014 track devices, who holds them, and the full ownership history.",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -26,6 +26,7 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "e2e": "npm run e2e -w e2e",
+    "seed:demo": "npm run seed:demo -w apps/api --",
     "dev:api": "npm run dev -w apps/api",
     "dev:web": "npm run dev -w apps/web"
   },

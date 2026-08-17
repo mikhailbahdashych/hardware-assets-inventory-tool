@@ -42,6 +42,7 @@ export function changedSettings(stored: OrgSettings, draft: SettingsDraft): Sett
     'emailReturnReminders',
     'emailInvites',
     'emailWeeklyDigest',
+    'mfaRequired',
   ] as const) {
     if (draft[key] !== stored[key]) patch[key] = draft[key];
   }

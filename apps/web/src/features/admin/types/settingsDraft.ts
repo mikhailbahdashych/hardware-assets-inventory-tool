@@ -16,4 +16,5 @@ export interface SettingsDraft {
   emailReturnReminders: boolean;
   emailInvites: boolean;
   emailWeeklyDigest: boolean;
+  mfaRequired: boolean;
 }

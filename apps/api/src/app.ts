@@ -4,6 +4,7 @@ import fastifyRateLimit from '@fastify/rate-limit';
 import Fastify, { type FastifyInstance } from 'fastify';
 import { serializerCompiler, validatorCompiler } from 'fastify-type-provider-zod';
 import type { AppDeps, BuildAppOptions } from './types/app.js';
+import { loggerOptions } from './lib/logging.js';
 import { registerErrorHandler } from './plugins/error-handler.js';
 import { registerOriginGuard } from './plugins/origin-guard.js';
 import { registerSessionAuth } from './plugins/session.js';
@@ -36,7 +37,13 @@ export async function buildApp(opts: BuildAppOptions): Promise<FastifyInstance> 
   };
 
   const app = Fastify({
-    logger: opts.config.logLevel === 'silent' ? false : { level: opts.config.logLevel },
+    logger: loggerOptions(opts.config, opts.logDestination),
+    // Decides what `request.ip` is, which is what the rate limits are keyed on.
+    // Behind a reverse proxy without this, every request in the world shares
+    // one bucket and ten bad logins lock everybody out for fifteen minutes.
+    // With it set when nothing is in front, any client can claim any address
+    // and the limits mean nothing — so it is opt-in, per deployment.
+    trustProxy: opts.config.trustProxy,
   });
 
   app.setValidatorCompiler(validatorCompiler);

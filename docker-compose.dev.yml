@@ -1,0 +1,50 @@
+# The development stack: the whole app, hot reload included, with nothing on
+# your machine but Docker.
+#
+#   docker compose -f docker-compose.dev.yml up            → http://localhost:5173
+#   docker compose -f docker-compose.dev.yml run --rm app npm run seed:demo
+#   docker compose -f docker-compose.dev.yml down -v       → and the data is gone
+#
+# This is not the deployment. `docker-compose.yml` is — it runs the built image
+# with no toolchain in it. This one mounts your checkout and runs tsx and vite,
+# so editing a file on the host restarts the API and refreshes the browser.
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    # Both dev servers, the same `npm run dev` the native workflow uses.
+    command: npm run dev
+    ports:
+      - '5173:5173' # Vite — this is the one to open
+      - '3000:3000' # the API, exposed so you can curl it directly
+    volumes:
+      # Your checkout, live.
+      - .:/app
+      # …except every node_modules, which stays the container's own. The host's
+      # copies are built for the host's platform, and better-sqlite3 and
+      # @node-rs/argon2 are compiled binaries — mounting macOS builds into
+      # Debian is how you get "invalid ELF header" on the first query.
+      - /app/node_modules
+      - /app/apps/api/node_modules
+      - /app/apps/web/node_modules
+      - /app/packages/shared/node_modules
+      - /app/e2e/node_modules
+      # A named volume rather than ./data: the container runs as uid 1000, and
+      # a bind mount would arrive owned by whoever you are on the host.
+      - dev-data:/data
+    environment:
+      NODE_ENV: development
+      DATA_DIR: /data
+      # Where the browser reaches the app — Vite's port, not the API's, because
+      # that is the origin invitation and reset links have to be built from.
+      APP_URL: http://localhost:5173
+      # Both servers listen on every interface *inside* the container, which is
+      # what makes the published ports reach them.
+      HOST: 0.0.0.0
+      VITE_HOST: 0.0.0.0
+      LOG_LEVEL: info
+
+volumes:
+  dev-data:
