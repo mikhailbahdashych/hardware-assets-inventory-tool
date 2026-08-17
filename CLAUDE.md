@@ -30,6 +30,17 @@ npm run format       # Prettier
 
 **A fresh clone starts empty**, at `/setup`. `npm run seed:demo` is the shortcut: a fictional company, its people, 26 devices and four months of history, so every screen has something on it. It prints the logins — one per role — and refuses to touch a workspace that already has data unless you pass `--reset`.
 
+**Two ways to run it, documented in [`docs/development.md`](docs/development.md).** The commands above are the native one. The other needs only Docker:
+
+```bash
+docker compose -f docker-compose.dev.yml run --rm app npm run seed:demo
+docker compose -f docker-compose.dev.yml up          # → http://localhost:5173
+```
+
+Same two processes, same ports, your checkout bind-mounted so hot reload still works. It exists because contributing should not require a Node toolchain — and because the npm scripts set env vars inline, which `cmd.exe` cannot parse, so it is also the Windows answer. Don't confuse it with `docker-compose.yml`, which is the deployment: the built image, no toolchain, no source.
+
+**Dev data lives in `./data` at the repo root** — `apps/api`'s `dev` and `seed:demo` scripts both default `DATA_DIR` to it, and they have to agree or the seed lands somewhere the server never reads. Delete the directory to start over. In dev the API binds `127.0.0.1` and Vite binds `localhost`: both are reached through the proxy, and a dev box handing an un-set-up workspace to the local network is not a feature.
+
 ## Non-negotiable conventions
 
 - **TypeScript everywhere, strict.** No new languages, no state-management or component libraries — primitives are hand-rolled for design fidelity.

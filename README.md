@@ -88,34 +88,52 @@ Copy `DATA_DIR`. See [`docs/backup-restore.md`](docs/backup-restore.md), which a
 - Put it behind a reverse proxy for TLS and set `APP_URL` to the public address.
 - Roughly 10,000 assets is the point where the unpaginated list endpoints stop being comfortable. Past that, open an issue — the schema is ready for Postgres, the code is not yet.
 
-## Development
+## Running it locally
+
+Two ways, and they do the same thing. Full instructions in [`docs/development.md`](docs/development.md).
+
+**With Node 22+:**
 
 ```bash
 npm install
-npm run dev        # api :3000, web :5173 (Vite proxies /api)
-npm run seed:demo  # optional: fill it with a demo workspace
-npm test           # unit and integration, all workspaces
-npm run e2e        # Playwright against a production build
-npm run lint && npm run typecheck && npm run format
+npm run seed:demo     # optional: fill it with a demo workspace
+npm run dev           # → http://localhost:5173
 ```
+
+**With only Docker:**
+
+```bash
+docker compose -f docker-compose.dev.yml run --rm app npm run seed:demo
+docker compose -f docker-compose.dev.yml up     # → http://localhost:5173
+```
+
+Either way the API runs on `:3000` and Vite on `:5173` and proxies to it — **open `:5173`**. Both give you hot reload; the Docker one mounts your checkout, so editing a file on the host still restarts the API and refreshes the browser.
 
 ### Seeing it with data in it
 
-A fresh instance is empty, which is correct and makes a poor first impression. `npm run seed:demo` gives you a fictional company — twelve people, twenty-six devices, four months of assignments, returns and audit history — and prints one login per role so you can see what an admin, a manager and a viewer each get:
+A fresh instance is empty and lands on `/setup`, which is the real first-run experience but leaves every screen blank — and this app is largely about history. `npm run seed:demo` gives you a fictional company: twelve people, twenty-six devices, four months of assignments, returns and audit history. It prints one login per role, so you can see what an admin, a manager and a viewer each get:
 
 ```
-  Northwind Robotics is ready in ./data
+  Northwind Robotics is ready in /path/to/repo/data
 
-  26 assets · 12 employees · 19 ownership records · 73 logged events
+  26 assets · 12 employees · 19 ownership records · 72 logged events
 
   ada.okafor@northwind.example    demo-password  (admin)
   marco.rossi@northwind.example   demo-password  (manager)
   lena.fischer@northwind.example  demo-password  (viewer)
 ```
 
-Every date is relative to the moment you run it, so warranties are always about to lapse and returns are always about to fall due — the dashboard is never a museum. It refuses to touch a workspace that already has data; `npm run seed:demo -- --reset` empties one first, which deletes everything in it.
+Every date is relative to the moment you run it, so warranties are always about to lapse and returns are always about to fall due — the dashboard is never a museum. It refuses to touch a workspace that already has data; add `--reset` to replace one.
 
-The seeder ships in the Docker image too (`node dist/db/seed-demo-cli.js --reset`, honouring `DEMO_PASSWORD`), so a public demo instance can restore itself on a schedule.
+The seeder ships in the production image too (`node dist/db/seed-demo-cli.js --reset`, honouring `DEMO_PASSWORD`), so a public demo instance can restore itself on a schedule.
+
+### Other commands
+
+```bash
+npm test           # unit and integration, all workspaces
+npm run e2e        # Playwright against a production build
+npm run lint && npm run typecheck && npm run format
+```
 
 **`http://localhost:5173/kitchen-sink` is the design system.** Colour tokens with their resolved values, the type scale, the whole icon inventory, and every primitive in every state it ships with — in both themes and both densities. Open it beside whatever you are changing. It is a dev-only route, excluded from production builds, and it cannot drift from the app because it renders the same components.
 
