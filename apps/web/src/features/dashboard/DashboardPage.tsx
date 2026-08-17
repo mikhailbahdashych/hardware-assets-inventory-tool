@@ -97,11 +97,16 @@ function StatusCounts({ data }: { data: DashboardPayload }) {
 
 function CategoryBars({ data }: { data: DashboardPayload }) {
   const largest = Math.max(1, ...data.categoryCounts.map((entry) => entry.count));
+  // Biggest first, as the design draws it — a bar chart is a ranking. The API
+  // sends every category in enum order, so equal counts keep a stable order
+  // and an empty category sinks to the bottom rather than disappearing.
+  const ranked = [...data.categoryCounts].sort((a, b) => b.count - a.count);
+
   return (
     <section className={styles.card}>
       <h2 className={styles.cardTitle}>Assets by category</h2>
       <div className={styles.bars}>
-        {data.categoryCounts.map((entry) => (
+        {ranked.map((entry) => (
           <div key={entry.category} className={styles.bar}>
             <span className={styles.barLabel}>{ASSET_CATEGORY_LABELS[entry.category]}</span>
             <div

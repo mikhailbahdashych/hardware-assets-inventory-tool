@@ -2,7 +2,7 @@
 
 **Read this first when picking the project up.** It records where the build stands, what every earlier decision was, and exactly what the next piece of work is. Update it at the end of each PR.
 
-_Last updated: 2026-08-17, after PR 6 (members, invites, admin)._
+_Last updated: 2026-08-17, after PR 7 (dashboard, palette, import, export)._
 
 ---
 
@@ -56,7 +56,8 @@ Domain enums as slugs with exact design labels and semantic color maps (`ok|acc|
 - Full schema for all 12 tables with one migration checked in (`src/migrations/0000_init.sql`). Migrations run at boot; pulling a newer image and restarting _is_ the upgrade procedure.
 - `buildApp({config, db, sqlite, now})` factory — everything injected, including the clock. This is the testability seam.
 - Sessions and invite/reset tokens store only `sha256(raw)`; no signing secret exists anywhere. Sliding 30-day sessions, `last_active_at` throttled to one write per five minutes.
-- Live endpoints: `/meta`, `/healthz`, `/setup`, `/auth/{login,logout,forgot-password,reset-password,invite/:token,accept-invite,me}`, `/me/prefs`, `/assets` (+ `/next-tag`, `/:id`, `/:id/{assign,checkin,attachments}`), `/employees` (+ `/:id`), `/custom-fields`, `/members` (+ `/invites`, `/:id`, `/:id/{resend-invite,reset-link}`), `/audit` (+ `/export`), `/settings`, `/workspace/delete`.
+- Live endpoints: `/meta`, `/healthz`, `/setup`, `/auth/{login,logout,forgot-password,reset-password,invite/:token,accept-invite,me}`, `/me/prefs`, `/assets` (+ `/next-tag`, `/:id`, `/:id/{assign,checkin,attachments}`), `/employees` (+ `/:id`), `/custom-fields`, `/members` (+ `/invites`, `/:id`, `/:id/{resend-invite,reset-link}`), `/audit` (+ `/export`), `/settings`, `/workspace/delete`, `/dashboard`, `/import/{template,validate,commit}`, `/export`.
+- **`planImport` is pure and decides everything at once** — the issues, the counts and the rows to write. Validate shows its report; commit re-runs it inside the transaction, so the dry run cannot be skipped and the summary a person approved is exactly the work done.
 - **Nobody may change or remove their own account** (409 `self_role_change` / `self_delete`). That pair is also the last-admin guard: the caller is always an active admin, so acting on anybody else leaves at least one — a separate last-admin check would be unreachable, and there deliberately isn't one.
 - Invite and reset links come back in full from the response and nowhere else (only the token hash is stored). Issuing one retires the previous unconsumed token of the same purpose.
 - `openAssignment` in `src/services/assignments.ts` is the **only** code path that pairs `status='assigned'` with a new ownership row; the create, assign and check-in endpoints all call it. Deletes are guarded (409) rather than cascading; a deleted person keeps their name on past ownership records.
@@ -71,6 +72,8 @@ Domain enums as slugs with exact design labels and semantic color maps (`ok|acc|
 - Asset and employee lists on the design's exact grid templates, with live filters kept in the URL (`/assets?status=&q=`), status pills counting the whole inventory, footer counts and empty states. One form modal serves create and edit for each entity; detail pages show the record, its custom fields, its current holder, its ownership timeline, its attachments and its audit trail.
 - Members page with the overflow menu (resend invitation, copy reset link, change role, remove), the invite modal on the design's radio cards, and one modal that shows every one-time link as selectable text with a Copy button — the Clipboard API needs a secure context, which plain http is not.
 - Admin is two URLs (`/admin/activity`, `/admin/settings`): the activity log with counted filter pills, "Load more", a CSV export link, and the settings cards, which save on change (selects, switches) or on blur (text) because the design draws no Save button.
+- Dashboard with five per-member widgets, KPI tiles that link into a filtered asset list, the ⌘K command palette with real keyboard navigation, and the five-step CSV import wizard including the column-mapping step.
+- `providers/ModalProvider.tsx` owns the six app-level modals; `components/app/ModalHost.tsx` renders whichever is open. Modals carrying a subject stay local to the page that knows the subject.
 - `api/invalidate.ts` — `invalidateInventory` and `invalidateAdmin` are the two cache-invalidation paths every write goes through. Extend one rather than invalidating ad hoc inside a mutation.
 - Theme/density persist per member on the server and are adopted at sign-in; the inline script in `index.html` applies them before first paint (no flash).
 - **`/kitchen-sink`** (dev-only route) renders every primitive for side-by-side review with the prototype.
@@ -81,7 +84,7 @@ Runs the real production artifact: built API serving the built SPA, fresh data d
 
 ### Verification status
 
-397 unit/integration tests (135 api + 174 web + 88 shared), 30 e2e tests, lint, format and typecheck clean. CI (`.github/workflows/ci.yml`) runs lint → format check → typecheck → unit tests → build → e2e.
+491 unit/integration tests (179 api + 214 web + 98 shared), 37 e2e tests, lint, format and typecheck clean. CI (`.github/workflows/ci.yml`) runs lint → format check → typecheck → unit tests → build → e2e.
 
 ## 5. How to work in this repo
 
@@ -110,11 +113,7 @@ Rules that keep the codebase coherent:
 
 ## 6. What comes next
 
-### PR 7 — Dashboard, ⌘K palette, CSV import, export _(next up)_
-
-Five dashboard widgets with per-member visibility, KPI click-through to a filtered asset list; the command palette (client-side over cached lists, **with the ↑↓/↵/esc keyboard navigation the prototype promises but never implemented**); the CSV import wizard including the column-mapping step the design promises, a dry-run validation report, and one shared pure validator used by both `/import/validate` and `/import/commit`; JSON export-all.
-
-### PR 8 — Email, cron, Docker, release, docs
+### PR 8 — Email, cron, Docker, release, docs _(next up)_
 
 Mailer and seven templates, cron jobs with `notification_log` idempotency, multi-stage Dockerfile + compose + healthcheck, ghcr release workflow, README with screenshots and the env table, `docs/backup-restore.md`, and the `docs/recipes/` set (add-asset-field, add-asset-status, add-page, add-dashboard-widget, add-email, rebrand).
 
@@ -122,12 +121,10 @@ Mailer and seven templates, cron jobs with `notification_log` idempotency, multi
 
 - **`POST /auth/forgot-password` is intentionally inert**: it always answers 204 and does not yet issue a token or send mail. Email infrastructure lands in PR 8. The recovery path that exists today is an admin issuing a reset link from the Members page — a reset link is never handed to an anonymous requester.
 - `pruneExpiredSessions` and `revokeMemberSessions` exist and are tested, but nothing schedules the pruning yet — the cron job arrives in PR 8.
-- The topbar search button shows a "coming with the command palette" toast; ⌘K is deliberately **not** registered yet, so the browser shortcut isn't stolen for nothing. PR 7 replaces both.
-- Dashboard is still a labelled placeholder; every other section is real.
-- **The "Import CSV" button on both list toolbars shows a toast**, as do the Settings page's CSV-template and "Export all data" rows — the wizard and the JSON export are PR 7. They stay visible because the toolbar's and the card's shapes are part of the design; a dead link inside a _form_ is a different matter, which is why the "Manage fields" link was omitted rather than made inert until its modal existed.
 - **The Settings page has no Save button**, because the design draws none: selects and switches save on change, text fields on blur and only when the value actually changed. If a Save button is ever wanted, that is a design change, not a bug fix.
 - **The prototype's SSO line in the demo log** ("Signed in via SSO") has no counterpart: there is no SSO in v1, so no event says there is.
 - The origin guard is disabled in development on purpose (the Vite dev proxy forwards the browser's :5173 origin). E2E runs in production mode so the guard is still covered.
+- **Email is still absent**, so the invite modal's "Send invitation email now" checkbox is recorded but acted on by nobody, and the Pending-returns widget's footnote says reminders arrive in PR 8. The copyable link is what actually delivers an invitation today.
 - `noUncheckedIndexedAccess` is off in `tsconfig.base.json`, so some index reads are typed `string` while being `undefined` at runtime. Turning it on would let the compiler tell a real index guard from a dead one; it will surface work, so it deserves its own change.
 - Post-v1 and explicitly out of scope for now: OIDC SSO, Postgres, API tokens, pagination beyond ~10k assets, a category-management UI.
 
@@ -151,4 +148,7 @@ The prototype is a design artifact, not an app: several behaviors it advertises 
 - **The employee form's "Also invite as a member" section is two requests, not one.** The plan put an optional `invite` block on `POST /employees`; instead the form creates the record and then invites, so a failed invitation leaves the person on file to be invited from the Members page. Rolling the record back to keep the pair atomic would throw away typed-in work.
 - **An invited member's row borrows the linked employee's name**, or the email's local part when there is no link. There is no real name until the invitation is accepted, and inventing one would put a fiction in a table people read.
 - **A separate last-admin guard was left unwritten.** Refusing to change or remove _your own_ account already guarantees it: every caller is an active admin, so acting on somebody else always leaves at least one. A `last_admin` branch would be unreachable code claiming to protect something.
+- **The dashboard's category bars are sorted biggest-first, and keep their zeros.** The prototype sorts too but drops empty categories; keeping them means the widget does not reshape as a category empties, and "0 desktops" is information.
+- **The palette's right-hand hint names an asset's category rather than repeating "Asset".** The group header above already says which kind of thing these are, so the prototype's per-row label is redundant where the category is not.
+- **CSV parsing happens in the browser, not the API.** The mapping step turns a file into canonical rows, so the server needs no CSV parser and no knowledge of what a spreadsheet called its columns — and the validator it runs cannot be skipped by posting straight to commit.
 - **Numbering restarts when the asset-tag prefix changes.** `computeNextTag` only counts tags under the current prefix, so switching AST → INV starts at INV-0001. A team changing prefix is starting a new series; continuing the old count under a new name would be the stranger behaviour.

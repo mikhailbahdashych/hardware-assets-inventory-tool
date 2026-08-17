@@ -159,9 +159,9 @@ test('an import that arrives assigned opens a real ownership record', async ({ p
   });
   await dialog.getByRole('button', { name: /continue to mapping/i }).click();
   await dialog.getByRole('button', { name: /check the file/i }).click();
-  await expect(dialog.getByText(/1 new employees · 1 updated/)).toBeVisible();
+  await expect(dialog.getByText(/1 employee to add · 1 to update/)).toBeVisible();
   await dialog.getByRole('button', { name: 'Import 2 rows' }).click();
-  await expect(dialog.getByText(/Added 1 employees · updated 1/)).toBeVisible();
+  await expect(dialog.getByText(/Added 1 employee · updated 1/)).toBeVisible();
   await dialog.getByRole('button', { name: 'Done' }).click();
 
   // The update kept the row rather than adding a second Maya.
@@ -186,7 +186,7 @@ test('an import that arrives assigned opens a real ownership record', async ({ p
   });
   await assets.getByRole('button', { name: /continue to mapping/i }).click();
   await assets.getByRole('button', { name: /check the file/i }).click();
-  await assets.getByRole('button', { name: 'Import 1 rows' }).click();
+  await assets.getByRole('button', { name: 'Import 1 row' }).click();
   await assets.getByRole('button', { name: 'Done' }).click();
 
   await page.getByRole('row').filter({ hasText: 'INV-5003' }).click();

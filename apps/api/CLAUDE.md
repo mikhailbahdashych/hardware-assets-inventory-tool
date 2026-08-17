@@ -32,6 +32,16 @@ REST API under `/api/v1`, one process, one SQLite file. In production it also se
 - `PATCH /settings` diffs against the stored row and audits `system.settings_updated` with the fields that actually changed; an unchanged submit writes nothing at all. `getSettings` throws 500 `not_initialized` rather than inventing defaults — every caller is behind an admin session, which implies setup ran.
 - `POST /workspace/delete` requires the organization name typed back exactly, then empties every table in child-first order, unlinks the uploads and re-seeds the default custom fields — leaving precisely what a fresh container starts with. It writes no audit event because there is no log left to hold one. Tables are emptied, never dropped: the schema and its migrations stay, so restarting is not part of the procedure.
 
+## Reading and moving the whole workspace
+
+`src/modules/data.ts` holds the three routes that describe everything rather than one record: the dashboard, the CSV import round trip and the export-all file.
+
+- `GET /dashboard` answers all five widgets in one request — they read the same few tables, and hiding a widget should not change how many round trips the page makes. Status and category counts carry their zeros, because the design draws six tiles and five bars whatever the inventory holds. The warranty window is a fixed 90 days and deliberately **not** the `warrantyLeadDays` setting: that one is about when email goes out, and this is a place to look.
+- **`planImport` (`src/services/import-validator.ts`) is pure and decides everything at once**: the issues, the counts, and the rows to write. `/import/validate` shows its report, `/import/commit` re-runs it inside the transaction — so a client cannot post straight to commit to skip the dry run, and the summary a person approved is exactly the work that happens. Any error at all refuses the whole file. Add a rule there, not in the writer, and give it a case in the `it.each` table beside it.
+- An imported row that arrives Assigned goes through `openAssignment` like every other handover, so the one invariant holds for bulk loads too. An unknown assignee is a **warning** that imports the row as Available (the design says so); an offboarding one is an error.
+- Employees are matched by email and updated in place, keeping the id that assignments and member links hang off, and never touching `status` — an import is not a way to bring somebody back from offboarding.
+- `GET /export` is a **reporting format, not a backup**, and the code says so: no password hashes, no sessions or tokens, no attachment bytes. Restoring means replacing the `/data` directory.
+
 ## The one invariant
 
 `assets.status = 'assigned'` ⇔ an open ownership row exists, and never two. Only `openAssignment` and `closeAssignment` (`src/services/assignments.ts`) may change that pairing — they each write both tables together, inside the caller's transaction. The partial unique index on `(asset_id) WHERE returned_at IS NULL` is the structural backstop.

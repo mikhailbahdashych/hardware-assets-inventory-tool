@@ -10,6 +10,7 @@ React 19 + Vite + TypeScript, react-router (declarative `BrowserRouter` mode), T
 - **Semantic colors**: components take an `sv` key (`ok|acc|warn|err|info|neut`) from `@inventory/shared` maps and style via `var(--{sv})` / `var(--{sv}-bg)`. `Pill` shows the pattern.
 - Typography: UI font Instrument Sans, mono JetBrains Mono (`var(--font-sans)` / `var(--font-mono)`), self-hosted via @fontsource — never add a font CDN (the app runs on-prem). Mono is for identifiers: asset tags, serials, hostnames, kbd hints, log timestamps.
 - Icons: `components/ui/Icon.tsx` holds the design's Feather-style path inventory (stroke 1.7). Add new icons there in the same style; don't add an icon library.
+- **The command palette does the keyboard work the design promises.** Its footer says "↑↓ navigate · ↵ open · esc close" and the prototype implements none of it. `components/app/palette.ts` is the pure half — grouping, the four-per-group cap, role filtering — so the list can be tested without a keyboard; `CommandPalette.tsx` is one flat roving index over it, wrapping at both ends, with the highlight returning to the top as the results change under it.
 - **Anything that floats over a table is portalled to the body.** `Menu` (the design's `···` overflow) positions itself from the trigger's own rect for a reason: a `DataTable` cell clips its overflow — that clip is what gives the other cells their ellipsis — and the card around it clips to its border radius. A popover rendered in place is a popover the row eats, and no z-index fixes it.
 
 ## Structure
@@ -19,7 +20,8 @@ React 19 + Vite + TypeScript, react-router (declarative `BrowserRouter` mode), T
 - `components/ui/` — primitives (Button, Pill, DataTable, Modal, …), one component + one CSS module each, exported from `index.ts`. Interactive primitives have behavior tests in `primitives.test.tsx`.
 - `components/app/` — shell chrome: `AppShell`, `Sidebar`, `Topbar`, `PageContainer`, `nav.ts` (pure section/breadcrumb logic), `useThemeControls.ts`.
 - `features/<area>/` — pages and feature modals per area (auth, dashboard, assets, employees, members, admin, import). `members/CopyLinkModal.tsx` is shared with the employee form, which can invite the person it just created; inviting is a members concern, so the form borrows it rather than growing a second way to show a one-time link.
-- `providers/` — ThemeProvider, ToastProvider (and later ModalProvider). Hooks live next to their provider.
+- `providers/` — ThemeProvider, ToastProvider, ModalProvider. Hooks live next to their provider.
+  **ModalProvider owns the six app-level modals** (palette, new asset, add employee, invite member, import, widgets) and `components/app/ModalHost.tsx` renders whichever is open, mounted once in the shell. They live there because the command palette opens four of them from anywhere and two are reachable from more than one screen; without an owner they would be the same boolean declared three times. Anything carrying a **subject** — assign, check in, change status, edit — stays local state on the page that knows the subject.
 - `lib/` — `format.ts` (dates, relative time, durations, currency, initials) and `avatar.ts` (stable hash → 9-color palette). Reuse these; never re-implement formatting inline.
 - `routes.tsx` — the whole route map and its guards. `App.tsx` only wires providers.
 
@@ -52,6 +54,12 @@ Remove it when a value should have been there. `meta.data?.orgName ?? 'Inventory
 ## Reviewing visual work
 
 Run `npm run dev` and open `http://localhost:5173/kitchen-sink` (dev-only route, excluded from production builds). Compare against the prototype in `docs/design-handoff/` side-by-side, in **both themes and both densities**, before calling UI work done.
+
+## The import wizard
+
+`features/import/` is five steps over one modal. The file is read in the browser (`parseCsv.ts`, papaparse) and the **mapping step turns it into canonical rows**, so the API never sees CSV and never has to know what a particular spreadsheet called its columns. The auto-matcher and the column list live in `@inventory/shared` — the same ones the template endpoint serves.
+
+Errors block the import and name their row and column; warnings say what will happen and let it through. "Row 3" counts the header as line 1, which is what a spreadsheet shows.
 
 ## Testing
 

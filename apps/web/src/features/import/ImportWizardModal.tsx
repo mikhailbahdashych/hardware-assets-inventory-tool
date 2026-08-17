@@ -17,6 +17,14 @@ import styles from './Import.module.css';
 
 const PREVIEW_ROWS = 3;
 
+/** "1 asset" / "2 assets" — the kinds are plural nouns, so the singular trims. */
+function count(n: number, kind: ImportKind): string {
+  const noun = n === 1 ? kind.slice(0, -1) : kind;
+  return `${n} ${noun}`;
+}
+
+const rows = (n: number): string => `${n} ${n === 1 ? 'row' : 'rows'}`;
+
 /**
  * The five-step import the design promises: choose a kind and a file, map the
  * columns, read the dry run, commit, and see what happened.
@@ -147,7 +155,7 @@ export function ImportWizardModal({ onClose }: { onClose: () => void }) {
                 )
               }
             >
-              Import {report.validCount} rows
+              Import {rows(report.validCount)}
             </Button>
           )}
         </>
@@ -277,11 +285,11 @@ export function ImportWizardModal({ onClose }: { onClose: () => void }) {
         <div className={styles.summary} data-blocked={blocked}>
           <div className={styles.summaryHead}>
             {blocked
-              ? `${shown.totalRows - shown.validCount} of ${shown.totalRows} rows cannot be imported`
-              : `${shown.validCount} rows ready`}
+              ? `${shown.totalRows - shown.validCount} of ${rows(shown.totalRows)} cannot be imported`
+              : `${rows(shown.validCount)} ready`}
           </div>
           <div className={styles.rowHint}>
-            {shown.createCount} new {kind} · {shown.updateCount} updated
+            {count(shown.createCount, kind)} to add · {shown.updateCount} to update
           </div>
         </div>
 
@@ -311,7 +319,7 @@ export function ImportWizardModal({ onClose }: { onClose: () => void }) {
       <div className={styles.step}>
         <div className={styles.summary}>
           <div className={styles.summaryHead}>
-            Added {done.created} {done.kind}
+            Added {count(done.created, done.kind)}
             {done.updated > 0 && ` · updated ${done.updated}`}
           </div>
           <div className={styles.rowHint}>The whole file was written in one go.</div>

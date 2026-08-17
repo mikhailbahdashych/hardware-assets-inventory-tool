@@ -160,7 +160,7 @@ describe('steps 3 to 5 — the dry run, the commit and the summary', () => {
     });
 
     expect(await within(dialog).findByText(/2 rows ready/i)).toBeInTheDocument();
-    expect(within(dialog).getByText(/2 new assets/i)).toBeInTheDocument();
+    expect(within(dialog).getByText(/2 assets to add/i)).toBeInTheDocument();
 
     await userEvent.click(within(dialog).getByRole('button', { name: /import 2 rows/i }));
     await waitFor(() => expect(api.called('POST /import/commit')).toBeDefined());
