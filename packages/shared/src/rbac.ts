@@ -21,6 +21,7 @@ const MIN_ROLE = {
   'import.run': 'manager',
   'members.manage': 'admin',
   'custom_fields.manage': 'admin',
+  'workflow.manage': 'admin',
   'settings.manage': 'admin',
   'audit.view': 'admin',
   'export.run': 'admin',
