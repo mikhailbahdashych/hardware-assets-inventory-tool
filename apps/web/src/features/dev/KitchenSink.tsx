@@ -1,11 +1,9 @@
 import { useEffect, useState } from 'react';
 import {
-  ASSET_STATUSES,
-  ASSET_STATUS_COLORS,
-  ASSET_STATUS_LABELS,
   AUDIT_TYPES,
   AUDIT_TYPE_COLORS,
   AUDIT_TYPE_LABELS,
+  DEFAULT_ASSET_STATUSES,
   ROLES,
   ROLE_COLORS,
   ROLE_DESCRIPTIONS,
@@ -47,10 +45,30 @@ import { useTheme } from '@/providers/ThemeProvider';
 import { useToast } from '@/providers/ToastProvider';
 import type { RowProps, SectionProps } from './types/kitchenSink';
 
+// The status is a label and a colour rather than a slug, because that is what
+// a row carries once the workspace owns its own statuses.
 const DEMO_ROWS = [
-  { tag: 'AST-0142', name: 'MacBook Pro 14" M3', serial: 'C02XK1AZQ6L7', status: 'assigned' },
-  { tag: 'AST-0177', name: 'Dell UltraSharp U2723QE', serial: 'CN0J2Y8', status: 'available' },
-  { tag: 'AST-0089', name: 'MacBook Air M2', serial: 'C02FL9QXQ6L4', status: 'in_repair' },
+  {
+    tag: 'AST-0142',
+    name: 'MacBook Pro 14" M3',
+    serial: 'C02XK1AZQ6L7',
+    status: 'Assigned',
+    sv: 'acc',
+  },
+  {
+    tag: 'AST-0177',
+    name: 'Dell UltraSharp U2723QE',
+    serial: 'CN0J2Y8',
+    status: 'Available',
+    sv: 'ok',
+  },
+  {
+    tag: 'AST-0089',
+    name: 'MacBook Air M2',
+    serial: 'C02FL9QXQ6L4',
+    status: 'In repair',
+    sv: 'warn',
+  },
 ] as const;
 
 function Section({ title, children }: SectionProps) {
@@ -370,10 +388,13 @@ export function KitchenSink() {
       </Section>
 
       <Section title="Pills">
+        {/* Asset statuses are workspace data now, edited on /workflow — this is
+            the workflow a fresh instance is seeded with, one pill per semantic
+            colour. A workspace's own statuses may read anything at all. */}
         <Row>
-          {ASSET_STATUSES.map((status) => (
-            <Pill key={status} sv={ASSET_STATUS_COLORS[status]} dot>
-              {ASSET_STATUS_LABELS[status]}
+          {DEFAULT_ASSET_STATUSES.map((status) => (
+            <Pill key={status.id} sv={status.color} dot>
+              {status.label}
             </Pill>
           ))}
         </Row>
@@ -477,8 +498,8 @@ export function KitchenSink() {
               header: 'Status',
               width: '110px',
               render: (row) => (
-                <Pill sv={ASSET_STATUS_COLORS[row.status]} dot>
-                  {ASSET_STATUS_LABELS[row.status]}
+                <Pill sv={row.sv} dot>
+                  {row.status}
                 </Pill>
               ),
             },

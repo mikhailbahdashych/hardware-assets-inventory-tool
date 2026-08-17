@@ -2,17 +2,18 @@ import { useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 import {
   ASSET_CATEGORY_LABELS,
-  ASSET_STATUS_COLORS,
-  ASSET_STATUS_LABELS,
+  ASSIGNED_STATUS,
   can,
   renderAuditEvent,
+  type WorkflowStatus,
 } from '@inventory/shared';
-import { orgMeta, useAsset, useMeta } from '@/api/queries';
+import { orgMeta, useAsset, useMeta, useWorkflow } from '@/api/queries';
 import type { Asset, CustomFieldValue } from '@/types/api';
 import { PageContainer } from '@/components/app/PageContainer';
 import { usePageBreadcrumb } from '@/providers/BreadcrumbProvider';
 import { Avatar, BackLink, Button, Card, KeyValueRow, Pill, Spinner } from '@/components/ui';
 import { formatCurrency, formatDuration, formatFullDate } from '@/lib/format';
+import { statusInfo, statusMap } from '@/lib/workflow';
 import { AssetFormModal } from './AssetFormModal';
 import { AssignModal } from './AssignModal';
 import { AttachmentsCard } from './AttachmentsCard';
@@ -35,12 +36,18 @@ function customValueText(field: CustomFieldValue): string {
  * The design's contextual primary action: an assigned asset is checked in, a
  * free one is assigned, anything else changes status. That third case is its
  * own modal rather than Assign — an asset in repair has no holder to change.
+ *
+ * Which statuses can be handed out is a workspace decision (`assignableFrom`),
+ * so the button offers exactly what the API would accept.
  */
-function primaryAction(asset: Asset): PrimaryAction {
-  if (asset.status === 'assigned') {
+function primaryAction(asset: Asset, status: WorkflowStatus | undefined): PrimaryAction {
+  if (asset.status === ASSIGNED_STATUS) {
     return { label: 'Check in', modal: 'checkin', permission: 'assets.checkin' };
   }
-  if (asset.status === 'available' || asset.status === 'ordered') {
+  // No row for this status means the workflow has not answered yet, or an
+  // admin deleted the status this asset still carries. Neither can be handed
+  // out, and Change status is the move that fixes the second one.
+  if (status !== undefined && status.assignableFrom) {
     return { label: 'Assign', modal: 'assign', permission: 'assets.assign' };
   }
   return { label: 'Change status', modal: 'status', permission: 'assets.change_status' };
@@ -52,6 +59,7 @@ export function AssetDetailPage({ role }: AssetDetailPageProps) {
   const navigate = useNavigate();
   const detail = useAsset(id);
   const meta = useMeta();
+  const workflow = useWorkflow();
   usePageBreadcrumb(detail.data?.asset.assetTag);
 
   if (detail.isPending) {
@@ -79,7 +87,10 @@ export function AssetDetailPage({ role }: AssetDetailPageProps) {
   // An asset stores a currency only when it differs from the organization's,
   // so null here means "the org's" — that one is the rule, not a fallback.
   const currency = asset.currency ?? orgMeta(meta.data).defaultCurrency;
-  const primary = primaryAction(asset);
+  // A workflow that has not arrived has no statuses to look this one up in.
+  const byId = statusMap(workflow.data?.statuses ?? []);
+  const status = statusInfo(byId, asset.status);
+  const primary = primaryAction(asset, byId.get(asset.status));
 
   return (
     <PageContainer variant="detail" maxWidth={1060} gap={16}>
@@ -89,8 +100,8 @@ export function AssetDetailPage({ role }: AssetDetailPageProps) {
         <div style={{ minWidth: 0, marginRight: 'auto' }}>
           <div className={styles.headline}>
             <h1 className={styles.title}>{asset.name}</h1>
-            <Pill sv={ASSET_STATUS_COLORS[asset.status]} dot>
-              {ASSET_STATUS_LABELS[asset.status]}
+            <Pill sv={status.color} dot>
+              {status.label}
             </Pill>
           </div>
           <div className={styles.identifiers}>
@@ -218,7 +229,7 @@ export function AssetDetailPage({ role }: AssetDetailPageProps) {
               </>
             ) : (
               <div className={styles.note}>
-                Nobody is holding this asset — it is {ASSET_STATUS_LABELS[asset.status]}.
+                Nobody is holding this asset — it is {status.label}.
               </div>
             )}
           </Card>

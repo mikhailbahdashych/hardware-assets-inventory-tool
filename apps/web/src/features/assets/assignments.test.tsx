@@ -8,6 +8,7 @@ import {
   LAPTOP_DETAIL,
   MAYA_DETAIL,
   MONITOR,
+  WORKFLOW,
 } from '@/test/api-stub';
 import { renderApp, resetAppState } from '@/test/render';
 import { choose } from '@/test/dropdown';
@@ -196,17 +197,104 @@ describe('checking in', () => {
     });
   });
 
-  it('cannot land the asset back in Assigned', async () => {
+  it('offers the statuses flagged as check-in destinations, and never Assigned', async () => {
     renderApp(detailRoutes, '/assets/asset-1');
     await userEvent.click(await screen.findByRole('button', { name: 'Check in' }));
     const dialog = await screen.findByRole('dialog');
 
-    expect(within(dialog).getByRole('button', { name: 'Return to stock' })).toBeInTheDocument();
+    // The status speaks for itself now — no "Return to stock" rewording of a
+    // label an admin chose.
+    expect(within(dialog).getByRole('button', { name: 'Available' })).toBeInTheDocument();
+    expect(within(dialog).getByRole('button', { name: 'Retired' })).toBeInTheDocument();
     expect(within(dialog).queryByRole('button', { name: 'Assigned' })).toBeNull();
+    expect(within(dialog).queryByRole('button', { name: 'Ordered' })).toBeNull();
+  });
+
+  it('follows the workspace flags rather than a list of slugs', async () => {
+    renderApp(
+      {
+        ...detailRoutes,
+        'GET /workflow': {
+          body: {
+            ...WORKFLOW,
+            statuses: [
+              ...WORKFLOW.statuses.map((status) =>
+                status.id === 'in_repair' ? { ...status, checkinTarget: false } : status,
+              ),
+              {
+                id: 'on_loan',
+                label: 'On loan',
+                color: 'info',
+                isSystem: false,
+                assignableFrom: false,
+                checkinTarget: true,
+                sortOrder: 6,
+              },
+            ],
+          },
+        },
+      },
+      '/assets/asset-1',
+    );
+    await userEvent.click(await screen.findByRole('button', { name: 'Check in' }));
+    const dialog = await screen.findByRole('dialog');
+
+    expect(within(dialog).getByRole('button', { name: 'On loan' })).toBeInTheDocument();
+    expect(within(dialog).queryByRole('button', { name: 'In repair' })).toBeNull();
   });
 });
 
 describe('changing status', () => {
+  it('offers exactly what the workflow has an edge to', async () => {
+    // The graph is the truth: take one edge away and the option goes with it,
+    // rather than the modal offering a move the API would refuse.
+    renderApp(
+      {
+        ...detailRoutes,
+        'GET /assets/asset-1': { body: { ...LAPTOP_DETAIL, asset: { ...MONITOR, id: 'asset-1' } } },
+        'GET /workflow': {
+          body: {
+            ...WORKFLOW,
+            transitions: WORKFLOW.transitions.filter(
+              (edge) => !(edge.from === 'in_repair' && edge.to === 'retired'),
+            ),
+          },
+        },
+      },
+      '/assets/asset-1',
+    );
+    await userEvent.click(await screen.findByRole('button', { name: 'Change status' }));
+
+    const dialog = await screen.findByRole('dialog');
+    await userEvent.click(within(dialog).getByRole('combobox', { name: /new status/i }));
+    const options = screen.getAllByRole('option').map((option) => option.textContent);
+    expect(options).toContain('Available');
+    expect(options).not.toContain('Retired');
+  });
+
+  it('says so when the workflow allows no move at all', async () => {
+    renderApp(
+      {
+        ...detailRoutes,
+        'GET /assets/asset-1': { body: { ...LAPTOP_DETAIL, asset: { ...MONITOR, id: 'asset-1' } } },
+        'GET /workflow': {
+          body: {
+            ...WORKFLOW,
+            transitions: WORKFLOW.transitions.filter((edge) => edge.from !== 'in_repair'),
+          },
+        },
+      },
+      '/assets/asset-1',
+    );
+    await userEvent.click(await screen.findByRole('button', { name: 'Change status' }));
+
+    const dialog = await screen.findByRole('dialog');
+    expect(
+      await within(dialog).findByText('The workflow allows no moves from In repair.'),
+    ).toBeInTheDocument();
+    expect(within(dialog).queryByRole('combobox', { name: /new status/i })).toBeNull();
+  });
+
   it('offers every status except the current one and Assigned', async () => {
     renderApp(
       {

@@ -345,14 +345,16 @@ export const AUDIT_PAGE = {
 
 export const DASHBOARD = {
   assetCount: 13,
-  statusCounts: {
-    available: 4,
-    assigned: 6,
-    in_repair: 1,
-    ordered: 1,
-    retired: 1,
-    lost_stolen: 0,
-  },
+  // Ordered, labelled and coloured by the API from the statuses table — the
+  // dashboard renders it as it arrives.
+  statusCounts: [
+    { id: 'available', label: 'Available', color: 'ok', count: 4 },
+    { id: 'assigned', label: 'Assigned', color: 'acc', count: 6 },
+    { id: 'in_repair', label: 'In repair', color: 'warn', count: 1 },
+    { id: 'ordered', label: 'Ordered', color: 'info', count: 1 },
+    { id: 'retired', label: 'Retired', color: 'neut', count: 1 },
+    { id: 'lost_stolen', label: 'Lost/Stolen', color: 'err', count: 0 },
+  ],
   categoryCounts: [
     { category: 'laptops', count: 6 },
     { category: 'desktops', count: 1 },

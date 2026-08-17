@@ -1,10 +1,11 @@
 import { useMemo, useState, type FormEvent } from 'react';
-import { ASSET_STATUS_LABELS, type AssignInput } from '@inventory/shared';
+import type { AssignInput } from '@inventory/shared';
 import { fieldErrors } from '@/api/formErrors';
 import { useAssignAsset } from '@/api/mutations';
-import { useAssets, useEmployees } from '@/api/queries';
+import { useAssets, useEmployees, useWorkflow } from '@/api/queries';
 import { Avatar, Button, Field, Input, Modal, SearchInput, Textarea } from '@/components/ui';
 import { NotifyCheckbox } from '@/components/app/NotifyCheckbox';
+import { statusInfo, statusMap } from '@/lib/workflow';
 import { useToast } from '@/providers/ToastProvider';
 import type { AssignModalProps, Candidate } from './types/assignModal';
 import formStyles from '@/components/ui/FormModal.module.css';
@@ -27,6 +28,7 @@ export function AssignModal(props: AssignModalProps) {
   const toast = useToast();
   const employees = useEmployees();
   const assets = useAssets();
+  const workflow = useWorkflow();
   // In pick-asset mode the chosen row *is* the asset, so the endpoint is only
   // known once something is selected — until then there is no asset to name,
   // and the submit button is disabled anyway.
@@ -53,19 +55,26 @@ export function AssignModal(props: AssignModalProps) {
           avatarKey: employee.id,
         }));
     }
-    return (assets.data ?? [])
-      .filter((asset) => asset.status === 'available' || asset.status === 'ordered')
-      .filter((asset) =>
-        [asset.name, asset.assetTag].some((field) => field.toLowerCase().includes(needle)),
-      )
-      .map((asset) => ({
-        id: asset.id,
-        title: asset.name,
-        subtitle: `${asset.assetTag} · ${ASSET_STATUS_LABELS[asset.status]}`,
-        avatarKey: asset.id,
-        square: true as const,
-      }));
-  }, [mode, query, employees.data, assets.data]);
+    // A workflow that has not arrived says of no status that it can be handed
+    // out, so the list waits for it rather than guessing at a slug.
+    const byId = statusMap(workflow.data?.statuses ?? []);
+    return (
+      (assets.data ?? [])
+        // The same flag the API enforces, so the list cannot offer an asset the
+        // handover would then refuse.
+        .filter((asset) => byId.get(asset.status)?.assignableFrom === true)
+        .filter((asset) =>
+          [asset.name, asset.assetTag].some((field) => field.toLowerCase().includes(needle)),
+        )
+        .map((asset) => ({
+          id: asset.id,
+          title: asset.name,
+          subtitle: `${asset.assetTag} · ${statusInfo(byId, asset.status).label}`,
+          avatarKey: asset.id,
+          square: true as const,
+        }))
+    );
+  }, [mode, query, employees.data, assets.data, workflow.data]);
 
   function submit(event: FormEvent) {
     event.preventDefault();
