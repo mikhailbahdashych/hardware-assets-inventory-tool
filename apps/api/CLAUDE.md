@@ -91,6 +91,17 @@ Each of these was a decision. Change one only on purpose.
 - The `assignments` table is the only truth for who holds an asset: at most one active row per asset (partial unique index). Asset `status='assigned'` ⇔ an active assignment exists — maintained only inside single transactions in the assignment service (arrives PR 5).
 - Boot seed (`src/db/seed.ts`) is idempotent and only creates default custom-field defs; org settings come from the `/setup` flow. It runs on every start, so it must stay cheap and repeatable.
 
+## Two log systems, and which is which
+
+They answer different questions and share nothing. Do not put a domain event in one or an HTTP detail in the other.
+
+- **The activity log** (`audit_events` → `/activity`) is the product. A row is written **inside the same transaction** as the mutation it describes, by `writeAudit`, and rendered to a sentence by the one shared renderer in `@inventory/shared`. It is admin-visible in the UI, exportable as CSV, and pruned on the retention setting. It answers _who did what to this asset_.
+- **pino** (Fastify's logger) is operations. Request and response lines, server lifecycle, scheduler ticks, and the 500 path in `plugins/error-handler.ts`. It goes to **stdout only** — never the database, never the UI — and is read with `docker logs`. It answers _is this instance healthy, what threw, how slow was that_.
+
+`pino-pretty` is not a third thing: it is a formatter, enabled only when `NODE_ENV=development`, so the output is readable while you work. Production emits JSON.
+
+**Nothing secret may reach stdout.** `src/lib/logging.ts` is where that is enforced: the `req` serializer runs every URL through `redactSensitiveUrl`, because `GET /auth/invite/:token` carries a **raw** token in its path and the database deliberately stores only `sha256(raw)` — a log line would otherwise be the one place a raw token outlives the response that created it. `redact` covers the cookie and authorization headers as well, which Fastify does not log today but would carry the session if anything ever did. `test/logging.test.ts` drives a real request through a captured stream and fails if either appears. **Add a route with a secret in its path or query and you must add it to `SECRET_PATH_PREFIXES` / `SECRET_QUERY_KEYS`.**
+
 ## The demo seed
 
 `npm run seed:demo` (`src/db/demo.ts`, dataset in `src/db/demo-data.ts`) fills an instance with a fictional company so every screen has something on it. Three properties are what make it worth maintaining, and each is pinned by a test in `test/demo-seed.test.ts`:

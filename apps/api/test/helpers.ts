@@ -38,6 +38,7 @@ export type TestApp = {
 export async function buildTestApp(
   env: Record<string, string> = {},
   now?: () => Date,
+  logDestination?: NodeJS.WritableStream,
 ): Promise<TestApp> {
   const { db, sqlite } = createDb(':memory:');
   runMigrations(db, MIGRATIONS_DIR);
@@ -61,7 +62,7 @@ export async function buildTestApp(
       }
     : null;
 
-  const app = await buildApp({ config, db, sqlite, now, mailer });
+  const app = await buildApp({ config, db, sqlite, now, mailer, logDestination });
   return {
     app,
     db,
