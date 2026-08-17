@@ -1,4 +1,10 @@
-import type { AssetCategory, CheckinCondition, EmployeeStatus, Role } from '@inventory/shared';
+import type {
+  AssetCategory,
+  CheckinCondition,
+  EmployeeStatus,
+  Role,
+  StatusCreateInput,
+} from '@inventory/shared';
 import { DEFAULT_ASSET_STATUSES, ASSIGNED_STATUS } from '@inventory/shared';
 
 // The demo dataset is written against the workflow a fresh instance is seeded
@@ -92,6 +98,15 @@ export interface DemoAsset {
    */
   status: DemoStatus;
   custom?: { hostname?: string; costCenter?: string; mdm?: boolean; encrypted?: boolean };
+}
+
+/**
+ * The status the demo workspace adds for itself. It is exactly what the
+ * workflow service's create endpoint takes, plus the id that call will derive
+ * from the label — which the curated graph has to name before the row exists.
+ */
+export interface DemoWorkflowStatus extends StatusCreateInput {
+  id: string;
 }
 
 /** One leg of an asset's ownership history, closed or still open. */

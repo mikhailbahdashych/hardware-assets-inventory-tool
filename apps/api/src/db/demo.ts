@@ -1,6 +1,7 @@
 import { eq } from 'drizzle-orm';
 import { deriveOutcome, ROLE_LABELS } from '@inventory/shared';
 import type { AppDeps } from '@/types/app.js';
+import type { Actor } from '@/types/audit.js';
 import type { DbOrTx } from '@/types/db.js';
 import type { DemoAccount, DemoSeedOptions, DemoSeedResult } from '@/types/demo.js';
 import type { SQLiteTable } from 'drizzle-orm/sqlite-core';
@@ -16,6 +17,8 @@ import {
 } from '@/db/schema.js';
 import {
   ASSETS,
+  DEMO_STATUS,
+  DEMO_TRANSITIONS,
   EMAIL_DOMAIN,
   HISTORY_DAYS,
   HOLDINGS,
@@ -29,6 +32,7 @@ import { addDays, nowIso, todayDate } from '@/lib/dates.js';
 import { hashPassword } from '@/lib/password.js';
 import { writeAudit } from '@/services/audit.js';
 import { activeAssignment, closeAssignment, openAssignment } from '@/services/assignments.js';
+import { createStatus, replaceTransitions } from '@/services/workflow.js';
 import { emptyWorkspace } from '@/services/workspace.js';
 
 /**
@@ -69,6 +73,13 @@ export async function seedDemo(deps: AppDeps, options: DemoSeedOptions): Promise
 
   const signIn: DemoAccount[] = [];
 
+  const founder = PEOPLE.find((person) => person.account?.role === 'admin');
+  if (!founder) throw new Error('The demo dataset has no admin to attribute its history to.');
+  const actor: Actor = {
+    id: newId(),
+    displayName: `${founder.firstName} ${founder.lastName}`,
+  };
+
   deps.db.transaction((tx) => {
     // Negative reaches forward, which is how a warranty lands next month and a
     // return falls due next week. Event timestamps only ever pass positives —
@@ -81,10 +92,8 @@ export async function seedDemo(deps: AppDeps, options: DemoSeedOptions): Promise
 
     seedSettings(tx, now);
 
-    const founder = PEOPLE.find((person) => person.account?.role === 'admin');
-    if (!founder) throw new Error('The demo dataset has no admin to attribute its history to.');
-    const founderName = `${founder.firstName} ${founder.lastName}`;
-    const founderId = newId();
+    const founderId = actor.id;
+    const founderName = actor.displayName;
 
     const employeeIds = seedPeople(tx, at);
     const memberIds = seedMembers(tx, at, {
@@ -152,11 +161,34 @@ export async function seedDemo(deps: AppDeps, options: DemoSeedOptions): Promise
     }
   });
 
+  curateWorkflow(deps, actor);
+
   return {
     orgName: ORG_NAME,
     signIn,
     counts: countRows(deps.db),
   };
+}
+
+/**
+ * The last thing the demo company did, and the last thing this seeder does.
+ *
+ * Order is the whole point. Everything above replays under the workflow a
+ * fresh instance is seeded with — a full mesh between every non-assigned
+ * status — and the curated graph below forbids several of the moves that
+ * history contains. Applying it first would make the demo's own past illegal;
+ * applying it last is also the truer story, because that is how a workspace
+ * arrives at a workflow: it runs on the permissive default until somebody has
+ * an opinion.
+ *
+ * It goes through the real service like everything else here, so the workflow
+ * has been checked by the guards that protect it and the activity log carries
+ * the change with the head of IT's name on it. Both calls open their own
+ * transaction, which is why this sits outside the one above rather than in it.
+ */
+function curateWorkflow(deps: AppDeps, actor: Actor): void {
+  createStatus(deps, actor, DEMO_STATUS);
+  replaceTransitions(deps, actor, { transitions: [...DEMO_TRANSITIONS] });
 }
 
 /** The workspace itself, on the design's defaults. */
