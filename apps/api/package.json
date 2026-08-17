@@ -10,7 +10,9 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc",
-    "db:generate": "drizzle-kit generate"
+    "db:generate": "drizzle-kit generate",
+    "seed:demo": "tsx src/db/seed-demo-cli.ts",
+    "seed:demo:dist": "node dist/db/seed-demo-cli.js"
   },
   "dependencies": {
     "@fastify/cookie": "^11.1.2",
