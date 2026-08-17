@@ -295,12 +295,24 @@ As the LAST demo step (history must replay under the seeded mesh first), through
 
 ### Task 17: Docs
 
-**Files:** `git mv docs/recipes/add-asset-status.md docs/recipes/add-enum-value.md` and rework around the category example, opening with "Asset statuses moved to Admin → Workflow — this recipe is for the enums that stayed in code". Update every reference (`grep -rn "add-asset-status" .` → README + root CLAUDE.md). README: feature bullet under "What it does" ("**Custom statuses & workflow** — …"), and drop the "category-management UI"-adjacent claim that statuses are code-only if present. CLAUDE.md updates: root (enum convention now excepts statuses), `packages/shared` (enums section), `apps/api` (workflow module + invariants paragraph), `apps/web` (workflow page/query paragraph). Do NOT touch `docs/PROJECT_STATUS.md` (the operator does that).
+**Files:** `git mv docs/recipes/add-asset-status.md docs/recipes/add-enum-value.md` and rework around the category example, opening with "Asset statuses moved to Admin → Workflow — this recipe is for the enums that stayed in code". Update every reference (`grep -rn "add-asset-status" .` → README + root CLAUDE.md). README: feature bullet under "What it does" ("**Custom statuses & workflow** — …"), and drop the "category-management UI"-adjacent claim that statuses are code-only if present (the screenshot for this section lands in Task 18). CLAUDE.md updates: root (enum convention now excepts statuses), `packages/shared` (enums section), `apps/api` (workflow module + invariants paragraph), `apps/web` (workflow page/query paragraph). Do NOT touch `docs/PROJECT_STATUS.md` (the operator does that).
 
 - [ ] Commit `docs: statuses are workflow data now`.
+
+### Task 18: Workflow screenshots into the README
+
+Only after Tasks 15–17 are green — a screenshot of a broken feature is worse than none.
+
+**Files:** Create `media/workflow.png` (and optionally `media/workflow-change-status.png`); Modify `README.md`.
+
+Match the existing media set exactly: 1440×900 viewport, light theme, the demo workspace. `npm run seed:demo -- --reset`, run the app, sign in as the demo admin (the seed prints the logins), open `/workflow` — the curated demo graph from Task 16 is what makes this page worth photographing (seven statuses including "In imaging", a real graph in the diagram, not the full mesh). Capture with the Playwright MCP browser tools (or Chrome DevTools MCP). Keep files in the existing size range (~120–150 KB PNG); re-shoot rather than ship a blurry or half-loaded frame, and check the image yourself before committing — read it back and look at it.
+
+README: place the image beside the workflow feature bullet from Task 17, in the established voice — meaningful alt text in the brackets, an italic one-line caption under it that says something true and specific (what the reader is looking at and why it matters), not marketing. A second screenshot (the Change-status modal offering only what the graph allows) is welcome if it earns its caption; skip it if it reads as filler.
+
+- [ ] Commit `docs: show the workflow page`.
 
 ---
 
 ## Final verification (operator, not agents)
 
-Full gate (`npm test`, `npm run e2e`, lint, typecheck, build), a live browser walk of `/workflow` in both themes via Chrome DevTools MCP (add/edit/delete-with-migrate, matrix save, diagram redraw, change-status obeying the graph), a README screenshot of the workflow page, PROJECT_STATUS update, PR #25.
+Full gate (`npm test`, `npm run e2e`, lint, typecheck, build), a live browser walk of `/workflow` in both themes via Chrome DevTools MCP (add/edit/delete-with-migrate, matrix save, diagram redraw, change-status obeying the graph), a review of the Task 18 screenshots, PROJECT_STATUS update, PR #25.
