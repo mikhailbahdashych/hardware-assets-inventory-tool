@@ -1,5 +1,5 @@
 import type Database from 'better-sqlite3';
-import type { Config } from '@/config.js';
+import type { Config } from '@/types/config.js';
 import type { Db } from '@/types/db.js';
 import type { Mailer } from '@/types/mail.js';
 
@@ -29,4 +29,11 @@ export interface BuildAppOptions {
   now?: () => Date;
   /** Omitted means "build one from the config", which may still be null. */
   mailer?: Mailer | null;
+  /**
+   * Where log lines go. The same kind of seam as `now`: production writes to
+   * stdout, and a test hands in a stream so it can assert on what was written —
+   * which is how "no raw token ever reaches the log" is a test rather than a
+   * hope.
+   */
+  logDestination?: NodeJS.WritableStream;
 }

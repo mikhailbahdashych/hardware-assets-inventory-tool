@@ -6,8 +6,6 @@ import {
   ASSET_STATUS_LABELS,
   can,
   renderAuditEvent,
-  type Action,
-  type Role,
 } from '@inventory/shared';
 import { orgMeta, useAsset, useMeta } from '@/api/queries';
 import type { Asset, CustomFieldValue } from '@/types/api';
@@ -22,11 +20,8 @@ import { ChangeStatusModal } from './ChangeStatusModal';
 import { CheckInModal } from './CheckInModal';
 import { ManageFieldsModal } from './ManageFieldsModal';
 import { OwnershipTimeline } from './OwnershipTimeline';
+import type { AssetDetailPageProps, OpenModal, PrimaryAction } from './types/assetDetailPage';
 import styles from './Assets.module.css';
-
-type OpenModal = 'edit' | 'assign' | 'checkin' | 'status' | 'fields' | null;
-
-type PrimaryAction = { label: string; modal: OpenModal; permission: Action };
 
 /** Booleans read as Yes/No; everything else shows as stored. */
 function customValueText(field: CustomFieldValue): string {
@@ -38,9 +33,8 @@ function customValueText(field: CustomFieldValue): string {
 
 /**
  * The design's contextual primary action: an assigned asset is checked in, a
- * free one is assigned, anything else changes status. The prototype routes
- * that third case to Assign, which cannot work — an asset in repair has no
- * holder to change.
+ * free one is assigned, anything else changes status. That third case is its
+ * own modal rather than Assign — an asset in repair has no holder to change.
  */
 function primaryAction(asset: Asset): PrimaryAction {
   if (asset.status === 'assigned') {
@@ -52,7 +46,7 @@ function primaryAction(asset: Asset): PrimaryAction {
   return { label: 'Change status', modal: 'status', permission: 'assets.change_status' };
 }
 
-export function AssetDetailPage({ role }: { role: Role }) {
+export function AssetDetailPage({ role }: AssetDetailPageProps) {
   const { id = '' } = useParams();
   const [open, setOpen] = useState<OpenModal>(null);
   const navigate = useNavigate();

@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import type { ImportColumn } from '../types/import.js';
 import { toCsv } from '../csv.js';
 
 // The CSV vocabulary, shared by three places that must agree: the template the
@@ -15,12 +16,6 @@ export const IMPORT_KIND_LABELS: Record<ImportKind, string> = {
   assets: 'Assets',
   employees: 'Employees',
 };
-
-/** One canonical column: what the header says and whether a row needs it. */
-export interface ImportColumn {
-  header: string;
-  required: boolean;
-}
 
 const column = (header: string, required = false): ImportColumn => ({ header, required });
 
@@ -172,7 +167,12 @@ export function matchEnumValue<T extends string>(
  * applies the column mapping, so the server only ever sees canonical keys and
  * never has to know what the file's own headers were called.
  */
-const importRow = z.record(z.string(), z.string());
+const importRow = z.record(
+  z.string(),
+  // Bounded because every validator runs over these strings, and an
+  // unbounded cell makes any per-character cost somebody else's outage.
+  z.string().max(2000, 'That cell is too long to import.'),
+);
 
 export const importValidateInput = z.object({
   kind: z.enum(IMPORT_KINDS),

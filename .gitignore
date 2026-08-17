@@ -21,12 +21,16 @@ e2e/playwright-report/
 e2e/blob-report/
 
 # local tooling state
-.claude/scheduled_tasks.lock
-.claude/settings.local.json
+.claude/
 .remember/
 .DS_Store
 e2e/.data/
 e2e/.auth/
+
+# Working notes for whoever is actively building the thing — a scratchpad for
+# one person's session, not a description of the product. What an adopting
+# team needs is in the CLAUDE.md files and docs/, which are checked in.
+docs/PROJECT_STATUS.md
 
 # browser-review screenshots (MCP)
 .playwright-mcp/

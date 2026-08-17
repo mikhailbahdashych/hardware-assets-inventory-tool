@@ -35,6 +35,8 @@ export interface Member {
   theme: Theme;
   density: Density;
   widgets: Record<string, boolean>;
+  /** They hold a confirmed authenticator. The secret itself never leaves the API. */
+  mfaEnrolled: boolean;
 }
 
 /**
@@ -172,6 +174,28 @@ export interface EmployeeDetail {
  * A member as the Members page reads them — never the theme, density and
  * widget layout `Member` carries, which belong to the signed-in person alone.
  */
+/**
+ * The signed-in member plus the one thing about them that depends on workspace
+ * policy: whether they owe an enrolment. A non-admin cannot read settings, so
+ * the API answers it here rather than making the app work it out.
+ */
+export interface Session {
+  member: Member;
+  mustEnrolMfa: boolean;
+}
+
+/**
+ * What a password gets you. Either a session, or — when the account has an
+ * authenticator — a short-lived challenge to answer with a code.
+ */
+export type LoginResult = { member: Member } | { mfaRequired: true; challengeToken: string };
+
+/** What enrolment hands the browser: something to scan, something to type. */
+export interface MfaEnrolment {
+  secret: string;
+  otpauthUri: string;
+}
+
 export interface MemberSummary {
   id: string;
   email: string;
@@ -183,6 +207,7 @@ export interface MemberSummary {
   linkedEmployee: { id: string; displayName: string } | null;
   lastActiveAt: string | null;
   createdAt: string;
+  mfaEnrolled: boolean;
 }
 
 export interface OrgSettings {
@@ -198,6 +223,8 @@ export interface OrgSettings {
   emailReturnReminders: boolean;
   emailInvites: boolean;
   emailWeeklyDigest: boolean;
+  /** Every member must hold a confirmed authenticator to use the workspace. */
+  mfaRequired: boolean;
   createdAt: string;
   updatedAt: string;
 }

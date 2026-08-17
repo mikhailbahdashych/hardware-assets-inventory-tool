@@ -1,5 +1,4 @@
-import type { ReactNode } from 'react';
-import type { TableColumn } from '@/types/table';
+import type { DataTableProps } from './types/dataTable';
 import styles from './DataTable.module.css';
 
 /**
@@ -15,19 +14,7 @@ export function DataTable<T>({
   showHeader = true,
   footer,
   empty,
-}: {
-  columns: TableColumn<T>[];
-  rows: T[];
-  rowKey: (row: T) => string;
-  onRowClick?: (row: T) => void;
-  /** Titled variant ("Currently holding · 3"), which the design draws without
-   *  a column-header row — pass `showHeader={false}` with it. */
-  title?: ReactNode;
-  showHeader?: boolean;
-  footer?: ReactNode;
-  /** Rendered instead of rows when the list is empty. */
-  empty?: ReactNode;
-}) {
+}: DataTableProps<T>) {
   const template = columns.map((column) => column.width).join(' ');
   return (
     <div className={styles.table} role="table">

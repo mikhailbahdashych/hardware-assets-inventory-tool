@@ -6,9 +6,8 @@ import {
   MEMBER_STATUS_LABELS,
   ROLE_COLORS,
   ROLE_LABELS,
-  type Role,
 } from '@inventory/shared';
-import { useIssueResetLink, useResendInvite } from '@/api/mutations';
+import { useIssueResetLink, useResetMemberMfa, useResendInvite } from '@/api/mutations';
 import { useMembers } from '@/api/queries';
 import { PageContainer } from '@/components/app/PageContainer';
 import { Avatar, Button, DataTable, EmptyState, Menu, Pill, Spinner } from '@/components/ui';
@@ -21,23 +20,17 @@ import type { TableColumn } from '@/types/table';
 import { ChangeRoleModal } from './ChangeRoleModal';
 import { CopyLinkModal } from './CopyLinkModal';
 import { RemoveMemberModal } from './RemoveMemberModal';
+import type { MembersDialog, MembersPageProps } from './types/membersPage';
 import styles from './Members.module.css';
 
-/** Which of the page's own modals is open, and about whom. Inviting is not
- *  here: it carries no subject and the command palette opens it too, so it
- *  belongs to ModalProvider. */
-type MembersDialog =
-  | { kind: 'role'; member: MemberSummary }
-  | { kind: 'remove'; member: MemberSummary }
-  | { kind: 'link'; title: string; subtitle: string; label: string; url: string };
-
-export function MembersPage({ role, memberId }: { role: Role; memberId: string }) {
+export function MembersPage({ role, memberId }: MembersPageProps) {
   const [dialog, setDialog] = useState<MembersDialog | null>(null);
   const toast = useToast();
   const { openModal } = useModals();
   const members = useMembers();
   const resend = useResendInvite();
   const reset = useIssueResetLink();
+  const resetMfa = useResetMemberMfa();
   const manages = can(role, 'members.manage');
 
   // A list that has not arrived has no rows; the empty state renders below.
@@ -76,6 +69,25 @@ export function MembersPage({ role, memberId }: { role: Role; memberId: string }
               }),
             onError: (error) => toast.show(error.message, 'err'),
           }),
+      });
+    }
+
+    // Unlike role and removal, this *is* allowed on your own account: locking
+    // yourself out of an authenticator is not a way to leave the workspace
+    // without an admin, and the alternative is telling the only admin to phone
+    // themselves.
+    if (member.mfaEnrolled) {
+      items.push({
+        label: 'Reset two-factor',
+        onSelect: () =>
+          resetMfa.mutate(
+            { id: member.id },
+            {
+              onSuccess: () =>
+                toast.show(`${member.displayName} will set up an authenticator again.`, 'ok'),
+              onError: (error) => toast.show(error.message, 'err'),
+            },
+          ),
       });
     }
 

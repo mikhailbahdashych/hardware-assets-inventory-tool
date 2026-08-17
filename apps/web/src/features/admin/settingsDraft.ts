@@ -1,23 +1,6 @@
-import type { Currency, LogRetention, SettingsPatchInput } from '@inventory/shared';
+import type { SettingsPatchInput } from '@inventory/shared';
 import type { OrgSettings } from '@/types/api';
-
-/**
- * The settings form's own state. Every field is what a control holds rather
- * than what a column holds — the lead time is the *text* of a number input,
- * because "" and "4x" are things a person can type and the form has to keep
- * them long enough to say so.
- */
-export interface SettingsDraft {
-  orgName: string;
-  defaultCurrency: Currency;
-  assetTagPrefix: string;
-  warrantyLeadDays: string;
-  logRetentionMonths: LogRetention;
-  emailWarrantyAlerts: boolean;
-  emailReturnReminders: boolean;
-  emailInvites: boolean;
-  emailWeeklyDigest: boolean;
-}
+import type { SettingsDraft } from './types/settingsDraft';
 
 /**
  * What Save would send: only the fields that actually differ from the stored
@@ -59,6 +42,7 @@ export function changedSettings(stored: OrgSettings, draft: SettingsDraft): Sett
     'emailReturnReminders',
     'emailInvites',
     'emailWeeklyDigest',
+    'mfaRequired',
   ] as const) {
     if (draft[key] !== stored[key]) patch[key] = draft[key];
   }

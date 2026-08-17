@@ -1,5 +1,6 @@
 import { resolve } from 'node:path';
 import { z } from 'zod';
+import type { Config, SmtpConfig } from '@/types/config.js';
 
 // Zero-config by design: every value has a sensible self-hosting default, and
 // an instance with no SMTP at all is a supported way to run this — invitations
@@ -18,6 +19,12 @@ const envSchema = z.object({
     .default('http://localhost:3000'),
   COOKIE_SECURE: z.enum(['true', 'false']).optional(),
   LOG_LEVEL: z.string().default('info'),
+  /**
+   * Whether an upstream proxy's `X-Forwarded-For` may be believed. Off by
+   * default, because trusting that header when nothing sets it lets any client
+   * claim any address — and rate limits are keyed on the result.
+   */
+  TRUST_PROXY: z.string().optional(),
   WEB_DIST: z.string().optional(),
   SMTP_HOST: z.string().optional(),
   SMTP_PORT: z.coerce.number().int().positive().default(587),
@@ -26,30 +33,6 @@ const envSchema = z.object({
   SMTP_PASS: z.string().optional(),
   SMTP_FROM: z.string().default('Inventory <inventory@localhost>'),
 });
-
-/** Where mail goes. `null` on `Config.smtp` means "this instance sends none". */
-export interface SmtpConfig {
-  host: string;
-  port: number;
-  /** Implicit TLS (port 465). STARTTLS on 587 is negotiated, not this flag. */
-  secure: boolean;
-  /** Relays on a private network often need none. */
-  auth: { user: string; pass: string } | null;
-  from: string;
-}
-
-export type Config = {
-  nodeEnv: 'development' | 'test' | 'production';
-  port: number;
-  host: string;
-  dataDir: string;
-  appUrl: string;
-  cookieSecure: boolean;
-  logLevel: string;
-  /** Absolute path to the built SPA; when set (and existing) the API serves it. */
-  webDist?: string;
-  smtp: SmtpConfig | null;
-};
 
 export function loadConfig(env: Record<string, string | undefined> = process.env): Config {
   const parsed = envSchema.parse(env);
@@ -64,10 +47,24 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
         ? parsed.COOKIE_SECURE === 'true'
         : parsed.APP_URL.startsWith('https://'),
     logLevel: parsed.LOG_LEVEL,
+    trustProxy: readTrustProxy(parsed.TRUST_PROXY),
     // fastify-static needs an absolute root.
     webDist: parsed.WEB_DIST ? resolve(parsed.WEB_DIST) : undefined,
     smtp: readSmtp(parsed),
   };
+}
+
+/**
+ * `true`, `false`, a hop count, or a comma-separated list of trusted addresses
+ * — the shapes Fastify accepts, so an operator can name their proxy's subnet
+ * rather than trusting whatever arrives.
+ */
+function readTrustProxy(value: string | undefined): boolean | number | string[] {
+  if (value === undefined || value === '' || value === 'false') return false;
+  if (value === 'true') return true;
+  const hops = Number(value);
+  if (Number.isInteger(hops) && hops > 0) return hops;
+  return value.split(',').map((entry) => entry.trim());
 }
 
 /**

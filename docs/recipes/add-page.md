@@ -41,7 +41,7 @@ export function LocationsPage({ role }: { role: Role }) {
 }
 ```
 
-`PageContainer` carries the design's padding and max width: 1160 for lists, 1060 for detail and admin, 960 for members. `DataTable` takes the design's exact `grid-template-columns` per table — copy them from `docs/design-handoff/README.md`, do not invent them.
+`PageContainer` carries the design's padding and max width: 1160 for lists, 1060 for detail and admin, 960 for members. `DataTable` builds its `grid-template-columns` from the `width` on each column — copy the shape from the nearest existing list rather than inventing widths. `AssetsPage.tsx`'s `COLUMNS` is the reference: a `minmax(210px, 1.6fr)` first column that can breathe, then fixed pixel widths for everything a person scans down.
 
 **Filters belong in the URL** (`useSearchParams` + `setParam` from `@/lib/searchParams`), so a filtered view is a link and the back button works.
 

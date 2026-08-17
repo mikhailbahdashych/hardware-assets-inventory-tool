@@ -13,5 +13,6 @@ export * from './schemas/custom-fields.js';
 export * from './schemas/employees.js';
 export * from './schemas/import.js';
 export * from './schemas/members.js';
+export * from './schemas/mfa.js';
 export * from './schemas/settings.js';
 export * from './types/index.js';

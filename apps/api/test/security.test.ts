@@ -108,3 +108,37 @@ describe('unknown API routes', () => {
     expect(res.json().error.code).toBe('not_found');
   });
 });
+
+describe('rate limiting behind a proxy', () => {
+  it('ignores X-Forwarded-For unless the deployment says to trust it', async () => {
+    ctx = await buildTestApp();
+    const attempts = await Promise.all(
+      Array.from({ length: 12 }, (_unused, index) =>
+        inject(ctx.app, {
+          method: 'POST',
+          url: '/api/v1/auth/login',
+          headers: { 'x-forwarded-for': `203.0.113.${index}` },
+          body: { email: 'nobody@acme.io', password: 'wrong-password-here' },
+        }),
+      ),
+    );
+    // Twelve claimed addresses, one real socket: the header buys nothing.
+    expect(attempts.filter((res) => res.statusCode === 429).length).toBeGreaterThan(0);
+  });
+
+  it('believes the header once TRUST_PROXY is set, so one client cannot starve the bucket', async () => {
+    ctx = await buildTestApp({ TRUST_PROXY: 'true' });
+    const attempts = await Promise.all(
+      Array.from({ length: 12 }, (_unused, index) =>
+        inject(ctx.app, {
+          method: 'POST',
+          url: '/api/v1/auth/login',
+          headers: { 'x-forwarded-for': `203.0.113.${index}` },
+          body: { email: 'nobody@acme.io', password: 'wrong-password-here' },
+        }),
+      ),
+    );
+    // Twelve distinct clients, each well under the limit.
+    expect(attempts.every((res) => res.statusCode === 401)).toBe(true);
+  });
+});

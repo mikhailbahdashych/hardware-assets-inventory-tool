@@ -47,7 +47,7 @@ test('refuses to hand out an asset that is in repair, offering a status change i
   await assign.getByRole('button', { name: 'Cancel' }).click();
 
   // Move it to In repair, and the primary action becomes Change status —
-  // the prototype wires this button to Assign, which has no holder to change.
+  // Assign would be wrong here: an asset in repair has no holder to change.
   await page.getByRole('button', { name: 'Edit' }).click();
   const edit = page.getByRole('dialog');
   await choose(page, edit, 'Status', 'In repair');

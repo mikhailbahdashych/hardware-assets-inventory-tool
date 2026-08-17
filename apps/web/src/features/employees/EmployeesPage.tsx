@@ -1,5 +1,5 @@
 import { useNavigate, useSearchParams } from 'react-router';
-import { can, EMPLOYEE_STATUS_COLORS, EMPLOYEE_STATUS_LABELS, type Role } from '@inventory/shared';
+import { can, EMPLOYEE_STATUS_COLORS, EMPLOYEE_STATUS_LABELS } from '@inventory/shared';
 import { useEmployees } from '@/api/queries';
 import type { Employee } from '@/types/api';
 import { ListToolbar } from '@/components/app/ListToolbar';
@@ -9,6 +9,7 @@ import { Avatar, Button, DataTable, EmptyState, Pill, SearchInput, Spinner } fro
 import type { TableColumn } from '@/types/table';
 import { setParam } from '@/lib/searchParams';
 import { filterEmployees } from './filters';
+import type { EmployeesPageProps } from './types/employeesPage';
 import styles from './Employees.module.css';
 
 /** The design's grid: Name · Email · Department · Location · Assets · Status. */
@@ -54,7 +55,7 @@ const COLUMNS: TableColumn<Employee>[] = [
   },
 ];
 
-export function EmployeesPage({ role }: { role: Role }) {
+export function EmployeesPage({ role }: EmployeesPageProps) {
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
   const { openModal } = useModals();

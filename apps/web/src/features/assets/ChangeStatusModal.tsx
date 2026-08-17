@@ -7,9 +7,9 @@ import {
 } from '@inventory/shared';
 import { fieldErrors } from '@/api/formErrors';
 import { useUpdateAsset } from '@/api/mutations';
-import type { Asset } from '@/types/api';
 import { Button, Dropdown, Field, Modal } from '@/components/ui';
 import { useToast } from '@/providers/ToastProvider';
+import type { ChangeStatusModalProps } from './types/changeStatusModal';
 import formStyles from '@/components/ui/FormModal.module.css';
 
 /**
@@ -17,7 +17,7 @@ import formStyles from '@/components/ui/FormModal.module.css';
  * In repair or Ordered has no holder to change. It gets its own small modal,
  * offering only the moves `canDirectlyTransition` allows.
  */
-export function ChangeStatusModal({ asset, onClose }: { asset: Asset; onClose: () => void }) {
+export function ChangeStatusModal({ asset, onClose }: ChangeStatusModalProps) {
   const options = ASSET_STATUSES.filter((status) => canDirectlyTransition(asset.status, status));
   // An assigned asset can move nowhere directly, so it offers no options and
   // stays where it is — the modal is not reachable for one from the UI.

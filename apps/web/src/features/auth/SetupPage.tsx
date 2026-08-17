@@ -6,9 +6,9 @@ import { AuthField, AuthLayout, FormError } from './AuthLayout';
 import styles from './Auth.module.css';
 
 /**
- * First-run setup. Not part of the design handoff — self-hosting needs a way
+ * First-run setup. Not one of the designed screens — self-hosting needs a way
  * to create the organization and its first admin — so it reuses the login
- * screen's layout exactly.
+ * screen's layout exactly rather than inventing a second one.
  */
 export function SetupPage() {
   const navigate = useNavigate();

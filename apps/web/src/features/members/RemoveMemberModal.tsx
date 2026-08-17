@@ -1,7 +1,7 @@
 import { useRemoveMember } from '@/api/mutations';
 import { Button, Modal } from '@/components/ui';
 import { useToast } from '@/providers/ToastProvider';
-import type { MemberSummary } from '@/types/api';
+import type { RemoveMemberModalProps } from './types/removeMemberModal';
 import styles from './Members.module.css';
 
 /**
@@ -9,13 +9,7 @@ import styles from './Members.module.css';
  * they hold and everything they did in the log all stay. This says so, because
  * "Remove" beside a name reads like it might mean more than it does.
  */
-export function RemoveMemberModal({
-  member,
-  onClose,
-}: {
-  member: MemberSummary;
-  onClose: () => void;
-}) {
+export function RemoveMemberModal({ member, onClose }: RemoveMemberModalProps) {
   const toast = useToast();
   const remove = useRemoveMember();
 

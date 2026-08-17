@@ -1,6 +1,13 @@
 import type { assignments } from '@/db/schema.js';
 
 /**
+ * One ownership record: who held an asset, from when, and — once it is closed —
+ * until when and in what state it came back. This table is the only truth about
+ * who holds what; there is no holder column on the asset.
+ */
+export type AssignmentRow = typeof assignments.$inferSelect;
+
+/**
  * Handing an asset out. Only `openAssignment` may consume this — it is the one
  * code path allowed to pair `status = 'assigned'` with a new ownership row.
  */
@@ -17,7 +24,7 @@ export interface OpenAssignmentParams {
 /** Taking an asset back — the mirror image of {@link OpenAssignmentParams}. */
 export interface CloseAssignmentParams {
   /** The open ownership row being closed. */
-  assignment: typeof assignments.$inferSelect;
+  assignment: AssignmentRow;
   returnedAt: string;
   newStatus: string;
   condition?: string | null;

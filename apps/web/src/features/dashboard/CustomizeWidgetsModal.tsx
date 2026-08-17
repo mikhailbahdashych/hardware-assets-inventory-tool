@@ -1,7 +1,7 @@
 import { useUpdatePrefs } from '@/api/mutations';
 import { Button, Modal, ToggleSwitch } from '@/components/ui';
-import type { Member } from '@/types/api';
 import { DASHBOARD_WIDGETS, isWidgetVisible } from './widgets';
+import type { CustomizeWidgetsModalProps } from './types/customizeWidgetsModal';
 import styles from './Dashboard.module.css';
 
 /**
@@ -9,13 +9,7 @@ import styles from './Dashboard.module.css';
  * server returns straight into the cache, so the page behind the modal
  * re-renders on the response without a refetch to wait for.
  */
-export function CustomizeWidgetsModal({
-  member,
-  onClose,
-}: {
-  member: Member;
-  onClose: () => void;
-}) {
+export function CustomizeWidgetsModal({ member, onClose }: CustomizeWidgetsModalProps) {
   const update = useUpdatePrefs();
 
   return (

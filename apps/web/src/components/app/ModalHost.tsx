@@ -1,4 +1,3 @@
-import type { Member } from '@/types/api';
 import { AssetFormModal } from '@/features/assets/AssetFormModal';
 import { CustomizeWidgetsModal } from '@/features/dashboard/CustomizeWidgetsModal';
 import { EmployeeFormModal } from '@/features/employees/EmployeeFormModal';
@@ -6,6 +5,7 @@ import { ImportWizardModal } from '@/features/import/ImportWizardModal';
 import { InviteMemberModal } from '@/features/members/InviteMemberModal';
 import { useModals } from '@/providers/ModalProvider';
 import { CommandPalette } from './CommandPalette';
+import type { ModalHostProps } from './types/modalHost';
 
 /**
  * Renders whichever app-level modal is open. Mounted once in the shell, so the
@@ -15,7 +15,7 @@ import { CommandPalette } from './CommandPalette';
  * Lazily rendered: nothing here exists until it is asked for, so the palette's
  * query subscriptions and the wizard's file state start clean each time.
  */
-export function ModalHost({ member }: { member: Member }) {
+export function ModalHost({ member }: ModalHostProps) {
   const { open, closeModal } = useModals();
 
   switch (open) {

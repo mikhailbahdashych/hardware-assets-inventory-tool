@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   ASSET_STATUSES,
   ASSET_STATUS_COLORS,
@@ -25,6 +25,7 @@ import {
   EmptyState,
   Field,
   FilterPills,
+  Icon,
   IconButton,
   Input,
   Kbd,
@@ -40,9 +41,11 @@ import {
   Tabs,
   Textarea,
   ToggleSwitch,
+  type IconName,
 } from '@/components/ui';
 import { useTheme } from '@/providers/ThemeProvider';
 import { useToast } from '@/providers/ToastProvider';
+import type { RowProps, SectionProps } from './types/kitchenSink';
 
 const DEMO_ROWS = [
   { tag: 'AST-0142', name: 'MacBook Pro 14" M3', serial: 'C02XK1AZQ6L7', status: 'assigned' },
@@ -50,7 +53,7 @@ const DEMO_ROWS = [
   { tag: 'AST-0089', name: 'MacBook Air M2', serial: 'C02FL9QXQ6L4', status: 'in_repair' },
 ] as const;
 
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
+function Section({ title, children }: SectionProps) {
   return (
     <section style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
       <h2
@@ -70,7 +73,7 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   );
 }
 
-function Row({ children }: { children: React.ReactNode }) {
+function Row({ children }: RowProps) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
       {children}
@@ -78,7 +81,101 @@ function Row({ children }: { children: React.ReactNode }) {
   );
 }
 
-/** Dev-only design-system review page — compare side-by-side with docs/design-handoff/. */
+/** Every icon the design ships, straight off `Icon`'s own union. */
+const ICON_NAMES: IconName[] = [
+  'cube',
+  'cubeSimple',
+  'grid',
+  'users',
+  'user',
+  'shieldCheck',
+  'shield',
+  'gear',
+  'search',
+  'sun',
+  'moon',
+  'plus',
+  'upload',
+  'file',
+  'pencil',
+  'chevronLeft',
+  'chevronDown',
+  'check',
+  'activity',
+  'logOut',
+  'x',
+];
+
+/** The surface tokens, in the order tokens.css declares them. */
+const SURFACE_TOKENS = [
+  'bg',
+  'surface',
+  'side',
+  'border',
+  'text',
+  'muted',
+  'faint',
+  'hover',
+  'thead',
+  'accent',
+] as const;
+
+/**
+ * The type scale, as the app actually uses it. Sizes are not free choices —
+ * a new screen picks the row that matches its job rather than a new number.
+ */
+const TYPE_SCALE = [
+  { size: 20, weight: 600, use: 'KPI counts' },
+  { size: 18, weight: 600, use: 'Detail page headings' },
+  { size: 17, weight: 600, use: 'Modal titles' },
+  { size: 14, weight: 600, use: 'Card titles' },
+  { size: 13.5, weight: 500, use: 'Table cells, body copy' },
+  { size: 13, weight: 600, use: 'Buttons, section labels' },
+  { size: 12.5, weight: 400, use: 'Inputs, dropdowns' },
+  { size: 12, weight: 500, use: 'Field labels, pills' },
+  { size: 11.5, weight: 400, use: 'Hints, footnotes' },
+  { size: 11, weight: 500, use: 'Table headers, kbd' },
+] as const;
+
+/** What each `--token` actually resolves to right now, straight from the CSSOM. */
+function readTokens(names: readonly string[]): Record<string, string> {
+  const computed = getComputedStyle(document.documentElement);
+  return Object.fromEntries(
+    names.map((name) => [name, computed.getPropertyValue(`--${name}`).trim()]),
+  );
+}
+
+/**
+ * The resolved value of each token, so a swatch can print the colour it is.
+ *
+ * These live in the CSSOM, not in React, and they change when `ThemeProvider`
+ * flips `data-theme` on `<html>` — which it does in an effect, *after* the
+ * render that toggled it. Deriving them during a render would therefore show
+ * the previous theme's palette, one toggle behind. So this subscribes to the
+ * attribute instead: an external system, read when it says it changed.
+ */
+function useTokenValues(names: readonly string[]): Record<string, string> {
+  const [values, setValues] = useState<Record<string, string>>(() => readTokens(names));
+
+  useEffect(() => {
+    const observer = new MutationObserver(() => setValues(readTokens(names)));
+    observer.observe(document.documentElement, { attributeFilter: ['data-theme'] });
+    return () => observer.disconnect();
+  }, [names]);
+
+  return values;
+}
+
+/**
+ * The design system, rendered. This page **is** the visual specification: the
+ * tokens, the type scale, the icon inventory and every primitive in every state
+ * it ships with, in both themes and both densities.
+ *
+ * Dev-only (`import.meta.env.DEV` in routes.tsx), so it costs a production
+ * build nothing. Open it beside whatever you are building — if a screen needs a
+ * colour, a size or a control that is not on this page, that is the thing to
+ * question first.
+ */
 export function KitchenSink() {
   const { theme, density, toggleTheme, setDensity } = useTheme();
   const { show } = useToast();
@@ -90,6 +187,7 @@ export function KitchenSink() {
   const [modal, setModal] = useState<'none' | 'plain' | 'scroll'>('none');
   const [category, setCategory] = useState('laptops');
   const [condition, setCondition] = useState('good');
+  const tokens = useTokenValues(SURFACE_TOKENS);
 
   return (
     <div
@@ -104,7 +202,7 @@ export function KitchenSink() {
     >
       <PageHeader
         title="Kitchen sink"
-        subtitle="Every primitive, reviewed against the design handoff"
+        subtitle="The design system — tokens, type, icons and every primitive, in both themes and densities"
       >
         <SegmentedControl
           options={[
@@ -122,7 +220,28 @@ export function KitchenSink() {
         />
       </PageHeader>
 
+      <Section title="Surface tokens">
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 10 }}>
+          {SURFACE_TOKENS.map((name) => (
+            <div key={name} style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+              <div
+                style={{
+                  height: 44,
+                  borderRadius: 6,
+                  background: `var(--${name})`,
+                  border: '1px solid var(--border)',
+                }}
+              />
+              <code style={{ fontFamily: 'var(--font-mono)', fontSize: 11 }}>--{name}</code>
+              <span style={{ fontSize: 11, color: 'var(--faint)' }}>{tokens[name]}</span>
+            </div>
+          ))}
+        </div>
+      </Section>
+
       <Section title="Semantic colors">
+        {/* Every status, role and log type resolves to one of these six. A new
+            state picks one; it never introduces a seventh colour. */}
         <Row>
           {SEMANTIC_COLORS.map((sv) => (
             <Pill key={sv} sv={sv} dot>
@@ -130,6 +249,102 @@ export function KitchenSink() {
             </Pill>
           ))}
         </Row>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: 10 }}>
+          {SEMANTIC_COLORS.map((sv) => (
+            <div key={sv} style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+              <div
+                style={{
+                  height: 34,
+                  borderRadius: 6,
+                  background: `var(--${sv}-bg)`,
+                  color: `var(--${sv})`,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: 12,
+                  fontWeight: 600,
+                }}
+              >
+                Aa
+              </div>
+              <code style={{ fontFamily: 'var(--font-mono)', fontSize: 11 }}>
+                --{sv} / --{sv}-bg
+              </code>
+            </div>
+          ))}
+        </div>
+      </Section>
+
+      <Section title="Typography">
+        {/* Two families: Instrument Sans for UI, JetBrains Mono for anything a
+            person might copy — tags, serials, hostnames, timestamps. */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {TYPE_SCALE.map((step) => (
+            <div
+              key={`${step.size}-${step.weight}`}
+              style={{ display: 'flex', alignItems: 'baseline', gap: 12 }}
+            >
+              <code
+                style={{
+                  fontFamily: 'var(--font-mono)',
+                  fontSize: 11,
+                  color: 'var(--faint)',
+                  width: 92,
+                  flex: 'none',
+                }}
+              >
+                {step.size}px / {step.weight}
+              </code>
+              <span style={{ fontSize: step.size, fontWeight: step.weight }}>
+                The quick brown fox
+              </span>
+              <span style={{ fontSize: 11.5, color: 'var(--muted)' }}>{step.use}</span>
+            </div>
+          ))}
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: 12 }}>
+            <code
+              style={{
+                fontFamily: 'var(--font-mono)',
+                fontSize: 11,
+                color: 'var(--faint)',
+                width: 92,
+                flex: 'none',
+              }}
+            >
+              --font-mono
+            </code>
+            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 13 }}>
+              AST-0142 · C02XK1AZQ6L7
+            </span>
+            <span style={{ fontSize: 11.5, color: 'var(--muted)' }}>
+              Identifiers only — tags, serials, hostnames, log times
+            </span>
+          </div>
+        </div>
+      </Section>
+
+      <Section title="Icons">
+        {/* The whole inventory. Feather-style, stroke 1.7 — add new ones here in
+            the same hand rather than reaching for an icon library. */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(8, 1fr)', gap: 12 }}>
+          {ICON_NAMES.map((name) => (
+            <div
+              key={name}
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                gap: 6,
+                padding: '10px 4px',
+                border: '1px solid var(--border)',
+                borderRadius: 6,
+              }}
+            >
+              <Icon name={name} size={17} />
+              <code style={{ fontFamily: 'var(--font-mono)', fontSize: 10.5 }}>{name}</code>
+            </div>
+          ))}
+        </div>
       </Section>
 
       <Section title="Buttons">
@@ -353,6 +568,45 @@ export function KitchenSink() {
             hint="Up to 5,000 rows per import · you'll review column mapping next"
           />
         </div>
+      </Section>
+
+      <Section title="Disabled and error states">
+        {/* The states a screen actually hits. A disabled control keeps its
+            reason visible next to it rather than vanishing — see how the
+            Settings page handles an instance with no SMTP. */}
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: '1fr 1fr 1fr',
+            gap: '12px 16px',
+            maxWidth: 840,
+          }}
+        >
+          <Field label="Disabled input">
+            {(id) => <Input id={id} value="AST-0142" disabled />}
+          </Field>
+          <Field label="Disabled dropdown">
+            {(id) => (
+              <Dropdown
+                id={id}
+                disabled
+                value="laptops"
+                onChange={() => {}}
+                options={[{ value: 'laptops', label: 'Laptops' }]}
+              />
+            )}
+          </Field>
+          <Field label="Input with an error" error="Enter a valid serial number">
+            {(id) => <Input id={id} value="???" onChange={() => {}} />}
+          </Field>
+        </div>
+        <Row>
+          <Checkbox label="Disabled checkbox" disabled />
+          <ToggleSwitch checked={false} onChange={() => {}} label="Disabled switch" disabled />
+          <span style={{ fontSize: 11.5, color: 'var(--muted)' }}>
+            SMTP is not configured on this instance
+          </span>
+        </Row>
       </Section>
 
       <Section title="Cards">

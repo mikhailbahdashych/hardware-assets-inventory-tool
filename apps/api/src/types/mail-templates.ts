@@ -52,3 +52,19 @@ export interface DigestMail {
   recentActivity: string[];
   url: string;
 }
+
+// What the send helpers in `src/services/transactional.ts` are asked for: the
+// template's own slots, minus `orgName` — which the caller never passes because
+// the helper reads it from the workspace's settings — plus the address.
+
+export type InviteMailRequest = { to: string } & Omit<InviteMail, 'orgName'>;
+
+/** The reset template has only a URL, so this is spelled out rather than Omit-ed. */
+export interface ResetMailRequest {
+  to: string;
+  url: string;
+}
+
+export type AssignmentMailRequest = { to: string } & Omit<AssignmentMail, 'orgName'>;
+
+export type CheckinMailRequest = { to: string } & Omit<CheckinMail, 'orgName'>;

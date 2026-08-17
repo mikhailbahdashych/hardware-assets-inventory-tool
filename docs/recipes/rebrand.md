@@ -81,7 +81,7 @@ The favicon is `apps/web/public/favicon.svg`, referenced from `index.html`.
 npm run dev
 ```
 
-Open `http://localhost:5173/kitchen-sink` — every primitive on one page — and compare against `docs/design-handoff/` in **both themes and both densities**. That page exists for exactly this: a brand change that looks right on the dashboard and wrong on a disabled button is the normal outcome of changing colours without looking at all of them at once.
+Open `http://localhost:5173/kitchen-sink` — the tokens with their resolved values, the type scale, the icons and every primitive on one page — and walk it in **both themes and both densities**. That page exists for exactly this: a brand change that looks right on the dashboard and wrong on a disabled button is the normal outcome of changing colours without looking at all of them at once.
 
 ## The step people forget
 

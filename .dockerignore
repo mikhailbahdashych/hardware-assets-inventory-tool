@@ -10,6 +10,12 @@ test-results
 playwright-report
 .git
 .github
+# Prose the build never reads. Keeping it out means editing a CLAUDE.md does
+# not invalidate the layer cache and rebuild the whole image. `e2e/` stays:
+# it is a declared npm workspace, so `npm ci` fails without its package.json.
+docs
+media
+*.md
 .claude
 .remember
 *.log

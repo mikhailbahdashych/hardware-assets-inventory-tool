@@ -1,0 +1,38 @@
+# The development image: the same toolchain the native workflow uses, in a
+# container, so contributing needs Docker and nothing else installed.
+#
+# Deliberately not the production Dockerfile with a flag. That one builds and
+# throws the toolchain away, which is the opposite of what this is for — here
+# the source is mounted from the host and nothing is copied in but the
+# manifests, so a dependency change rebuilds the image and a code change does
+# not rebuild anything at all.
+
+FROM node:22-bookworm-slim
+
+WORKDIR /app
+ENV NODE_ENV=development
+
+# Only the manifests. The source arrives as a bind mount at run time, so this
+# layer is invalidated by dependency changes alone.
+COPY package.json package-lock.json ./
+COPY apps/api/package.json apps/api/
+COPY apps/web/package.json apps/web/
+COPY packages/shared/package.json packages/shared/
+COPY e2e/package.json e2e/
+
+# --ignore-scripts for the same reason the production image uses it:
+# better-sqlite3, @node-rs/argon2 and esbuild ship the binaries their install
+# scripts would otherwise rebuild, and rebuilding needs a C++ toolchain here.
+RUN npm ci --ignore-scripts
+
+# devDependencies included: tsx and vite are the whole point of this image.
+ENV DATA_DIR=/data \
+    HOST=0.0.0.0 \
+    PORT=3000
+RUN mkdir -p /data && chown -R node:node /data /app
+
+EXPOSE 3000 5173
+USER node
+
+# Overridden by the compose file; this is what the image does on its own.
+CMD ["npm", "run", "dev"]

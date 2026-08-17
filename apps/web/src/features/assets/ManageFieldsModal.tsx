@@ -9,6 +9,7 @@ import { useCreateCustomField, useDeleteCustomField, useUpdateCustomField } from
 import { useCustomFields } from '@/api/queries';
 import { Button, Dropdown, Field, Input, Modal } from '@/components/ui';
 import { useToast } from '@/providers/ToastProvider';
+import type { ManageFieldsModalProps } from './types/manageFieldsModal';
 import formStyles from '@/components/ui/FormModal.module.css';
 import styles from './ManageFields.module.css';
 
@@ -17,7 +18,7 @@ import styles from './ManageFields.module.css';
  * is the one screen that changes the shape of every asset. Renaming is safe —
  * the key stored values hang off never moves — but deleting takes the values.
  */
-export function ManageFieldsModal({ onClose }: { onClose: () => void }) {
+export function ManageFieldsModal({ onClose }: ManageFieldsModalProps) {
   const [label, setLabel] = useState('');
   const [type, setType] = useState<CustomFieldType>('text');
   const [confirmingDelete, setConfirmingDelete] = useState<string | null>(null);

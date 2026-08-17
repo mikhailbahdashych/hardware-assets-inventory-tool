@@ -1,0 +1,569 @@
+import { eq } from 'drizzle-orm';
+import { deriveOutcome, ROLE_LABELS } from '@inventory/shared';
+import type { AppDeps } from '@/types/app.js';
+import type { DbOrTx } from '@/types/db.js';
+import type { DemoAccount, DemoSeedOptions, DemoSeedResult } from '@/types/demo.js';
+import type { SQLiteTable } from 'drizzle-orm/sqlite-core';
+import {
+  assetCustomValues,
+  assets,
+  assignments,
+  auditEvents,
+  customFieldDefs,
+  employees,
+  members,
+  orgSettings,
+} from '@/db/schema.js';
+import {
+  ASSETS,
+  EMAIL_DOMAIN,
+  HISTORY_DAYS,
+  HOLDINGS,
+  OFFBOARDING_DAYS_AGO,
+  ORG_NAME,
+  PEOPLE,
+} from '@/db/demo-data.js';
+import { AppError } from '@/lib/errors.js';
+import { newId } from '@/lib/ids.js';
+import { addDays, nowIso, todayDate } from '@/lib/dates.js';
+import { hashPassword } from '@/lib/password.js';
+import { writeAudit } from '@/services/audit.js';
+import { activeAssignment, closeAssignment, openAssignment } from '@/services/assignments.js';
+import { emptyWorkspace } from '@/services/workspace.js';
+
+/**
+ * A workspace with a story in it: a company, its people, the devices they hold,
+ * and four months of history behind all three.
+ *
+ * Three properties make this worth having rather than a fixture dump:
+ *
+ * **It dates itself from the clock.** Every date in `demo-data.ts` is an offset
+ * in days, resolved against `deps.now()` at seeding time — so a warranty always
+ * expires next week, a return is always due in a few days, and the dashboard is
+ * never a museum of 2026. A hosted demo can re-seed on a timer and stay current.
+ *
+ * **It goes through the real services.** Ownership is opened and closed by
+ * `openAssignment`/`closeAssignment`, the only code allowed to pair
+ * `status = 'assigned'` with an open row. The demo cannot drift from the
+ * invariant, because it is subject to it.
+ *
+ * **It is deterministic.** No randomness anywhere: the same clock produces the
+ * same workspace, so `--reset` genuinely restores rather than reshuffles.
+ */
+export async function seedDemo(deps: AppDeps, options: DemoSeedOptions): Promise<DemoSeedResult> {
+  const existing = deps.db.select().from(orgSettings).get();
+  if (existing && !options.reset) {
+    throw new AppError(
+      409,
+      'already_initialized',
+      `This workspace is already set up as "${existing.orgName}". ` +
+        `Re-run with --reset to empty it first — that deletes everything.`,
+    );
+  }
+  if (existing) await emptyWorkspace(deps);
+
+  const now = deps.now();
+  // argon2 is deliberately slow, so hash the shared demo password once rather
+  // than once per account. Every active demo login uses the same one anyway.
+  const passwordHash = await hashPassword(options.password);
+
+  const signIn: DemoAccount[] = [];
+
+  deps.db.transaction((tx) => {
+    // Negative reaches forward, which is how a warranty lands next month and a
+    // return falls due next week. Event timestamps only ever pass positives —
+    // the audit-log test is what holds the story out of the future.
+    const at = (daysAgo: number, hour = 9, minute = 0): Date => {
+      const day = addDays(now, -daysAgo);
+      day.setUTCHours(hour, minute, 0, 0);
+      return day;
+    };
+
+    seedSettings(tx, now);
+
+    const founder = PEOPLE.find((person) => person.account?.role === 'admin');
+    if (!founder) throw new Error('The demo dataset has no admin to attribute its history to.');
+    const founderName = `${founder.firstName} ${founder.lastName}`;
+    const founderId = newId();
+
+    const employeeIds = seedPeople(tx, at);
+    const memberIds = seedMembers(tx, at, {
+      founderId,
+      founderName,
+      passwordHash,
+      employeeIds,
+      signIn,
+      password: options.password,
+    });
+    auditPeopleAdded(tx, at, founderId, founderName, employeeIds);
+
+    // Written after the founder's row exists, because `actor_member_id` is a
+    // real foreign key — but stamped first, and the log is read by time.
+    writeAudit(
+      tx,
+      {
+        type: 'system',
+        action: 'system.setup_completed',
+        actorMemberId: founderId,
+        actorName: founderName,
+        memberId: founderId,
+        params: { orgName: ORG_NAME },
+      },
+      at(HISTORY_DAYS, 8, 30),
+    );
+
+    const assetIds = seedAssets(tx, at, founderId, founderName);
+    seedCustomValues(tx, assetIds);
+    seedHoldings(tx, at, { founderId, founderName, employeeIds, assetIds });
+    seedOffboarding(tx, at, founderId, founderName, employeeIds);
+
+    // A settings change and a couple of sign-ins, so the log's Auth and System
+    // pills are not empty for the sake of a demo about an audit trail.
+    writeAudit(
+      tx,
+      {
+        type: 'system',
+        action: 'system.settings_updated',
+        actorMemberId: founderId,
+        actorName: founderName,
+        params: { changedFields: ['warrantyLeadDays'] },
+      },
+      at(6, 11, 20),
+    );
+    for (const [key, daysAgo, hour] of [
+      ['marco', 3, 8],
+      ['ada', 1, 8],
+      ['lena', 0, 7],
+    ] as const) {
+      const memberId = memberIds.get(key);
+      const person = PEOPLE.find((candidate) => candidate.key === key);
+      if (!memberId || !person) continue;
+      writeAudit(
+        tx,
+        {
+          type: 'auth',
+          action: 'auth.login',
+          actorMemberId: memberId,
+          actorName: `${person.firstName} ${person.lastName}`,
+          memberId,
+        },
+        at(daysAgo, hour, 12),
+      );
+    }
+  });
+
+  return {
+    orgName: ORG_NAME,
+    signIn,
+    counts: countRows(deps.db),
+  };
+}
+
+/** The workspace itself, on the design's defaults. */
+function seedSettings(tx: DbOrTx, now: Date): void {
+  tx.insert(orgSettings)
+    .values({
+      id: 1,
+      orgName: ORG_NAME,
+      defaultCurrency: 'EUR',
+      assetTagPrefix: 'AST',
+      warrantyLeadDays: 45,
+      logRetentionMonths: 12,
+      createdAt: nowIso(now),
+      updatedAt: nowIso(now),
+    })
+    .run();
+}
+
+type Clock = (daysAgo: number, hour?: number, minute?: number) => Date;
+
+/**
+ * The employee rows only. Their audit events come later, from
+ * {@link auditPeopleAdded} — `audit_events.actor_member_id` is a real foreign
+ * key, and members cannot exist until the employees they link to do. So the
+ * order is employees → members → the events that name both.
+ */
+function seedPeople(tx: DbOrTx, at: Clock): Map<string, string> {
+  const ids = new Map<string, string>();
+
+  PEOPLE.forEach((person, index) => {
+    const id = newId();
+    ids.set(person.key, id);
+    const added = at(person.addedDaysAgo, 10, index);
+
+    tx.insert(employees)
+      .values({
+        id,
+        firstName: person.firstName,
+        lastName: person.lastName,
+        email: employeeEmail(person.firstName, person.lastName),
+        jobTitle: person.jobTitle,
+        department: person.department,
+        location: person.location,
+        employeeCode: `EMP-${String(index + 1).padStart(4, '0')}`,
+        startDate: todayDate(at(person.startYearsAgo * 365 + 14)),
+        // Offboarding is a later event, audited in its own right below.
+        status: 'active',
+        createdAt: nowIso(added),
+        updatedAt: nowIso(added),
+      })
+      .run();
+  });
+
+  return ids;
+}
+
+/** The other half of {@link seedPeople}, once there is an actor to attribute to. */
+function auditPeopleAdded(
+  tx: DbOrTx,
+  at: Clock,
+  actorId: string,
+  actorName: string,
+  ids: Map<string, string>,
+): void {
+  PEOPLE.forEach((person, index) => {
+    const id = ids.get(person.key);
+    if (!id) return;
+    writeAudit(
+      tx,
+      {
+        type: 'people',
+        action: 'employee.created',
+        actorMemberId: actorId,
+        actorName,
+        employeeId: id,
+        params: { employeeName: `${person.firstName} ${person.lastName}` },
+      },
+      at(person.addedDaysAgo, 10, index),
+    );
+  });
+}
+
+interface MemberSeedContext {
+  founderId: string;
+  founderName: string;
+  passwordHash: string;
+  employeeIds: Map<string, string>;
+  signIn: DemoAccount[];
+  password: string;
+}
+
+function seedMembers(tx: DbOrTx, at: Clock, ctx: MemberSeedContext): Map<string, string> {
+  const ids = new Map<string, string>();
+
+  PEOPLE.filter((person) => person.account).forEach((person, index) => {
+    const account = person.account;
+    if (!account) return;
+    const displayName = `${person.firstName} ${person.lastName}`;
+    const email = employeeEmail(person.firstName, person.lastName);
+    // The founder's own row is the one the setup event was attributed to.
+    const id = account.role === 'admin' ? ctx.founderId : newId();
+    ids.set(person.key, id);
+
+    const invitedAt = at(person.addedDaysAgo, 9, 30 + index);
+    const active = account.status === 'active';
+
+    tx.insert(members)
+      .values({
+        id,
+        email,
+        displayName,
+        // An invited member has not chosen a password yet — the column is
+        // nullable precisely for this state, and the UI reads it as "Invited".
+        passwordHash: active ? ctx.passwordHash : null,
+        role: account.role,
+        status: account.status,
+        employeeId: ctx.employeeIds.get(person.key) ?? null,
+        lastActiveAt: active ? nowIso(at(index, 8, 15)) : null,
+        createdAt: nowIso(invitedAt),
+        updatedAt: nowIso(invitedAt),
+      })
+      .run();
+
+    if (active) {
+      ctx.signIn.push({ email, password: ctx.password, role: account.role, displayName });
+    }
+
+    // The founder set the place up; nobody invited them.
+    if (account.role !== 'admin') {
+      writeAudit(
+        tx,
+        {
+          type: 'auth',
+          action: 'member.invited',
+          actorMemberId: ctx.founderId,
+          actorName: ctx.founderName,
+          memberId: id,
+          params: { email, role: account.role, roleLabel: ROLE_LABELS[account.role] },
+        },
+        invitedAt,
+      );
+      if (active) {
+        writeAudit(
+          tx,
+          {
+            type: 'auth',
+            action: 'member.joined',
+            actorMemberId: id,
+            actorName: displayName,
+            memberId: id,
+            params: { memberName: displayName },
+          },
+          at(person.addedDaysAgo - 1, 14, index),
+        );
+      }
+    }
+  });
+
+  return ids;
+}
+
+function seedAssets(
+  tx: DbOrTx,
+  at: Clock,
+  actorId: string,
+  actorName: string,
+): Map<string, string> {
+  const ids = new Map<string, string>();
+
+  ASSETS.forEach((asset, index) => {
+    const id = newId();
+    ids.set(asset.key, id);
+    const added = at(asset.addedDaysAgo, 11, index % 50);
+    const assetTag = `AST-${String(index + 1).padStart(4, '0')}`;
+
+    tx.insert(assets)
+      .values({
+        id,
+        assetTag,
+        name: asset.name,
+        category: asset.category,
+        model: asset.model,
+        serialNumber: asset.serialNumber,
+        status: asset.status,
+        purchaseDate: todayDate(at(asset.purchasedDaysAgo)),
+        // Money is integer cents everywhere; the dataset speaks whole euros.
+        purchasePriceCents: asset.priceEuros * 100,
+        // Null means "the organization default", which is what the UI renders.
+        currency: null,
+        supplier: asset.supplier,
+        warrantyUntil: asset.warrantyInDays === null ? null : todayDate(at(-asset.warrantyInDays)),
+        createdAt: nowIso(added),
+        updatedAt: nowIso(added),
+      })
+      .run();
+
+    writeAudit(
+      tx,
+      {
+        type: 'assets',
+        action: 'asset.created',
+        actorMemberId: actorId,
+        actorName,
+        assetId: id,
+        params: { assetName: asset.name, assetTag },
+      },
+      added,
+    );
+  });
+
+  return ids;
+}
+
+/** The four boot-seeded custom fields, filled in for the machines that have them. */
+function seedCustomValues(tx: DbOrTx, assetIds: Map<string, string>): void {
+  const defs = new Map(
+    tx
+      .select({ id: customFieldDefs.id, key: customFieldDefs.key })
+      .from(customFieldDefs)
+      .all()
+      .map((row) => [row.key, row.id]),
+  );
+
+  for (const asset of ASSETS) {
+    const assetId = assetIds.get(asset.key);
+    if (!asset.custom || !assetId) continue;
+
+    const values: [string, string | undefined][] = [
+      ['hostname', asset.custom.hostname],
+      ['cost_center', asset.custom.costCenter],
+      ['mdm_enrolled', asset.custom.mdm === undefined ? undefined : String(asset.custom.mdm)],
+      [
+        'disk_encryption',
+        asset.custom.encrypted === undefined ? undefined : String(asset.custom.encrypted),
+      ],
+    ];
+
+    for (const [key, value] of values) {
+      const fieldDefId = defs.get(key);
+      if (value === undefined || !fieldDefId) continue;
+      tx.insert(assetCustomValues).values({ assetId, fieldDefId, value }).run();
+    }
+  }
+}
+
+interface HoldingSeedContext {
+  founderId: string;
+  founderName: string;
+  employeeIds: Map<string, string>;
+  assetIds: Map<string, string>;
+}
+
+/**
+ * Replays the ownership history in order, through the same two functions the
+ * API uses. Anything that cannot be resolved is a mistake in `demo-data.ts`
+ * rather than a row to skip quietly — a demo missing half its history would
+ * look like the app losing it.
+ */
+function seedHoldings(tx: DbOrTx, at: Clock, ctx: HoldingSeedContext): void {
+  const ordered = [...HOLDINGS].sort((a, b) => b.fromDaysAgo - a.fromDaysAgo);
+
+  for (const holding of ordered) {
+    const assetId = ctx.assetIds.get(holding.assetKey);
+    const employeeId = ctx.employeeIds.get(holding.personKey);
+    const person = PEOPLE.find((candidate) => candidate.key === holding.personKey);
+    const asset = ASSETS.find((candidate) => candidate.key === holding.assetKey);
+    if (!assetId || !employeeId || !person || !asset) {
+      throw new Error(
+        `demo-data: holding ${holding.assetKey} → ${holding.personKey} names something that does not exist.`,
+      );
+    }
+
+    const holderName = `${person.firstName} ${person.lastName}`;
+    const out = at(holding.fromDaysAgo, 13, 0);
+
+    openAssignment(
+      tx,
+      {
+        assetId,
+        employeeId,
+        holderName,
+        checkedOutAt: todayDate(out),
+        expectedReturnDate:
+          holding.dueInDays === undefined ? null : todayDate(at(-holding.dueInDays)),
+        notes: holding.notes ?? null,
+      },
+      out,
+    );
+    writeAudit(
+      tx,
+      {
+        type: 'assets',
+        action: 'asset.assigned',
+        actorMemberId: ctx.founderId,
+        actorName: ctx.founderName,
+        assetId,
+        employeeId,
+        params: { assetName: asset.name, holderName },
+      },
+      out,
+    );
+
+    if (holding.untilDaysAgo === undefined) continue;
+
+    const back = at(holding.untilDaysAgo, 15, 0);
+    const open = activeAssignment(tx, assetId);
+    if (!open) {
+      throw new Error(`demo-data: ${holding.assetKey} has no open record to close.`);
+    }
+    const newStatus = holding.returnedTo ?? 'available';
+    // The same derivation the check-in endpoint uses, against the status the
+    // holder had *then*. Somebody who is leaving now was not leaving in June,
+    // and a log that says otherwise is a log that rewrites the past.
+    const leavingAlready =
+      person.status === 'offboarding' && holding.untilDaysAgo <= OFFBOARDING_DAYS_AGO;
+    const outcome = deriveOutcome({
+      holderStatus: leavingAlready ? 'offboarding' : 'active',
+      newStatus,
+    });
+
+    closeAssignment(
+      tx,
+      {
+        assignment: open,
+        returnedAt: todayDate(back),
+        newStatus,
+        condition: holding.condition ?? 'good',
+        notes: holding.notes ?? null,
+        outcome,
+      },
+      back,
+    );
+    writeAudit(
+      tx,
+      {
+        type: 'assets',
+        action: 'asset.checked_in',
+        actorMemberId: ctx.founderId,
+        actorName: ctx.founderName,
+        assetId,
+        employeeId,
+        params: { assetName: asset.name, holderName, outcome },
+      },
+      back,
+    );
+  }
+}
+
+/**
+ * The last thing that happened: somebody is leaving, and the two devices they
+ * hold now have a return date. This is what fills the Pending returns widget.
+ */
+function seedOffboarding(
+  tx: DbOrTx,
+  at: Clock,
+  actorId: string,
+  actorName: string,
+  employeeIds: Map<string, string>,
+): void {
+  for (const person of PEOPLE.filter((candidate) => candidate.status === 'offboarding')) {
+    const id = employeeIds.get(person.key);
+    if (!id) continue;
+    const when = at(OFFBOARDING_DAYS_AGO, 16, 10);
+    const displayName = `${person.firstName} ${person.lastName}`;
+
+    tx.update(employees)
+      .set({ status: 'offboarding', updatedAt: nowIso(when) })
+      .where(eq(employees.id, id))
+      .run();
+
+    const scheduledReturns = HOLDINGS.filter(
+      (holding) => holding.personKey === person.key && holding.untilDaysAgo === undefined,
+    ).length;
+
+    writeAudit(
+      tx,
+      {
+        type: 'people',
+        action: 'employee.offboarding_started',
+        actorMemberId: actorId,
+        actorName,
+        employeeId: id,
+        params: { employeeName: displayName, scheduledReturns },
+      },
+      when,
+    );
+  }
+}
+
+/** Lowercased at the boundary, like every other email in the product. */
+function employeeEmail(firstName: string, lastName: string): string {
+  const strip = (value: string) =>
+    value
+      .normalize('NFD')
+      .replace(/[̀-ͯ]/g, '')
+      .replace(/[^a-zA-Z]/g, '')
+      .toLowerCase();
+  return `${strip(firstName)}.${strip(lastName)}@${EMAIL_DOMAIN}`;
+}
+
+function countRows(db: AppDeps['db']): DemoSeedResult['counts'] {
+  const rows = (table: SQLiteTable) => db.select().from(table).all().length;
+  return {
+    members: rows(members),
+    employees: rows(employees),
+    assets: rows(assets),
+    assignments: rows(assignments),
+    auditEvents: rows(auditEvents),
+  };
+}

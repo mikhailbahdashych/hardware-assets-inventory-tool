@@ -1,17 +1,19 @@
-import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
+import { createContext, useContext, useEffect, useState } from 'react';
+import type {
+  BreadcrumbContextValue,
+  BreadcrumbDetailProviderProps,
+} from './types/breadcrumbProvider';
 
 // The topbar breadcrumb ends with the record you are looking at ("Assets /
 // AST-0142"), which only the detail page knows. Rather than have the shell
 // guess from the URL, each detail page announces its label here.
 
-type Setter = (label: string | null) => void;
-
-const BreadcrumbDetailContext = createContext<{ label: string | null; set: Setter }>({
+const BreadcrumbDetailContext = createContext<BreadcrumbContextValue>({
   label: null,
   set: () => {},
 });
 
-export function BreadcrumbDetailProvider({ children }: { children: ReactNode }) {
+export function BreadcrumbDetailProvider({ children }: BreadcrumbDetailProviderProps) {
   const [label, setLabel] = useState<string | null>(null);
   return (
     <BreadcrumbDetailContext.Provider value={{ label, set: setLabel }}>

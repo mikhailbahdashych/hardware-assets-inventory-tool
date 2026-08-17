@@ -1,12 +1,6 @@
-import type { ComponentPropsWithoutRef } from 'react';
-import { Icon, type IconName } from './Icon';
+import { Icon } from './Icon';
+import type { ButtonProps } from './types/button';
 import styles from './Button.module.css';
-
-type ButtonProps = ComponentPropsWithoutRef<'button'> & {
-  variant?: 'primary' | 'ghost' | 'danger';
-  size?: 'md' | 'sm';
-  icon?: IconName;
-};
 
 export function Button({
   variant = 'primary',

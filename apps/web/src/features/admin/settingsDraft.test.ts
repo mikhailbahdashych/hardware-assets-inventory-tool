@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { OrgSettings } from '@/types/api';
-import { changedSettings, type SettingsDraft } from './settingsDraft';
+import { changedSettings } from './settingsDraft';
+import type { SettingsDraft } from './types/settingsDraft';
 
 const STORED: OrgSettings = {
   id: 1,
@@ -13,6 +14,7 @@ const STORED: OrgSettings = {
   emailReturnReminders: true,
   emailInvites: true,
   emailWeeklyDigest: false,
+  mfaRequired: false,
   createdAt: '2026-01-01T00:00:00.000Z',
   updatedAt: '2026-01-01T00:00:00.000Z',
 };
@@ -27,6 +29,7 @@ const untouched: SettingsDraft = {
   emailReturnReminders: true,
   emailInvites: true,
   emailWeeklyDigest: false,
+  mfaRequired: false,
 };
 
 const draft = (overrides: Partial<SettingsDraft> = {}): SettingsDraft => ({

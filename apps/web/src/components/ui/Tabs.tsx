@@ -1,14 +1,7 @@
+import type { TabsProps } from './types/tabs';
 import styles from './Tabs.module.css';
 
-export function Tabs<V extends string>({
-  tabs,
-  value,
-  onChange,
-}: {
-  tabs: { value: V; label: string }[];
-  value: V;
-  onChange: (value: V) => void;
-}) {
+export function Tabs<V extends string>({ tabs, value, onChange }: TabsProps<V>) {
   return (
     <div role="tablist" className={styles.tabs}>
       {tabs.map((tab) => (

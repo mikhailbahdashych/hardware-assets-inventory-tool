@@ -16,11 +16,10 @@ import { Button, Dropdown, Field, Input, Spinner, ToggleSwitch } from '@/compone
 import { useToast } from '@/providers/ToastProvider';
 import type { OrgSettings } from '@/types/api';
 import { DeleteWorkspaceModal } from './DeleteWorkspaceModal';
-import { changedSettings, type SettingsDraft } from './settingsDraft';
+import { changedSettings } from './settingsDraft';
+import type { SettingsDraft } from './types/settingsDraft';
+import type { EmailToggleKey, SettingsFormProps } from './types/settingsPanel';
 import styles from './Admin.module.css';
-
-type EmailToggleKey =
-  'emailWarrantyAlerts' | 'emailReturnReminders' | 'emailInvites' | 'emailWeeklyDigest';
 
 /** The design's four switches, in its order and its words. */
 const EMAIL_TOGGLES = [
@@ -65,11 +64,12 @@ export function SettingsPanel() {
  * the button is pressed, so nothing reaches the server as a side effect of
  * touching a control and a half-considered change can be abandoned by leaving.
  *
- * The design draws no Save button — this is a deliberate departure, recorded in
- * docs/PROJECT_STATUS.md §8. Saving on blur meant a stray keystroke in
- * "Company name" renamed the workspace for everybody, with no way back.
+ * The design draws no Save button; this is a deliberate departure, and
+ * apps/web/CLAUDE.md says why at length. The short version: saving on blur
+ * meant a stray keystroke in "Company name" renamed the workspace for
+ * everybody, with no way back.
  */
-function SettingsForm({ settings }: { settings: OrgSettings }) {
+function SettingsForm({ settings }: SettingsFormProps) {
   const [draft, setDraft] = useState<SettingsDraft>(() => toDraft(settings));
   const [deleting, setDeleting] = useState(false);
 
@@ -173,6 +173,25 @@ function SettingsForm({ settings }: { settings: OrgSettings }) {
       </section>
 
       <section className={styles.card}>
+        <h2 className={styles.cardTitleTight}>Security</h2>
+        <div className={styles.row}>
+          <div className={styles.rowText}>
+            <div className={styles.rowLabel}>Require two-factor authentication</div>
+            <div className={styles.rowHint}>
+              {draft.mfaRequired
+                ? 'Every member sets up an authenticator before they can use the workspace. Turning this off deletes every stored secret and recovery code.'
+                : 'Members sign in with a password alone.'}
+            </div>
+          </div>
+          <ToggleSwitch
+            label="Require two-factor authentication"
+            checked={draft.mfaRequired}
+            onChange={(checked) => set('mfaRequired', checked)}
+          />
+        </div>
+      </section>
+
+      <section className={styles.card}>
         <h2 className={styles.cardTitleData}>Data</h2>
         <div className={styles.row}>
           <div className={styles.rowText}>
@@ -272,6 +291,7 @@ function toDraft(settings: OrgSettings): SettingsDraft {
     emailReturnReminders: settings.emailReturnReminders,
     emailInvites: settings.emailInvites,
     emailWeeklyDigest: settings.emailWeeklyDigest,
+    mfaRequired: settings.mfaRequired,
   };
 }
 

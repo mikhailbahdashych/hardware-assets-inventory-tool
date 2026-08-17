@@ -1,5 +1,6 @@
-import { useRef, useState, type ReactNode } from 'react';
+import { useRef, useState } from 'react';
 import { Icon } from './Icon';
+import type { DropzoneProps } from './types/dropzone';
 import styles from './Dropzone.module.css';
 
 export function Dropzone({
@@ -9,23 +10,7 @@ export function Dropzone({
   inputLabel,
   hint,
   compact = false,
-}: {
-  /**
-   * One file, because every caller wants the first one — handing over a
-   * FileList only moved the "is there one?" question to each of them.
-   */
-  onFile: (file: File) => void;
-  accept?: string;
-  label: ReactNode;
-  /**
-   * Accessible name for the file input itself. The visible `label` is prose
-   * around a "browse" link; this is what a screen reader — and a test — reaches
-   * the control by.
-   */
-  inputLabel: string;
-  hint?: ReactNode;
-  compact?: boolean;
-}) {
+}: DropzoneProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [over, setOver] = useState(false);
 

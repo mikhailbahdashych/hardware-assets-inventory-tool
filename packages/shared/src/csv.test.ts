@@ -25,3 +25,28 @@ describe('toCsv', () => {
     expect(toCsv(['Time', 'Event'], [])).toBe('Time,Event\n');
   });
 });
+
+describe('spreadsheet formula neutralisation', () => {
+  it('stops a cell being read as a formula when somebody opens the file', () => {
+    // Excel, LibreOffice and Sheets all evaluate a cell starting with one of
+    // these. The apostrophe is the convention for "this is text".
+    for (const payload of ['=1+1', '+1', '-1', '@SUM(A1)', "=cmd|'/c calc'!A1", '\tleading tab']) {
+      expect(csvField(payload), payload).toBe(`'${payload}`);
+    }
+  });
+
+  it('neutralises before quoting, so quotes cannot hide the payload', () => {
+    // A comma forces quoting; the parser strips those quotes before
+    // evaluating, so the apostrophe has to be inside them.
+    expect(csvField('=HYPERLINK("http://x","Payroll")')).toBe(
+      '"\'=HYPERLINK(""http://x"",""Payroll"")"',
+    );
+  });
+
+  it('leaves ordinary values exactly as they were', () => {
+    for (const value of ['MacBook Pro 14"', 'Maya Lindqvist', 'AST-0001', '2026-08-17', '']) {
+      const written = csvField(value);
+      expect(written.startsWith("'"), value).toBe(false);
+    }
+  });
+});

@@ -1,17 +1,10 @@
-import { ROLES, ROLE_DESCRIPTIONS, ROLE_LABELS, type Role } from '@inventory/shared';
+import { ROLES, ROLE_DESCRIPTIONS, ROLE_LABELS } from '@inventory/shared';
 import { RadioCard } from '@/components/ui';
+import type { RoleCardsProps } from './types/roleCards';
 import styles from './Members.module.css';
 
 /** The design's radio cards, shared by the invite form and the role change. */
-export function RoleCards({
-  name,
-  value,
-  onChange,
-}: {
-  name: string;
-  value: Role;
-  onChange: (role: Role) => void;
-}) {
+export function RoleCards({ name, value, onChange }: RoleCardsProps) {
   return (
     <div className={styles.roleCards}>
       {ROLES.map((role) => (

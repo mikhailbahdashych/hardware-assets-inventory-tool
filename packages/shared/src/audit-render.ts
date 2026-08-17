@@ -116,6 +116,10 @@ const RENDERERS: Record<string, (params: AuditParams) => string> = {
   'member.reset_issued': (p) =>
     `Issued a password reset link for ${text(p, 'memberName', 'a member')}`,
   'member.removed': (p) => `Removed ${text(p, 'memberName', 'a member')} from the workspace`,
+  'member.mfa_enrolled': (p) =>
+    `${text(p, 'memberName', 'A member')} set up two-factor authentication`,
+  'member.mfa_reset': (p) =>
+    `Reset two-factor authentication for ${text(p, 'memberName', 'a member')}`,
   'auth.login': () => 'Signed in',
   'auth.password_reset': () => 'Reset their password',
   'system.setup_completed': (p) => `Set up ${text(p, 'orgName', 'the workspace')}`,

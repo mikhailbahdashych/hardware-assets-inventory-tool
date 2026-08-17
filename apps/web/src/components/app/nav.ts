@@ -1,18 +1,5 @@
-import { can, type Action, type Role } from '@inventory/shared';
-import type { IconName } from '@/components/ui/Icon';
-
-export interface NavItem {
-  label: string;
-  to: string;
-  icon: IconName;
-  /** The design separates Admin from the other sections with a 10px gap. */
-  gapBefore?: boolean;
-}
-
-/** A nav item plus the permission that reveals it, if it needs one. */
-interface GatedNavItem extends NavItem {
-  requires?: Action;
-}
+import { can, type Role } from '@inventory/shared';
+import type { GatedNavItem, NavItem } from './types/nav';
 
 const ITEMS: GatedNavItem[] = [
   { label: 'Dashboard', to: '/dashboard', icon: 'grid' },

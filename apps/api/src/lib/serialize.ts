@@ -1,8 +1,7 @@
 import type { MemberStatus, Role } from '@inventory/shared';
 import type { assets, employees } from '@/db/schema.js';
-import type { AssignmentRow } from '@/services/assignments.js';
-import type { MemberRow } from '@/plugins/session.js';
-import type { MemberSummary } from '@/types/members.js';
+import type { AssignmentRow } from '@/types/assignments.js';
+import type { MemberRow, MemberSummary } from '@/types/members.js';
 
 export function serializeMember(member: MemberRow) {
   return {
@@ -19,6 +18,9 @@ export function serializeMember(member: MemberRow) {
     // JSON.stringify in /me/prefs, so it always parses. If it ever does not,
     // the row is corrupt and the throw is the bug report.
     widgets: JSON.parse(member.widgetsJson) as Record<string, boolean>,
+    // The secret never leaves the server; whether there is one does, because
+    // that is what the app needs to decide between the setup screen and the app.
+    mfaEnrolled: member.mfaConfirmedAt !== null,
   };
 }
 
@@ -45,6 +47,7 @@ export function serializeMemberSummary(
     linkedEmployee: linked
       ? { id: linked.id, displayName: `${linked.firstName} ${linked.lastName}` }
       : null,
+    mfaEnrolled: member.mfaConfirmedAt !== null,
     lastActiveAt: member.lastActiveAt,
     createdAt: member.createdAt,
   };
