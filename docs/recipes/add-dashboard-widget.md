@@ -62,4 +62,4 @@ Find the card by **heading**, not by text: the Customize modal lists the same na
 
 ## The step people forget
 
-**The KPI grid is `repeat(6, 1fr)`.** If your widget is a tile rather than a card, `Dashboard.module.css` has that number written out, and a seventh tile silently reflows the row. Anything that changes the count of KPI tiles is a design decision — check it against `docs/design-handoff/` at 1440×900 before shipping.
+**The KPI grid is `repeat(6, 1fr)`.** If your widget is a tile rather than a card, `Dashboard.module.css` has that number written out, and a seventh tile silently reflows the row. Anything that changes the count of KPI tiles is a design decision — look at it at 1440×900, the width the app is designed for, before shipping.

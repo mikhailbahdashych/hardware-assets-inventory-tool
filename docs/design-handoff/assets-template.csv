@@ -1,3 +1,0 @@
-asset_tag,name,category,serial_number,status,assigned_to_email,purchase_date,purchase_price,currency,supplier,warranty_until,notes
-AST-0001,MacBook Pro 14" M3,Laptops,C02XK1AZQ6L7,Assigned,maya.lindqvist@acme.io,2023-03-12,2340,EUR,Insight EMEA,2026-09-12,Engineering laptop
-AST-0002,Dell UltraSharp U2723QE,Monitors,CN0J2Y7,Available,,2024-03-05,589,EUR,Dell Direct,2027-03-05,
