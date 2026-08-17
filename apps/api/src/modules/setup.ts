@@ -1,15 +1,15 @@
 import type { FastifyInstance } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
 import { setupInput } from '@inventory/shared';
-import type { AppDeps } from '../app.js';
-import { members, orgSettings } from '../db/schema.js';
-import { AppError } from '../lib/errors.js';
-import { newId } from '../lib/ids.js';
-import { nowIso } from '../lib/dates.js';
-import { hashPassword } from '../lib/password.js';
-import { serializeMember } from '../lib/serialize.js';
-import { writeAudit } from '../services/audit.js';
-import { createSession, setSessionCookie } from '../services/sessions.js';
+import type { AppDeps } from '@/types/app.js';
+import { members, orgSettings } from '@/db/schema.js';
+import { AppError } from '@/lib/errors.js';
+import { newId } from '@/lib/ids.js';
+import { nowIso } from '@/lib/dates.js';
+import { hashPassword } from '@/lib/password.js';
+import { serializeMember } from '@/lib/serialize.js';
+import { writeAudit } from '@/services/audit.js';
+import { createSession, setSessionCookie } from '@/services/sessions.js';
 
 /** First-run setup: creates the organization and its first admin, signs them in. */
 export function registerSetupRoutes(app: FastifyInstance, deps: AppDeps): void {

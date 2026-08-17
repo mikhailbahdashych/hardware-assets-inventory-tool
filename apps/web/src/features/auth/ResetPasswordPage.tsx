@@ -1,13 +1,14 @@
 import { useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router';
-import { useResetPassword } from '../../api/mutations';
+import { fieldErrors } from '@/api/formErrors';
+import { useResetPassword } from '@/api/mutations';
 import { AuthField, AuthLayout, FormError } from './AuthLayout';
-import { fieldErrors } from './formErrors';
 import styles from './Auth.module.css';
 
 export function ResetPasswordPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+  // No `?token=` is a real state: the screen then says the link is invalid.
   const token = searchParams.get('token') ?? '';
   const reset = useResetPassword();
   const [newPassword, setNewPassword] = useState('');

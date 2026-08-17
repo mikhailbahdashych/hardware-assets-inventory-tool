@@ -1,6 +1,6 @@
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import { can, type Action, type Role } from '@inventory/shared';
-import { forbidden, unauthorized } from '../lib/errors.js';
+import { forbidden, unauthorized } from '@/lib/errors.js';
 
 /** Route preHandler: any signed-in member. */
 export async function requireAuth(request: FastifyRequest, _reply: FastifyReply): Promise<void> {

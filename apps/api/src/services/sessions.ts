@@ -1,10 +1,10 @@
 import { eq, lt } from 'drizzle-orm';
 import type { FastifyReply } from 'fastify';
-import type { Config } from '../config.js';
-import type { Db } from '../db/client.js';
-import { members, sessions } from '../db/schema.js';
-import { nowIso } from '../lib/dates.js';
-import { createRawToken, hashToken } from '../lib/tokens.js';
+import type { Config } from '@/config.js';
+import type { Db } from '@/types/db.js';
+import { members, sessions } from '@/db/schema.js';
+import { nowIso } from '@/lib/dates.js';
+import { createRawToken, hashToken } from '@/lib/tokens.js';
 
 export const SESSION_COOKIE = 'inv_session';
 const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000;

@@ -1,8 +1,8 @@
 import { and, eq, isNull } from 'drizzle-orm';
-import type { Db, DbOrTx } from '../db/client.js';
-import { authTokens } from '../db/schema.js';
-import { nowIso } from '../lib/dates.js';
-import { createRawToken, hashToken } from '../lib/tokens.js';
+import type { Db, DbOrTx } from '@/types/db.js';
+import { authTokens } from '@/db/schema.js';
+import { nowIso } from '@/lib/dates.js';
+import { createRawToken, hashToken } from '@/lib/tokens.js';
 
 export type TokenPurpose = 'invite' | 'password_reset';
 

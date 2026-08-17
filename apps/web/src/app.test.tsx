@@ -1,38 +1,12 @@
-import { QueryClient } from '@tanstack/react-query';
-import { render, screen, waitFor } from '@testing-library/react';
+import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { MemoryRouter } from 'react-router';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { AppProviders } from './App';
-import { AppRoutes } from './routes';
-import { ADMIN_MEMBER, READY_META, stubApi, type StubRoutes } from './test/api-stub';
-
-function renderApp(routes: StubRoutes, initialPath = '/') {
-  const api = stubApi(routes);
-  const queryClient = new QueryClient({
-    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
-  });
-  render(
-    <AppProviders queryClient={queryClient}>
-      <MemoryRouter initialEntries={[initialPath]}>
-        <AppRoutes />
-      </MemoryRouter>
-    </AppProviders>,
-  );
-  return api;
-}
-
-const UNAUTHENTICATED = {
-  status: 401,
-  body: { error: { code: 'unauthorized', message: 'Sign in to continue.' } },
-};
+import { ADMIN_MEMBER, READY_META, type StubRoutes } from './test/api-stub';
+import { renderApp, resetAppState, UNAUTHENTICATED } from './test/render';
 
 afterEach(() => {
   vi.unstubAllGlobals();
-  // Theme lives on <html> and in localStorage, both of which outlive a render.
-  window.localStorage.clear();
-  delete document.documentElement.dataset.theme;
-  delete document.documentElement.dataset.density;
+  resetAppState();
 });
 
 describe('first-run setup', () => {
@@ -219,5 +193,23 @@ describe('app shell', () => {
       expect(document.documentElement.dataset.theme).toBe('dark');
       expect(document.documentElement.dataset.density).toBe('compact');
     });
+  });
+});
+
+describe('when the instance cannot be described', () => {
+  it('says so instead of guessing, and instead of a blank page', async () => {
+    // AppRoutes throws when /meta fails: guessing "signed out" would send an
+    // uninitialized instance to a login nobody can pass.
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    renderApp({
+      'GET /meta': {
+        status: 500,
+        body: { error: { code: 'internal', message: 'Something went wrong on the server.' } },
+      },
+      'GET /auth/me': UNAUTHENTICATED,
+    });
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Inventory could not start');
+    expect(screen.getByRole('button', { name: 'Reload' })).toBeInTheDocument();
   });
 });

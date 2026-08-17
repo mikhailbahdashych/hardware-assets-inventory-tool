@@ -1,6 +1,7 @@
 import { useLocation } from 'react-router';
-import { Icon, IconButton, Kbd } from '../ui';
-import { useToast } from '../../providers/ToastProvider';
+import { Icon, IconButton, Kbd } from '@/components/ui';
+import { useBreadcrumbDetail } from '@/providers/BreadcrumbProvider';
+import { useToast } from '@/providers/ToastProvider';
 import { useThemeControls } from './useThemeControls';
 import { breadcrumbForPath } from './nav';
 import styles from './Topbar.module.css';
@@ -9,10 +10,11 @@ export function Topbar() {
   const { pathname } = useLocation();
   const { theme, toggleTheme } = useThemeControls();
   const { show } = useToast();
+  const detail = useBreadcrumbDetail();
 
   return (
     <div className={styles.topbar}>
-      <div className={styles.breadcrumb}>{breadcrumbForPath(pathname)}</div>
+      <div className={styles.breadcrumb}>{breadcrumbForPath(pathname, detail)}</div>
       <div className={styles.actions}>
         <button
           type="button"

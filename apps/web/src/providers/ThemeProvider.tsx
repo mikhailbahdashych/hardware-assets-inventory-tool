@@ -7,9 +7,7 @@ import {
   useState,
   type ReactNode,
 } from 'react';
-
-export type Theme = 'light' | 'dark';
-export type Density = 'comfortable' | 'compact';
+import type { Density, Theme } from '@/types/theme';
 
 // The inline script in index.html applies these before first paint (no flash);
 // this provider adopts them, and mirrors every change back to <html> and
@@ -18,13 +16,13 @@ export type Density = 'comfortable' | 'compact';
 const THEME_KEY = 'inv.theme';
 const DENSITY_KEY = 'inv.density';
 
-type ThemeContextValue = {
+interface ThemeContextValue {
   theme: Theme;
   density: Density;
   setTheme: (theme: Theme) => void;
   setDensity: (density: Density) => void;
   toggleTheme: () => void;
-};
+}
 
 const ThemeContext = createContext<ThemeContextValue | null>(null);
 

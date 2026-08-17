@@ -1,6 +1,16 @@
 import { useQuery } from '@tanstack/react-query';
 import { ApiError, apiFetch } from './client';
-import type { InviteDetails, Member, Meta } from './types';
+import type {
+  Asset,
+  AssetDetail,
+  CustomFieldDef,
+  Employee,
+  EmployeeDetail,
+  InviteDetails,
+  Member,
+  Meta,
+  OrgMeta,
+} from '@/types/api';
 
 /**
  * The query-key catalog. Every cached read is listed here so invalidation
@@ -10,6 +20,12 @@ export const queryKeys = {
   meta: ['meta'] as const,
   me: ['me'] as const,
   invite: (token: string) => ['invite', token] as const,
+  assets: ['assets'] as const,
+  asset: (id: string) => ['asset', id] as const,
+  nextAssetTag: ['assets', 'next-tag'] as const,
+  employees: ['employees'] as const,
+  employee: (id: string) => ['employee', id] as const,
+  customFields: ['custom-fields'] as const,
 };
 
 export function useMeta() {
@@ -17,6 +33,28 @@ export function useMeta() {
     queryKey: queryKeys.meta,
     queryFn: () => apiFetch<Meta>('/meta'),
   });
+}
+
+/**
+ * The organization's own metadata, for the screens that only exist once setup
+ * has run. `orgName` and `defaultCurrency` are NOT NULL columns written by
+ * /setup, so an absent one means /meta broke its contract — and calling the
+ * workspace "Inventory" or pricing everything in EUR because the call failed
+ * would be a lie that survives to a screenshot.
+ *
+ * Safe to call anywhere inside the signed-in app: routes.tsx blocks on /meta
+ * before the shell mounts, so the query has resolved by then.
+ */
+export function orgMeta(meta: Meta | undefined): OrgMeta {
+  if (!meta) {
+    throw new Error('GET /api/v1/meta has not answered, so this instance cannot be described.');
+  }
+  if (meta.orgName === undefined || meta.defaultCurrency === undefined) {
+    throw new Error(
+      'GET /api/v1/meta reported an initialized instance without an orgName or a defaultCurrency.',
+    );
+  }
+  return { version: meta.version, orgName: meta.orgName, defaultCurrency: meta.defaultCurrency };
 }
 
 /** Resolves to the signed-in member, or null when nobody is signed in. */
@@ -41,5 +79,59 @@ export function useInvite(token: string) {
     queryFn: () => apiFetch<InviteDetails>(`/auth/invite/${encodeURIComponent(token)}`),
     enabled: token.length > 0,
     retry: false,
+  });
+}
+
+/** The whole inventory in one payload — filtering and counting are local. */
+export function useAssets() {
+  return useQuery({
+    queryKey: queryKeys.assets,
+    queryFn: async () => (await apiFetch<{ assets: Asset[] }>('/assets')).assets,
+  });
+}
+
+export function useAsset(id: string) {
+  return useQuery({
+    queryKey: queryKeys.asset(id),
+    queryFn: () => apiFetch<AssetDetail>(`/assets/${encodeURIComponent(id)}`),
+    enabled: id.length > 0,
+    retry: false,
+  });
+}
+
+/** Prefills the New-asset form; the field stays editable, so this is a hint. */
+export function useNextAssetTag(enabled: boolean) {
+  return useQuery({
+    queryKey: queryKeys.nextAssetTag,
+    queryFn: async () => (await apiFetch<{ assetTag: string }>('/assets/next-tag')).assetTag,
+    enabled,
+    staleTime: 0,
+    gcTime: 0,
+  });
+}
+
+export function useEmployees() {
+  return useQuery({
+    queryKey: queryKeys.employees,
+    queryFn: async () => (await apiFetch<{ employees: Employee[] }>('/employees')).employees,
+  });
+}
+
+/** The person, what they hold, and what they handed back — one payload. */
+export function useEmployee(id: string) {
+  return useQuery({
+    queryKey: queryKeys.employee(id),
+    queryFn: () => apiFetch<EmployeeDetail>(`/employees/${encodeURIComponent(id)}`),
+    enabled: id.length > 0,
+    retry: false,
+  });
+}
+
+export function useCustomFields() {
+  return useQuery({
+    queryKey: queryKeys.customFields,
+    queryFn: async () =>
+      (await apiFetch<{ customFields: CustomFieldDef[] }>('/custom-fields')).customFields,
+    staleTime: 5 * 60 * 1000,
   });
 }

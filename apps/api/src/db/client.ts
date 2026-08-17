@@ -1,14 +1,9 @@
 import Database from 'better-sqlite3';
-import { drizzle, type BetterSQLite3Database } from 'drizzle-orm/better-sqlite3';
+import { drizzle } from 'drizzle-orm/better-sqlite3';
+import type { DbHandle } from '@/types/db.js';
 import * as schema from './schema.js';
 
-export type Db = BetterSQLite3Database<typeof schema>;
-/** A live transaction inside db.transaction(cb). */
-export type Tx = Parameters<Parameters<Db['transaction']>[0]>[0];
-/** Services that must run inside the caller's transaction accept either. */
-export type DbOrTx = Db | Tx;
-
-export function createDb(path: string): { db: Db; sqlite: Database.Database } {
+export function createDb(path: string): DbHandle {
   const sqlite = new Database(path);
   sqlite.pragma('journal_mode = WAL');
   sqlite.pragma('foreign_keys = ON');

@@ -1,9 +1,9 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router';
-import { useLogin } from '../../api/mutations';
-import { useMeta } from '../../api/queries';
+import { fieldErrors } from '@/api/formErrors';
+import { useLogin } from '@/api/mutations';
+import { useMeta } from '@/api/queries';
 import { AuthField, AuthLayout, FormError } from './AuthLayout';
-import { fieldErrors } from './formErrors';
 import styles from './Auth.module.css';
 
 export function LoginPage() {

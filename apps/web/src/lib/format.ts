@@ -76,6 +76,8 @@ export function formatCurrency(cents: number | null | undefined, currency: strin
 
 /** "Maya Lindqvist" → "ML"; strips non-letters ("Liam O'Connor" → "LO"). */
 export function initials(name: string): string {
+  // Splitting a blank or space-padded name yields empty words, which have no
+  // first letter — TypeScript types word[0] as string and is wrong about it.
   return name
     .split(/\s+/)
     .map((word) => word[0] ?? '')
@@ -83,4 +85,12 @@ export function initials(name: string): string {
     .replace(/[^A-Za-z]/g, '')
     .slice(0, 2)
     .toUpperCase();
+}
+
+/** "184 KB" — attachment sizes, in the units a file manager would show. */
+export function formatFileSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  const kb = bytes / 1024;
+  if (kb < 1024) return `${Math.round(kb)} KB`;
+  return `${(kb / 1024).toFixed(1)} MB`;
 }

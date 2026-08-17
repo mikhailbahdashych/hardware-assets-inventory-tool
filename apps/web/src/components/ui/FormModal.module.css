@@ -1,0 +1,49 @@
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 13px;
+}
+
+/* The design's two-column field grid inside the modals. */
+.pair {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.custom {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  border-top: 1px solid var(--border);
+  padding-top: 12px;
+}
+
+.customTitle {
+  font-size: 12px;
+  font-weight: 600;
+}
+
+/* "* Required" and, when editing, the danger action — kept far from Save. */
+.footerLeft {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.required {
+  font-size: 11.5px;
+  color: var(--faint);
+}
+
+.another {
+  color: var(--muted);
+}
+
+.formError {
+  font-size: 12.5px;
+  color: var(--err);
+  background: var(--err-bg);
+  border-radius: 6px;
+  padding: 8px 10px;
+}

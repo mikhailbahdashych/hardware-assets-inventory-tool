@@ -10,13 +10,16 @@ export function SegmentedControl<V extends string>({
   options,
   value,
   onChange,
+  grow = false,
 }: {
   options: SegmentOption<V>[];
   value: V;
   onChange: (value: V) => void;
+  /** Stretch to fill the row (form control) rather than hug (toolbar). */
+  grow?: boolean;
 }) {
   return (
-    <div className={styles.control}>
+    <div className={styles.control} data-grow={grow}>
       {options.map((option) => (
         <button
           key={option.value}

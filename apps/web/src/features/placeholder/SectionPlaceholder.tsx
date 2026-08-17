@@ -1,5 +1,5 @@
-import { Card, PageHeader } from '../../components/ui';
-import { PageContainer } from '../../components/app/PageContainer';
+import { Card, PageHeader } from '@/components/ui';
+import { PageContainer } from '@/components/app/PageContainer';
 
 /**
  * Stands in for a section whose screens land in a later PR. It keeps the shell

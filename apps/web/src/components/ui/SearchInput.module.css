@@ -14,13 +14,17 @@
 .input {
   height: 29px;
   width: 100%;
-  padding: 0 10px 0 28px;
+  padding: 0 10px;
   border: 1px solid var(--border);
   border-radius: 6px;
   background: var(--surface);
   color: var(--text);
   font-size: 12.5px;
   outline: none;
+}
+
+.input[data-icon='true'] {
+  padding-left: 28px;
 }
 
 .input:focus {

@@ -1,13 +1,6 @@
 import type { ReactNode } from 'react';
+import type { TableColumn } from '@/types/table';
 import styles from './DataTable.module.css';
-
-export type TableColumn<T> = {
-  header: ReactNode;
-  /** One grid-template-columns track, e.g. "minmax(210px,1.6fr)" or "95px". */
-  width: string;
-  render: (row: T) => ReactNode;
-  align?: 'left' | 'right';
-};
 
 /**
  * The design's CSS-grid table: --thead header, 1px-divided rows whose vertical
@@ -18,6 +11,8 @@ export function DataTable<T>({
   rows,
   rowKey,
   onRowClick,
+  title,
+  showHeader = true,
   footer,
   empty,
 }: {
@@ -25,6 +20,10 @@ export function DataTable<T>({
   rows: T[];
   rowKey: (row: T) => string;
   onRowClick?: (row: T) => void;
+  /** Titled variant ("Currently holding · 3"), which the design draws without
+   *  a column-header row — pass `showHeader={false}` with it. */
+  title?: ReactNode;
+  showHeader?: boolean;
   footer?: ReactNode;
   /** Rendered instead of rows when the list is empty. */
   empty?: ReactNode;
@@ -32,18 +31,21 @@ export function DataTable<T>({
   const template = columns.map((column) => column.width).join(' ');
   return (
     <div className={styles.table} role="table">
-      <div
-        className={styles.header}
-        data-testid="table-header"
-        role="row"
-        style={{ gridTemplateColumns: template }}
-      >
-        {columns.map((column, index) => (
-          <div key={index} role="columnheader" data-align={column.align} className={styles.cell}>
-            {column.header}
-          </div>
-        ))}
-      </div>
+      {title !== undefined && <div className={styles.tableTitle}>{title}</div>}
+      {showHeader && (
+        <div
+          className={styles.header}
+          data-testid="table-header"
+          role="row"
+          style={{ gridTemplateColumns: template }}
+        >
+          {columns.map((column, index) => (
+            <div key={index} role="columnheader" data-align={column.align} className={styles.cell}>
+              {column.header}
+            </div>
+          ))}
+        </div>
+      )}
       {rows.length === 0 && empty}
       {rows.map((row) => (
         <div

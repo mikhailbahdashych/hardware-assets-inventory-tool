@@ -1,6 +1,6 @@
 import type { FastifyInstance } from 'fastify';
-import type { AppDeps } from '../app.js';
-import { orgSettings } from '../db/schema.js';
+import type { AppDeps } from '@/types/app.js';
+import { orgSettings } from '@/db/schema.js';
 import pkg from '../../package.json';
 
 /** Public instance metadata: drives the web app's /setup redirect and the login footer. */
@@ -11,6 +11,9 @@ export function registerMetaRoutes(app: FastifyInstance, deps: AppDeps): void {
       needsSetup: !settings,
       version: pkg.version,
       orgName: settings?.orgName,
+      // Assets store a currency only when it differs from the organization's;
+      // the UI needs this to render every other price.
+      defaultCurrency: settings?.defaultCurrency,
     };
   });
 

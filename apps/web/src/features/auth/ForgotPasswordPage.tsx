@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link } from 'react-router';
-import { useForgotPassword } from '../../api/mutations';
+import { useForgotPassword } from '@/api/mutations';
 import { AuthField, AuthLayout, FormError } from './AuthLayout';
 import styles from './Auth.module.css';
 

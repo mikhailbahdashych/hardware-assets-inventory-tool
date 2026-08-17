@@ -1,13 +1,17 @@
 import { Navigate, Route, Routes } from 'react-router';
 import { can } from '@inventory/shared';
-import { useMe, useMeta } from './api/queries';
+import { orgMeta, useMe, useMeta } from './api/queries';
 import { AppShell } from './components/app/AppShell';
 import { Spinner } from './components/ui';
+import { AssetDetailPage } from './features/assets/AssetDetailPage';
+import { AssetsPage } from './features/assets/AssetsPage';
 import { AcceptInvitePage } from './features/auth/AcceptInvitePage';
 import { ForgotPasswordPage } from './features/auth/ForgotPasswordPage';
 import { LoginPage } from './features/auth/LoginPage';
 import { ResetPasswordPage } from './features/auth/ResetPasswordPage';
 import { SetupPage } from './features/auth/SetupPage';
+import { EmployeeDetailPage } from './features/employees/EmployeeDetailPage';
+import { EmployeesPage } from './features/employees/EmployeesPage';
 import { SectionPlaceholder } from './features/placeholder/SectionPlaceholder';
 
 function Splash() {
@@ -36,7 +40,14 @@ export function AppRoutes() {
 
   if (meta.isPending || me.isPending) return <Splash />;
 
-  if (meta.data?.needsSetup) {
+  // Every route set below depends on knowing whether this instance is set up.
+  // Guessing "signed out" when /meta failed would send an uninitialized
+  // instance to a login screen nobody can pass.
+  if (!meta.data) {
+    throw new Error('GET /api/v1/meta has not answered, so no route set can be chosen.');
+  }
+
+  if (meta.data.needsSetup) {
     return (
       <Routes>
         <Route path="/setup" element={<SetupPage />} />
@@ -63,7 +74,7 @@ export function AppRoutes() {
       {/* Token screens stay reachable while signed in; they replace the session. */}
       <Route path="/reset-password" element={<ResetPasswordPage />} />
       <Route path="/accept-invite" element={<AcceptInvitePage />} />
-      <Route element={<AppShell member={member} orgName={meta.data?.orgName ?? 'Inventory'} />}>
+      <Route element={<AppShell member={member} orgName={orgMeta(meta.data).orgName} />}>
         <Route
           path="/dashboard"
           element={
@@ -73,25 +84,10 @@ export function AppRoutes() {
             />
           }
         />
-        <Route
-          path="/assets"
-          element={
-            <SectionPlaceholder
-              title="Assets"
-              summary="The asset list, filters and detail pages arrive with the assets PR."
-            />
-          }
-        />
-        <Route
-          path="/employees"
-          element={
-            <SectionPlaceholder
-              title="Employees"
-              maxWidth={1060}
-              summary="The employee list and holdings arrive with the employees PR."
-            />
-          }
-        />
+        <Route path="/assets" element={<AssetsPage role={member.role} />} />
+        <Route path="/assets/:id" element={<AssetDetailPage role={member.role} />} />
+        <Route path="/employees" element={<EmployeesPage role={member.role} />} />
+        <Route path="/employees/:id" element={<EmployeeDetailPage role={member.role} />} />
         <Route
           path="/members"
           element={

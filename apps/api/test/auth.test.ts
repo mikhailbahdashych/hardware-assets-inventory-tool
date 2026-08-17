@@ -1,9 +1,9 @@
 import { eq } from 'drizzle-orm';
 import { afterEach, describe, expect, it } from 'vitest';
-import { auditEvents, authTokens, members, sessions } from '../src/db/schema.js';
-import { issueAuthToken } from '../src/services/auth-tokens.js';
-import { newId } from '../src/lib/ids.js';
-import { nowIso } from '../src/lib/dates.js';
+import { auditEvents, authTokens, members, sessions } from '@/db/schema.js';
+import { issueAuthToken } from '@/services/auth-tokens.js';
+import { newId } from '@/lib/ids.js';
+import { nowIso } from '@/lib/dates.js';
 import {
   buildTestApp,
   inject,

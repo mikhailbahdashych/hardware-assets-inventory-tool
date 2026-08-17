@@ -1,22 +1,9 @@
 import { expect, test } from '@playwright/test';
+import { ADMIN, signInFresh as signIn } from '../helpers/session';
 
 // The suite shares one instance, so these run in order: the first test performs
 // first-run setup and every later test signs in with the account it created.
 // Browser contexts are per-test, so each test starts signed out.
-const ADMIN = {
-  orgName: 'Acme Corp',
-  name: 'Tomasz Kowalski',
-  email: 'tomasz@acme.io',
-  password: 'correct-horse-battery',
-};
-
-async function signIn(page: import('@playwright/test').Page) {
-  await page.goto('/login');
-  await page.getByLabel('Email').fill(ADMIN.email);
-  await page.getByLabel('Password').fill(ADMIN.password);
-  await page.getByRole('button', { name: 'Sign in', exact: true }).click();
-  await expect(page.getByRole('navigation')).toBeVisible();
-}
 
 test('first-run setup creates the workspace and signs the admin in', async ({ page }) => {
   await page.goto('/');

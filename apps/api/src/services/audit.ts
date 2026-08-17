@@ -1,25 +1,18 @@
-import type { AuditType } from '@inventory/shared';
-import type { DbOrTx } from '../db/client.js';
-import { auditEvents } from '../db/schema.js';
-import { newId } from '../lib/ids.js';
-import { nowIso } from '../lib/dates.js';
-
-export type AuditEntry = {
-  type: AuditType;
-  action: string;
-  /** null for anonymous flows; actorName then defaults to 'system'. */
-  actorMemberId?: string | null;
-  actorName?: string;
-  assetId?: string | null;
-  employeeId?: string | null;
-  memberId?: string | null;
-  params?: Record<string, unknown>;
-};
+import type { DbOrTx } from '@/types/db.js';
+import type { AuditEntry } from '@/types/audit.js';
+import { auditEvents } from '@/db/schema.js';
+import { newId } from '@/lib/ids.js';
+import { nowIso } from '@/lib/dates.js';
 
 /**
  * Writes one audit event. Call it inside the same better-sqlite3 transaction
  * as the mutation it describes — a mutation without its audit row (or the
  * reverse) must be impossible.
+ *
+ * The coalescing below is the domain rule, not a safety net: the subject
+ * columns are nullable because an event need not be about an asset, a person
+ * and a member at once, an anonymous flow really is attributed to 'system',
+ * and an event with nothing to add stores an empty params object.
  */
 export function writeAudit(db: DbOrTx, entry: AuditEntry, now: Date = new Date()): void {
   db.insert(auditEvents)

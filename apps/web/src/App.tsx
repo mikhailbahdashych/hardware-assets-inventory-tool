@@ -1,6 +1,7 @@
 import { useState, type ReactNode } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { BrowserRouter } from 'react-router';
+import { AppErrorBoundary } from './components/app/AppErrorBoundary';
 import { ThemeProvider } from './providers/ThemeProvider';
 import { ToastProvider } from './providers/ToastProvider';
 import { AppRoutes } from './routes';
@@ -24,11 +25,15 @@ export function AppProviders({
   children: ReactNode;
   queryClient?: QueryClient;
 }) {
-  const [fallbackClient] = useState(createQueryClient);
+  // Not a fallback: the prop is an injection point for tests, and its absence
+  // means "make your own", which is what the app does in the browser.
+  const [ownClient] = useState(createQueryClient);
   return (
-    <QueryClientProvider client={queryClient ?? fallbackClient}>
+    <QueryClientProvider client={queryClient ?? ownClient}>
       <ThemeProvider>
-        <ToastProvider>{children}</ToastProvider>
+        <ToastProvider>
+          <AppErrorBoundary>{children}</AppErrorBoundary>
+        </ToastProvider>
       </ThemeProvider>
     </QueryClientProvider>
   );

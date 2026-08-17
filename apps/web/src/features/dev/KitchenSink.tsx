@@ -39,9 +39,9 @@ import {
   Tabs,
   Textarea,
   ToggleSwitch,
-} from '../../components/ui';
-import { useTheme } from '../../providers/ThemeProvider';
-import { useToast } from '../../providers/ToastProvider';
+} from '@/components/ui';
+import { useTheme } from '@/providers/ThemeProvider';
+import { useToast } from '@/providers/ToastProvider';
 
 const DEMO_ROWS = [
   { tag: 'AST-0142', name: 'MacBook Pro 14" M3', serial: 'C02XK1AZQ6L7', status: 'assigned' },

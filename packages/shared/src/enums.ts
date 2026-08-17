@@ -120,6 +120,16 @@ export const CHECKIN_NEW_STATUS_LABELS: Record<CheckinNewStatus, string> = {
   retired: 'Retired',
 };
 
+/** Custom-field value types. The database stores every value as text. */
+export const CUSTOM_FIELD_TYPES = ['text', 'boolean', 'date', 'number'] as const;
+export type CustomFieldType = (typeof CUSTOM_FIELD_TYPES)[number];
+export const CUSTOM_FIELD_TYPE_LABELS: Record<CustomFieldType, string> = {
+  text: 'Text',
+  boolean: 'Yes / No',
+  date: 'Date',
+  number: 'Number',
+};
+
 export const AUDIT_TYPES = ['assets', 'people', 'auth', 'system'] as const;
 export type AuditType = (typeof AUDIT_TYPES)[number];
 export const AUDIT_TYPE_LABELS: Record<AuditType, string> = {

@@ -1,7 +1,7 @@
 import { customFieldDefs } from './schema.js';
-import type { Db } from './client.js';
-import { newId } from '../lib/ids.js';
-import { nowIso } from '../lib/dates.js';
+import type { Db } from '@/types/db.js';
+import { newId } from '@/lib/ids.js';
+import { nowIso } from '@/lib/dates.js';
 
 const DEFAULT_CUSTOM_FIELDS = [
   { key: 'mdm_enrolled', label: 'MDM enrolled', type: 'boolean' },

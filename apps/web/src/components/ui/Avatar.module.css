@@ -8,3 +8,7 @@
   flex: none;
   user-select: none;
 }
+
+.avatar[data-square='true'] {
+  border-radius: 6px;
+}

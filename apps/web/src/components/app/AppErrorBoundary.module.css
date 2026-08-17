@@ -1,0 +1,43 @@
+/* The auth screens' centred column, reused: the same 360px measure. */
+.screen {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 24px;
+  text-align: center;
+}
+
+.tile {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  background: var(--acc-bg);
+  color: var(--accent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 4px;
+}
+
+.title {
+  font-size: 17px;
+  font-weight: 600;
+  margin: 0;
+}
+
+.detail {
+  font-size: 12.5px;
+  color: var(--text);
+  max-width: 420px;
+  margin: 0;
+}
+
+.hint {
+  font-size: 12px;
+  color: var(--muted);
+  max-width: 420px;
+  margin: 0 0 6px;
+}

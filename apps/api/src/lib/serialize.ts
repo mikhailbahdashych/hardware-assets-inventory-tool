@@ -1,4 +1,6 @@
-import type { MemberRow } from '../plugins/session.js';
+import type { assets, employees } from '@/db/schema.js';
+import type { AssignmentRow } from '@/services/assignments.js';
+import type { MemberRow } from '@/plugins/session.js';
 
 export function serializeMember(member: MemberRow) {
   return {
@@ -11,6 +13,66 @@ export function serializeMember(member: MemberRow) {
     lastActiveAt: member.lastActiveAt,
     theme: member.theme,
     density: member.density,
-    widgets: JSON.parse(member.widgetsJson || '{}') as Record<string, boolean>,
+    // widgets_json is NOT NULL DEFAULT '{}' and only ever written by
+    // JSON.stringify in /me/prefs, so it always parses. If it ever does not,
+    // the row is corrupt and the throw is the bug report.
+    widgets: JSON.parse(member.widgetsJson) as Record<string, boolean>,
+  };
+}
+
+/**
+ * Assets carry their current holder, read from the open ownership record —
+ * there is no denormalized holder column, so this is never stale.
+ */
+export function serializeAsset(asset: typeof assets.$inferSelect, holder: AssignmentRow | null) {
+  return {
+    ...asset,
+    currentHolder: holder
+      ? {
+          employeeId: holder.employeeId,
+          name: holder.holderNameSnapshot,
+          checkedOutAt: holder.checkedOutAt,
+          expectedReturnDate: holder.expectedReturnDate,
+        }
+      : null,
+  };
+}
+
+/** One ownership record, as the timeline and the employee pages read it. */
+export function serializeAssignment(assignment: AssignmentRow) {
+  return {
+    id: assignment.id,
+    employeeId: assignment.employeeId,
+    holderName: assignment.holderNameSnapshot,
+    checkedOutAt: assignment.checkedOutAt,
+    expectedReturnDate: assignment.expectedReturnDate,
+    returnedAt: assignment.returnedAt,
+    outcome: assignment.outcome,
+    checkoutNotes: assignment.checkoutNotes,
+    checkinCondition: assignment.checkinCondition,
+    checkinNotes: assignment.checkinNotes,
+  };
+}
+
+/** An ownership record seen from the person's side, so it names the asset. */
+export function serializeHolding(assignment: AssignmentRow, asset: typeof assets.$inferSelect) {
+  return {
+    ...serializeAssignment(assignment),
+    assetId: asset.id,
+    assetName: asset.name,
+    assetTag: asset.assetTag,
+    category: asset.category,
+    serialNumber: asset.serialNumber,
+  };
+}
+
+export function serializeEmployee(
+  employee: typeof employees.$inferSelect,
+  activeAssetCount: number,
+) {
+  return {
+    ...employee,
+    displayName: `${employee.firstName} ${employee.lastName}`,
+    activeAssetCount,
   };
 }

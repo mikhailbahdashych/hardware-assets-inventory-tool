@@ -1,5 +1,5 @@
 import { migrate } from 'drizzle-orm/better-sqlite3/migrator';
-import type { Db } from './client.js';
+import type { Db } from '@/types/db.js';
 
 /**
  * Applies checked-in migrations. Runs at every boot — pulling a newer image
