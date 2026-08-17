@@ -1,4 +1,4 @@
-import { asc, eq } from 'drizzle-orm';
+import { and, asc, eq, ne } from 'drizzle-orm';
 import type { InviteInput, MemberPatchInput } from '@inventory/shared';
 import type { Config } from '@/types/config.js';
 import type { AppDeps } from '@/types/app.js';
@@ -180,6 +180,10 @@ export function updateMember(
           'You cannot change your own role — ask another admin to do it.',
         );
       }
+      // Losing the last admin is the one role change nobody may make.
+      if (current.role === 'admin' && patch.role !== 'admin') {
+        assertNotLastAdmin(tx, current);
+      }
       values.role = patch.role;
     }
 
@@ -246,6 +250,8 @@ export function removeMember(deps: AppDeps, actor: Actor, id: string): void {
       );
     }
 
+    assertNotLastAdmin(tx, member);
+
     // sessions.member_id CASCADEs, so removing the row signs them out
     // everywhere; audit_events.actor_member_id is SET NULL, so what they did
     // stays in the log under their snapshotted name.
@@ -278,6 +284,42 @@ function readMember(tx: DbOrTx, id: string): MemberSummary {
     .get();
   if (!row) throw notFound('That member');
   return serializeMemberSummary(row.member, row.employee);
+}
+
+/**
+ * The structural backstop under the self-rules: a workspace may never end up
+ * with nobody who can administer it.
+ *
+ * **Over HTTP this cannot fire today**, and that is by design rather than an
+ * oversight. `members.manage` is admin-only, and no admin may change or remove
+ * their own account — so the caller is always an active admin acting on
+ * somebody else, and the target is therefore never the last one.
+ *
+ * It exists for the two changes that would make it reachable: relaxing the
+ * self-rule, or granting `members.manage` to another role. Either should meet a
+ * closed door rather than an empty workspace, and `test/last-admin.test.ts`
+ * calls the services directly to prove this one is real code and not scenery.
+ *
+ * Only **active** admins count. An invited admin has no password yet, so they
+ * cannot sign in, so they cannot administer anything — counting them would let
+ * the last usable admin go on the strength of an invitation nobody accepted.
+ */
+function assertNotLastAdmin(tx: DbOrTx, target: MemberRow): void {
+  if (target.role !== 'admin' || target.status !== 'active') return;
+
+  const remaining = tx
+    .select({ id: members.id })
+    .from(members)
+    .where(and(eq(members.role, 'admin'), eq(members.status, 'active'), ne(members.id, target.id)))
+    .all().length;
+
+  if (remaining === 0) {
+    throw new AppError(
+      409,
+      'last_admin',
+      'This is the only admin in the workspace. Make somebody else an admin first.',
+    );
+  }
 }
 
 function requireMember(tx: DbOrTx, id: string): MemberRow {
