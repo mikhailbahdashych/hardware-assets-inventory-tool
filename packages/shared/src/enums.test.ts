@@ -5,6 +5,7 @@ import {
   ASSET_STATUSES,
   ASSET_STATUS_COLORS,
   ASSET_STATUS_LABELS,
+  ASSIGNED_STATUS,
   ASSIGNMENT_OUTCOMES,
   ASSIGNMENT_OUTCOME_LABELS,
   AUDIT_TYPES,
@@ -16,7 +17,9 @@ import {
   CHECKIN_NEW_STATUS_LABELS,
   CURRENCIES,
   CURRENCY_LABELS,
+  DEFAULT_ASSET_STATUSES,
   DEPARTMENT_SUGGESTIONS,
+  MAX_ASSET_STATUSES,
   EMPLOYEE_STATUSES,
   EMPLOYEE_STATUS_COLORS,
   EMPLOYEE_STATUS_LABELS,
@@ -69,6 +72,42 @@ describe('asset statuses', () => {
     for (const color of Object.values(ASSET_STATUS_COLORS)) {
       expect(SEMANTIC_COLORS).toContain(color);
     }
+  });
+});
+
+describe('the default workflow', () => {
+  it('seeds exactly the six statuses the enum ships, in the same order', () => {
+    expect(DEFAULT_ASSET_STATUSES.map((entry) => entry.id)).toEqual([...ASSET_STATUSES]);
+  });
+
+  it('carries today’s labels and colors entry for entry', () => {
+    for (const entry of DEFAULT_ASSET_STATUSES) {
+      expect(entry.label, entry.id).toBe(ASSET_STATUS_LABELS[entry.id]);
+      expect(entry.color, entry.id).toBe(ASSET_STATUS_COLORS[entry.id]);
+    }
+  });
+
+  it('marks one status as the system one, and it is assigned', () => {
+    const system = DEFAULT_ASSET_STATUSES.filter((entry) => entry.isSystem);
+    expect(system.map((entry) => entry.id)).toEqual([ASSIGNED_STATUS]);
+    expect(ASSIGNED_STATUS).toBe('assigned');
+  });
+
+  it('hands out from Available and Ordered, exactly as the code does today', () => {
+    expect(
+      DEFAULT_ASSET_STATUSES.filter((entry) => entry.assignableFrom).map((entry) => entry.id),
+    ).toEqual(['available', 'ordered']);
+  });
+
+  it('offers the three check-in destinations the check-in modal offers today', () => {
+    expect(
+      DEFAULT_ASSET_STATUSES.filter((entry) => entry.checkinTarget).map((entry) => entry.id),
+    ).toEqual([...CHECKIN_NEW_STATUSES]);
+  });
+
+  it('caps a workspace at a matrix a person can still read', () => {
+    expect(MAX_ASSET_STATUSES).toBe(20);
+    expect(DEFAULT_ASSET_STATUSES.length).toBeLessThanOrEqual(MAX_ASSET_STATUSES);
   });
 });
 

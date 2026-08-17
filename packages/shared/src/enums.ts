@@ -1,3 +1,8 @@
+// Type-only, and deliberately circular with types/workflow.ts: the shape is
+// declared there beside the rest of the wire vocabulary, and the seed table
+// below is the one value that has to satisfy it. Both sides erase at build.
+import type { WorkflowStatus } from './types/workflow.js';
+
 // Single source of truth for every enum in the product, plus the label and
 // semantic-color maps the design derives from them. Enum values are slugs;
 // the database stores slugs with no CHECK constraints, so adding a value here
@@ -34,6 +39,73 @@ export const ASSET_STATUS_COLORS: Record<AssetStatus, SemanticColor> = {
   retired: 'neut',
   lost_stolen: 'err',
 };
+
+/**
+ * The one status slug the code may reference by name. `assigned` is the system
+ * status: only assign and check-in enter or leave it, which is what keeps
+ * `assets.status = 'assigned'` ⇔ an open ownership row true.
+ */
+export const ASSIGNED_STATUS = 'assigned';
+
+/** The matrix and the dashboard tiles have to stay readable. */
+export const MAX_ASSET_STATUSES = 20;
+
+/**
+ * The workflow a fresh instance is seeded with, and the legacy label map the
+ * audit renderer falls back to for events written before statuses became data.
+ * Array order is the seeded `sort_order`; the flags reproduce exactly what the
+ * assign and check-in code used to hard-code.
+ */
+export const DEFAULT_ASSET_STATUSES = [
+  {
+    id: 'available',
+    label: 'Available',
+    color: 'ok',
+    isSystem: false,
+    assignableFrom: true,
+    checkinTarget: true,
+  },
+  {
+    id: 'assigned',
+    label: 'Assigned',
+    color: 'acc',
+    isSystem: true,
+    assignableFrom: false,
+    checkinTarget: false,
+  },
+  {
+    id: 'in_repair',
+    label: 'In repair',
+    color: 'warn',
+    isSystem: false,
+    assignableFrom: false,
+    checkinTarget: true,
+  },
+  {
+    id: 'ordered',
+    label: 'Ordered',
+    color: 'info',
+    isSystem: false,
+    assignableFrom: true,
+    checkinTarget: false,
+  },
+  {
+    id: 'retired',
+    label: 'Retired',
+    color: 'neut',
+    isSystem: false,
+    assignableFrom: false,
+    checkinTarget: true,
+  },
+  {
+    id: 'lost_stolen',
+    label: 'Lost/Stolen',
+    color: 'err',
+    isSystem: false,
+    assignableFrom: false,
+    checkinTarget: false,
+  },
+] as const satisfies readonly Omit<WorkflowStatus, 'sortOrder'>[];
 
 export const ASSET_CATEGORIES = [
   'laptops',
