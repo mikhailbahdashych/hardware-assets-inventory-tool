@@ -1,20 +1,7 @@
+import type { FilterPillsProps } from './types/filterPills';
 import styles from './FilterPills.module.css';
 
-export type FilterPillOption<V extends string> = {
-  value: V;
-  label: string;
-  count?: number;
-};
-
-export function FilterPills<V extends string>({
-  options,
-  value,
-  onChange,
-}: {
-  options: FilterPillOption<V>[];
-  value: V;
-  onChange: (value: V) => void;
-}) {
+export function FilterPills<V extends string>({ options, value, onChange }: FilterPillsProps<V>) {
   return (
     <div className={styles.pills}>
       {options.map((option) => (

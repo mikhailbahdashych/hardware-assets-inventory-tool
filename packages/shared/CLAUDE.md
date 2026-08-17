@@ -1,6 +1,6 @@
 # packages/shared — the single source of truth
 
-Plain TypeScript (no runtime deps yet) imported by both apps as `@inventory/shared` (TS source directly — no build step). Domain vocabulary lives here; both apps follow.
+Plain TypeScript imported by both apps as `@inventory/shared` (TS source directly — no build step). **zod is the one runtime dependency**, declared in this package's own `package.json` because `src/schemas/` imports it; nothing else may be added without a reason that survives being the same dependency in both apps. Domain vocabulary lives here; both apps follow.
 
 ## Files
 
@@ -36,4 +36,4 @@ One option list is numbers rather than slugs — `LOG_RETENTION_OPTIONS` (12/24/
 - Never let an app define its own copy of a label, color, or permission — import from here.
 - The `??`s in this package are domain rules, not fallbacks, and each says so: an unlabelled status, role or field name renders as itself (a log that hides events is worse than an ugly one — the same reasoning as the unknown-action fallback in `audit-render.ts`, which is deliberate and must stay), and an amount written with fewer than three decimals has no third digit to round on. Anywhere a value _should_ have been there, throw instead.
 - `sv` keys must be one of `ok|acc|warn|err|info|neut` (they resolve to `--{sv}`/`--{sv}-bg` CSS tokens).
-- Keep this package dependency-free until zod arrives (PR 2); nothing here may import from the apps.
+- **zod is the only runtime dependency, and it is declared here.** It is pinned to the same range `apps/api` uses (`^4.4.3`); npm-workspace hoisting would otherwise let this package resolve a version nobody chose. Adding a second dependency means both apps carry it too — say why in the PR. And **nothing here may import from the apps**: the arrow only ever points inwards, which is what lets `apps/web` consume this as raw source.

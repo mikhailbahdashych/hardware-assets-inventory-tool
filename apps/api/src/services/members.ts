@@ -1,11 +1,16 @@
 import { asc, eq } from 'drizzle-orm';
 import type { InviteInput, MemberPatchInput } from '@inventory/shared';
-import type { Config } from '@/config.js';
+import type { Config } from '@/types/config.js';
 import type { AppDeps } from '@/types/app.js';
 import type { Db, DbOrTx } from '@/types/db.js';
 import type { Actor } from '@/types/audit.js';
-import type { InviteResult, MemberSummary } from '@/types/members.js';
-import type { MemberRow } from '@/plugins/session.js';
+import type {
+  InviteLink,
+  InviteResult,
+  MemberRow,
+  MemberSummary,
+  ResetLink,
+} from '@/types/members.js';
 import { employees, members } from '@/db/schema.js';
 import { nowIso } from '@/lib/dates.js';
 import { AppError, invalidFields, notFound } from '@/lib/errors.js';
@@ -92,7 +97,7 @@ export function inviteMember(deps: AppDeps, actor: Actor, input: InviteInput): I
  * A fresh invitation link. Issuing one retires the previous unconsumed invite,
  * so a link that leaked stops working the moment an admin resends.
  */
-export function resendInvite(deps: AppDeps, actor: Actor, id: string): { inviteUrl: string } {
+export function resendInvite(deps: AppDeps, actor: Actor, id: string): InviteLink {
   const now = deps.now();
 
   const raw = deps.db.transaction((tx) => {
@@ -124,7 +129,7 @@ export function resendInvite(deps: AppDeps, actor: Actor, id: string): { inviteU
  * hands it over in person. It is never given to an anonymous requester — that
  * is why /auth/forgot-password answers 204 and issues nothing.
  */
-export function issueResetLink(deps: AppDeps, actor: Actor, id: string): { resetUrl: string } {
+export function issueResetLink(deps: AppDeps, actor: Actor, id: string): ResetLink {
   const now = deps.now();
 
   const raw = deps.db.transaction((tx) => {

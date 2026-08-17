@@ -1,19 +1,11 @@
 import { Link, useLocation } from 'react-router';
 import { ROLE_LABELS } from '@inventory/shared';
-import type { Member } from '@/types/api';
 import { Avatar, Icon, IconButton } from '@/components/ui';
 import { isNavItemActive, navItemsForRole } from './nav';
+import type { SidebarProps } from './types/sidebar';
 import styles from './Sidebar.module.css';
 
-export function Sidebar({
-  member,
-  orgName,
-  onSignOut,
-}: {
-  member: Member;
-  orgName: string;
-  onSignOut: () => void;
-}) {
+export function Sidebar({ member, orgName, onSignOut }: SidebarProps) {
   const { pathname } = useLocation();
   const items = navItemsForRole(member.role);
 

@@ -1,9 +1,5 @@
-import type { ComponentPropsWithoutRef, ReactNode } from 'react';
+import type { CheckboxProps } from './types/checkbox';
 import styles from './Checkbox.module.css';
-
-type CheckboxProps = Omit<ComponentPropsWithoutRef<'input'>, 'type'> & {
-  label: ReactNode;
-};
 
 export function Checkbox({ label, className, ...rest }: CheckboxProps) {
   return (

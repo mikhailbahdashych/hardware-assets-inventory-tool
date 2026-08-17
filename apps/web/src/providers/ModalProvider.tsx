@@ -1,5 +1,6 @@
-import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useMemo, useState } from 'react';
 import type { GlobalModal } from '@/types/modals';
+import type { ModalContextValue, ModalProviderProps } from './types/modalProvider';
 
 /**
  * The modals that belong to the app rather than to a record.
@@ -10,13 +11,9 @@ import type { GlobalModal } from '@/types/modals';
  * reachable from more than one screen. Without one owner they would be the same
  * boolean declared in three places.
  */
-const ModalContext = createContext<{
-  open: GlobalModal | null;
-  openModal: (modal: GlobalModal) => void;
-  closeModal: () => void;
-} | null>(null);
+const ModalContext = createContext<ModalContextValue | null>(null);
 
-export function ModalProvider({ children }: { children: ReactNode }) {
+export function ModalProvider({ children }: ModalProviderProps) {
   const [open, setOpen] = useState<GlobalModal | null>(null);
 
   const openModal = useCallback((modal: GlobalModal) => setOpen(modal), []);

@@ -4,7 +4,6 @@ import {
   ASSET_STATUS_COLORS,
   ASSET_STATUS_LABELS,
   can,
-  type Role,
 } from '@inventory/shared';
 import { useAssets } from '@/api/queries';
 import type { Asset } from '@/types/api';
@@ -20,11 +19,11 @@ import {
   SearchInput,
   Spinner,
 } from '@/components/ui';
-import type { StatusFilter } from '@/types/filters';
 import type { TableColumn } from '@/types/table';
 import { formatMonthYear } from '@/lib/format';
 import { setParam } from '@/lib/searchParams';
 import { assetStatusPills, filterAssets, parseStatusFilter } from './filters';
+import type { AssetFilterUpdate, AssetsPageProps } from './types/assetsPage';
 import styles from './Assets.module.css';
 
 /** The design's grid: Asset · Category · Serial · Status · Assigned to · Purchased · Warranty. */
@@ -78,7 +77,7 @@ const COLUMNS: TableColumn<Asset>[] = [
   },
 ];
 
-export function AssetsPage({ role }: { role: Role }) {
+export function AssetsPage({ role }: AssetsPageProps) {
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
   const { openModal } = useModals();
@@ -91,7 +90,7 @@ export function AssetsPage({ role }: { role: Role }) {
   const query = searchParams.get('q') ?? '';
   // Either filter can be set on its own, so an absent key here means "leave
   // the other one as the URL already has it" — not "reset it".
-  const setFilter = (next: { status?: StatusFilter; q?: string }) => {
+  const setFilter = (next: AssetFilterUpdate) => {
     const params = new URLSearchParams(searchParams);
     setParam(params, 'status', next.status ?? parseStatusFilter(params.get('status')), {
       omitWhen: 'all',

@@ -6,27 +6,9 @@ import { useAssets, useEmployees } from '@/api/queries';
 import { Avatar, Button, Field, Input, Modal, SearchInput, Textarea } from '@/components/ui';
 import { NotifyCheckbox } from '@/components/app/NotifyCheckbox';
 import { useToast } from '@/providers/ToastProvider';
+import type { AssignModalProps, Candidate } from './types/assignModal';
 import formStyles from '@/components/ui/FormModal.module.css';
 import styles from './Assign.module.css';
-
-interface Candidate {
-  id: string;
-  title: string;
-  subtitle: string;
-  avatarKey: string;
-  square?: true;
-}
-
-/**
- * The known half of the pair, as a union rather than four optional props: in
- * pick-employee mode the asset is always known, in pick-asset mode the person
- * is. Optional props would have made every read of them a fallback over a
- * value that is in fact always there.
- */
-type AssignModalProps = { onClose: () => void } & (
-  | { mode: 'pick-employee'; assetId: string; assetName: string }
-  | { mode: 'pick-asset'; employeeId: string; employeeName: string }
-);
 
 /**
  * The design's two-mode assign modal: from an asset you pick a person, from a

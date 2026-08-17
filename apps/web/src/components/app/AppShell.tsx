@@ -1,7 +1,6 @@
 import { useCallback } from 'react';
 import { Outlet, useNavigate } from 'react-router';
 import { useLogout } from '@/api/mutations';
-import type { Member } from '@/types/api';
 import { BreadcrumbDetailProvider } from '@/providers/BreadcrumbProvider';
 import { ModalProvider, useModals } from '@/providers/ModalProvider';
 import { useHotkey } from '@/lib/useHotkey';
@@ -9,9 +8,10 @@ import { ModalHost } from './ModalHost';
 import { Sidebar } from './Sidebar';
 import { Topbar } from './Topbar';
 import { useAdoptMemberPrefs } from './useThemeControls';
+import type { AppShellProps } from './types/appShell';
 
 /** Sidebar + topbar frame; only the content column scrolls. */
-export function AppShell({ member, orgName }: { member: Member; orgName: string }) {
+export function AppShell({ member, orgName }: AppShellProps) {
   const logout = useLogout();
   const navigate = useNavigate();
   useAdoptMemberPrefs(member);

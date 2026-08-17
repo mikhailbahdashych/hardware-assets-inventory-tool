@@ -8,6 +8,7 @@ import { NotifyCheckbox } from '@/components/app/NotifyCheckbox';
 import formStyles from '@/components/ui/FormModal.module.css';
 import { CopyLinkModal } from './CopyLinkModal';
 import { RoleCards } from './RoleCards';
+import type { InviteMemberModalProps } from './types/inviteMemberModal';
 
 /**
  * Inviting grants sign-in access. The link comes back in the response whether
@@ -15,7 +16,7 @@ import { RoleCards } from './RoleCards';
  * that something was sent — SMTP arrives in a later PR, and an instance
  * without it must still be able to add people.
  */
-export function InviteMemberModal({ onClose }: { onClose: () => void }) {
+export function InviteMemberModal({ onClose }: InviteMemberModalProps) {
   const [email, setEmail] = useState('');
   const [employeeId, setEmployeeId] = useState('');
   // The least a new member can be given; the admin raises it deliberately.

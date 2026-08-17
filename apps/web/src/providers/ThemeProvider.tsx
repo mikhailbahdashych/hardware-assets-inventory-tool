@@ -1,13 +1,6 @@
-import {
-  createContext,
-  useCallback,
-  useContext,
-  useEffect,
-  useMemo,
-  useState,
-  type ReactNode,
-} from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import type { Density, Theme } from '@/types/theme';
+import type { ThemeContextValue, ThemeProviderProps } from './types/themeProvider';
 
 // The inline script in index.html applies these before first paint (no flash);
 // this provider adopts them, and mirrors every change back to <html> and
@@ -16,17 +9,9 @@ import type { Density, Theme } from '@/types/theme';
 const THEME_KEY = 'inv.theme';
 const DENSITY_KEY = 'inv.density';
 
-interface ThemeContextValue {
-  theme: Theme;
-  density: Density;
-  setTheme: (theme: Theme) => void;
-  setDensity: (density: Density) => void;
-  toggleTheme: () => void;
-}
-
 const ThemeContext = createContext<ThemeContextValue | null>(null);
 
-export function ThemeProvider({ children }: { children: ReactNode }) {
+export function ThemeProvider({ children }: ThemeProviderProps) {
   const [theme, setThemeState] = useState<Theme>(() =>
     document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light',
   );

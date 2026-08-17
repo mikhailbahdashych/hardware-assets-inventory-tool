@@ -1,6 +1,7 @@
-import { useState, type ReactNode } from 'react';
+import { useState } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { BrowserRouter } from 'react-router';
+import type { AppProvidersProps } from './types/app';
 import { AppErrorBoundary } from './components/app/AppErrorBoundary';
 import { ThemeProvider } from './providers/ThemeProvider';
 import { ToastProvider } from './providers/ToastProvider';
@@ -18,13 +19,7 @@ function createQueryClient() {
   });
 }
 
-export function AppProviders({
-  children,
-  queryClient,
-}: {
-  children: ReactNode;
-  queryClient?: QueryClient;
-}) {
+export function AppProviders({ children, queryClient }: AppProvidersProps) {
   // Not a fallback: the prop is an injection point for tests, and its absence
   // means "make your own", which is what the app does in the browser.
   const [ownClient] = useState(createQueryClient);

@@ -1,6 +1,7 @@
-import { useEffect, useId, type ReactNode } from 'react';
+import { useEffect, useId } from 'react';
 import { createPortal } from 'react-dom';
 import { IconButton } from './IconButton';
+import type { ModalProps } from './types/modal';
 import styles from './Modal.module.css';
 
 /**
@@ -18,17 +19,7 @@ export function Modal({
   onClose,
   footer,
   children,
-}: {
-  title: ReactNode;
-  subtitle?: ReactNode;
-  width?: number;
-  topOffset?: string;
-  /** e.g. "86vh" — makes the body scroll (New asset, Add employee). */
-  maxHeight?: string;
-  onClose: () => void;
-  footer?: ReactNode;
-  children: ReactNode;
-}) {
+}: ModalProps) {
   const titleId = useId();
 
   useEffect(() => {

@@ -5,7 +5,7 @@ import type {
   customFieldDefs,
   employees,
 } from '@/db/schema.js';
-import type { OrgSettingsRow } from '@/services/settings.js';
+import type { OrgSettingsRow } from '@/types/settings.js';
 
 // The export-all payload. Row types come straight from the tables, so adding a
 // column to the schema adds it to the export with no second list to maintain —

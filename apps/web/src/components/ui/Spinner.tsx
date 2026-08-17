@@ -1,6 +1,7 @@
+import type { SpinnerProps } from './types/spinner';
 import styles from './Spinner.module.css';
 
-export function Spinner({ size = 14 }: { size?: number }) {
+export function Spinner({ size = 14 }: SpinnerProps) {
   return (
     <span
       className={styles.spinner}

@@ -1,24 +1,17 @@
-import {
-  createContext,
-  useCallback,
-  useContext,
-  useMemo,
-  useRef,
-  useState,
-  type ReactNode,
-} from 'react';
+import { createContext, useCallback, useContext, useMemo, useRef, useState } from 'react';
+import type {
+  ToastContextValue,
+  ToastEntry,
+  ToastKind,
+  ToastProviderProps,
+} from './types/toastProvider';
 import styles from './Toast.module.css';
 
-type ToastKind = 'ok' | 'err' | 'info';
-type ToastEntry = { id: number; message: string; kind: ToastKind };
-
-const ToastContext = createContext<{ show: (message: string, kind?: ToastKind) => void } | null>(
-  null,
-);
+const ToastContext = createContext<ToastContextValue | null>(null);
 
 const TOAST_DURATION_MS = 4000;
 
-export function ToastProvider({ children }: { children: ReactNode }) {
+export function ToastProvider({ children }: ToastProviderProps) {
   const [toasts, setToasts] = useState<ToastEntry[]>([]);
   const nextId = useRef(0);
 

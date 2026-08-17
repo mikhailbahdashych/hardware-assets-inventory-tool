@@ -1,17 +1,7 @@
+import type { ToggleSwitchProps } from './types/toggleSwitch';
 import styles from './ToggleSwitch.module.css';
 
-export function ToggleSwitch({
-  checked,
-  onChange,
-  label,
-  disabled = false,
-}: {
-  checked: boolean;
-  onChange: (checked: boolean) => void;
-  /** Accessible name for the switch. */
-  label: string;
-  disabled?: boolean;
-}) {
+export function ToggleSwitch({ checked, onChange, label, disabled = false }: ToggleSwitchProps) {
   return (
     <button
       type="button"

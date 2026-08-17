@@ -1,5 +1,6 @@
 import { resolve } from 'node:path';
 import { z } from 'zod';
+import type { Config, SmtpConfig } from '@/types/config.js';
 
 // Zero-config by design: every value has a sensible self-hosting default, and
 // an instance with no SMTP at all is a supported way to run this — invitations
@@ -26,30 +27,6 @@ const envSchema = z.object({
   SMTP_PASS: z.string().optional(),
   SMTP_FROM: z.string().default('Inventory <inventory@localhost>'),
 });
-
-/** Where mail goes. `null` on `Config.smtp` means "this instance sends none". */
-export interface SmtpConfig {
-  host: string;
-  port: number;
-  /** Implicit TLS (port 465). STARTTLS on 587 is negotiated, not this flag. */
-  secure: boolean;
-  /** Relays on a private network often need none. */
-  auth: { user: string; pass: string } | null;
-  from: string;
-}
-
-export type Config = {
-  nodeEnv: 'development' | 'test' | 'production';
-  port: number;
-  host: string;
-  dataDir: string;
-  appUrl: string;
-  cookieSecure: boolean;
-  logLevel: string;
-  /** Absolute path to the built SPA; when set (and existing) the API serves it. */
-  webDist?: string;
-  smtp: SmtpConfig | null;
-};
 
 export function loadConfig(env: Record<string, string | undefined> = process.env): Config {
   const parsed = envSchema.parse(env);

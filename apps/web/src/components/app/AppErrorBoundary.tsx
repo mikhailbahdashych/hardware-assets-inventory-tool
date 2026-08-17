@@ -1,14 +1,7 @@
 import { Component, type ErrorInfo, type ReactNode } from 'react';
 import { Button, Icon } from '@/components/ui';
+import type { AppErrorBoundaryProps, AppErrorBoundaryState } from './types/appErrorBoundary';
 import styles from './AppErrorBoundary.module.css';
-
-interface AppErrorBoundaryProps {
-  children: ReactNode;
-}
-
-interface AppErrorBoundaryState {
-  message: string | null;
-}
 
 /**
  * The app fails loudly rather than guessing — `AppRoutes` throws when `/meta`

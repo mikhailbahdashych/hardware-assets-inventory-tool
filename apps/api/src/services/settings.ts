@@ -3,12 +3,11 @@ import type { SettingsPatchInput } from '@inventory/shared';
 import type { AppDeps } from '@/types/app.js';
 import type { Actor } from '@/types/audit.js';
 import type { DbOrTx } from '@/types/db.js';
+import type { OrgSettingsRow } from '@/types/settings.js';
 import { orgSettings } from '@/db/schema.js';
 import { nowIso } from '@/lib/dates.js';
 import { AppError } from '@/lib/errors.js';
 import { writeAudit } from './audit.js';
-
-export type OrgSettingsRow = typeof orgSettings.$inferSelect;
 
 /** In the order the Settings page draws them, which is the order the audit reads. */
 const EDITABLE = [

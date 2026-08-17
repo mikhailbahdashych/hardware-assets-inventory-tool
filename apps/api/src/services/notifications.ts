@@ -1,7 +1,7 @@
 import { eq } from 'drizzle-orm';
 import type { AppDeps } from '@/types/app.js';
 import type { Notification } from '@/types/mail.js';
-import type { OrgSettingsRow } from './settings.js';
+import type { OrgSettingsRow } from '@/types/settings.js';
 import { notificationLog } from '@/db/schema.js';
 import { nowIso } from '@/lib/dates.js';
 import { newId } from '@/lib/ids.js';

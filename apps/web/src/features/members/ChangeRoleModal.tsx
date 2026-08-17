@@ -3,17 +3,11 @@ import type { Role } from '@inventory/shared';
 import { useUpdateMember } from '@/api/mutations';
 import { Button, Modal } from '@/components/ui';
 import { useToast } from '@/providers/ToastProvider';
-import type { MemberSummary } from '@/types/api';
 import { RoleCards } from './RoleCards';
+import type { ChangeRoleModalProps } from './types/changeRoleModal';
 
 /** The same cards the invite form uses, so a role means one thing everywhere. */
-export function ChangeRoleModal({
-  member,
-  onClose,
-}: {
-  member: MemberSummary;
-  onClose: () => void;
-}) {
+export function ChangeRoleModal({ member, onClose }: ChangeRoleModalProps) {
   const [role, setRole] = useState<Role>(member.role);
   const toast = useToast();
   const update = useUpdateMember();

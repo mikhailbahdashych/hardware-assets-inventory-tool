@@ -6,7 +6,6 @@ import {
   can,
   EMPLOYEE_STATUS_COLORS,
   EMPLOYEE_STATUS_LABELS,
-  type Role,
 } from '@inventory/shared';
 import { useEmployee } from '@/api/queries';
 import type { Holding } from '@/types/api';
@@ -27,6 +26,7 @@ import { formatFullDate, formatMonthYear } from '@/lib/format';
 import { AssignModal } from '../assets/AssignModal';
 import { CheckInModal } from '../assets/CheckInModal';
 import { EmployeeFormModal } from './EmployeeFormModal';
+import type { EmployeeDetailPageProps } from './types/employeeDetailPage';
 import styles from './Employees.module.css';
 
 /** A past holding reads as a date range plus why it ended. */
@@ -35,7 +35,7 @@ function historyRange(holding: Holding): string {
   return holding.outcome ? `${range} · ${ASSIGNMENT_OUTCOME_LABELS[holding.outcome]}` : range;
 }
 
-export function EmployeeDetailPage({ role }: { role: Role }) {
+export function EmployeeDetailPage({ role }: EmployeeDetailPageProps) {
   const { id = '' } = useParams();
   const [editing, setEditing] = useState(false);
   const [assigning, setAssigning] = useState(false);

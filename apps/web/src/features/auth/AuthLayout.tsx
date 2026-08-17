@@ -1,22 +1,13 @@
-import { useId, type ReactNode } from 'react';
+import { useId } from 'react';
 import { ApiError } from '@/api/client';
 import { useMeta } from '@/api/queries';
 import { Icon, IconButton } from '@/components/ui';
 import { useTheme } from '@/providers/ThemeProvider';
+import type { AuthFieldProps, AuthLayoutProps, FormErrorProps } from './types/authLayout';
 import styles from './Auth.module.css';
 
 /** The centered 360px column shared by every signed-out screen. */
-export function AuthLayout({
-  title,
-  subtitle,
-  children,
-  below,
-}: {
-  title: string;
-  subtitle?: ReactNode;
-  children: ReactNode;
-  below?: ReactNode;
-}) {
+export function AuthLayout({ title, subtitle, children, below }: AuthLayoutProps) {
   const { theme, toggleTheme } = useTheme();
   const { data: meta } = useMeta();
 
@@ -63,19 +54,7 @@ export function AuthField({
   error,
   hint,
   trailing,
-}: {
-  label: string;
-  type?: string;
-  value: string;
-  onChange: (value: string) => void;
-  placeholder?: string;
-  autoComplete?: string;
-  autoFocus?: boolean;
-  error?: string;
-  hint?: string;
-  /** Rendered opposite the label, e.g. the "Forgot?" link. */
-  trailing?: ReactNode;
-}) {
+}: AuthFieldProps) {
   const id = useId();
   return (
     <div className={styles.field}>
@@ -102,7 +81,7 @@ export function AuthField({
 }
 
 /** Renders the server's message; field-level details land under their inputs. */
-export function FormError({ error }: { error: unknown }) {
+export function FormError({ error }: FormErrorProps) {
   if (!error) return null;
   const message =
     error instanceof ApiError ? error.message : 'Something went wrong. Please try again.';
