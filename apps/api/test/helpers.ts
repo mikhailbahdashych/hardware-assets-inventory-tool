@@ -25,7 +25,14 @@ export type TestApp = {
   close: () => Promise<void>;
 };
 
-export async function buildTestApp(env: Record<string, string> = {}): Promise<TestApp> {
+/**
+ * A real app on an in-memory database with the real migrations. Pass `now` to
+ * pin the clock — anything that counts days from today needs a fixed one.
+ */
+export async function buildTestApp(
+  env: Record<string, string> = {},
+  now?: () => Date,
+): Promise<TestApp> {
   const { db, sqlite } = createDb(':memory:');
   runMigrations(db, MIGRATIONS_DIR);
   seed(db);
@@ -37,7 +44,7 @@ export async function buildTestApp(env: Record<string, string> = {}): Promise<Te
     DATA_DIR: dataDir,
     ...env,
   });
-  const app = await buildApp({ config, db, sqlite });
+  const app = await buildApp({ config, db, sqlite, now });
   return {
     app,
     db,

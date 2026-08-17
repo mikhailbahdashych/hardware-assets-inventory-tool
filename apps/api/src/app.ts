@@ -14,6 +14,7 @@ import { registerAssetRoutes } from './modules/assets.js';
 import { registerAttachmentRoutes } from './modules/attachments.js';
 import { registerAuthRoutes } from './modules/auth.js';
 import { registerCustomFieldRoutes } from './modules/custom-fields.js';
+import { registerDataRoutes } from './modules/data.js';
 import { registerEmployeeRoutes } from './modules/employees.js';
 import { registerMemberRoutes } from './modules/members.js';
 import { registerMeRoutes } from './modules/me.js';
@@ -54,6 +55,7 @@ export async function buildApp(opts: BuildAppOptions): Promise<FastifyInstance> 
   registerAttachmentRoutes(app, deps);
   registerMemberRoutes(app, deps);
   registerAdminRoutes(app, deps);
+  registerDataRoutes(app, deps);
 
   await registerStaticSpa(app, deps.config.webDist);
 

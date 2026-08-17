@@ -1,0 +1,149 @@
+import { and, asc, desc, eq, isNotNull, isNull, sql } from 'drizzle-orm';
+import { ASSET_CATEGORIES, ASSET_STATUSES } from '@inventory/shared';
+import type { Db } from '@/types/db.js';
+import type {
+  CategoryCount,
+  DashboardPayload,
+  PendingReturn,
+  WarrantyExpiry,
+} from '@/types/dashboard.js';
+import { assets, assignments, auditEvents } from '@/db/schema.js';
+import { toAuditItem } from './audit-log.js';
+
+/** What each widget shows at most. Cards have a shape; a list of forty has none. */
+const RECENT_ACTIVITY = 8;
+const WARRANTY_ROWS = 5;
+const PENDING_RETURN_ROWS = 5;
+
+/**
+ * The design's warranty window. Deliberately independent of the
+ * `warrantyLeadDays` setting, which is only about when email goes out: the
+ * dashboard is a place to look, not a notification.
+ */
+const WARRANTY_WINDOW_DAYS = 90;
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+export function dashboardPayload(db: Db, now: Date): DashboardPayload {
+  const rows = db
+    .select({ status: assets.status, category: assets.category, count: sql<number>`count(*)` })
+    .from(assets)
+    .groupBy(assets.status, assets.category)
+    .all();
+
+  const statusCounts = zeroed(ASSET_STATUSES);
+  const categoryTotals = zeroed(ASSET_CATEGORIES);
+  let assetCount = 0;
+  for (const row of rows) {
+    assetCount += row.count;
+    // A slug this build has no entry for belongs to a value somebody removed
+    // from the enums: it still counts towards the total, but there is no card
+    // or bar to put it on.
+    if (isKnown(ASSET_STATUSES, row.status)) statusCounts[row.status] += row.count;
+    if (isKnown(ASSET_CATEGORIES, row.category)) categoryTotals[row.category] += row.count;
+  }
+
+  const categoryCounts: CategoryCount[] = ASSET_CATEGORIES.map((category) => ({
+    category,
+    count: categoryTotals[category],
+  }));
+
+  return {
+    assetCount,
+    statusCounts,
+    categoryCounts,
+    recentActivity: db
+      .select()
+      .from(auditEvents)
+      .orderBy(desc(auditEvents.at), desc(auditEvents.id))
+      .limit(RECENT_ACTIVITY)
+      .all()
+      .map(toAuditItem),
+    warrantyExpirations: warrantyExpirations(db, now),
+    pendingReturns: pendingReturns(db),
+  };
+}
+
+/**
+ * Future-only, inside the window, soonest first. An expired warranty drops off:
+ * its alert has already been and gone, and a widget full of things you can no
+ * longer act on is a widget people stop reading.
+ */
+function warrantyExpirations(db: Db, now: Date): WarrantyExpiry[] {
+  const today = now.toISOString().slice(0, 10);
+  const limit = new Date(now.getTime() + WARRANTY_WINDOW_DAYS * DAY_MS).toISOString().slice(0, 10);
+
+  return (
+    db
+      .select({
+        assetId: assets.id,
+        name: assets.name,
+        assetTag: assets.assetTag,
+        warrantyUntil: assets.warrantyUntil,
+      })
+      .from(assets)
+      .where(
+        and(
+          sql`${assets.warrantyUntil} >= ${today}`,
+          sql`${assets.warrantyUntil} <= ${limit}`,
+          isNotNull(assets.warrantyUntil),
+        ),
+      )
+      .orderBy(asc(assets.warrantyUntil))
+      .limit(WARRANTY_ROWS)
+      .all()
+      // The WHERE clause is what makes the date non-null, and a nullable column
+      // cannot say so — flatMap narrows it without an assertion that would also
+      // hide a genuine change to the query.
+      .flatMap((row) =>
+        row.warrantyUntil === null
+          ? []
+          : [
+              {
+                assetId: row.assetId,
+                name: row.name,
+                assetTag: row.assetTag,
+                warrantyUntil: row.warrantyUntil,
+                daysLeft: daysBetween(today, row.warrantyUntil),
+              },
+            ],
+      )
+  );
+}
+
+/** Open ownership records that carry a date — offboarding is what sets those. */
+function pendingReturns(db: Db): PendingReturn[] {
+  return db
+    .select({
+      assetId: assets.id,
+      assetName: assets.name,
+      assetTag: assets.assetTag,
+      employeeId: assignments.employeeId,
+      holderName: assignments.holderNameSnapshot,
+      expectedReturnDate: assignments.expectedReturnDate,
+    })
+    .from(assignments)
+    .innerJoin(assets, eq(assets.id, assignments.assetId))
+    .where(and(isNull(assignments.returnedAt), isNotNull(assignments.expectedReturnDate)))
+    .orderBy(asc(assignments.expectedReturnDate))
+    .limit(PENDING_RETURN_ROWS)
+    .all()
+    .flatMap((row) =>
+      row.expectedReturnDate === null
+        ? []
+        : [{ ...row, expectedReturnDate: row.expectedReturnDate }],
+    );
+}
+
+/** Whole days between two date-only strings, both read as UTC midnight. */
+function daysBetween(from: string, to: string): number {
+  return Math.round((Date.parse(to) - Date.parse(from)) / DAY_MS);
+}
+
+function zeroed<T extends string>(keys: readonly T[]): Record<T, number> {
+  return Object.fromEntries(keys.map((key) => [key, 0])) as Record<T, number>;
+}
+
+function isKnown<T extends string>(keys: readonly T[], value: string): value is T {
+  return (keys as readonly string[]).includes(value);
+}

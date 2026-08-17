@@ -35,7 +35,7 @@ export function auditPage(db: Db, query: AuditQuery): AuditPage {
 
   const counts = typeCounts(db);
   return {
-    items: rows.map(toItem),
+    items: rows.map(toAuditItem),
     typeCounts: counts,
     total: query.type ? counts[query.type] : counts.all,
   };
@@ -49,7 +49,7 @@ export function auditCsv(db: Db, type?: AuditType): string {
     .where(type ? eq(auditEvents.type, type) : undefined)
     .orderBy(desc(auditEvents.at), desc(auditEvents.id))
     .all()
-    .map(toItem);
+    .map(toAuditItem);
 
   return toCsv(
     ['Time', 'Actor', 'Event', 'Type'],
@@ -79,7 +79,8 @@ function typeCounts(db: Db): AuditTypeCounts {
   return counts;
 }
 
-function toItem(row: typeof auditEvents.$inferSelect): AuditItem {
+/** One stored row as every reader of the log sees it. */
+export function toAuditItem(row: typeof auditEvents.$inferSelect): AuditItem {
   return {
     id: row.id,
     at: row.at,
