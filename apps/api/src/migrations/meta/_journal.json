@@ -15,6 +15,13 @@
       "when": 1786977239176,
       "tag": "0001_chubby_shatterstar",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1786992066519,
+      "tag": "0002_loud_gargoyle",
+      "breakpoints": true
     }
   ]
 }
