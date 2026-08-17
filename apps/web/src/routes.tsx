@@ -1,3 +1,4 @@
+import { lazy, Suspense } from 'react';
 import { Navigate, Route, Routes, useLocation } from 'react-router';
 import { can } from '@inventory/shared';
 import { orgMeta, useMe, useMeta } from './api/queries';
@@ -16,6 +17,16 @@ import { DashboardPage } from './features/dashboard/DashboardPage';
 import { EmployeeDetailPage } from './features/employees/EmployeeDetailPage';
 import { EmployeesPage } from './features/employees/EmployeesPage';
 import { MembersPage } from './features/members/MembersPage';
+
+/**
+ * The design-system review page. `import.meta.env.DEV` is statically false in a
+ * production build, so the chunk is dropped entirely rather than shipped and
+ * guarded. It sits above the three route sets below because reviewing a
+ * primitive should not require a workspace, a session or a role.
+ */
+const KitchenSink = import.meta.env.DEV
+  ? lazy(() => import('./features/dev/KitchenSink').then((m) => ({ default: m.KitchenSink })))
+  : null;
 
 /** `/admin/activity?type=auth` was a shareable link; the filter travels with it. */
 function LegacyActivityRedirect() {
@@ -46,6 +57,19 @@ function Splash() {
 export function AppRoutes() {
   const meta = useMeta();
   const me = useMe();
+  const { pathname } = useLocation();
+
+  // Ahead of all three: the review page reads no data and needs no session, so
+  // waiting on /meta to look at a Button would be absurd — and it must not be
+  // swallowed by the signed-out set's catch-all redirect to /login.
+  if (KitchenSink && pathname === '/kitchen-sink') {
+    return (
+      <Suspense fallback={<Splash />}>
+        <KitchenSink />
+      </Suspense>
+    );
+  }
+
   if (meta.isPending || me.isPending) return <Splash />;
 
   // Every route set below depends on knowing whether this instance is set up.
