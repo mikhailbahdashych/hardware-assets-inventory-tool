@@ -34,7 +34,18 @@ export async function deleteWorkspace(deps: AppDeps, confirmText: string): Promi
       confirmText: `Type the organization name exactly: ${settings.orgName}`,
     });
   }
+  await emptyWorkspace(deps);
+}
 
+/**
+ * The wipe itself, with no question asked. `deleteWorkspace` is this behind the
+ * type-the-name guard; the demo seeder is this behind a `--reset` flag, which
+ * is the only other caller that legitimately wants a workspace gone.
+ *
+ * Never export a route to this directly — the guard is the whole point of the
+ * danger zone.
+ */
+export async function emptyWorkspace(deps: AppDeps): Promise<void> {
   // Read the file names before the rows go, or nothing knows what to unlink.
   const storedNames = deps.db
     .select({ storedName: attachments.storedName })
