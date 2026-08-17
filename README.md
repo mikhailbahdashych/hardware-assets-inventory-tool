@@ -6,6 +6,10 @@ Built to be **customized by asking Claude Code**: every area of the repo carries
 
 MIT licensed.
 
+![The Inventory dashboard: six status tiles, assets broken down by category, recent activity, warranties running out and returns due back](media/dashboard.png)
+
+_The demo workspace, as `npm run seed:demo` leaves it._
+
 ---
 
 ## Quick start
@@ -41,6 +45,26 @@ docker compose up -d
 - **CSV import** — a mapping step, a dry run that names the row and column of every problem, then one transaction.
 - **Email, optionally** — warranty alerts, return reminders, invitations, a weekly digest. All of it works without SMTP too; see below.
 - **Two-factor authentication** — TOTP, off by default, switched on for the whole workspace by an admin. Recovery codes included, and a break-glass command for the day somebody loses both.
+
+![The asset list: a filter pill per status carrying its own count, and a column naming who currently holds each device](media/assets.png)
+
+_The pills carry their counts, so the shape of the fleet is readable before you filter anything._
+
+![The detail page for one laptop: specification, custom fields, its current holder, an ownership timeline and the audit trail for that asset](media/asset-detail.png)
+
+_AST-0001 has had two holders and a spell on the shelf between them. The "In stock" gap is derived from the ownership rows rather than stored, which is why it cannot disagree with them._
+
+![The activity log: filter pills counting assets, people, auth and system events, above a table of events written as sentences](media/activity-log.png)
+
+_Every mutation, written as a sentence by the same renderer that produces the CSV export — so the screen and the file cannot drift apart._
+
+![The command palette open over the dashboard, one query matching both assets and an employee, grouped under separate headings](media/command-palette.png)
+
+_⌘K from anywhere. Results group by what they are, and the same list runs commands._
+
+![The dashboard again in dark theme, with the same tiles, category bars and widgets](media/dashboard-dark.png)
+
+_Both themes ship. Signed in, it follows the preference stored with your account and travels between browsers with you; before that, it takes whatever your system asks for._
 
 ## Configuration
 
