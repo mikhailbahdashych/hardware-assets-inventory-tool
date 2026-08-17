@@ -48,6 +48,12 @@ export interface Meta {
   orgName?: string;
   /** Currency for assets that do not carry one of their own. */
   defaultCurrency?: Currency;
+  /**
+   * Whether this instance can send email at all. Not a secret — it says
+   * nothing about where mail goes — and the UI needs it to stop offering
+   * checkboxes nothing would act on.
+   */
+  smtpConfigured: boolean;
 }
 
 /**

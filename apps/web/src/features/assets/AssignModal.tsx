@@ -4,6 +4,7 @@ import { fieldErrors } from '@/api/formErrors';
 import { useAssignAsset } from '@/api/mutations';
 import { useAssets, useEmployees } from '@/api/queries';
 import { Avatar, Button, Field, Input, Modal, SearchInput, Textarea } from '@/components/ui';
+import { NotifyCheckbox } from '@/components/app/NotifyCheckbox';
 import { useToast } from '@/providers/ToastProvider';
 import formStyles from '@/components/ui/FormModal.module.css';
 import styles from './Assign.module.css';
@@ -39,6 +40,7 @@ export function AssignModal(props: AssignModalProps) {
   const [checkoutDate, setCheckoutDate] = useState(new Date().toISOString().slice(0, 10));
   const [expectedReturnDate, setExpectedReturnDate] = useState('');
   const [notes, setNotes] = useState('');
+  const [notify, setNotify] = useState(false);
 
   const toast = useToast();
   const employees = useEmployees();
@@ -92,6 +94,7 @@ export function AssignModal(props: AssignModalProps) {
       checkoutDate,
       expectedReturnDate: expectedReturnDate || null,
       notes: notes.trim() || null,
+      notify,
     };
     assign.mutate(input, {
       onSuccess: ({ asset }) => {
@@ -218,6 +221,12 @@ export function AssignModal(props: AssignModalProps) {
             />
           )}
         </Field>
+
+        <NotifyCheckbox
+          checked={notify}
+          onChange={setNotify}
+          label="Email the assignee about this device"
+        />
       </form>
     </Modal>
   );

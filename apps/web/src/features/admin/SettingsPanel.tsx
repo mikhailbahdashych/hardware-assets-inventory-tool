@@ -12,7 +12,7 @@ import {
   type WarrantyLeadDays,
 } from '@inventory/shared';
 import { useUpdateSettings } from '@/api/mutations';
-import { useSettings } from '@/api/queries';
+import { useMeta, useSettings } from '@/api/queries';
 import { Field, Input, Select, Spinner, ToggleSwitch } from '@/components/ui';
 import { useToast } from '@/providers/ToastProvider';
 import type { OrgSettings } from '@/types/api';
@@ -77,6 +77,9 @@ function SettingsForm({ settings }: { settings: OrgSettings }) {
 
   const toast = useToast();
   const update = useUpdateSettings();
+  const meta = useMeta();
+  // Metadata that has not arrived cannot promise email works.
+  const canSendEmail = meta.data?.smtpConfigured === true;
 
   const save = (patch: SettingsPatchInput) =>
     update.mutate(patch, {
@@ -166,10 +169,15 @@ function SettingsForm({ settings }: { settings: OrgSettings }) {
           <div key={toggle.key} className={styles.row}>
             <div className={styles.rowText}>
               <div className={styles.rowLabel}>{toggle.label}</div>
-              <div className={styles.rowHint}>{toggle.description}</div>
+              <div className={styles.rowHint}>
+                {/* The switch still stores a preference without SMTP; it just
+                    cannot act on one, and saying so beats a dead control. */}
+                {canSendEmail ? toggle.description : 'SMTP is not configured on this instance'}
+              </div>
             </div>
             <ToggleSwitch
               label={toggle.label}
+              disabled={!canSendEmail}
               checked={settings[toggle.key]}
               onChange={(checked) => save(emailPatch(toggle.key, checked))}
             />

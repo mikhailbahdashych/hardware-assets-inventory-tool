@@ -1,7 +1,7 @@
 import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it } from 'vitest';
-import { ADMIN_ROUTES, AUDIT_PAGE, SETTINGS } from '@/test/api-stub';
+import { ADMIN_ROUTES, AUDIT_PAGE, NO_SMTP_META, SETTINGS } from '@/test/api-stub';
 import { renderApp, resetAppState } from '@/test/render';
 
 afterEach(resetAppState);
@@ -149,6 +149,19 @@ describe('workspace settings', () => {
     await userEvent.selectOptions(await screen.findByLabelText(/retention/i), 'null');
     await waitFor(() => expect(api.called('PATCH /settings')).toBeDefined());
     expect(api.called('PATCH /settings')!.body).toEqual({ logRetentionMonths: null });
+  });
+});
+
+describe('an instance with no SMTP', () => {
+  it('disables the email switches and says why, rather than lying about them', async () => {
+    renderApp({ ...ADMIN_ROUTES, 'GET /meta': { body: NO_SMTP_META } }, '/admin/settings');
+
+    const warranty = await screen.findByRole('switch', { name: /warranty alerts/i });
+    expect(warranty).toBeDisabled();
+    expect(screen.getAllByText('SMTP is not configured on this instance')).toHaveLength(4);
+
+    // Everything that does not need email still works.
+    expect(screen.getByLabelText(/company name/i)).toBeEnabled();
   });
 });
 

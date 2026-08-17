@@ -13,7 +13,7 @@ describe('first-run setup', () => {
   it('sends every visitor to setup while the instance is uninitialized', async () => {
     renderApp(
       {
-        'GET /meta': { body: { needsSetup: true, version: '0.1.0' } },
+        'GET /meta': { body: { needsSetup: true, version: '0.1.0', smtpConfigured: false } },
         'GET /auth/me': UNAUTHENTICATED,
       },
       '/assets',
@@ -24,7 +24,7 @@ describe('first-run setup', () => {
   it('creates the organization and lands on the dashboard', async () => {
     const api = renderApp(
       {
-        'GET /meta': { body: { needsSetup: true, version: '0.1.0' } },
+        'GET /meta': { body: { needsSetup: true, version: '0.1.0', smtpConfigured: false } },
         'GET /auth/me': UNAUTHENTICATED,
         'POST /setup': { body: { member: ADMIN_MEMBER } },
       },

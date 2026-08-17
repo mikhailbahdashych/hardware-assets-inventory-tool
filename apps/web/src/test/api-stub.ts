@@ -91,7 +91,11 @@ export const READY_META = {
   version: '0.1.0',
   orgName: 'Acme Corp',
   defaultCurrency: 'EUR',
+  smtpConfigured: true,
 };
+
+/** The same instance with no SMTP — the state every email affordance must handle. */
+export const NO_SMTP_META = { ...READY_META, smtpConfigured: false };
 
 export const CUSTOM_FIELDS = [
   { id: 'cf-1', key: 'mdm_enrolled', label: 'MDM enrolled', type: 'boolean', sortOrder: 0 },

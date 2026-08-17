@@ -1,0 +1,16 @@
+# Anything the build does not read, or that would leak a local state into an
+# image people pull.
+node_modules
+**/node_modules
+**/dist
+data
+e2e/.data
+e2e/.auth
+test-results
+playwright-report
+.git
+.github
+.claude
+.remember
+*.log
+.DS_Store

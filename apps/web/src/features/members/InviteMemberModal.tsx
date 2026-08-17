@@ -3,7 +3,8 @@ import type { Role } from '@inventory/shared';
 import { fieldErrors } from '@/api/formErrors';
 import { useInviteMember } from '@/api/mutations';
 import { useEmployees } from '@/api/queries';
-import { Button, Checkbox, Field, Input, Modal, Select } from '@/components/ui';
+import { Button, Field, Input, Modal, Select } from '@/components/ui';
+import { NotifyCheckbox } from '@/components/app/NotifyCheckbox';
 import formStyles from '@/components/ui/FormModal.module.css';
 import { CopyLinkModal } from './CopyLinkModal';
 import { RoleCards } from './RoleCards';
@@ -106,9 +107,9 @@ export function InviteMemberModal({ onClose }: { onClose: () => void }) {
           <RoleCards name="invite-role" value={role} onChange={setRole} />
         </Field>
 
-        <Checkbox
+        <NotifyCheckbox
           checked={sendEmail}
-          onChange={(event) => setSendEmail(event.target.checked)}
+          onChange={setSendEmail}
           label="Send invitation email now"
         />
 

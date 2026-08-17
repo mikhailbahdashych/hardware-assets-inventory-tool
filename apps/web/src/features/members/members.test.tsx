@@ -1,7 +1,7 @@
 import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { ADMIN_MEMBER, ADMIN_ROUTES, INVITED_SUMMARY, MAYA } from '@/test/api-stub';
+import { ADMIN_MEMBER, ADMIN_ROUTES, INVITED_SUMMARY, MAYA, NO_SMTP_META } from '@/test/api-stub';
 import { renderApp, resetAppState } from '@/test/render';
 
 const writeText = vi.fn<(text: string) => Promise<void>>();
@@ -106,6 +106,16 @@ describe('inviting a member', () => {
     expect(link).toHaveValue('http://localhost:3000/accept-invite?token=abc123');
     await userEvent.click(screen.getByRole('button', { name: 'Copy' }));
     expect(writeText).toHaveBeenCalledWith('http://localhost:3000/accept-invite?token=abc123');
+  });
+
+  it('cannot offer to email the invitation on an instance with no SMTP', async () => {
+    renderApp({ ...ADMIN_ROUTES, 'GET /meta': { body: NO_SMTP_META } }, '/members');
+
+    await userEvent.click(await screen.findByRole('button', { name: /invite member/i }));
+    const checkbox = screen.getByRole('checkbox', { name: /send invitation email now/i });
+    expect(checkbox).toBeDisabled();
+    expect(checkbox).not.toBeChecked();
+    expect(screen.getByText(/No SMTP is configured/)).toBeInTheDocument();
   });
 
   it('starts on Viewer, the least a new member can be given', async () => {
