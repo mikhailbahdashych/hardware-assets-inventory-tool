@@ -194,6 +194,31 @@ describe('workspace settings', () => {
     });
   });
 
+  it('takes any whole number of days as the warranty lead time', async () => {
+    ctx = await buildTestApp();
+    const admin = await setupOrg(ctx.app);
+
+    const res = await inject(ctx.app, {
+      method: 'PATCH',
+      url: '/api/v1/settings',
+      cookie: admin,
+      body: { warrantyLeadDays: 45 },
+    });
+    expect(res.statusCode).toBe(200);
+    expect(res.json().settings.warrantyLeadDays).toBe(45);
+
+    // Below a day is no notice at all, and beyond a year is not a warning.
+    for (const days of [0, -1, 400, 12.5]) {
+      const bad = await inject(ctx.app, {
+        method: 'PATCH',
+        url: '/api/v1/settings',
+        cookie: admin,
+        body: { warrantyLeadDays: days },
+      });
+      expect(bad.statusCode, `lead time ${days}`).toBe(422);
+    }
+  });
+
   it('writes only what changed, and audits it by name', async () => {
     ctx = await buildTestApp();
     const admin = await setupOrg(ctx.app);

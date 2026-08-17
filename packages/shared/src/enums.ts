@@ -146,17 +146,15 @@ export const AUDIT_TYPE_COLORS: Record<AuditType, SemanticColor> = {
 };
 
 /**
- * How far ahead of a warranty expiring the nightly scan (PR 8) mails admins.
- * The column is a plain integer, so widening this list is a code-only change —
- * the same reasoning as the enum columns having no CHECK constraints.
+ * How far ahead of a warranty expiring the nightly scan mails admins — a
+ * number of days the workspace chooses, not a menu of three.
+ *
+ * The bounds are what makes it a *lead* time: below a day there is no notice
+ * to give (the dashboard already shows what expires today), and beyond a year
+ * the alert arrives long before anyone can act on it.
  */
-export const WARRANTY_LEAD_DAY_OPTIONS = [30, 60, 90] as const;
-export type WarrantyLeadDays = (typeof WARRANTY_LEAD_DAY_OPTIONS)[number];
-export const WARRANTY_LEAD_DAY_LABELS: Record<WarrantyLeadDays, string> = {
-  30: '30 days before expiry',
-  60: '60 days before expiry',
-  90: '90 days before expiry',
-};
+export const MIN_WARRANTY_LEAD_DAYS = 1;
+export const MAX_WARRANTY_LEAD_DAYS = 365;
 
 /** Activity-log retention in months; `null` is the design's "Forever". */
 export const LOG_RETENTION_OPTIONS = [12, 24, null] as const;

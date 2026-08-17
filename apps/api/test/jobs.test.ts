@@ -88,6 +88,29 @@ describe('the warranty scan', () => {
     expect(ctx.sent[1]!.text).toContain('30 days left');
   });
 
+  it('uses the lead time the workspace set, not a fixed one', async () => {
+    const admin = await withMail();
+    await createAsset(admin, { name: 'Due in 20 days', warrantyUntil: day(MONDAY, 20) });
+    await inject(ctx.app, {
+      method: 'PATCH',
+      url: '/api/v1/settings',
+      cookie: admin,
+      body: { warrantyLeadDays: 14 },
+    });
+
+    // Inside the default 60 days, outside the 14 this workspace chose.
+    expect(await runWarrantyScan(ctx.deps, MONDAY)).toEqual({ sent: 0, skipped: 0 });
+    expect(ctx.sent).toEqual([]);
+
+    await inject(ctx.app, {
+      method: 'PATCH',
+      url: '/api/v1/settings',
+      cookie: admin,
+      body: { warrantyLeadDays: 21 },
+    });
+    expect(await runWarrantyScan(ctx.deps, MONDAY)).toEqual({ sent: 1, skipped: 0 });
+  });
+
   it('does nothing when the workspace has the alerts switched off', async () => {
     const admin = await withMail();
     await createAsset(admin, { name: 'Laptop', warrantyUntil: day(MONDAY, 20) });

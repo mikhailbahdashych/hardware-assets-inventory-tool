@@ -11,7 +11,6 @@ import type {
   LogRetention,
   MemberStatus,
   Role,
-  WarrantyLeadDays,
 } from '@inventory/shared';
 import type { Density, Theme } from './theme';
 
@@ -191,7 +190,8 @@ export interface OrgSettings {
   orgName: string;
   defaultCurrency: Currency;
   assetTagPrefix: string;
-  warrantyLeadDays: WarrantyLeadDays;
+  /** Days of notice before a warranty expires; the workspace picks the number. */
+  warrantyLeadDays: number;
   /** null is "Forever" — a choice, not an absence. */
   logRetentionMonths: LogRetention;
   emailWarrantyAlerts: boolean;
