@@ -36,7 +36,15 @@ export async function buildApp(opts: BuildAppOptions): Promise<FastifyInstance> 
     mailer: opts.mailer !== undefined ? opts.mailer : createMailer(opts.config),
   };
 
-  const app = Fastify({ logger: loggerOptions(opts.config, opts.logDestination) });
+  const app = Fastify({
+    logger: loggerOptions(opts.config, opts.logDestination),
+    // Decides what `request.ip` is, which is what the rate limits are keyed on.
+    // Behind a reverse proxy without this, every request in the world shares
+    // one bucket and ten bad logins lock everybody out for fifteen minutes.
+    // With it set when nothing is in front, any client can claim any address
+    // and the limits mean nothing — so it is opt-in, per deployment.
+    trustProxy: opts.config.trustProxy,
+  });
 
   app.setValidatorCompiler(validatorCompiler);
   app.setSerializerCompiler(serializerCompiler);

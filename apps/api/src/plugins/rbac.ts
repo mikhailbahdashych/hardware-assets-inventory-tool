@@ -37,8 +37,13 @@ export async function requireAuth(request: FastifyRequest, _reply: FastifyReply)
  * packages/shared/src/rbac.ts — the single permission truth).
  */
 export function requireAction(action: Action) {
-  return async (request: FastifyRequest, _reply: FastifyReply): Promise<void> => {
-    if (!request.member) throw unauthorized();
-    if (!can(request.member.role as Role, action)) throw forbidden();
+  return async (request: FastifyRequest, reply: FastifyReply): Promise<void> => {
+    // Composed, not re-implemented. `requireAction` guards every write and
+    // every admin surface in the app, so a check it does not inherit is a
+    // check that covers almost nothing — the enrolment gate lived only on the
+    // read-only routes until this line existed, which meant a password-only
+    // session could still switch two-factor off and wipe everybody's secrets.
+    await requireAuth(request, reply);
+    if (!can(request.member!.role as Role, action)) throw forbidden();
   };
 }

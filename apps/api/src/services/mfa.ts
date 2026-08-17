@@ -4,7 +4,7 @@ import { RECOVERY_CODE_COUNT } from '@inventory/shared';
 import type { Db, DbOrTx } from '@/types/db.js';
 import type { MfaEnrolment, MfaStatus } from '@/types/mfa.js';
 import type { MemberRow } from '@/types/members.js';
-import { members, mfaRecoveryCodes } from '@/db/schema.js';
+import { members, mfaRecoveryCodes, sessions } from '@/db/schema.js';
 import { AppError } from '@/lib/errors.js';
 import { newId } from '@/lib/ids.js';
 import { nowIso } from '@/lib/dates.js';
@@ -140,6 +140,11 @@ export function resetMemberMfa(db: DbOrTx, memberId: string, now: Date): void {
     .where(eq(members.id, memberId))
     .run();
   db.delete(mfaRecoveryCodes).where(eq(mfaRecoveryCodes.memberId, memberId)).run();
+  // Sessions go too, the same way a password reset ends them. An admin resets
+  // somebody's second factor because the phone is gone or the account is
+  // suspect; leaving live sessions signed in would keep exactly the access the
+  // reset is meant to interrupt, now with one factor instead of two.
+  db.delete(sessions).where(eq(sessions.memberId, memberId)).run();
 }
 
 /**

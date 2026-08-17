@@ -1,6 +1,6 @@
 import { eq } from 'drizzle-orm';
 import { afterEach, describe, expect, it } from 'vitest';
-import { members, mfaRecoveryCodes } from '@/db/schema.js';
+import { members, mfaRecoveryCodes, orgSettings } from '@/db/schema.js';
 import { totpCode } from '@/lib/totp.js';
 import { buildTestApp, inject, sessionCookie, setupOrg, type TestApp } from './helpers.js';
 
@@ -258,6 +258,39 @@ describe('when the workspace requires it', () => {
     ).toBe(409);
   });
 
+  it('locks the mutating and admin routes too, not only the read-only ones', async () => {
+    ctx = await buildTestApp();
+    const cookie = await setupOrg(ctx.app);
+    await requireMfa(cookie);
+
+    // `requireAuth` guards the list endpoints; `requireAction` guards every
+    // write and every admin surface. A gate that only covers the first is not
+    // a gate — a password-only session could still change the whole workspace,
+    // including switching the requirement back off and wiping everybody's
+    // authenticator on the way.
+    const blocked: [string, string, Record<string, unknown> | undefined][] = [
+      ['POST', '/api/v1/assets', { name: 'Sneaky', category: 'laptops', status: 'available' }],
+      ['POST', '/api/v1/employees', { firstName: 'A', lastName: 'B', email: 'a.b@acme.io' }],
+      ['GET', '/api/v1/audit', undefined],
+      ['GET', '/api/v1/export', undefined],
+      ['GET', '/api/v1/settings', undefined],
+      ['PATCH', '/api/v1/settings', { mfaRequired: false }],
+      ['POST', '/api/v1/members/invites', { email: 'x@acme.io', role: 'admin', sendEmail: false }],
+      ['GET', '/api/v1/assets/next-tag', undefined],
+    ];
+
+    for (const [method, url, body] of blocked) {
+      const res = await inject(ctx.app, { method: method as 'GET', url, cookie, body });
+      expect(res.statusCode, `${method} ${url}`).toBe(409);
+      expect(res.json().error.code, `${method} ${url}`).toBe('mfa_enrolment_required');
+    }
+
+    // The one that matters most: the requirement is still on, and every
+    // enrolled member still has their authenticator.
+    const settings = ctx.db.select().from(orgSettings).get();
+    expect(settings?.mfaRequired).toBe(true);
+  });
+
   it('lets them back in once they enrol', async () => {
     ctx = await buildTestApp();
     const cookie = await setupOrg(ctx.app);
@@ -351,7 +384,16 @@ describe('admin control', () => {
       .member.id;
     await inject(ctx.app, { method: 'POST', url: `/api/v1/members/${id}/mfa/reset`, cookie });
 
-    const log = await inject(ctx.app, { method: 'GET', url: '/api/v1/audit', cookie });
+    // Resetting a second factor ends that account's sessions — including your
+    // own, when you are the account. Password alone gets back in, because the
+    // authenticator is gone.
+    expect(
+      (await inject(ctx.app, { method: 'GET', url: '/api/v1/audit', cookie })).statusCode,
+    ).toBe(401);
+    const back = await login(ADMIN);
+    const fresh = sessionCookie(back);
+
+    const log = await inject(ctx.app, { method: 'GET', url: '/api/v1/audit', cookie: fresh });
     const actions = log.json().items.map((item: { action: string }) => item.action);
     expect(actions).toContain('member.mfa_enrolled');
     expect(actions).toContain('member.mfa_reset');

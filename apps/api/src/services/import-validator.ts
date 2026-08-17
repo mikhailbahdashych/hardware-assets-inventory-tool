@@ -238,7 +238,13 @@ function planEmployees(rows: Record<string, string>[], context: ImportContext): 
  * things a spreadsheet actually contains ("maya at acme", "Maya <m@acme.io>").
  * The database's UNIQUE index and the invite flow are the real gatekeepers.
  */
-const EMAIL = /^[^\s@,;<>]+@[^\s@,;<>]+\.[^\s@,;<>]+$/;
+// The middle class excludes `.` so the dot-separated tail has exactly one way
+// to match. The previous shape let both halves consume dots, so a cell like
+// "a@b.b.b.…<" made the engine try every split point and rescan the tail from
+// each — quadratic, synchronous, and enough to stall the process for minutes
+// from one import. `packages/shared/src/schemas/import.ts` caps the cell length
+// as well; either alone would do, and together the cost is bounded twice.
+const EMAIL = /^[^\s@,;<>]+@[^\s@,;<>.]+(\.[^\s@,;<>.]+)+$/;
 
 function readDate(
   row: Record<string, string>,

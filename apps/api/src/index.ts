@@ -35,6 +35,18 @@ const { db, sqlite } = createDb(join(config.dataDir, 'inventory.db'));
 runMigrations(db, fileURLToPath(new URL('./migrations', import.meta.url)));
 seed(db);
 
+// One omission, two protections off, and nothing else would say so: with the
+// default APP_URL the session cookie is not Secure, and the origin guard has
+// no configured origin to compare against. Both are correct for localhost and
+// wrong for anything a browser reaches over TLS.
+if (config.nodeEnv === 'production' && config.appUrl === 'http://localhost:3000') {
+  process.stderr.write(
+    `APP_URL is still http://localhost:3000 on a production instance.\n` +
+      `Session cookies are not marked Secure and invitation links will point at localhost.\n` +
+      `Set APP_URL to the address browsers actually reach this instance at.\n`,
+  );
+}
+
 const mailer = createMailer(config);
 const app = await buildApp({ config, db, sqlite, mailer });
 
