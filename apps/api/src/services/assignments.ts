@@ -9,6 +9,7 @@ import type { AppDeps } from '@/types/app.js';
 import type { DbOrTx } from '@/types/db.js';
 import type { Actor } from '@/types/audit.js';
 import type {
+  AssignmentRow,
   CloseAssignmentParams,
   HolderContact,
   OpenAssignmentParams,
@@ -19,8 +20,6 @@ import { newId } from '@/lib/ids.js';
 import { AppError, invalidFields, notFound } from '@/lib/errors.js';
 import { serializeAsset } from '@/lib/serialize.js';
 import { writeAudit } from './audit.js';
-
-export type AssignmentRow = typeof assignments.$inferSelect;
 
 /** Statuses an asset can be handed out from. */
 const ASSIGNABLE_FROM = new Set(['available', 'ordered']);

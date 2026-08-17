@@ -1,5 +1,5 @@
-import type { ChangeEvent } from 'react';
 import { Icon } from './Icon';
+import type { SearchInputProps } from './types/searchInput';
 import styles from './SearchInput.module.css';
 
 /**
@@ -13,14 +13,7 @@ export function SearchInput({
   width = 240,
   icon = false,
   'aria-label': ariaLabel,
-}: {
-  value: string;
-  onChange: (event: ChangeEvent<HTMLInputElement>) => void;
-  placeholder?: string;
-  width?: number | string;
-  icon?: boolean;
-  'aria-label'?: string;
-}) {
+}: SearchInputProps) {
   return (
     <span className={styles.wrap} style={{ width }}>
       {icon && <Icon name="search" size={13} strokeWidth={1.8} className={styles.icon} />}

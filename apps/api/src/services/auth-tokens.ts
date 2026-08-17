@@ -1,12 +1,11 @@
 import { and, eq, isNull } from 'drizzle-orm';
 import type { Db, DbOrTx } from '@/types/db.js';
+import type { TokenPurpose } from '@/types/auth.js';
 // issueAuthToken takes DbOrTx so an invite can be written in the same
 // transaction as the member row it belongs to.
 import { authTokens } from '@/db/schema.js';
 import { nowIso } from '@/lib/dates.js';
 import { createRawToken, hashToken } from '@/lib/tokens.js';
-
-export type TokenPurpose = 'invite' | 'password_reset';
 
 const TTL_MS: Record<TokenPurpose, number> = {
   invite: 7 * 24 * 60 * 60 * 1000,

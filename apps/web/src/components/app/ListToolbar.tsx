@@ -1,8 +1,8 @@
-import type { ReactNode } from 'react';
-import { can, type Role } from '@inventory/shared';
+import { can } from '@inventory/shared';
 import { Button, SegmentedControl } from '@/components/ui';
 import { useModals } from '@/providers/ModalProvider';
 import { useThemeControls } from './useThemeControls';
+import type { ListToolbarProps } from './types/listToolbar';
 
 const DENSITY_OPTIONS = [
   { value: 'comfortable' as const, label: 'Comfortable', title: 'Comfortable rows' },
@@ -26,15 +26,7 @@ export function ImportCsvButton() {
 }
 
 /** Title · density · import · primary action, in the design's order. */
-export function ListToolbar({
-  title,
-  role,
-  children,
-}: {
-  title: string;
-  role: Role;
-  children?: ReactNode;
-}) {
+export function ListToolbar({ title, role, children }: ListToolbarProps) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
       <h1 style={{ fontSize: 18, fontWeight: 600, margin: 0, marginRight: 'auto' }}>{title}</h1>

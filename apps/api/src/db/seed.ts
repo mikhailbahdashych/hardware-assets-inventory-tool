@@ -11,7 +11,8 @@ const DEFAULT_CUSTOM_FIELDS = [
 ] as const;
 
 /** Idempotent boot seed: default custom-field definitions only. Org settings
- *  are created by the first-run setup flow; demo data only via seed:demo. */
+ *  are created by the first-run setup flow, and nothing here invents demo
+ *  data — a fresh container starts empty on purpose. */
 export function seed(db: Db): void {
   DEFAULT_CUSTOM_FIELDS.forEach((field, index) => {
     db.insert(customFieldDefs)

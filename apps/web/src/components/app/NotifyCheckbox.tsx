@@ -1,5 +1,6 @@
 import { useMeta } from '@/api/queries';
 import { Checkbox } from '@/components/ui';
+import type { NotifyCheckboxProps } from './types/notifyCheckbox';
 
 /**
  * The design's "notify" checkboxes, on the assign and check-in modals.
@@ -10,15 +11,7 @@ import { Checkbox } from '@/components/ui';
  * whether this instance can send at all — that is instance metadata, not a
  * secret, and it says nothing about where mail goes.
  */
-export function NotifyCheckbox({
-  checked,
-  onChange,
-  label,
-}: {
-  checked: boolean;
-  onChange: (checked: boolean) => void;
-  label: string;
-}) {
+export function NotifyCheckbox({ checked, onChange, label }: NotifyCheckboxProps) {
   const meta = useMeta();
   // Metadata that has not arrived cannot promise email works.
   const canSend = meta.data?.smtpConfigured === true;

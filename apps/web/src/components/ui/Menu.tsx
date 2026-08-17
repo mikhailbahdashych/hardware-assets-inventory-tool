@@ -1,20 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import type { MenuAnchor, MenuProps } from './types/menu';
 import styles from './Menu.module.css';
-
-export interface MenuItem {
-  label: string;
-  onSelect: () => void;
-  /** Rendered in --err: removing a member, deleting a record. */
-  danger?: boolean;
-}
-
-/** Where the panel sits, measured from the trigger when the menu opens. */
-interface MenuAnchor {
-  top: number;
-  right: number;
-  maxHeight: number;
-}
 
 const GAP = 4;
 
@@ -28,7 +15,7 @@ const GAP = 4;
  * cells their ellipsis) and the surrounding card clips to its border radius. A
  * menu rendered in place is a menu the row eats.
  */
-export function Menu({ label, items }: { label: string; items: MenuItem[] }) {
+export function Menu({ label, items }: MenuProps) {
   const [anchor, setAnchor] = useState<MenuAnchor | null>(null);
   const trigger = useRef<HTMLButtonElement>(null);
   const panel = useRef<HTMLDivElement>(null);

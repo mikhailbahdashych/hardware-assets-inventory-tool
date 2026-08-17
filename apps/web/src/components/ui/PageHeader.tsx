@@ -1,15 +1,7 @@
-import type { ReactNode } from 'react';
+import type { PageHeaderProps } from './types/pageHeader';
 
 /** Page title row: 18px/600 title (with optional subtitle) left, actions right. */
-export function PageHeader({
-  title,
-  subtitle,
-  children,
-}: {
-  title: ReactNode;
-  subtitle?: ReactNode;
-  children?: ReactNode;
-}) {
+export function PageHeader({ title, subtitle, children }: PageHeaderProps) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
       <div style={{ marginRight: 'auto' }}>

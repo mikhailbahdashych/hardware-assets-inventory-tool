@@ -1,10 +1,10 @@
 import { useRef, useState } from 'react';
-import { can, type Role } from '@inventory/shared';
+import { can } from '@inventory/shared';
 import { useDeleteAttachment, useUploadAttachment } from '@/api/mutations';
-import type { Attachment } from '@/types/api';
 import { Card, Icon, IconButton } from '@/components/ui';
 import { formatFileSize } from '@/lib/format';
 import { useToast } from '@/providers/ToastProvider';
+import type { AttachmentsCardProps } from './types/attachmentsCard';
 import styles from './Attachments.module.css';
 
 /**
@@ -12,15 +12,7 @@ import styles from './Attachments.module.css';
  * links the browser renders, so the anchor points at the API and the browser
  * saves it — see the content-disposition header on the download route.
  */
-export function AttachmentsCard({
-  assetId,
-  attachments,
-  role,
-}: {
-  assetId: string;
-  attachments: Attachment[];
-  role: Role;
-}) {
+export function AttachmentsCard({ assetId, attachments, role }: AttachmentsCardProps) {
   const input = useRef<HTMLInputElement>(null);
   const [failure, setFailure] = useState<string | null>(null);
   const toast = useToast();

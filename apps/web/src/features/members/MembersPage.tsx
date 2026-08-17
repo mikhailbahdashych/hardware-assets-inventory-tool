@@ -6,7 +6,6 @@ import {
   MEMBER_STATUS_LABELS,
   ROLE_COLORS,
   ROLE_LABELS,
-  type Role,
 } from '@inventory/shared';
 import { useIssueResetLink, useResendInvite } from '@/api/mutations';
 import { useMembers } from '@/api/queries';
@@ -21,17 +20,10 @@ import type { TableColumn } from '@/types/table';
 import { ChangeRoleModal } from './ChangeRoleModal';
 import { CopyLinkModal } from './CopyLinkModal';
 import { RemoveMemberModal } from './RemoveMemberModal';
+import type { MembersDialog, MembersPageProps } from './types/membersPage';
 import styles from './Members.module.css';
 
-/** Which of the page's own modals is open, and about whom. Inviting is not
- *  here: it carries no subject and the command palette opens it too, so it
- *  belongs to ModalProvider. */
-type MembersDialog =
-  | { kind: 'role'; member: MemberSummary }
-  | { kind: 'remove'; member: MemberSummary }
-  | { kind: 'link'; title: string; subtitle: string; label: string; url: string };
-
-export function MembersPage({ role, memberId }: { role: Role; memberId: string }) {
+export function MembersPage({ role, memberId }: MembersPageProps) {
   const [dialog, setDialog] = useState<MembersDialog | null>(null);
   const toast = useToast();
   const { openModal } = useModals();

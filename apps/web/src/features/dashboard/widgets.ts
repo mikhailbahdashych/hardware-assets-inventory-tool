@@ -18,6 +18,8 @@ export const DASHBOARD_WIDGETS = [
   { key: 'returns', label: 'Pending returns', description: 'Assets due back from offboarding' },
 ] as const;
 
+// Stays here rather than in types/: it is read off the array above, and moving
+// it away from its source would only put a lookup between the two.
 export type WidgetKey = (typeof DASHBOARD_WIDGETS)[number]['key'];
 
 /**

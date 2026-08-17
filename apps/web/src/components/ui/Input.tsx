@@ -1,10 +1,5 @@
-import type { ComponentPropsWithoutRef } from 'react';
+import type { InputProps } from './types/input';
 import styles from './Input.module.css';
-
-type InputProps = ComponentPropsWithoutRef<'input'> & {
-  /** JetBrains Mono — asset tags, serials, hostnames. */
-  mono?: boolean;
-};
 
 export function Input({ mono = false, className, ...rest }: InputProps) {
   return (

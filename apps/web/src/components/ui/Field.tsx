@@ -1,4 +1,5 @@
-import { useId, type ReactNode } from 'react';
+import { useId } from 'react';
+import type { FieldProps } from './types/field';
 import styles from './Field.module.css';
 
 /**
@@ -11,19 +12,7 @@ import styles from './Field.module.css';
  * what explains it, and screen readers should not read punctuation as part of
  * the label.
  */
-export function Field({
-  label,
-  required = false,
-  hint,
-  error,
-  children,
-}: {
-  label: string;
-  required?: boolean;
-  hint?: string;
-  error?: string;
-  children: ReactNode | ((id: string) => ReactNode);
-}) {
+export function Field({ label, required = false, hint, error, children }: FieldProps) {
   const id = useId();
   return (
     <div className={styles.field}>

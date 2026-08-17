@@ -1,3 +1,4 @@
+import type { RadioCardProps } from './types/radioCard';
 import styles from './RadioCard.module.css';
 
 export function RadioCard<V extends string>({
@@ -7,14 +8,7 @@ export function RadioCard<V extends string>({
   onChange,
   title,
   description,
-}: {
-  name: string;
-  value: V;
-  checked: boolean;
-  onChange: (value: V) => void;
-  title: string;
-  description: string;
-}) {
+}: RadioCardProps<V>) {
   return (
     <label className={styles.card} data-checked={checked}>
       <input

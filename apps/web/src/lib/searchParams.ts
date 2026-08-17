@@ -1,3 +1,5 @@
+import type { SetParamOptions } from './types/searchParams';
+
 /**
  * Writes a filter into the query string, dropping it when it carries the
  * default — so an unfiltered list stays at a clean `/assets`, and only a
@@ -11,9 +13,4 @@ export function setParam(
 ): void {
   if (value === omitWhen) params.delete(key);
   else params.set(key, value);
-}
-
-interface SetParamOptions {
-  /** The value that means "unfiltered" and so stays out of the URL. */
-  omitWhen?: string;
 }

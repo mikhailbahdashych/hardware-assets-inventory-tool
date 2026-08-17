@@ -1,41 +1,11 @@
-import { ASSET_STATUS_LABELS, ASSET_CATEGORY_LABELS, can, type Role } from '@inventory/shared';
-import type { Asset, Employee } from '@/types/api';
-import type { IconName } from '@/components/ui';
-import type { GlobalModal } from '@/types/modals';
+import { ASSET_STATUS_LABELS, ASSET_CATEGORY_LABELS, can } from '@inventory/shared';
+import type { ActionDefinition, PaletteGroup, PaletteInput, PaletteRow } from './types/palette';
 
 // The palette's contents, as data. Pure so the grouping, the cap and the
 // role filtering are testable without a keyboard.
 
-/** What choosing a row does. A union, so no row can mean two things at once. */
-export type PaletteEffect =
-  { kind: 'navigate'; to: string } | { kind: 'modal'; modal: GlobalModal } | { kind: 'theme' };
-
-export interface PaletteRow {
-  id: string;
-  icon: IconName;
-  title: string;
-  /** The second line: "AST-0142 · Assigned", "Product Designer · Design". */
-  subtitle: string;
-  /** The right-hand word: which kind of thing this is. */
-  hint: string;
-  effect: PaletteEffect;
-}
-
-export interface PaletteGroup {
-  label: string;
-  rows: PaletteRow[];
-}
-
 /** Four of each: past that the list stops being scannable and starts being a table. */
 const PER_GROUP = 4;
-
-interface ActionDefinition {
-  title: string;
-  icon: IconName;
-  effect: PaletteEffect;
-  /** Omitted for the actions every role may take (there is one: the theme). */
-  requires?: Parameters<typeof can>[1];
-}
 
 const ACTIONS: ActionDefinition[] = [
   {
@@ -79,12 +49,7 @@ const matches = (query: string, ...fields: (string | null)[]): boolean =>
  * rather than rendered empty, and the whole thing is flat enough that the
  * keyboard can walk it as one list — see `paletteRows`.
  */
-export function paletteGroups(input: {
-  query: string;
-  role: Role;
-  assets: Asset[];
-  employees: Employee[];
-}): PaletteGroup[] {
+export function paletteGroups(input: PaletteInput): PaletteGroup[] {
   const query = input.query.trim().toLowerCase();
 
   const assets = input.assets

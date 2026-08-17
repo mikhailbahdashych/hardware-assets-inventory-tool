@@ -98,9 +98,9 @@ npm run e2e        # Playwright against a production build
 npm run lint && npm run typecheck && npm run format
 ```
 
-`docs/design-handoff/` holds the interactive prototype that is the visual source of truth — open it beside the app when changing UI. `http://localhost:5173/kitchen-sink` renders every primitive for comparison.
+**`http://localhost:5173/kitchen-sink` is the design system.** Colour tokens with their resolved values, the type scale, the whole icon inventory, and every primitive in every state it ships with — in both themes and both densities. Open it beside whatever you are changing. It is a dev-only route, excluded from production builds, and it cannot drift from the app because it renders the same components.
 
-Read [`CLAUDE.md`](CLAUDE.md) first, then the one next to the code you are changing. [`docs/PROJECT_STATUS.md`](docs/PROJECT_STATUS.md) records what is built and what was decided.
+Read [`CLAUDE.md`](CLAUDE.md) first, then the one next to the code you are changing — each area has its own, and together they are how this project is meant to be customized: describe the change to Claude Code and let it follow the patterns already written down. [`docs/recipes/`](docs/recipes/) has an end-to-end checklist for the changes teams make most.
 
 ## Not in this version
 

@@ -1,22 +1,8 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Icon } from './Icon';
+import type { DropdownProps, PanelPosition } from './types/dropdown';
 import styles from './Dropdown.module.css';
-
-export interface DropdownOption<V extends string> {
-  value: V;
-  label: string;
-  /** A second line inside the list — never shown on the closed control. */
-  description?: string;
-}
-
-/** Where the panel sits, measured from the trigger when the list opens. */
-interface PanelPosition {
-  top: number;
-  left: number;
-  width: number;
-  maxHeight: number;
-}
 
 const GAP = 4;
 /** Below this there is not enough room to be worth opening downward. */
@@ -39,15 +25,7 @@ export function Dropdown<V extends string>({
   id,
   disabled = false,
   'aria-label': ariaLabel,
-}: {
-  value: V;
-  options: readonly DropdownOption<V>[];
-  onChange: (value: V) => void;
-  /** From `Field`'s render prop; a <button> is labelable, so its label names this. */
-  id?: string;
-  disabled?: boolean;
-  'aria-label'?: string;
-}) {
+}: DropdownProps<V>) {
   const [position, setPosition] = useState<PanelPosition | null>(null);
   const [active, setActive] = useState(0);
   const trigger = useRef<HTMLButtonElement>(null);

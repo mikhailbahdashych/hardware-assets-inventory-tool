@@ -1,7 +1,7 @@
 import { and, asc, desc, eq, gte, isNotNull, isNull, lt, lte, sql } from 'drizzle-orm';
 import { renderAuditEvent, type AuditParams } from '@inventory/shared';
 import type { AppDeps } from '@/types/app.js';
-import type { JobResult } from '@/types/jobs.js';
+import type { JobResult, MaintenanceResult } from '@/types/jobs.js';
 import {
   assets,
   assignments,
@@ -134,6 +134,10 @@ export async function runReturnReminders(deps: AppDeps, now: Date): Promise<JobR
   // a non-empty tuple because it is only ever created with a row in it — which
   // is what lets `holder` below be read without a check for a case the
   // construction makes impossible.
+  //
+  // DueRow stays here rather than in `src/types/`: it is read off the select
+  // built two lines above, so there is no module-scope name to point at — and
+  // spelling the row out by hand would be a twin of that select, free to drift.
   type DueRow = (typeof due)[number];
   const byPerson = new Map<string, [DueRow, ...DueRow[]]>();
   for (const row of due) {
@@ -232,7 +236,7 @@ export async function runWeeklyDigest(deps: AppDeps, now: Date): Promise<JobResu
  * asking: expired sessions, spent or expired tokens, and audit events past the
  * workspace's retention. Retention is opt-out — `null` months means forever.
  */
-export function runMaintenance(deps: AppDeps, now: Date): { pruned: number } {
+export function runMaintenance(deps: AppDeps, now: Date): MaintenanceResult {
   const settings = getSettings(deps.db);
   const at = now.toISOString();
   let pruned = 0;

@@ -1,5 +1,5 @@
 import type Database from 'better-sqlite3';
-import type { Config } from '@/config.js';
+import type { Config } from '@/types/config.js';
 import type { Db } from '@/types/db.js';
 import type { Mailer } from '@/types/mail.js';
 

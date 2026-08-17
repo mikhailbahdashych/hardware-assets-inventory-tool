@@ -1,5 +1,5 @@
 import type { FastifyInstance } from 'fastify';
-import type { Config } from '@/config.js';
+import type { Config } from '@/types/config.js';
 import { AppError } from '@/lib/errors.js';
 
 const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);

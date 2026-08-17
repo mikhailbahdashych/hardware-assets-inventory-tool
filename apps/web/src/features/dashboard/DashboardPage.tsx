@@ -12,11 +12,18 @@ import { PageContainer } from '@/components/app/PageContainer';
 import { Button, EmptyState, Pill, Spinner } from '@/components/ui';
 import { formatFullDate, formatRelativeTime } from '@/lib/format';
 import { useModals } from '@/providers/ModalProvider';
-import type { DashboardPayload, Member } from '@/types/api';
 import { isWidgetVisible, warrantyUrgency, type WidgetKey } from './widgets';
+import type {
+  CategoryBarsProps,
+  DashboardPageProps,
+  PendingReturnsProps,
+  RecentActivityProps,
+  StatusCountsProps,
+  WarrantyExpirationsProps,
+} from './types/dashboardPage';
 import styles from './Dashboard.module.css';
 
-export function DashboardPage({ member }: { member: Member }) {
+export function DashboardPage({ member }: DashboardPageProps) {
   const dashboard = useDashboard();
   const { openModal } = useModals();
 
@@ -69,7 +76,7 @@ function today(): string {
 }
 
 /** Six tiles, each a link into the assets list already filtered to it. */
-function StatusCounts({ data }: { data: DashboardPayload }) {
+function StatusCounts({ data }: StatusCountsProps) {
   const navigate = useNavigate();
   return (
     <div className={styles.kpis}>
@@ -95,7 +102,7 @@ function StatusCounts({ data }: { data: DashboardPayload }) {
   );
 }
 
-function CategoryBars({ data }: { data: DashboardPayload }) {
+function CategoryBars({ data }: CategoryBarsProps) {
   const largest = Math.max(1, ...data.categoryCounts.map((entry) => entry.count));
   // Biggest first, as the design draws it — a bar chart is a ranking. The API
   // sends every category in enum order, so equal counts keep a stable order
@@ -129,7 +136,7 @@ function CategoryBars({ data }: { data: DashboardPayload }) {
   );
 }
 
-function RecentActivity({ data }: { data: DashboardPayload }) {
+function RecentActivity({ data }: RecentActivityProps) {
   return (
     <section className={styles.card}>
       <div className={styles.cardHead}>
@@ -156,7 +163,7 @@ function RecentActivity({ data }: { data: DashboardPayload }) {
   );
 }
 
-function WarrantyExpirations({ data }: { data: DashboardPayload }) {
+function WarrantyExpirations({ data }: WarrantyExpirationsProps) {
   const navigate = useNavigate();
   return (
     <section className={styles.card}>
@@ -186,7 +193,7 @@ function WarrantyExpirations({ data }: { data: DashboardPayload }) {
   );
 }
 
-function PendingReturns({ data }: { data: DashboardPayload }) {
+function PendingReturns({ data }: PendingReturnsProps) {
   const navigate = useNavigate();
   return (
     <section className={styles.card}>

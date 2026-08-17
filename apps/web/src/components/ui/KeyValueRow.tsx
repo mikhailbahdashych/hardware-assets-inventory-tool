@@ -1,7 +1,7 @@
-import type { ReactNode } from 'react';
+import type { KeyValueRowProps } from './types/keyValueRow';
 
 /** Two-column key/value line used by the Details and Custom fields cards. */
-export function KeyValueRow({ k, children }: { k: ReactNode; children: ReactNode }) {
+export function KeyValueRow({ k, children }: KeyValueRowProps) {
   return (
     <div
       style={{

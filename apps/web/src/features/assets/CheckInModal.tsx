@@ -9,14 +9,11 @@ import {
 } from '@inventory/shared';
 import { fieldErrors } from '@/api/formErrors';
 import { useCheckinAsset } from '@/api/mutations';
-import type { Asset } from '@/types/api';
 import { Button, Dropdown, Field, Input, Modal, SegmentedControl, Textarea } from '@/components/ui';
 import { NotifyCheckbox } from '@/components/app/NotifyCheckbox';
 import { useToast } from '@/providers/ToastProvider';
+import type { CheckInModalProps } from './types/checkInModal';
 import formStyles from '@/components/ui/FormModal.module.css';
-
-/** Everything check-in needs to know: which asset, and who has it. */
-export type CheckinSubject = Pick<Asset, 'id' | 'assetTag' | 'currentHolder'>;
 
 const STATUS_OPTIONS = CHECKIN_NEW_STATUSES.map((status) => ({
   value: status,
@@ -24,7 +21,7 @@ const STATUS_OPTIONS = CHECKIN_NEW_STATUSES.map((status) => ({
 }));
 
 /** Taking an asset back: closes the ownership record and lands the device. */
-export function CheckInModal({ asset, onClose }: { asset: CheckinSubject; onClose: () => void }) {
+export function CheckInModal({ asset, onClose }: CheckInModalProps) {
   const [returnDate, setReturnDate] = useState(new Date().toISOString().slice(0, 10));
   const [condition, setCondition] = useState<CheckinCondition>('good');
   const [newStatus, setNewStatus] = useState<CheckinNewStatus>('available');

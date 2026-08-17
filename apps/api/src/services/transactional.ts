@@ -1,7 +1,12 @@
 import type { FastifyBaseLogger } from 'fastify';
 import type { AppDeps } from '@/types/app.js';
 import type { MailContent } from '@/types/mail.js';
-import type { AssignmentMail, CheckinMail, InviteMail } from '@/types/mail-templates.js';
+import type {
+  AssignmentMailRequest,
+  CheckinMailRequest,
+  InviteMailRequest,
+  ResetMailRequest,
+} from '@/types/mail-templates.js';
 import {
   assignmentEmail,
   checkinEmail,
@@ -40,7 +45,7 @@ async function deliver(
 export async function sendInviteMail(
   deps: AppDeps,
   log: FastifyBaseLogger,
-  input: { to: string } & Omit<InviteMail, 'orgName'>,
+  input: InviteMailRequest,
 ): Promise<void> {
   const settings = getSettings(deps.db);
   if (!settings.emailInvites) return;
@@ -55,7 +60,7 @@ export async function sendInviteMail(
 export async function sendResetMail(
   deps: AppDeps,
   log: FastifyBaseLogger,
-  input: { to: string; url: string },
+  input: ResetMailRequest,
 ): Promise<void> {
   const settings = getSettings(deps.db);
   await deliver(
@@ -70,7 +75,7 @@ export async function sendResetMail(
 export async function sendAssignmentMail(
   deps: AppDeps,
   log: FastifyBaseLogger,
-  input: { to: string } & Omit<AssignmentMail, 'orgName'>,
+  input: AssignmentMailRequest,
 ): Promise<void> {
   const settings = getSettings(deps.db);
   await deliver(deps, log, input.to, assignmentEmail({ ...input, orgName: settings.orgName }));
@@ -79,7 +84,7 @@ export async function sendAssignmentMail(
 export async function sendCheckinMail(
   deps: AppDeps,
   log: FastifyBaseLogger,
-  input: { to: string } & Omit<CheckinMail, 'orgName'>,
+  input: CheckinMailRequest,
 ): Promise<void> {
   const settings = getSettings(deps.db);
   await deliver(deps, log, input.to, checkinEmail({ ...input, orgName: settings.orgName }));

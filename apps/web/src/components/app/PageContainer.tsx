@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import type { PageContainerProps } from './types/pageContainer';
 
 /**
  * Page frame from the design: 24px/28px padding for list pages, 20px/28px for
@@ -10,12 +10,7 @@ export function PageContainer({
   variant = 'list',
   gap = 14,
   children,
-}: {
-  maxWidth?: number;
-  variant?: 'list' | 'detail';
-  gap?: number;
-  children: ReactNode;
-}) {
+}: PageContainerProps) {
   return (
     <div
       style={{

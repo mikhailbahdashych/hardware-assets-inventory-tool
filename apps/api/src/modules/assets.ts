@@ -1,15 +1,9 @@
-import type { FastifyInstance, FastifyRequest } from 'fastify';
+import type { FastifyInstance } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
 import { z } from 'zod';
-import {
-  assetCreateInput,
-  assetPatchInput,
-  assignInput,
-  checkinInput,
-  type AssignInput,
-  type CheckinInput,
-} from '@inventory/shared';
+import { assetCreateInput, assetPatchInput, assignInput, checkinInput } from '@inventory/shared';
 import type { AppDeps } from '@/types/app.js';
+import type { AssignRequest, CheckinRequest } from '@/types/assets.js';
 import { requireAction, requireAuth } from '@/plugins/rbac.js';
 import {
   createAsset,
@@ -24,10 +18,6 @@ import { sendAssignmentMail, sendCheckinMail } from '@/services/transactional.js
 import { removeStoredFiles } from '@/services/attachments.js';
 
 const idParam = z.object({ id: z.string().min(1) });
-
-/** The two ownership routes' requests, named so their helpers can take them. */
-type AssignRequest = FastifyRequest<{ Params: { id: string }; Body: AssignInput }>;
-type CheckinRequest = FastifyRequest<{ Params: { id: string }; Body: CheckinInput }>;
 
 /** The whole list is returned in one payload — see the ~10k ceiling in /CLAUDE.md. */
 export function registerAssetRoutes(app: FastifyInstance, deps: AppDeps): void {

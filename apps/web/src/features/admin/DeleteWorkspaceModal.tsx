@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router';
 import { useDeleteWorkspace } from '@/api/mutations';
 import { Button, Field, Input, Modal } from '@/components/ui';
 import { useToast } from '@/providers/ToastProvider';
+import type { DeleteWorkspaceModalProps } from './types/deleteWorkspaceModal';
 import styles from './Admin.module.css';
 
 /**
@@ -10,13 +11,7 @@ import styles from './Admin.module.css';
  * same thing, so a typo cannot get through either side. Afterwards there is no
  * session and no data, and the router lands on /setup.
  */
-export function DeleteWorkspaceModal({
-  orgName,
-  onClose,
-}: {
-  orgName: string;
-  onClose: () => void;
-}) {
+export function DeleteWorkspaceModal({ orgName, onClose }: DeleteWorkspaceModalProps) {
   const [confirmText, setConfirmText] = useState('');
   const navigate = useNavigate();
   const toast = useToast();

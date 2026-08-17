@@ -7,9 +7,6 @@ import {
   can,
   centsToInputValue,
   parsePriceToCents,
-  type AssetCategory,
-  type AssetStatus,
-  type Role,
 } from '@inventory/shared';
 import { fieldErrors } from '@/api/formErrors';
 import { useCreateAsset, useDeleteAsset, useUpdateAsset } from '@/api/mutations';
@@ -17,26 +14,10 @@ import { useCustomFields, useEmployees, useNextAssetTag } from '@/api/queries';
 import type { Asset, CustomFieldValue } from '@/types/api';
 import { Button, Checkbox, Dropdown, Field, Input, Modal, Textarea } from '@/components/ui';
 import { useToast } from '@/providers/ToastProvider';
+import type { AssetFormModalProps, AssetFormState } from './types/assetFormModal';
 import styles from '@/components/ui/FormModal.module.css';
 
-type FormState = {
-  name: string;
-  category: AssetCategory;
-  status: AssetStatus;
-  assetTag: string;
-  serialNumber: string;
-  model: string;
-  assignedToEmployeeId: string;
-  checkoutDate: string;
-  purchaseDate: string;
-  price: string;
-  supplier: string;
-  warrantyUntil: string;
-  notes: string;
-  customValues: Record<string, string>;
-};
-
-const EMPTY: FormState = {
+const EMPTY: AssetFormState = {
   name: '',
   category: 'laptops',
   status: 'available',
@@ -58,7 +39,7 @@ const EMPTY: FormState = {
  * this form, so every `?? ''` below is the translation between them — not a
  * value invented because one was missing.
  */
-function fromAsset(asset: Asset, customFields: CustomFieldValue[]): FormState {
+function fromAsset(asset: Asset, customFields: CustomFieldValue[]): AssetFormState {
   return {
     ...EMPTY,
     name: asset.name,
@@ -90,17 +71,9 @@ export function AssetFormModal({
   role,
   onClose,
   onDeleted,
-}: {
-  /** Absent for a create. */
-  asset?: Asset;
-  customFields?: CustomFieldValue[];
-  role: Role;
-  onClose: () => void;
-  /** Where to go once the asset is gone; defaults to just closing. */
-  onDeleted?: () => void;
-}) {
+}: AssetFormModalProps) {
   const editing = asset !== undefined;
-  const [form, setForm] = useState<FormState>(
+  const [form, setForm] = useState<AssetFormState>(
     editing ? fromAsset(asset, customFields ?? []) : EMPTY,
   );
   const [createAnother, setCreateAnother] = useState(false);
@@ -122,7 +95,7 @@ export function AssetFormModal({
   // failure that exists rather than defaulting to anything.
   const errors = fieldErrors(create.error ?? update.error);
   const failure = create.error ?? update.error ?? remove.error;
-  const set = <K extends keyof FormState>(key: K, value: FormState[K]) =>
+  const set = <K extends keyof AssetFormState>(key: K, value: AssetFormState[K]) =>
     setForm((current) => ({ ...current, [key]: value }));
 
   // The suggestion only fills an untouched field, so a typed tag survives it.

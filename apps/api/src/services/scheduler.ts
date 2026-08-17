@@ -1,6 +1,7 @@
 import cron from 'node-cron';
 import type { FastifyBaseLogger } from 'fastify';
 import type { AppDeps } from '@/types/app.js';
+import type { SchedulerHandle } from '@/types/jobs.js';
 import { runMaintenance, runReturnReminders, runWarrantyScan, runWeeklyDigest } from './jobs.js';
 
 /**
@@ -24,7 +25,7 @@ const SCHEDULE = {
   maintenance: '0 3 * * *',
 } as const;
 
-export function startScheduler(deps: AppDeps, log: FastifyBaseLogger): { stop: () => void } {
+export function startScheduler(deps: AppDeps, log: FastifyBaseLogger): SchedulerHandle {
   const tasks = [
     task(SCHEDULE.warranty, 'warranty scan', async () => {
       const result = await runWarrantyScan(deps, deps.now());

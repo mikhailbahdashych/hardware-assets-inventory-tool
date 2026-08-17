@@ -26,22 +26,18 @@ A stopped container has flushed the WAL, so the copy is a consistent database.
 
 ## Hot backup: `.backup`, without stopping
 
-`cp inventory.db` on a **running** instance is the classic way to get a corrupt backup: the file is missing whatever is still in the WAL, and it may be caught mid-write. SQLite has a command for doing it properly:
+`cp inventory.db` on a **running** instance is the classic way to get a corrupt backup: the file is missing whatever is still in the WAL, and it may be caught mid-write. SQLite has a command for doing it properly — `.backup` takes a consistent snapshot of a live database, WAL included.
 
-```bash
-docker compose exec inventory \
-  sh -c 'apk add --no-cache sqlite 2>/dev/null || true; \
-         sqlite3 /data/inventory.db ".backup /data/backup.db"'
-```
-
-The image is Debian-based and ships no `sqlite3` binary, so in practice the friendlier version is to run it from the host against the volume while the container is stopped, or from a throwaway container:
+The inventory image ships no `sqlite3` binary (it is Debian-based and carries only what the app needs), so run it from a throwaway container attached to the same volume:
 
 ```bash
 docker run --rm -v inventory_data:/data alpine \
   sh -c 'apk add --no-cache sqlite >/dev/null && sqlite3 /data/inventory.db ".backup /data/backup.db"'
 ```
 
-Then copy `backup.db` and `uploads/` wherever backups go. `.backup` takes a consistent snapshot of a live database, WAL included.
+Substitute your volume name — `docker volume ls` if you are not sure, or the host path if you bind-mounted `./data` as the compose file does.
+
+Then copy `backup.db` and `uploads/` wherever backups go.
 
 **Copy `uploads/` too.** The database records that an attachment exists; the bytes are in the directory.
 

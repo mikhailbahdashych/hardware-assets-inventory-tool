@@ -4,8 +4,9 @@ export type ParsedCsv =
   | { ok: false; reason: string };
 
 /**
- * The wizard's five steps. `mapping` is the one the design promises and the
- * prototype never drew past a button label.
+ * The wizard's five steps. `mapping` is the one that does the real work: it
+ * turns a spreadsheet into canonical rows, so the API never learns what a
+ * particular file called its columns.
  */
 export type ImportStep = 'file' | 'mapping' | 'report' | 'done';
 

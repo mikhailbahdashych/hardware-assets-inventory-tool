@@ -7,7 +7,6 @@ import {
   ROLE_DESCRIPTIONS,
   ROLE_LABELS,
   ROLES,
-  type EmployeeStatus,
   type Role,
 } from '@inventory/shared';
 import { fieldErrors } from '@/api/formErrors';
@@ -17,30 +16,17 @@ import {
   useInviteMember,
   useUpdateEmployee,
 } from '@/api/mutations';
-import type { Employee } from '@/types/api';
 import { Button, Checkbox, Dropdown, Field, Input, Modal } from '@/components/ui';
 // Inviting is a members concern; this form borrows it rather than growing a
 // second way to show a one-time link.
 import { CopyLinkModal } from '@/features/members/CopyLinkModal';
 import { useToast } from '@/providers/ToastProvider';
+import type { EmployeeFormModalProps, EmployeeFormState } from './types/employeeFormModal';
 import styles from '@/components/ui/FormModal.module.css';
 
 const OTHER = 'Other…';
 
-type FormState = {
-  firstName: string;
-  lastName: string;
-  email: string;
-  jobTitle: string;
-  department: string;
-  location: string;
-  startDate: string;
-  employeeCode: string;
-  status: EmployeeStatus;
-  returnDueDate: string;
-};
-
-const EMPTY: FormState = {
+const EMPTY: EmployeeFormState = {
   firstName: '',
   lastName: '',
   email: '',
@@ -60,21 +46,11 @@ const blankToNull = (value: string) => (value.trim() === '' ? null : value.trim(
  * marking somebody as offboarding is the one employee change with a
  * consequence elsewhere (it schedules returns for what they hold).
  */
-export function EmployeeFormModal({
-  employee,
-  role,
-  onClose,
-  onDeleted,
-}: {
-  employee?: Employee;
-  role: Role;
-  onClose: () => void;
-  onDeleted?: () => void;
-}) {
+export function EmployeeFormModal({ employee, role, onClose, onDeleted }: EmployeeFormModalProps) {
   const editing = employee !== undefined;
   // Every `?? ''` below translates a NULL column into the empty input that
   // means the same thing to the person filling the form in.
-  const [form, setForm] = useState<FormState>(
+  const [form, setForm] = useState<EmployeeFormState>(
     editing
       ? {
           firstName: employee.firstName,
@@ -115,7 +91,7 @@ export function EmployeeFormModal({
   const failure = create.error ?? update.error ?? remove.error;
   const startsOffboarding =
     editing && employee.status === 'active' && form.status === 'offboarding';
-  const set = <K extends keyof FormState>(key: K, value: FormState[K]) =>
+  const set = <K extends keyof EmployeeFormState>(key: K, value: EmployeeFormState[K]) =>
     setForm((current) => ({ ...current, [key]: value }));
 
   function submit(event: FormEvent) {

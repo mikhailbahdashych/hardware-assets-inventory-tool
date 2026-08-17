@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { OrgSettings } from '@/types/api';
-import { changedSettings, type SettingsDraft } from './settingsDraft';
+import { changedSettings } from './settingsDraft';
+import type { SettingsDraft } from './types/settingsDraft';
 
 const STORED: OrgSettings = {
   id: 1,

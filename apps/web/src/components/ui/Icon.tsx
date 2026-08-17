@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import type { IconProps } from './types/icon';
 
 // The design's complete icon inventory: Feather-style outlines, 24 viewBox,
 // stroke 1.7 (a few uses override), round caps and joins, currentColor.
@@ -47,19 +48,12 @@ const ICONS = {
   x: <path d="M18 6L6 18M6 6l12 12" />,
 } satisfies Record<string, ReactNode>;
 
+// Stays here, unlike every other shape in this directory: it is derived from
+// ICONS, a map of JSX values declared above. Hoisting it into types/ would drag
+// that value module along or invert the dependency.
 export type IconName = keyof typeof ICONS;
 
-export function Icon({
-  name,
-  size = 15,
-  strokeWidth = 1.7,
-  className,
-}: {
-  name: IconName;
-  size?: number;
-  strokeWidth?: number;
-  className?: string;
-}) {
+export function Icon({ name, size = 15, strokeWidth = 1.7, className }: IconProps) {
   return (
     <svg
       viewBox="0 0 24 24"

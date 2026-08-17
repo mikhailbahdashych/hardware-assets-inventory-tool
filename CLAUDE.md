@@ -4,7 +4,7 @@ Self-hosted hardware asset inventory for IT teams ("Inventory" in the UI): asset
 
 This repo is built to be customized by asking Claude Code. Every area has its own CLAUDE.md with patterns and recipes — read the one closest to the code you're changing.
 
-> **Continuing the build?** Read [`docs/PROJECT_STATUS.md`](docs/PROJECT_STATUS.md) first — it records what is done, what the next PR is, and the decisions already locked in. Update it at the end of each PR.
+> **Changing the UI?** Run `npm run dev` and open **`http://localhost:5173/kitchen-sink`**. That page is the design system: the colour tokens with their resolved values, the type scale, the whole icon inventory, and every primitive in every state it ships with — in both themes and both densities. It is the visual specification, and it cannot go stale, because it renders the same components the app does. If a screen needs a colour, a size or a control that is not on that page, question the need before adding one.
 
 ## Repo map
 
@@ -12,7 +12,7 @@ This repo is built to be customized by asking Claude Code. Every area has its ow
 - `apps/api` — Fastify API + SQLite (Drizzle). REST under `/api/v1`, sessions + RBAC + audit log, serves the built SPA in production. See `apps/api/CLAUDE.md`.
 - `packages/shared` — **single source of truth** for enums, label/color maps, RBAC and zod schemas. Both apps import it; change domain vocabulary here first. See `packages/shared/CLAUDE.md`.
 - `e2e` — Playwright tests against the production build. See `e2e/CLAUDE.md`.
-- `docs/design-handoff/` — the interactive HTML design prototype. **Visual source of truth**; open it in a browser and compare side-by-side when building UI.
+- `apps/web/src/features/dev/KitchenSink.tsx` → **`/kitchen-sink`** (dev-only route). The design system, rendered. **Visual source of truth**; open it beside whatever you are building.
 
 ## Commands
 
@@ -30,7 +30,9 @@ npm run format       # Prettier
 ## Non-negotiable conventions
 
 - **TypeScript everywhere, strict.** No new languages, no state-management or component libraries — primitives are hand-rolled for design fidelity.
-- **Named shapes live in a `types/` folder**, one per workspace: `apps/web/src/types/`, `apps/api/src/types/`, `packages/shared/src/types/`. Anything reusable — a wire shape, a function's parameter object, the thing behind an `as` cast — gets a name there rather than an anonymous literal at the point of use. Three deliberate exceptions stay where they are: React prop shapes local to one component, `z.infer` types beside their schema, and drizzle `$inferSelect` row types beside their table. Use `interface` for object shapes and `type` for unions, intersections and mapped types.
+- **No type is declared at its point of use — every named shape lives in a `types/` folder.** There is one per area, beside the code it serves: `apps/web/src/components/ui/types/`, `apps/web/src/features/assets/types/`, `apps/api/src/types/`, and so on, plus the workspace-level `apps/web/src/types/` for wire shapes that cross areas. A component's props are `AvatarProps` in `types/avatar.ts`, not an anonymous literal in the signature; so are function parameter objects, `createContext` values and the thing behind an `as` cast. Use `interface` for object shapes and `type` for unions, intersections and mapped types.
+  - **A file imports its own type module directly** (`./types/avatar`), never the folder's `index.ts` barrel. The barrel is for other areas. That one rule is what stops `Icon.tsx → types/index.ts → types/button.ts → Icon.tsx` from becoming an import cycle.
+  - **Types derived from a value stay with that value**, because moving them would drag the value along or invert the dependency: `z.infer` beside its schema, drizzle `$inferSelect` beside its table, `keyof typeof` beside the map it reads (`IconName`, `Action`, `WidgetKey`). Each says so in a comment where it sits.
 - **`noUncheckedIndexedAccess` is on**, so `array[i]` is `T | undefined`. Answer it by tightening the type or writing a real guard — a `Map<string, [Row, ...Row[]]>` says "never empty" better than a check, and selecting a row by id beats taking `all()[0]`. Where the invariant is genuinely beyond the compiler (a modulo is in range; `split` never returns an empty array), state it with a **non-null assertion and a comment naming the proof** — never a `??`, which would invent a value where a wrong assertion throws. In tests `!` is the normal answer: a wrong one fails the test, which is what the test is for.
 - **A `??` must be a rule, not a rescue.** Coalescing is for values that are genuinely absent by design — a nullable column, a missing query parameter, the design's em dash for an empty cell, an optional parameter's default. It is never for a value that _should_ have been there: inventing one lets a bug run in disguise and reach a screenshot. When a contract is broken, throw and name what was wrong. The same applies to `?.` and `||`. Every `??` that stays says in a comment (or a named helper) why it is the rule; if it needs no explanation, it probably needs deleting. Best of all is when the guard exists only because a type is too loose — tighten the type and the `??` disappears.
 - **Enums are slugs** (`in_repair`, `lost_stolen`) defined in `packages/shared/src/enums.ts` with label and semantic-color maps beside them. The database has **no CHECK constraints** on enums, so adding a value is a code-only change.
@@ -48,7 +50,7 @@ npm run format       # Prettier
 
 ## Where things are decided
 
-- Product/visual spec: `docs/design-handoff/README.md` (+ the prototype HTML next to it).
-- Design tokens: `apps/web/src/styles/tokens.css` — mirrors the handoff exactly; don't invent values.
+- Visual spec: **`/kitchen-sink`** (dev server) — tokens, type scale, icons, every primitive in every state.
+- Design tokens: `apps/web/src/styles/tokens.css` — the 25 custom properties everything else is built from; don't invent values, pick from these.
 - Permissions: `packages/shared/src/rbac.ts` (`can(role, action)`) — used by API guards and UI affordances alike.
 - How to make a common change: `docs/recipes/` — a checklist per change, each naming every file and the step people forget.

@@ -1,6 +1,6 @@
-import type { ReactNode } from 'react';
+import type { KbdProps } from './types/kbd';
 
-export function Kbd({ children }: { children: ReactNode }) {
+export function Kbd({ children }: KbdProps) {
   return (
     <kbd
       style={{

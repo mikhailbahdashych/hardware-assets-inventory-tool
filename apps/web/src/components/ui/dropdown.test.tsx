@@ -2,7 +2,8 @@ import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { useState } from 'react';
 import { describe, expect, it, vi } from 'vitest';
-import { Dropdown, type DropdownOption } from './Dropdown';
+import { Dropdown } from './Dropdown';
+import type { DropdownOption } from './types/dropdown';
 
 const STATUSES: DropdownOption<string>[] = [
   { value: 'available', label: 'Available' },

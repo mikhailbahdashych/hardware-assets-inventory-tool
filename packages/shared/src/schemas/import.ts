@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import type { ImportColumn } from '../types/import.js';
 import { toCsv } from '../csv.js';
 
 // The CSV vocabulary, shared by three places that must agree: the template the
@@ -15,12 +16,6 @@ export const IMPORT_KIND_LABELS: Record<ImportKind, string> = {
   assets: 'Assets',
   employees: 'Employees',
 };
-
-/** One canonical column: what the header says and whether a row needs it. */
-export interface ImportColumn {
-  header: string;
-  required: boolean;
-}
 
 const column = (header: string, required = false): ImportColumn => ({ header, required });
 

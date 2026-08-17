@@ -1,23 +1,23 @@
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router';
-import type { Role } from '@inventory/shared';
 import { useAssets, useEmployees } from '@/api/queries';
 import { Icon, Kbd } from '@/components/ui';
 import { useModals } from '@/providers/ModalProvider';
 import { useThemeControls } from './useThemeControls';
-import { paletteGroups, paletteRows, type PaletteEffect } from './palette';
+import { paletteGroups, paletteRows } from './palette';
+import type { CommandPaletteProps } from './types/commandPalette';
+import type { PaletteEffect } from './types/palette';
 import styles from './CommandPalette.module.css';
 
 /**
- * ⌘K. The design promises "↑↓ navigate · ↵ open · esc close" in its footer and
- * the prototype implements none of it, so this does: one flat roving index over
- * the grouped rows, wrapping at both ends.
+ * ⌘K. The footer promises "↑↓ navigate · ↵ open · esc close", so all three
+ * work: one flat roving index over the grouped rows, wrapping at both ends.
  *
  * Everything is filtered client-side from the lists the app has already loaded.
  * At this scale that is instant and adds no search endpoint to defend.
  */
-export function CommandPalette({ role, onClose }: { role: Role; onClose: () => void }) {
+export function CommandPalette({ role, onClose }: CommandPaletteProps) {
   const [query, setQuery] = useState('');
   const [active, setActive] = useState(0);
   const listId = useId();

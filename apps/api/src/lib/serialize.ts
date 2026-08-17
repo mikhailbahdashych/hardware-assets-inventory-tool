@@ -1,8 +1,7 @@
 import type { MemberStatus, Role } from '@inventory/shared';
 import type { assets, employees } from '@/db/schema.js';
-import type { AssignmentRow } from '@/services/assignments.js';
-import type { MemberRow } from '@/plugins/session.js';
-import type { MemberSummary } from '@/types/members.js';
+import type { AssignmentRow } from '@/types/assignments.js';
+import type { MemberRow, MemberSummary } from '@/types/members.js';
 
 export function serializeMember(member: MemberRow) {
   return {

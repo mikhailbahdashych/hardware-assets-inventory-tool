@@ -1,24 +1,27 @@
 # apps/web — React SPA
 
-React 19 + Vite + TypeScript, react-router (declarative `BrowserRouter` mode), TanStack Query for server state. No Tailwind, no component libraries: the design handoff is token-based and primitives are hand-rolled for pixel fidelity.
+React 19 + Vite + TypeScript, react-router (declarative `BrowserRouter` mode), TanStack Query for server state. No Tailwind, no component libraries: the design is token-based and the primitives are hand-rolled, which is what keeps every screen built from the same 25 values.
 
 ## Design system rules
 
-- `src/styles/tokens.css` defines all 25 CSS custom properties for both themes plus density. It mirrors `docs/design-handoff/` **exactly** — never invent or tweak token values.
+- `src/styles/tokens.css` defines all 25 CSS custom properties for both themes plus density. **It is the palette — never invent or tweak a value.** `/kitchen-sink` renders every one of them with its resolved colour, so "is there already a token for this?" is a question you answer by looking.
 - Theme/density ride on `<html data-theme data-density>`. An inline script in `index.html` applies them from localStorage before first paint (no flash). `ThemeProvider` owns local state; for signed-in members `useThemeControls()` also persists changes to the server, and `useAdoptMemberPrefs()` adopts the member's stored values when their session loads. Preferences follow the person across browsers.
 - **Density**: `--rp` is table-row vertical padding (12px ↔ 7px). Only data-table row types consume it — nothing else changes with density.
 - **Semantic colors**: components take an `sv` key (`ok|acc|warn|err|info|neut`) from `@inventory/shared` maps and style via `var(--{sv})` / `var(--{sv}-bg)`. `Pill` shows the pattern.
 - Typography: UI font Instrument Sans, mono JetBrains Mono (`var(--font-sans)` / `var(--font-mono)`), self-hosted via @fontsource — never add a font CDN (the app runs on-prem). Mono is for identifiers: asset tags, serials, hostnames, kbd hints, log timestamps.
 - Icons: `components/ui/Icon.tsx` holds the design's Feather-style path inventory (stroke 1.7). Add new icons there in the same style; don't add an icon library.
-- **The command palette does the keyboard work the design promises.** Its footer says "↑↓ navigate · ↵ open · esc close" and the prototype implements none of it. `components/app/palette.ts` is the pure half — grouping, the four-per-group cap, role filtering — so the list can be tested without a keyboard; `CommandPalette.tsx` is one flat roving index over it, wrapping at both ends, with the highlight returning to the top as the results change under it.
+- **The command palette does the keyboard work its own footer promises.** It says "↑↓ navigate · ↵ open · esc close", so it does all three. `components/app/palette.ts` is the pure half — grouping, the four-per-group cap, role filtering — so the list can be tested without a keyboard; `CommandPalette.tsx` is one flat roving index over it, wrapping at both ends, with the highlight returning to the top as the results change under it.
 - **Anything that floats over a table is portalled to the body.** `Menu` (the design's `···` overflow) and `Dropdown` position themselves from the trigger's own rect for a reason: a `DataTable` cell clips its overflow — that clip is what gives the other cells their ellipsis — and the card around it clips to its border radius. A popover rendered in place is a popover the row eats, and no z-index fixes it.
 - **`Dropdown` is the app's only select.** A native `<select>` draws the _operating system's_ menu — grey on macOS, square on Windows — inside a design that specifies neither, and no CSS reaches inside it. So the primitive is the ARIA select-only combobox: a button that looks exactly like `Input`, owning a portalled `role="listbox"`. It does the keyboard work a native select does — Enter/Space/↑/↓ to open, arrows that stop at the ends rather than wrapping, Home/End, type-ahead on the first letter, Esc to close and return focus — because a person who never touches the mouse should not notice the swap. Values are `string` unions; the label is what appears on screen, so **tests match options by label** through `src/test/dropdown.ts` (`choose`) and e2e through `e2e/helpers/dropdown.ts`. `userEvent.selectOptions` and Playwright's `selectOption` drive a native element and will not work.
 
 ## Structure
 
-- `types/` — every named shape the app reuses. `api.ts` is the wire module (each entity the API returns, plus `ApiRequest` and `OrgMeta`); `theme.ts`, `table.ts` and `filters.ts` hold the rest. Add a shape here as soon as a second file needs it, or as soon as you catch yourself writing `as { … }`. **Prop shapes stay inline in their component** — they belong to one file, and hoisting them only makes the component harder to read. `interface` for object shapes, `type` for unions.
+- **`types/` folders, one per area** — `components/ui/types/`, `components/app/types/`, `providers/types/`, `lib/types/`, and one inside every `features/<area>/`. No type is written at its point of use: a component's props are `AvatarProps` in `components/ui/types/avatar.ts`, one file per component, named in camelCase after it. Function parameter objects, `createContext` values and anything behind an `as { … }` go the same way. `interface` for object shapes, `type` for unions.
+  - The **workspace-level `src/types/`** keeps what crosses areas: `api.ts` is the wire module (each entity the API returns, plus `ApiRequest` and `OrgMeta`), and `theme.ts`, `table.ts`, `filters.ts`, `modals.ts`, `import.ts` hold the rest.
+  - **A file imports its own type module directly** — `import type { AvatarProps } from './types/avatar'` — never the folder's `index.ts`. The barrel is there for _other_ areas. That rule is what keeps `Icon.tsx → types/index.ts → types/button.ts → Icon.tsx` from being an import cycle, and each barrel says so at the top.
+  - **A type derived from a value stays with that value.** `IconName` is `keyof typeof ICONS` and `WidgetKey` reads a local `as const` array; moving either would drag the value into a type module or invert the dependency. Both carry a comment saying so. Everything else moves.
 - `api/` — `client.ts` (fetch wrapper; see below), `queries.ts` (**the query-key catalog** + read hooks), `mutations.ts` (write hooks and their cache updates).
-- `components/ui/` — primitives (Button, Pill, DataTable, Modal, …), one component + one CSS module each, exported from `index.ts`. Interactive primitives have behavior tests in `primitives.test.tsx`.
+- `components/ui/` — primitives (Button, Pill, DataTable, Modal, …), one component + one CSS module + one `types/` module each, exported from `index.ts`. Interactive primitives have behavior tests in `primitives.test.tsx`. The one CSS module with no component beside it is `FormModal.module.css`, shared by the seven feature modals so their fields, hints and footers line up — it is a stylesheet, not a missing component.
 - `components/app/` — shell chrome: `AppShell`, `Sidebar`, `Topbar`, `PageContainer`, `nav.ts` (pure section/breadcrumb logic), `useThemeControls.ts`.
 - `features/<area>/` — pages and feature modals per area (auth, dashboard, assets, employees, members, admin, import). `members/CopyLinkModal.tsx` is shared with the employee form, which can invite the person it just created; inviting is a members concern, so the form borrows it rather than growing a second way to show a one-time link. `admin/` holds **two pages, not one with tabs**: `ActivityLogPage` (`/activity`) is for reading what happened, `AdminPage` (`/admin`) for changing how the workspace behaves. Both are admin-only, and their old tab URLs (`/admin/activity`, `/admin/settings`) still redirect — `/admin/activity?type=auth` was a shareable link, so `LegacyActivityRedirect` carries the query string across.
 - `providers/` — ThemeProvider, ToastProvider, ModalProvider. Hooks live next to their provider.
@@ -58,7 +61,9 @@ Remove it when a value should have been there. `meta.data?.orgName ?? 'Inventory
 
 ## Reviewing visual work
 
-Run `npm run dev` and open `http://localhost:5173/kitchen-sink` (dev-only route, excluded from production builds). Compare against the prototype in `docs/design-handoff/` side-by-side, in **both themes and both densities**, before calling UI work done.
+Run `npm run dev` and open `http://localhost:5173/kitchen-sink` (dev-only route, excluded from production builds). **That page is the design system**: surface tokens with their resolved values, the six semantic pairs, the type scale, the whole icon inventory, and every primitive including its disabled and error states.
+
+Walk it in **both themes and both densities** before calling UI work done. It cannot go stale, because it renders the same components the app does — which is also why a new primitive is not finished until it has a section there.
 
 ## When email does not exist
 
@@ -72,7 +77,7 @@ Errors block the import and name their row and column; warnings say what will ha
 
 ## The settings form has a Save button, and the design does not
 
-A deliberate departure, recorded in `docs/PROJECT_STATUS.md` §8. The prototype saves each control as you leave it, which means a stray keystroke in "Company name" renames the workspace for everybody with no way back, and a half-considered thought becomes policy.
+A deliberate departure from the original design, which draws none. Saving each control as you leave it means a stray keystroke in "Company name" renames the workspace for everybody with no way back, and a half-considered thought becomes policy.
 
 `settingsDraft.ts` is the shape of it: the whole form is one `SettingsDraft` in local state, and `changedSettings(stored, draft)` returns only the fields that differ. **That diff is also the dirty check** — `Object.keys(patch).length > 0` is what enables Save — so the button and the payload can never disagree about whether there is anything to save. `SettingsForm` is keyed on `settings.updatedAt`, so a successful save (or anyone else's) re-seeds every field from the row rather than leaving stale text on screen.
 
@@ -88,6 +93,6 @@ Vitest + Testing Library (jsdom). `vitest.setup.ts` registers cleanup and a loca
 
 ## Adding a primitive
 
-1. Check the prototype for exact styles (inline `style="…"` attributes are the spec).
+1. Look at `/kitchen-sink` first — the sizes, radii and colours a new primitive needs are almost always already on that page, in a neighbour that solves half the problem.
 2. Test first for any behavior; static markup is covered by the kitchen sink.
-3. Component + CSS module in `components/ui/`, export from `index.ts`, add a kitchen-sink section.
+3. Component + CSS module in `components/ui/`, its props in `components/ui/types/`, export from `index.ts`, **add a kitchen-sink section** — that last step is what keeps the reference honest.

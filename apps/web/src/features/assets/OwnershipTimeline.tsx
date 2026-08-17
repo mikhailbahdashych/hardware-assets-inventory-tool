@@ -1,5 +1,5 @@
-import type { Assignment } from '@/types/api';
 import { buildTimeline } from './timeline';
+import type { OwnershipTimelineProps } from './types/ownershipTimeline';
 import styles from './Timeline.module.css';
 
 /**
@@ -7,13 +7,7 @@ import styles from './Timeline.module.css';
  * is (accent = current holder, green = origin, neutral = past or in stock),
  * joined by a connector line.
  */
-export function OwnershipTimeline({
-  history,
-  assetCreatedAt,
-}: {
-  history: Assignment[];
-  assetCreatedAt: string;
-}) {
+export function OwnershipTimeline({ history, assetCreatedAt }: OwnershipTimelineProps) {
   const entries = buildTimeline(history, assetCreatedAt);
 
   return (

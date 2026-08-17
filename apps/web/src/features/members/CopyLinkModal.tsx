@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Button, Input, Modal } from '@/components/ui';
 import { copyText } from '@/lib/clipboard';
+import type { CopyLinkModalProps } from './types/copyLinkModal';
 import styles from './Members.module.css';
 
 /**
@@ -9,20 +10,7 @@ import styles from './Members.module.css';
  * text and copying is the convenience on top. Clipboard access needs a secure
  * context, which a self-hosted instance on plain http is not.
  */
-export function CopyLinkModal({
-  title,
-  subtitle,
-  label,
-  url,
-  onClose,
-}: {
-  title: string;
-  subtitle: string;
-  /** Names the field, e.g. "Invitation link" — the tests and screen readers read it. */
-  label: string;
-  url: string;
-  onClose: () => void;
-}) {
+export function CopyLinkModal({ title, subtitle, label, url, onClose }: CopyLinkModalProps) {
   const [copied, setCopied] = useState(false);
 
   return (

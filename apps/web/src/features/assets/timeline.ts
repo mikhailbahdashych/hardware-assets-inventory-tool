@@ -1,17 +1,11 @@
-import { ASSIGNMENT_OUTCOME_LABELS, type SemanticColor } from '@inventory/shared';
+import { ASSIGNMENT_OUTCOME_LABELS } from '@inventory/shared';
 import type { Assignment } from '@/types/api';
 import { formatDuration, formatMonthYear } from '@/lib/format';
+import type { TimelineEntry } from './types/timeline';
 
 // The design's ownership timeline. "In stock" spells and the "Added to
 // inventory" origin are derived here at read time rather than stored as rows,
 // so the database holds only what actually happened.
-
-export type TimelineEntry = {
-  id: string;
-  title: string;
-  range: string;
-  sv: SemanticColor;
-};
 
 export function buildTimeline(
   assignments: Assignment[],

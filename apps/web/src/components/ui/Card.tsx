@@ -1,19 +1,7 @@
-import type { CSSProperties, ReactNode } from 'react';
+import type { CardProps } from './types/card';
 import styles from './Card.module.css';
 
-export function Card({
-  title,
-  padding = true,
-  className,
-  style,
-  children,
-}: {
-  title?: ReactNode;
-  padding?: boolean;
-  className?: string;
-  style?: CSSProperties;
-  children: ReactNode;
-}) {
+export function Card({ title, padding = true, className, style, children }: CardProps) {
   return (
     <div
       data-padding={padding}

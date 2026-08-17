@@ -13,6 +13,12 @@ import { useToast } from '@/providers/ToastProvider';
 import type { ImportReport, ImportResult } from '@/types/api';
 import type { ColumnMapping, ImportStep, ParsedCsv } from '@/types/import';
 import { MAX_IMPORT_ROWS, parseCsv } from './parseCsv';
+import type {
+  DoneStepProps,
+  ImportWizardModalProps,
+  IssueListProps,
+  ReportStepProps,
+} from './types/importWizardModal';
 import styles from './Import.module.css';
 
 const PREVIEW_ROWS = 3;
@@ -33,7 +39,7 @@ const rows = (n: number): string => `${n} ${n === 1 ? 'row' : 'rows'}`;
  * canonical rows the API validates, which is why the server needs no parser and
  * no knowledge of what a particular spreadsheet called its columns.
  */
-export function ImportWizardModal({ onClose }: { onClose: () => void }) {
+export function ImportWizardModal({ onClose }: ImportWizardModalProps) {
   const [kind, setKind] = useState<ImportKind>('assets');
   const [step, setStep] = useState<ImportStep>('file');
   const [parsed, setParsed] = useState<ParsedCsv | null>(null);
@@ -275,7 +281,7 @@ export function ImportWizardModal({ onClose }: { onClose: () => void }) {
     );
   }
 
-  function ReportStep({ report: shown }: { report: ImportReport }) {
+  function ReportStep({ report: shown }: ReportStepProps) {
     const blocked = shown.errors.length > 0;
     return (
       <div className={styles.step}>
@@ -311,7 +317,7 @@ export function ImportWizardModal({ onClose }: { onClose: () => void }) {
     );
   }
 
-  function DoneStep({ result: done }: { result: ImportResult }) {
+  function DoneStep({ result: done }: DoneStepProps) {
     return (
       <div className={styles.step}>
         <div className={styles.summary}>
@@ -326,15 +332,7 @@ export function ImportWizardModal({ onClose }: { onClose: () => void }) {
   }
 }
 
-function IssueList({
-  title,
-  issues,
-  tone,
-}: {
-  title: string;
-  issues: ImportReport['errors'];
-  tone: 'error' | 'warning';
-}) {
+function IssueList({ title, issues, tone }: IssueListProps) {
   return (
     <div className={styles.columnsBlock}>
       <span className={styles.blockTitle}>{title}</span>
