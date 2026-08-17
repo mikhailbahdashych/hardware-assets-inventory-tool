@@ -7,8 +7,17 @@ import {
   importColumns,
   matchEnumValue,
 } from './import.js';
-import { ASSET_CATEGORY_LABELS, ASSET_STATUS_LABELS, DEFAULT_ASSET_STATUSES } from '../enums.js';
+import { ASSET_CATEGORY_LABELS, DEFAULT_ASSET_STATUSES } from '../enums.js';
 import type { WorkflowStatus } from '../types/workflow.js';
+
+/**
+ * The status vocabulary as the validator receives it: a runtime list read from
+ * the workspace's own rows, not a label map compiled into the build.
+ */
+const SEEDED_STATUSES = DEFAULT_ASSET_STATUSES.map((status) => ({
+  value: status.id,
+  label: status.label,
+}));
 
 describe('the canonical column lists', () => {
   it('names the columns the design draws, in its order, marking the required ones', () => {
@@ -106,19 +115,19 @@ describe('autoMatchColumns', () => {
 
 describe('matchEnumValue', () => {
   it('accepts the display label the export writes', () => {
-    expect(matchEnumValue(ASSET_STATUS_LABELS, 'In repair')).toBe('in_repair');
+    expect(matchEnumValue(SEEDED_STATUSES, 'In repair')).toBe('in_repair');
     expect(matchEnumValue(ASSET_CATEGORY_LABELS, 'Laptops')).toBe('laptops');
   });
 
   it('accepts the slug the database stores, and any casing of either', () => {
-    expect(matchEnumValue(ASSET_STATUS_LABELS, 'in_repair')).toBe('in_repair');
-    expect(matchEnumValue(ASSET_STATUS_LABELS, 'LOST/STOLEN')).toBe('lost_stolen');
+    expect(matchEnumValue(SEEDED_STATUSES, 'in_repair')).toBe('in_repair');
+    expect(matchEnumValue(SEEDED_STATUSES, 'LOST/STOLEN')).toBe('lost_stolen');
     expect(matchEnumValue(ASSET_CATEGORY_LABELS, '  phones  ')).toBe('phones');
   });
 
   it('returns null for a value this build has no meaning for', () => {
-    expect(matchEnumValue(ASSET_STATUS_LABELS, 'On fire')).toBeNull();
-    expect(matchEnumValue(ASSET_STATUS_LABELS, '')).toBeNull();
+    expect(matchEnumValue(SEEDED_STATUSES, 'On fire')).toBeNull();
+    expect(matchEnumValue(SEEDED_STATUSES, '')).toBeNull();
   });
 
   /**

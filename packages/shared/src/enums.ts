@@ -7,38 +7,17 @@ import type { WorkflowStatus } from './types/workflow.js';
 // semantic-color maps the design derives from them. Enum values are slugs;
 // the database stores slugs with no CHECK constraints, so adding a value here
 // (plus its labels/colors) is a code-only change — no migration.
+//
+// **Asset statuses are the exception, and no longer live here.** They are rows
+// in `asset_statuses`, edited on the Workflow page: an admin adds, renames,
+// recolors and reorders them, and the moves between them are a graph in a
+// second table. What survives below is the seed — the workflow a fresh
+// instance starts with, which is also the label map the audit renderer falls
+// back to for events written before any of that existed.
 
 /** Semantic color keys — rendered as `color:var(--{sv}); background:var(--{sv}-bg)`. */
 export const SEMANTIC_COLORS = ['ok', 'acc', 'warn', 'err', 'info', 'neut'] as const;
 export type SemanticColor = (typeof SEMANTIC_COLORS)[number];
-
-export const ASSET_STATUSES = [
-  'available',
-  'assigned',
-  'in_repair',
-  'ordered',
-  'retired',
-  'lost_stolen',
-] as const;
-export type AssetStatus = (typeof ASSET_STATUSES)[number];
-
-export const ASSET_STATUS_LABELS: Record<AssetStatus, string> = {
-  available: 'Available',
-  assigned: 'Assigned',
-  in_repair: 'In repair',
-  ordered: 'Ordered',
-  retired: 'Retired',
-  lost_stolen: 'Lost/Stolen',
-};
-
-export const ASSET_STATUS_COLORS: Record<AssetStatus, SemanticColor> = {
-  available: 'ok',
-  assigned: 'acc',
-  in_repair: 'warn',
-  ordered: 'info',
-  retired: 'neut',
-  lost_stolen: 'err',
-};
 
 /**
  * The one status slug the code may reference by name. `assigned` is the system
@@ -183,14 +162,9 @@ export const CHECKIN_CONDITION_LABELS: Record<CheckinCondition, string> = {
   damaged: 'Damaged',
 };
 
-/** Statuses a checked-in asset can land in; "available" reads "Return to stock" in the check-in modal. */
-export const CHECKIN_NEW_STATUSES = ['available', 'in_repair', 'retired'] as const;
-export type CheckinNewStatus = (typeof CHECKIN_NEW_STATUSES)[number];
-export const CHECKIN_NEW_STATUS_LABELS: Record<CheckinNewStatus, string> = {
-  available: 'Return to stock',
-  in_repair: 'In repair',
-  retired: 'Retired',
-};
+// Where a checked-in asset may land is not an enum either: it is the
+// `checkin_target` flag on the workspace's own statuses, and the check-in
+// modal offers whatever carries it.
 
 /** Custom-field value types. The database stores every value as text. */
 export const CUSTOM_FIELD_TYPES = ['text', 'boolean', 'date', 'number'] as const;
@@ -255,10 +229,7 @@ export const ASSIGNMENT_OUTCOME_LABELS: Record<AssignmentOutcome, string> = {
   offboarded: 'offboarded',
 };
 
-/**
- * Whether the Change-status modal may move an asset from one status to another.
- * "assigned" is never entered or left directly — that is what assign/check-in are for.
- */
-export function canDirectlyTransition(from: AssetStatus, to: AssetStatus): boolean {
-  return from !== 'assigned' && to !== 'assigned' && from !== to;
-}
+// Which direct moves are legal is a graph in `asset_status_transitions` now,
+// enforced by the workflow service. `assigned` appears in neither column of
+// it: assign and check-in are its only doors, which is what keeps
+// `assets.status = 'assigned'` ⇔ an open ownership row true.
