@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ADMIN_MEMBER, ADMIN_ROUTES, INVITED_SUMMARY, MAYA, NO_SMTP_META } from '@/test/api-stub';
 import { renderApp, resetAppState } from '@/test/render';
+import { choose } from '@/test/dropdown';
 
 const writeText = vi.fn<(text: string) => Promise<void>>();
 
@@ -88,7 +89,7 @@ describe('inviting a member', () => {
 
     await userEvent.click(await screen.findByRole('button', { name: /invite member/i }));
     await userEvent.type(screen.getByLabelText('Email', { exact: true }), 'grace@acme.io');
-    await userEvent.selectOptions(screen.getByLabelText(/link to employee/i), MAYA.id);
+    await choose(screen, /link to employee/i, MAYA.displayName);
     await userEvent.click(screen.getByRole('radio', { name: /manager/i }));
     await userEvent.click(screen.getByRole('button', { name: 'Send invite' }));
 

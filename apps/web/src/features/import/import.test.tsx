@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ADMIN_MEMBER, DASHBOARD_ROUTES } from '@/test/api-stub';
 import { renderApp, resetAppState } from '@/test/render';
+import { choose } from '@/test/dropdown';
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -98,10 +99,16 @@ describe('step 2 — the column mapping', () => {
   it('matches the headers it recognizes and previews what it read', async () => {
     const { dialog } = await reachMapping();
 
-    expect(await within(dialog).findByLabelText('asset_tag')).toHaveValue('asset_tag');
-    expect(within(dialog).getByLabelText('category')).toHaveValue('category');
+    expect(await within(dialog).findByRole('combobox', { name: 'asset_tag' })).toHaveTextContent(
+      'asset_tag',
+    );
+    expect(within(dialog).getByRole('combobox', { name: 'category' })).toHaveTextContent(
+      'category',
+    );
     // Columns the file does not have are simply unmapped.
-    expect(within(dialog).getByLabelText('notes')).toHaveValue('');
+    expect(within(dialog).getByRole('combobox', { name: 'notes' })).toHaveTextContent(
+      '— Not imported —',
+    );
     // Three rows of preview, so a person can see the mapping is right.
     expect(within(dialog).getByText('MacBook Air M3')).toBeInTheDocument();
   });
@@ -111,13 +118,13 @@ describe('step 2 — the column mapping', () => {
       ['tag,name,category', 'AST-2001,MacBook Air M3,Laptops'].join('\n'),
     );
 
-    const asset_tag = await within(dialog).findByLabelText('asset_tag');
-    expect(asset_tag).toHaveValue('');
+    const asset_tag = await within(dialog).findByRole('combobox', { name: 'asset_tag' });
+    expect(asset_tag).toHaveTextContent('— Not imported —');
     expect(within(dialog).getByRole('button', { name: /check the file/i })).toBeDisabled();
     expect(within(dialog).getByText(/asset_tag is required/i)).toBeInTheDocument();
 
     // Pointing it at the right header is all it takes.
-    await userEvent.selectOptions(asset_tag, 'tag');
+    await choose(within(dialog), 'asset_tag', 'tag');
     expect(within(dialog).getByRole('button', { name: /check the file/i })).toBeEnabled();
   });
 
@@ -127,9 +134,9 @@ describe('step 2 — the column mapping', () => {
     );
 
     // "Name" auto-matches; "Tag" and "Kind" are what a person has to point.
-    expect(await within(dialog).findByLabelText('name')).toHaveValue('Name');
-    await userEvent.selectOptions(within(dialog).getByLabelText('asset_tag'), 'Tag');
-    await userEvent.selectOptions(within(dialog).getByLabelText('category'), 'Kind');
+    expect(await within(dialog).findByRole('combobox', { name: 'name' })).toHaveTextContent('Name');
+    await choose(within(dialog), 'asset_tag', 'Tag');
+    await choose(within(dialog), 'category', 'Kind');
     await userEvent.click(within(dialog).getByRole('button', { name: /check the file/i }));
 
     await waitFor(() => expect(api.called('POST /import/validate')).toBeDefined());

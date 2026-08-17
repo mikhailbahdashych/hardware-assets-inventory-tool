@@ -10,6 +10,7 @@ import {
   READY_META,
 } from '@/test/api-stub';
 import { renderApp, resetAppState } from '@/test/render';
+import { choose } from '@/test/dropdown';
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -102,7 +103,7 @@ describe('creating an asset', () => {
     await waitFor(() => expect(screen.getByLabelText(/asset tag/i)).toHaveValue('AST-0144'));
 
     await userEvent.type(within(dialog).getByLabelText(/^name/i), 'ThinkPad X1');
-    await userEvent.selectOptions(within(dialog).getByLabelText(/category/i), 'desktops');
+    await choose(within(dialog), /category/i, 'Desktops');
     await userEvent.type(within(dialog).getByLabelText(/purchase price/i), '1,299.00');
     await userEvent.click(within(dialog).getByLabelText('MDM enrolled'));
     await userEvent.click(screen.getByRole('button', { name: /create asset/i }));
@@ -186,9 +187,10 @@ describe('creating an asset', () => {
     const dialog = await screen.findByRole('dialog');
     expect(within(dialog).queryByLabelText(/assigned to/i)).toBeNull();
 
-    await userEvent.selectOptions(within(dialog).getByLabelText(/status/i), 'assigned');
-    expect(await within(dialog).findByLabelText(/assigned to/i)).toBeInTheDocument();
-    expect(within(dialog).getByRole('option', { name: 'Maya Lindqvist' })).toBeInTheDocument();
+    await choose(within(dialog), /status/i, 'Assigned');
+    const holder = await within(dialog).findByRole('combobox', { name: /assigned to/i });
+    await userEvent.click(holder);
+    expect(screen.getByRole('option', { name: 'Maya Lindqvist' })).toBeInTheDocument();
   });
 });
 

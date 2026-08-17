@@ -4,6 +4,7 @@ import {
   DEPARTMENT_SUGGESTIONS,
   EMPLOYEE_STATUS_LABELS,
   EMPLOYEE_STATUSES,
+  ROLE_DESCRIPTIONS,
   ROLE_LABELS,
   ROLES,
   type EmployeeStatus,
@@ -17,7 +18,7 @@ import {
   useUpdateEmployee,
 } from '@/api/mutations';
 import type { Employee } from '@/types/api';
-import { Button, Checkbox, Field, Input, Modal, Select } from '@/components/ui';
+import { Button, Checkbox, Dropdown, Field, Input, Modal } from '@/components/ui';
 // Inviting is a members concern; this form borrows it rather than growing a
 // second way to show a one-time link.
 import { CopyLinkModal } from '@/features/members/CopyLinkModal';
@@ -300,26 +301,25 @@ export function EmployeeFormModal({
                   onChange={(event) => set('department', event.target.value)}
                 />
               ) : (
-                <Select
+                <Dropdown
                   id={id}
                   value={form.department}
-                  onChange={(event) => {
-                    if (event.target.value === OTHER) {
+                  options={[
+                    { value: '', label: '—' },
+                    ...DEPARTMENT_SUGGESTIONS.filter((option) => option !== 'Other').map(
+                      (option) => ({ value: option, label: option }),
+                    ),
+                    { value: OTHER, label: OTHER },
+                  ]}
+                  onChange={(department) => {
+                    if (department === OTHER) {
                       setCustomDepartment(true);
                       set('department', '');
                       return;
                     }
-                    set('department', event.target.value);
+                    set('department', department);
                   }}
-                >
-                  <option value="">—</option>
-                  {DEPARTMENT_SUGGESTIONS.filter((option) => option !== 'Other').map((option) => (
-                    <option key={option} value={option}>
-                      {option}
-                    </option>
-                  ))}
-                  <option value={OTHER}>{OTHER}</option>
-                </Select>
+                />
               )
             }
           </Field>
@@ -370,17 +370,16 @@ export function EmployeeFormModal({
                 hint="They get an invitation link straight after the record is created"
               >
                 {(id) => (
-                  <Select
+                  <Dropdown
                     id={id}
                     value={inviteRole}
-                    onChange={(event) => setInviteRole(event.target.value as Role)}
-                  >
-                    {ROLES.map((option) => (
-                      <option key={option} value={option}>
-                        {ROLE_LABELS[option]}
-                      </option>
-                    ))}
-                  </Select>
+                    options={ROLES.map((option) => ({
+                      value: option,
+                      label: ROLE_LABELS[option],
+                      description: ROLE_DESCRIPTIONS[option],
+                    }))}
+                    onChange={setInviteRole}
+                  />
                 )}
               </Field>
             )}
@@ -391,17 +390,15 @@ export function EmployeeFormModal({
           <div className={styles.custom}>
             <Field label="Status" error={errors.status}>
               {(id) => (
-                <Select
+                <Dropdown
                   id={id}
                   value={form.status}
-                  onChange={(event) => set('status', event.target.value as EmployeeStatus)}
-                >
-                  {EMPLOYEE_STATUSES.map((status) => (
-                    <option key={status} value={status}>
-                      {EMPLOYEE_STATUS_LABELS[status]}
-                    </option>
-                  ))}
-                </Select>
+                  options={EMPLOYEE_STATUSES.map((status) => ({
+                    value: status,
+                    label: EMPLOYEE_STATUS_LABELS[status],
+                  }))}
+                  onChange={(status) => set('status', status)}
+                />
               )}
             </Field>
             {startsOffboarding && (

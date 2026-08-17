@@ -8,7 +8,7 @@ import {
   type ImportKind,
 } from '@inventory/shared';
 import { useCommitImport, useValidateImport } from '@/api/mutations';
-import { Button, Dropzone, Modal, SegmentedControl, Select } from '@/components/ui';
+import { Button, Dropdown, Dropzone, Modal, SegmentedControl } from '@/components/ui';
 import { useToast } from '@/providers/ToastProvider';
 import type { ImportReport, ImportResult } from '@/types/api';
 import type { ColumnMapping, ImportStep, ParsedCsv } from '@/types/import';
@@ -234,20 +234,17 @@ export function ImportWizardModal({ onClose }: { onClose: () => void }) {
               <span className={styles.mapLabel} data-required={column.required}>
                 {column.header}
               </span>
-              <Select
+              <Dropdown
                 aria-label={column.header}
                 value={mapping[column.header] ?? ''}
-                onChange={(event) =>
-                  setMapping((current) => ({ ...current, [column.header]: event.target.value }))
+                options={[
+                  { value: '', label: '— Not imported —' },
+                  ...parsed.headers.map((header) => ({ value: header, label: header })),
+                ]}
+                onChange={(header) =>
+                  setMapping((current) => ({ ...current, [column.header]: header }))
                 }
-              >
-                <option value="">— Not imported —</option>
-                {parsed.headers.map((header) => (
-                  <option key={header} value={header}>
-                    {header}
-                  </option>
-                ))}
-              </Select>
+              />
             </label>
           ))}
         </div>

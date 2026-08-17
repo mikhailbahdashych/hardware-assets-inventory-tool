@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ADMIN_MEMBER, INVENTORY_ROUTES, LAPTOP, MAYA, MAYA_DETAIL } from '@/test/api-stub';
 import { renderApp, resetAppState } from '@/test/render';
+import { choose } from '@/test/dropdown';
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -71,7 +72,7 @@ describe('employee list', () => {
     await userEvent.type(within(dialog).getByLabelText(/first name/i), 'Sofia');
     await userEvent.type(within(dialog).getByLabelText(/last name/i), 'Reyes');
     await userEvent.type(within(dialog).getByLabelText(/work email/i), 'sofia.reyes@acme.io');
-    await userEvent.selectOptions(within(dialog).getByLabelText(/department/i), 'Design');
+    await choose(within(dialog), /department/i, 'Design');
     await userEvent.click(within(dialog).getByRole('button', { name: /add employee/i }));
 
     await waitFor(() => expect(api.called('POST /employees')).toBeDefined());
@@ -90,7 +91,7 @@ describe('employee list', () => {
 
     await userEvent.click(screen.getByRole('button', { name: /add employee/i }));
     const dialog = await screen.findByRole('dialog');
-    await userEvent.selectOptions(within(dialog).getByLabelText(/department/i), 'Other…');
+    await choose(within(dialog), /department/i, 'Other…');
 
     const field = within(dialog).getByLabelText(/department/i);
     expect(field.tagName).toBe('INPUT');
@@ -147,7 +148,7 @@ describe('employee list', () => {
     await userEvent.type(within(dialog).getByLabelText(/last name/i), 'Reyes');
     await userEvent.type(within(dialog).getByLabelText(/work email/i), 'sofia@acme.io');
     await userEvent.click(within(dialog).getByRole('checkbox', { name: /also invite/i }));
-    await userEvent.selectOptions(within(dialog).getByLabelText(/^role$/i), 'manager');
+    await choose(within(dialog), /^role$/i, /Manager/);
     await userEvent.click(within(dialog).getByRole('button', { name: /add employee/i }));
 
     await waitFor(() => expect(api.called('POST /members/invites')).toBeDefined());
@@ -204,7 +205,7 @@ describe('employee detail', () => {
     const dialog = await screen.findByRole('dialog');
     expect(within(dialog).queryByLabelText(/return due/i)).toBeNull();
 
-    await userEvent.selectOptions(within(dialog).getByLabelText(/status/i), 'offboarding');
+    await choose(within(dialog), /status/i, 'Offboarding');
     const returnDue = await within(dialog).findByLabelText(/return due/i);
     await userEvent.type(returnDue, '2026-08-23');
     await userEvent.click(screen.getByRole('button', { name: /save changes/i }));

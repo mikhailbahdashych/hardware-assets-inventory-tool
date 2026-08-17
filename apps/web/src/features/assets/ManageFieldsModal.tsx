@@ -7,7 +7,7 @@ import {
 import { fieldErrors } from '@/api/formErrors';
 import { useCreateCustomField, useDeleteCustomField, useUpdateCustomField } from '@/api/mutations';
 import { useCustomFields } from '@/api/queries';
-import { Button, Field, Input, Modal, Select } from '@/components/ui';
+import { Button, Dropdown, Field, Input, Modal } from '@/components/ui';
 import { useToast } from '@/providers/ToastProvider';
 import formStyles from '@/components/ui/FormModal.module.css';
 import styles from './ManageFields.module.css';
@@ -148,17 +148,15 @@ export function ManageFieldsModal({ onClose }: { onClose: () => void }) {
         </Field>
         <Field label="Type">
           {(id) => (
-            <Select
+            <Dropdown
               id={id}
               value={type}
-              onChange={(event) => setType(event.target.value as CustomFieldType)}
-            >
-              {CUSTOM_FIELD_TYPES.map((option) => (
-                <option key={option} value={option}>
-                  {CUSTOM_FIELD_TYPE_LABELS[option]}
-                </option>
-              ))}
-            </Select>
+              options={CUSTOM_FIELD_TYPES.map((option) => ({
+                value: option,
+                label: CUSTOM_FIELD_TYPE_LABELS[option],
+              }))}
+              onChange={setType}
+            />
           )}
         </Field>
         <Button type="submit" disabled={create.isPending || label.trim() === ''}>

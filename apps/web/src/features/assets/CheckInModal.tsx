@@ -10,7 +10,7 @@ import {
 import { fieldErrors } from '@/api/formErrors';
 import { useCheckinAsset } from '@/api/mutations';
 import type { Asset } from '@/types/api';
-import { Button, Field, Input, Modal, SegmentedControl, Select, Textarea } from '@/components/ui';
+import { Button, Dropdown, Field, Input, Modal, SegmentedControl, Textarea } from '@/components/ui';
 import { NotifyCheckbox } from '@/components/app/NotifyCheckbox';
 import { useToast } from '@/providers/ToastProvider';
 import formStyles from '@/components/ui/FormModal.module.css';
@@ -89,17 +89,15 @@ export function CheckInModal({ asset, onClose }: { asset: CheckinSubject; onClos
           </Field>
           <Field label="Condition" error={errors.condition}>
             {(id) => (
-              <Select
+              <Dropdown
                 id={id}
                 value={condition}
-                onChange={(event) => setCondition(event.target.value as CheckinCondition)}
-              >
-                {CHECKIN_CONDITIONS.map((value) => (
-                  <option key={value} value={value}>
-                    {CHECKIN_CONDITION_LABELS[value]}
-                  </option>
-                ))}
-              </Select>
+                options={CHECKIN_CONDITIONS.map((value) => ({
+                  value,
+                  label: CHECKIN_CONDITION_LABELS[value],
+                }))}
+                onChange={setCondition}
+              />
             )}
           </Field>
         </div>

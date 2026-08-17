@@ -107,7 +107,7 @@ test('imports a CSV, fixes the row it complains about, and imports it', async ({
   await dialog.getByRole('button', { name: /continue to mapping/i }).click();
 
   // The headers match the canonical names, so nothing needs pointing.
-  await expect(dialog.getByLabel('asset_tag')).toHaveValue('asset_tag');
+  await expect(dialog.getByRole('combobox', { name: 'asset_tag' })).toHaveText('asset_tag');
   await dialog.getByRole('button', { name: /check the file/i }).click();
 
   await expect(dialog.getByText(/1 of 2 rows cannot be imported/)).toBeVisible();
@@ -200,7 +200,7 @@ test('an import that arrives assigned opens a real ownership record', async ({ p
 
 test('exports the whole workspace as JSON', async ({ page }) => {
   await signIn(page);
-  await page.goto('/admin/settings');
+  await page.goto('/admin');
 
   const href = await page.getByRole('link', { name: 'Export' }).getAttribute('href');
   const response = await page.request.get(href!);
