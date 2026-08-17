@@ -2,11 +2,11 @@
 
 Self-hosted, single container, SQLite. Track devices, who holds them, and the full ownership history of every one.
 
-Built to be **customized by asking Claude Code**: every area of the repo carries a `CLAUDE.md` explaining its patterns, and [`docs/recipes/`](docs/recipes/) has step-by-step checklists for the changes teams actually make — a new field, a new status, a new page, a new email.
+Built to be **customized by asking Claude Code**: every area of the repo carries a `CLAUDE.md` explaining its patterns, and [`docs/recipes/`](docs/recipes/) has step-by-step checklists for the changes teams actually make — a new field, a new page, a new widget, a new email.
 
 MIT licensed.
 
-![The Inventory dashboard: six status tiles, assets broken down by category, recent activity, warranties running out and returns due back](media/dashboard.png)
+![The Inventory dashboard: a tile per asset status, assets broken down by category, recent activity, warranties running out and returns due back](media/dashboard.png)
 
 _The demo workspace, as `npm run seed:demo` leaves it._
 
@@ -38,6 +38,7 @@ docker compose up -d
 - **Assets** — tag, name, category, serial, status, purchase, warranty, supplier, notes, attachments, and any custom fields you define. Filters live in the URL, so a filtered view is a link you can send someone.
 - **Employees** — the people who hold devices. Separate from the accounts that sign in, optionally linked to them, because most staff never need a login.
 - **Ownership history** — who had what, when, and how it came back. Held in one table that is the only truth about it; an asset's status and its open ownership record cannot disagree.
+- **Custom statuses & workflow** — the statuses an asset can be in are yours, not ours: an admin adds, renames, recolours and reorders them, and draws the moves between them as a checkbox matrix with a live diagram beside it. The API enforces the graph, so taking an edge off it stops that move being offered _and_ stops it being accepted.
 - **Members and invitations** — three roles (Admin / Manager / Viewer), invite by email or by a copyable link.
 - **Activity log** — every mutation, rendered as a sentence, filterable and exportable as CSV.
 - **Dashboard** — status counts that click through to a filtered list, fleet composition, recent activity, warranties running out, and what is due back.
@@ -159,7 +160,7 @@ A fresh instance is empty and lands on `/setup`, which is the real first-run exp
 ```
   Northwind Robotics is ready in /path/to/repo/data
 
-  26 assets · 12 employees · 19 ownership records · 72 logged events
+  26 assets · 12 employees · 19 ownership records · 74 logged events
 
   ada.okafor@northwind.example    demo-password  (admin)
   marco.rossi@northwind.example   demo-password  (manager)
@@ -184,4 +185,4 @@ Read [`CLAUDE.md`](CLAUDE.md) first, then the one next to the code you are chang
 
 ## Not in this version
 
-Documented so nobody goes looking: OIDC/SSO, a Postgres option, API tokens, pagination past ~10k assets, and a category-management UI. The category list is a code-only change today — see [`docs/recipes/add-asset-status.md`](docs/recipes/add-asset-status.md), which works the same way for categories.
+Documented so nobody goes looking: OIDC/SSO, a Postgres option, API tokens, pagination past ~10k assets, and a category-management UI. The category list is a code-only change today — see [`docs/recipes/add-enum-value.md`](docs/recipes/add-enum-value.md). (Statuses used to be on that list; they are edited in the app now.)
