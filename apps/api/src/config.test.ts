@@ -26,4 +26,43 @@ describe('loadConfig', () => {
     expect(() => loadConfig({ APP_URL: 'not a url' })).toThrow();
     expect(() => loadConfig({ PORT: 'abc' })).toThrow();
   });
+
+  describe('SMTP', () => {
+    it('is absent by default — an instance without email still runs', () => {
+      expect(loadConfig({}).smtp).toBeNull();
+    });
+
+    it('needs a host to exist at all; everything else has a default', () => {
+      expect(loadConfig({ SMTP_PORT: '465' }).smtp).toBeNull();
+      expect(loadConfig({ SMTP_HOST: 'smtp.acme.io' }).smtp).toEqual({
+        host: 'smtp.acme.io',
+        port: 587,
+        secure: false,
+        auth: null,
+        from: 'Inventory <inventory@localhost>',
+      });
+    });
+
+    it('takes credentials only when both halves are there', () => {
+      expect(loadConfig({ SMTP_HOST: 'smtp.acme.io', SMTP_USER: 'bot' }).smtp?.auth).toBeNull();
+      expect(
+        loadConfig({ SMTP_HOST: 'smtp.acme.io', SMTP_USER: 'bot', SMTP_PASS: 'hunter2' }).smtp
+          ?.auth,
+      ).toEqual({ user: 'bot', pass: 'hunter2' });
+    });
+
+    it('derives implicit TLS from the port, and lets SMTP_SECURE say otherwise', () => {
+      expect(loadConfig({ SMTP_HOST: 'x', SMTP_PORT: '465' }).smtp?.secure).toBe(true);
+      expect(loadConfig({ SMTP_HOST: 'x', SMTP_PORT: '587' }).smtp?.secure).toBe(false);
+      expect(
+        loadConfig({ SMTP_HOST: 'x', SMTP_PORT: '465', SMTP_SECURE: 'false' }).smtp?.secure,
+      ).toBe(false);
+    });
+
+    it('takes the From address as written', () => {
+      expect(loadConfig({ SMTP_HOST: 'x', SMTP_FROM: 'IT <it@acme.io>' }).smtp?.from).toBe(
+        'IT <it@acme.io>',
+      );
+    });
+  });
 });

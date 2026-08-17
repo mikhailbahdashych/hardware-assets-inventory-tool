@@ -259,6 +259,11 @@ export function removeMember(deps: AppDeps, actor: Actor, id: string): void {
   });
 }
 
+/** One member, for a caller that has an id — the routes that mail them. */
+export function memberById(db: DbOrTx, id: string): MemberSummary {
+  return readMember(db, id);
+}
+
 function readMember(tx: DbOrTx, id: string): MemberSummary {
   const row = tx
     .select({ member: members, employee: employees })

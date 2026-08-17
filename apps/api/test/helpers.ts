@@ -5,6 +5,8 @@ import { fileURLToPath } from 'node:url';
 import type { FastifyInstance, InjectOptions } from 'fastify';
 import type { Role } from '@inventory/shared';
 import { buildApp } from '@/app.js';
+import type { AppDeps } from '@/types/app.js';
+import type { MailMessage, Mailer } from '@/types/mail.js';
 import { loadConfig } from '@/config.js';
 import { createDb } from '@/db/client.js';
 import type { Db } from '@/types/db.js';
@@ -20,6 +22,10 @@ export const MIGRATIONS_DIR = fileURLToPath(new URL('../src/migrations', import.
 export type TestApp = {
   app: FastifyInstance;
   db: Db;
+  /** The same deps the app got — scheduled jobs take these directly. */
+  deps: AppDeps;
+  /** Every message the fake mailer accepted, in order. Empty without SMTP. */
+  sent: MailMessage[];
   /** Where uploaded files land for this test; removed on close. */
   uploadsDir: string;
   close: () => Promise<void>;
@@ -44,10 +50,23 @@ export async function buildTestApp(
     DATA_DIR: dataDir,
     ...env,
   });
-  const app = await buildApp({ config, db, sqlite, now });
+  // A recording mailer exactly when the config says this instance can send,
+  // so "no SMTP" is a state the tests exercise rather than a branch they mock.
+  const sent: MailMessage[] = [];
+  const mailer: Mailer | null = config.smtp
+    ? {
+        send: async (message) => {
+          sent.push(message);
+        },
+      }
+    : null;
+
+  const app = await buildApp({ config, db, sqlite, now, mailer });
   return {
     app,
     db,
+    deps: { config, db, sqlite, now: now ?? (() => new Date()), mailer },
+    sent,
     uploadsDir: join(dataDir, 'uploads'),
     close: async () => {
       await app.close();

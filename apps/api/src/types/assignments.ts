@@ -24,3 +24,9 @@ export interface CloseAssignmentParams {
   notes?: string | null;
   outcome: string;
 }
+
+/** Enough of a holder to send them a message about what they are holding. */
+export interface HolderContact {
+  email: string;
+  name: string;
+}

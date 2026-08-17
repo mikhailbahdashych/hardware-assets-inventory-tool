@@ -9,6 +9,7 @@ import { registerOriginGuard } from './plugins/origin-guard.js';
 import { registerSessionAuth } from './plugins/session.js';
 import { registerStaticSpa } from './plugins/static-spa.js';
 import { MAX_ATTACHMENT_BYTES } from './services/attachments.js';
+import { createMailer } from './services/mailer.js';
 import { registerAdminRoutes } from './modules/admin.js';
 import { registerAssetRoutes } from './modules/assets.js';
 import { registerAttachmentRoutes } from './modules/attachments.js';
@@ -29,6 +30,9 @@ export async function buildApp(opts: BuildAppOptions): Promise<FastifyInstance> 
     // Not a fallback: `now` is an injection point tests reach for, and the
     // system clock is what the option means when nobody overrides it.
     now: opts.now ?? (() => new Date()),
+    // Same shape: an omitted mailer means "build one from the config", which
+    // is itself null when no SMTP host is set.
+    mailer: opts.mailer !== undefined ? opts.mailer : createMailer(opts.config),
   };
 
   const app = Fastify({
