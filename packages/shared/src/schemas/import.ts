@@ -1,5 +1,6 @@
 import { z } from 'zod';
-import type { ImportColumn } from '../types/import.js';
+import type { EnumVocabulary, ImportColumn, VocabularyEntry } from '../types/import.js';
+import type { WorkflowStatus } from '../types/workflow.js';
 import { toCsv } from '../csv.js';
 
 // The CSV vocabulary, shared by three places that must agree: the template the
@@ -55,70 +56,97 @@ export const IMPORT_NOTES: Record<ImportKind, string> = {
   employees: 'Existing employees are matched by email and updated, not duplicated.',
 };
 
-const TEMPLATE_ROWS: Record<ImportKind, string[][]> = {
-  assets: [
-    [
-      'AST-0001',
-      'MacBook Pro 14" M3',
-      'Laptops',
-      'C02XK1AZQ6L7',
-      'Assigned',
-      'maya.lindqvist@acme.io',
-      '2023-03-12',
-      '2340',
-      'EUR',
-      'Insight EMEA',
-      '2026-09-12',
-      'Engineering laptop',
-    ],
-    [
-      'AST-0002',
-      'Dell UltraSharp U2723QE',
-      'Monitors',
-      'CN0J2Y7',
-      'Available',
-      '',
-      '2024-03-05',
-      '589',
-      'EUR',
-      'Dell Direct',
-      '2027-03-05',
-      '',
-    ],
+/**
+ * The two example asset rows, with their status cells left to the caller: a
+ * template that showed a status this workspace does not have would be a
+ * template the app rejects. One row is held by somebody and one is not, which
+ * is why the first takes the system status and the second takes a free one.
+ */
+const assetTemplateRows = (heldLabel: string, freeLabel: string): string[][] => [
+  [
+    'AST-0001',
+    'MacBook Pro 14" M3',
+    'Laptops',
+    'C02XK1AZQ6L7',
+    heldLabel,
+    'maya.lindqvist@acme.io',
+    '2023-03-12',
+    '2340',
+    'EUR',
+    'Insight EMEA',
+    '2026-09-12',
+    'Engineering laptop',
   ],
-  employees: [
-    [
-      'Maya',
-      'Lindqvist',
-      'maya.lindqvist@acme.io',
-      'Senior Backend Engineer',
-      'Engineering',
-      'Stockholm',
-      'EMP-0042',
-      '2022-01-10',
-    ],
-    [
-      'Daniel',
-      'Okafor',
-      'daniel.okafor@acme.io',
-      'Platform Engineer',
-      'Engineering',
-      'Lagos (Remote)',
-      'EMP-0057',
-      '2023-05-02',
-    ],
+  [
+    'AST-0002',
+    'Dell UltraSharp U2723QE',
+    'Monitors',
+    'CN0J2Y7',
+    freeLabel,
+    '',
+    '2024-03-05',
+    '589',
+    'EUR',
+    'Dell Direct',
+    '2027-03-05',
+    '',
   ],
-};
+];
+
+const EMPLOYEE_TEMPLATE_ROWS: string[][] = [
+  [
+    'Maya',
+    'Lindqvist',
+    'maya.lindqvist@acme.io',
+    'Senior Backend Engineer',
+    'Engineering',
+    'Stockholm',
+    'EMP-0042',
+    '2022-01-10',
+  ],
+  [
+    'Daniel',
+    'Okafor',
+    'daniel.okafor@acme.io',
+    'Platform Engineer',
+    'Engineering',
+    'Lagos (Remote)',
+    'EMP-0057',
+    '2023-05-02',
+  ],
+];
 
 /**
  * The starter file the Data card offers. Built from the same column list the
- * validator reads, so a downloaded template can never be one the app rejects.
+ * validator reads, and — for assets — from the workspace's own statuses, so a
+ * downloaded template can never be one the app rejects.
+ *
+ * `statuses` arrives in sort order. The first row shows a held asset, so it
+ * takes whichever status the workspace calls its system one; the second shows
+ * a free asset and takes the first status that is not.
  */
-export function csvTemplate(kind: ImportKind): string {
+export function csvTemplate(kind: ImportKind, statuses: readonly WorkflowStatus[]): string {
   return toCsv(
     importColumns(kind).map((entry) => entry.header),
-    TEMPLATE_ROWS[kind],
+    kind === 'assets'
+      ? assetTemplateRows(...exampleStatusLabels(statuses))
+      : EMPLOYEE_TEMPLATE_ROWS,
   );
+}
+
+/**
+ * The two labels the asset example rows show. Both always exist — `assigned`
+ * cannot be deleted, and the workflow service refuses to leave a workspace
+ * without an assignable status either — so a miss is a broken invariant and
+ * says so rather than printing a template with a blank example.
+ */
+function exampleStatusLabels(statuses: readonly WorkflowStatus[]): [string, string] {
+  const held = statuses.find((status) => status.isSystem);
+  const free = statuses.find((status) => !status.isSystem);
+  if (!held || !free) {
+    throw new Error('The workspace has no status to write an example import row with.');
+  }
+  return [held.label, free.label];
 }
 
 /** "Asset Tag", "asset-tag" and " ASSET_TAG " are all the same column. */
@@ -146,20 +174,32 @@ export function autoMatchColumns(
 }
 
 /**
- * Reads an enum cell: the display label a spreadsheet shows, or the slug the
- * database stores, in any casing. Returns null when this build has no meaning
- * for the value — the caller turns that into a row error naming the cell.
+ * Reads a vocabulary cell: the display label a spreadsheet shows, or the slug
+ * the database stores, in any casing. Returns null when the vocabulary has no
+ * meaning for the value — the caller turns that into a row error naming the
+ * cell.
+ *
+ * The vocabulary is a **runtime** list as often as a compile-time map now.
+ * Categories and currencies are still closed in code and pass their label map;
+ * statuses are rows an admin edits, so the caller reads them from the database
+ * and passes the list. Neither can be assumed by this function.
  */
 export function matchEnumValue<T extends string>(
-  labels: Record<T, string>,
+  vocabulary: EnumVocabulary<T>,
   value: string,
 ): T | null {
   const wanted = normalize(value);
   if (wanted === '') return null;
-  for (const [slug, label] of Object.entries(labels) as [T, string][]) {
-    if (normalize(slug) === wanted || normalize(label) === wanted) return slug;
+  for (const entry of entriesOf(vocabulary)) {
+    if (normalize(entry.value) === wanted || normalize(entry.label) === wanted) return entry.value;
   }
   return null;
+}
+
+function entriesOf<T extends string>(vocabulary: EnumVocabulary<T>): readonly VocabularyEntry<T>[] {
+  return Array.isArray(vocabulary)
+    ? vocabulary
+    : (Object.entries(vocabulary) as [T, string][]).map(([value, label]) => ({ value, label }));
 }
 
 /**

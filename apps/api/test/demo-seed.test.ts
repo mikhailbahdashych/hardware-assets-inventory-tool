@@ -156,8 +156,9 @@ describe('the demo seed', () => {
 
     expect(body.pendingReturns.length).toBeGreaterThan(0);
     expect(body.recentActivity.length).toBeGreaterThan(0);
-    // Every status card has a number behind it, including the empty ones.
-    expect(Object.values(body.statusCounts).some((count) => Number(count) > 0)).toBe(true);
+    // Every status has a tile, including the ones nothing is in.
+    expect(body.statusCounts.length).toBeGreaterThan(0);
+    expect(body.statusCounts.some((tile: { count: number }) => tile.count > 0)).toBe(true);
   });
 
   it('shows every category and status the app can render', async () => {

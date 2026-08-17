@@ -1,4 +1,4 @@
-import type { AssetCategory, AssetStatus, Currency, ImportKind } from '@inventory/shared';
+import type { AssetCategory, Currency, ImportKind, WorkflowStatus } from '@inventory/shared';
 
 // What the importer needs to know about the workspace before it can judge a
 // row, and what it produces: a report for the dry-run screen and rows ready to
@@ -12,6 +12,12 @@ export interface ImportContext {
   employeeIdByEmail: Map<string, string>;
   /** Only an active employee may be handed an asset. */
   employeeStatusById: Map<string, string>;
+  /**
+   * The workspace's statuses, in sort order — the vocabulary a status cell is
+   * read against. Passed in rather than looked up because the planner is pure,
+   * and because the wizard has the same list from its workflow query.
+   */
+  statuses: WorkflowStatus[];
 }
 
 /** One thing wrong (or worth saying) about one cell. */
@@ -41,7 +47,8 @@ export interface PlannedAsset {
   name: string;
   category: AssetCategory;
   serialNumber: string | null;
-  status: AssetStatus;
+  /** A slug from the workspace's own statuses; the planner matched it there. */
+  status: string;
   /** Set only when the row is assigned to an active employee. */
   assignedToEmployeeId: string | null;
   /** Filled in by the writer from the employee row; the planner never guesses. */

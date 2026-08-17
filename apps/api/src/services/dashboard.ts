@@ -1,14 +1,16 @@
 import { and, asc, desc, eq, isNotNull, isNull, sql } from 'drizzle-orm';
-import { ASSET_CATEGORIES, ASSET_STATUSES } from '@inventory/shared';
+import { ASSET_CATEGORIES } from '@inventory/shared';
 import type { Db } from '@/types/db.js';
 import type {
   CategoryCount,
   DashboardPayload,
   PendingReturn,
+  StatusCount,
   WarrantyExpiry,
 } from '@/types/dashboard.js';
 import { assets, assignments, auditEvents } from '@/db/schema.js';
 import { toAuditItem } from './audit-log.js';
+import { getWorkflow } from './workflow.js';
 
 /** What each widget shows at most. Cards have a shape; a list of forty has none. */
 const RECENT_ACTIVITY = 8;
@@ -31,17 +33,28 @@ export function dashboardPayload(db: Db, now: Date): DashboardPayload {
     .groupBy(assets.status, assets.category)
     .all();
 
-  const statusCounts = zeroed(ASSET_STATUSES);
+  const statusTotals = new Map<string, number>();
   const categoryTotals = zeroed(ASSET_CATEGORIES);
   let assetCount = 0;
   for (const row of rows) {
     assetCount += row.count;
-    // A slug this build has no entry for belongs to a value somebody removed
-    // from the enums: it still counts towards the total, but there is no card
-    // or bar to put it on.
-    if (isKnown(ASSET_STATUSES, row.status)) statusCounts[row.status] += row.count;
+    // A count is kept per slug and matched to a status below. A slug with no
+    // status row still counts towards the total, but there is no tile or bar
+    // to put it on — the same rule the categories have always followed.
+    statusTotals.set(row.status, (statusTotals.get(row.status) ?? 0) + row.count);
     if (isKnown(ASSET_CATEGORIES, row.category)) categoryTotals[row.category] += row.count;
   }
+
+  // Every status the workspace has, in its own order, carrying what the tile
+  // renders with — so the page needs no vocabulary of its own.
+  const statusCounts: StatusCount[] = getWorkflow(db).statuses.map((status) => ({
+    id: status.id,
+    label: status.label,
+    color: status.color,
+    // A status nothing carries is a real zero, and the design draws its tile
+    // anyway: an empty Retired column is information.
+    count: statusTotals.get(status.id) ?? 0,
+  }));
 
   const categoryCounts: CategoryCount[] = ASSET_CATEGORIES.map((category) => ({
     category,

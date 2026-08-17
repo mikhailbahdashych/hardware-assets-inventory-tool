@@ -1,14 +1,14 @@
 import {
   ASSET_CATEGORY_LABELS,
-  ASSET_STATUS_LABELS,
+  ASSIGNED_STATUS,
   CURRENCY_LABELS,
   DATE_ONLY,
   matchEnumValue,
   parsePriceToCents,
   type AssetCategory,
-  type AssetStatus,
   type Currency,
   type ImportValidateInput,
+  type VocabularyEntry,
 } from '@inventory/shared';
 import type {
   ImportContext,
@@ -71,6 +71,20 @@ function planAssets(rows: Record<string, string>[], context: ImportContext): Imp
   const planned: PlannedAsset[] = [];
   const seenTags = new Set<string>();
 
+  // The workspace's own vocabulary, read once for the whole file.
+  const statusVocabulary: VocabularyEntry[] = context.statuses.map((status) => ({
+    value: status.id,
+    label: status.label,
+  }));
+  const statusLabels = new Map(context.statuses.map((status) => [status.id, status.label]));
+  const firstStatus = context.statuses[0];
+  // A workspace always has statuses — the boot seed lays six down and the
+  // service refuses to empty the table — so a file cannot be judged without
+  // one, and saying that beats importing everything under an invented slug.
+  if (!firstStatus) {
+    throw new Error('This workspace has no asset statuses, so no row can be given one.');
+  }
+
   rows.forEach((row, index) => {
     const line = lineOf(index);
     let ok = true;
@@ -99,11 +113,13 @@ function planAssets(rows: Record<string, string>[], context: ImportContext): Imp
       if (!category) fail('category', `"${categoryCell}" is not one of the categories.`);
     }
 
-    // Absent status means the default the asset form starts on.
+    // A blank status cell says nothing about the device, so it lands in the
+    // first status the workflow lists — which is Available on any workspace
+    // that has not rearranged its own, i.e. what this always did.
     const statusCell = cell(row, 'status');
-    let status: AssetStatus = 'available';
+    let status: string = firstStatus.id;
     if (statusCell !== '') {
-      const matched = matchEnumValue(ASSET_STATUS_LABELS, statusCell);
+      const matched = matchEnumValue(statusVocabulary, statusCell);
       if (!matched) fail('status', `"${statusCell}" is not one of the statuses.`);
       else status = matched;
     }
@@ -131,7 +147,7 @@ function planAssets(rows: Record<string, string>[], context: ImportContext): Imp
     // Who holds it, which is also the only thing that may set status=assigned.
     const holderEmail = cell(row, 'assigned_to_email').toLowerCase();
     let assignedToEmployeeId: string | null = null;
-    if (status === 'assigned') {
+    if (status === ASSIGNED_STATUS) {
       const employeeId =
         holderEmail === '' ? undefined : context.employeeIdByEmail.get(holderEmail);
       if (!employeeId) {
@@ -139,21 +155,19 @@ function planAssets(rows: Record<string, string>[], context: ImportContext): Imp
           line,
           'assigned_to_email',
           holderEmail === ''
-            ? 'Marked Assigned with nobody to assign it to — imported as Available.'
-            : `No employee has the address ${holderEmail} — imported as Available.`,
+            ? `Marked Assigned with nobody to assign it to — imported as ${firstStatus.label}.`
+            : `No employee has the address ${holderEmail} — imported as ${firstStatus.label}.`,
         );
-        status = 'available';
+        status = firstStatus.id;
       } else if (context.employeeStatusById.get(employeeId) !== 'active') {
         fail('assigned_to_email', `${holderEmail} is offboarding and cannot be given an asset.`);
       } else {
         assignedToEmployeeId = employeeId;
       }
     } else if (holderEmail !== '') {
-      issues.warn(
-        line,
-        'assigned_to_email',
-        `Ignored: the row is ${ASSET_STATUS_LABELS[status]}, not Assigned.`,
-      );
+      // The label the workspace uses today; a matched slug always has one.
+      const label = statusLabels.get(status);
+      issues.warn(line, 'assigned_to_email', `Ignored: the row is ${label}, not Assigned.`);
     }
 
     if (!ok || !category) return;

@@ -1,11 +1,19 @@
+import { DEFAULT_ASSET_STATUSES, type WorkflowStatus } from '@inventory/shared';
 import { describe, expect, it } from 'vitest';
 import type { ImportContext } from '@/types/import.js';
 import { planImport } from './import-validator.js';
+
+/** The seeded workflow, which is what an unedited workspace hands the planner. */
+const DEFAULT_STATUSES: WorkflowStatus[] = DEFAULT_ASSET_STATUSES.map((status, sortOrder) => ({
+  ...status,
+  sortOrder,
+}));
 
 const context = (overrides: Partial<ImportContext> = {}): ImportContext => ({
   existingAssetTags: new Set<string>(),
   employeeIdByEmail: new Map<string, string>(),
   employeeStatusById: new Map<string, string>(),
+  statuses: DEFAULT_STATUSES,
   ...overrides,
 });
 
@@ -119,6 +127,53 @@ describe('planning an asset import', () => {
     expect(plan.report.errors[0]).toMatchObject({ row: 2, column });
     expect(plan.report.validCount).toBe(0);
     expect(plan.rows).toEqual([]);
+  });
+
+  it('reads a status cell as the workspace’s own vocabulary, label or slug', () => {
+    const onLoan: WorkflowStatus = {
+      id: 'on_loan',
+      label: 'On loan',
+      color: 'info',
+      isSystem: false,
+      assignableFrom: false,
+      checkinTarget: true,
+      sortOrder: 6,
+    };
+    const ctx = context({ statuses: [...DEFAULT_STATUSES, onLoan] });
+
+    // Both spellings of a seeded status, and both of one an admin added.
+    for (const cell of ['In repair', 'in_repair', 'IN REPAIR']) {
+      expect(planAssets([assetRow({ status: cell })], ctx).rows[0]).toMatchObject({
+        status: 'in_repair',
+      });
+    }
+    for (const cell of ['On loan', 'on_loan']) {
+      expect(planAssets([assetRow({ status: cell })], ctx).rows[0]).toMatchObject({
+        status: 'on_loan',
+      });
+    }
+  });
+
+  it('refuses a status this workspace has deleted, naming the cell', () => {
+    const withoutRepair = DEFAULT_STATUSES.filter((status) => status.id !== 'in_repair');
+    const plan = planAssets(
+      [assetRow({ status: 'In repair' })],
+      context({ statuses: withoutRepair }),
+    );
+
+    expect(plan.report.errors).toEqual([
+      { row: 2, column: 'status', message: expect.stringContaining('In repair') },
+    ]);
+    expect(plan.rows).toEqual([]);
+  });
+
+  it('starts a row with no status in the first status the workflow lists', () => {
+    const reordered = [...DEFAULT_STATUSES]
+      .filter((status) => status.id !== 'available')
+      .map((status, sortOrder) => ({ ...status, sortOrder }));
+    const plan = planAssets([assetRow()], context({ statuses: reordered }));
+
+    expect(plan.rows[0]).toMatchObject({ status: reordered[0]!.id });
   });
 
   it('refuses a tag the file uses twice, naming the second row', () => {
