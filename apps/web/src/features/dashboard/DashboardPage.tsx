@@ -134,7 +134,7 @@ function RecentActivity({ data }: { data: DashboardPayload }) {
     <section className={styles.card}>
       <div className={styles.cardHead}>
         <h2 className={styles.cardTitle}>Recent activity</h2>
-        <Link to="/admin/activity" className={styles.cardLink}>
+        <Link to="/activity" className={styles.cardLink}>
           Audit log
         </Link>
       </div>

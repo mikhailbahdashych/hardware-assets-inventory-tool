@@ -19,7 +19,15 @@ const ITEMS: GatedNavItem[] = [
   { label: 'Assets', to: '/assets', icon: 'cube' },
   { label: 'Employees', to: '/employees', icon: 'users' },
   { label: 'Members', to: '/members', icon: 'shieldCheck' },
-  { label: 'Admin', to: '/admin', icon: 'gear', gapBefore: true, requires: 'audit.view' },
+  // Both admin-only, together after the design's 10px gap.
+  {
+    label: 'Activity log',
+    to: '/activity',
+    icon: 'activity',
+    gapBefore: true,
+    requires: 'audit.view',
+  },
+  { label: 'Admin', to: '/admin', icon: 'gear', requires: 'settings.manage' },
 ];
 
 /** Sidebar sections this role may see — Admin is admins-only. */
@@ -39,6 +47,7 @@ const SECTION_LABELS: Record<string, string> = {
   assets: 'Assets',
   employees: 'Employees',
   members: 'Members',
+  activity: 'Activity log',
   admin: 'Admin',
 };
 

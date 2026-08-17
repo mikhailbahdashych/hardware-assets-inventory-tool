@@ -8,7 +8,7 @@ import { ADMIN, signIn } from '../helpers/session';
 
 test('will not delete the workspace on a near-miss confirmation', async ({ page }) => {
   await signIn(page);
-  await page.goto('/admin/settings');
+  await page.goto('/admin');
 
   await page.getByRole('button', { name: 'Delete…' }).click();
   const dialog = page.getByRole('dialog');
@@ -27,7 +27,7 @@ test('will not delete the workspace on a near-miss confirmation', async ({ page 
 
 test('deletes the workspace and leaves an instance asking to be set up', async ({ page }) => {
   await signIn(page);
-  await page.goto('/admin/settings');
+  await page.goto('/admin');
 
   await page.getByRole('button', { name: 'Delete…' }).click();
   const dialog = page.getByRole('dialog');
