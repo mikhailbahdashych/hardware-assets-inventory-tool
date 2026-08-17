@@ -55,6 +55,14 @@ _The pills carry their counts, so the shape of the fleet is readable before you 
 
 _AST-0001 has had two holders and a spell on the shelf between them. The "In stock" gap is derived from the ownership rows rather than stored, which is why it cannot disagree with them._
 
+![The Workflow page: seven statuses with their colours and two behaviour toggles each, above a from-to checkbox matrix, with a node-and-arrow diagram of the same graph beside it](media/workflow.png)
+
+_The demo workspace's own workflow. Northwind added "In imaging" for machines being wiped between holders, and drew the graph so a retired device has no way back out. The diagram is fed the checkboxes rather than the saved rows, so it redraws as you tick._
+
+![The Change status modal for a laptop that is in repair, its status list open and offering only Available and Retired](media/workflow-change-status.png)
+
+_The same graph, one screen later: In repair has two edges leaving it, so those are the two moves on offer — and the only two the API would accept if you asked another way._
+
 ![The activity log: filter pills counting assets, people, auth and system events, above a table of events written as sentences](media/activity-log.png)
 
 _Every mutation, written as a sentence by the same renderer that produces the CSV export — so the screen and the file cannot drift apart._
