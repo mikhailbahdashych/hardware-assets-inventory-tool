@@ -35,3 +35,24 @@ export interface ActionGroup {
   label: string;
   actions: readonly Action[];
 }
+
+/** One role as `GET /api/v1/roles` sends it: the row, plus what it can do. */
+export interface WorkspaceRole {
+  /** The slug, derived from the label once and immutable afterwards. */
+  id: string;
+  label: string;
+  description: string | null;
+  color: SemanticColor;
+  /** True only for Admin — no edit, no delete, no unchecking a box. */
+  isSystem: boolean;
+  sortOrder: number;
+  /** Members holding it, invited ones included: what delete has to move. */
+  memberCount: number;
+  /** Resolved, not stored: the system role's set is every action there is. */
+  permissions: Action[];
+}
+
+/** What `GET /api/v1/roles` answers: every role in sort order. */
+export interface RolesPayload {
+  roles: WorkspaceRole[];
+}

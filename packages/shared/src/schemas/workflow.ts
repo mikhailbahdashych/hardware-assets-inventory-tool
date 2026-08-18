@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { MAX_ASSET_STATUSES, SEMANTIC_COLORS } from '../enums.js';
+import { slugify } from '../slug.js';
 
 // The wire contract for the Workflow page. Everything here describes shape
 // only: whether a status may be deleted, whether an edge may touch `assigned`,
@@ -47,15 +48,10 @@ export const statusOrderSchema = z.object({
 export type StatusOrderInput = z.infer<typeof statusOrderSchema>;
 
 /**
- * "On loan!" → "on_loan". The same shape as a custom field's key, and for the
- * same reason: it is what asset rows, CSV cells and URLs carry, so it may only
- * contain characters all three can hold. An empty result means the label was
- * unusable — the caller turns that into a 422 naming the label.
+ * "On loan!" → "on_loan". A status's permanent id, derived once from the label
+ * an admin typed. The derivation itself is `slugify` — roles derive their ids
+ * the same way, and two spellings of one rule would eventually be two rules.
  */
 export function statusSlug(label: string): string {
-  return label
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '_')
-    .replace(/^_+|_+$/g, '');
+  return slugify(label);
 }
