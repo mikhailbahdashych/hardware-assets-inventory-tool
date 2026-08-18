@@ -1,4 +1,5 @@
 import { eq } from 'drizzle-orm';
+import { ACTIONS } from '@inventory/shared';
 import { afterEach, describe, expect, it } from 'vitest';
 import { auditEvents, authTokens, members, sessions } from '@/db/schema.js';
 import { issueAuthToken } from '@/services/auth-tokens.js';
@@ -7,6 +8,7 @@ import { nowIso } from '@/lib/dates.js';
 import {
   buildTestApp,
   inject,
+  memberCookie,
   sessionCookie,
   setupOrg,
   SETUP_BODY,
@@ -132,6 +134,27 @@ describe('login / logout / me', () => {
       body: { email: 'invited@acme.io', password: 'whatever-here' },
     });
     expect(res.statusCode).toBe(401);
+  });
+
+  /**
+   * The web gates every affordance on this list rather than on a role name, so
+   * it has to be the same answer `requireAction` gives — resolved server-side,
+   * from the same rows, on the same request.
+   */
+  it('me carries the permissions this member’s role resolves to', async () => {
+    ctx = await buildTestApp();
+    const cookie = await setupOrg(ctx.app);
+
+    const admin = await inject(ctx.app, { method: 'GET', url: '/api/v1/auth/me', cookie });
+    expect(admin.json().permissions).toEqual([...ACTIONS].sort());
+
+    const viewer = await inject(ctx.app, {
+      method: 'GET',
+      url: '/api/v1/auth/me',
+      cookie: memberCookie(ctx.db, 'viewer'),
+    });
+    // Reads are open to everybody, so the viewer's list is empty and always was.
+    expect(viewer.json().permissions).toEqual([]);
   });
 
   it('me returns 401 without a session and after logout', async () => {

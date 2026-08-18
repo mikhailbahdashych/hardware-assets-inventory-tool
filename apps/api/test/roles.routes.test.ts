@@ -191,3 +191,123 @@ describe('an admin editing the roles over HTTP', () => {
     expect(ctx.db.select().from(members).all().at(-1)!.role).toBe('manager');
   });
 });
+
+/**
+ * The whole point of the feature, exercised end to end: a role somebody made up
+ * this morning decides what its holders may do, on every request, with no
+ * build knowing the role exists.
+ */
+describe('what a member may do is resolved per request', () => {
+  /** An admin, a custom role granted exactly `grants`, and a member holding it. */
+  async function workspaceWith(grants: string[]) {
+    const cookie = await setupOrg(ctx.app);
+    await inject(ctx.app, {
+      method: 'POST',
+      url: '/api/v1/roles',
+      cookie,
+      body: { label: 'Floor staff', color: 'info' },
+    });
+    await inject(ctx.app, {
+      method: 'PUT',
+      url: '/api/v1/roles/permissions',
+      cookie,
+      body: { grants: grants.map((action) => ({ role: 'floor_staff', action })) },
+    });
+    return { cookie, staff: memberCookie(ctx.db, 'floor_staff') };
+  }
+
+  it('lets a custom role do exactly what it is granted, and nothing else', async () => {
+    ctx = await buildTestApp();
+    const { staff } = await workspaceWith(['assets.create']);
+
+    const created = await inject(ctx.app, {
+      method: 'POST',
+      url: '/api/v1/assets',
+      cookie: staff,
+      body: { name: 'MacBook Pro 14"', category: 'laptops', status: 'available' },
+    });
+    expect(created.statusCode).toBe(200);
+
+    // Granted one action, not a rank: everything else is still closed.
+    const deleted = await inject(ctx.app, {
+      method: 'DELETE',
+      url: `/api/v1/assets/${created.json().asset.id}`,
+      cookie: staff,
+    });
+    expect(deleted.statusCode).toBe(403);
+    expect((await inject(ctx.app, { method: 'GET', url: '/api/v1/audit', cookie: staff })).statusCode).toBe(403); // prettier-ignore
+    // Reads stay open to every authenticated member, as they always have.
+    expect((await inject(ctx.app, { method: 'GET', url: '/api/v1/assets', cookie: staff })).statusCode).toBe(200); // prettier-ignore
+  });
+
+  it('lands a revocation on the holder’s very next request, same session', async () => {
+    ctx = await buildTestApp();
+    const { cookie, staff } = await workspaceWith(['assets.create']);
+    const body = { name: 'Dell U2723QE', category: 'monitors', status: 'available' };
+
+    expect((await inject(ctx.app, { method: 'POST', url: '/api/v1/assets', cookie: staff, body })).statusCode).toBe(200); // prettier-ignore
+
+    const revoked = await inject(ctx.app, {
+      method: 'PUT',
+      url: '/api/v1/roles/permissions',
+      cookie,
+      body: { grants: [] },
+    });
+    expect(revoked.statusCode).toBe(200);
+
+    // No session invalidation machinery: permissions resolve per request, so
+    // the next one through the same cookie already knows.
+    const after = await inject(ctx.app, {
+      method: 'POST',
+      url: '/api/v1/assets',
+      cookie: staff,
+      body: { ...body, name: 'Dell U2723QE (2)' },
+    });
+    expect(after.statusCode).toBe(403);
+  });
+
+  it('closes the door on a member whose role row is gone', async () => {
+    ctx = await buildTestApp();
+    await setupOrg(ctx.app);
+    const orphan = memberCookie(ctx.db, 'nowhere');
+
+    // Unreachable in practice — deleting a role moves every member holding it
+    // — but "the role is gone" must never read as "anything goes".
+    expect((await inject(ctx.app, { method: 'GET', url: '/api/v1/assets', cookie: orphan })).statusCode).toBe(200); // prettier-ignore
+    const created = await inject(ctx.app, {
+      method: 'POST',
+      url: '/api/v1/assets',
+      cookie: orphan,
+      body: { name: 'MacBook Pro 14"', category: 'laptops', status: 'available' },
+    });
+    expect(created.statusCode).toBe(403);
+  });
+
+  it('refuses to let somebody change what their own role may do, over HTTP', async () => {
+    ctx = await buildTestApp();
+    const { staff } = await workspaceWith(['roles.manage']);
+
+    const grab = await inject(ctx.app, {
+      method: 'PUT',
+      url: '/api/v1/roles/permissions',
+      cookie: staff,
+      body: {
+        grants: [
+          { role: 'floor_staff', action: 'roles.manage' },
+          { role: 'floor_staff', action: 'workspace.delete' },
+        ],
+      },
+    });
+    expect(grab.statusCode).toBe(409);
+    expect(grab.json().error.code).toBe('own_role');
+
+    const rename = await inject(ctx.app, {
+      method: 'PATCH',
+      url: '/api/v1/roles/floor_staff',
+      cookie: staff,
+      body: { label: 'Owners' },
+    });
+    expect(rename.statusCode).toBe(409);
+    expect(rename.json().error.code).toBe('own_role');
+  });
+});

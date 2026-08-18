@@ -256,5 +256,10 @@ export function registerAuthRoutes(app: FastifyInstance, deps: AppDeps): void {
     // *and* this workspace's policy, and a non-admin cannot read settings to
     // work it out for themselves. It is what puts the setup screen up.
     mustEnrolMfa: request.mustEnrolMfa,
+    // Likewise a fact about the member and the workspace's roles, resolved by
+    // the same call `requireAction` reads — so an affordance the web draws and
+    // the door the API opens can never disagree. Sorted, because a payload
+    // whose order wobbles makes every diff of it unreadable.
+    permissions: [...request.permissions].sort(),
   }));
 }
