@@ -1,7 +1,11 @@
 import type { FastifyRequest } from 'fastify';
 import type { AssignInput, CheckinInput } from '@inventory/shared';
 
-/** An audited status move, recorded on its own as `asset.status_changed`. */
+/**
+ * An audited status move, recorded on its own as `asset.status_changed`. Both
+ * ends are the statuses' **labels** as they read when the move happened — a
+ * snapshot, so renaming or deleting a status never rewrites the log.
+ */
 export interface StatusMove {
   from: string;
   to: string;

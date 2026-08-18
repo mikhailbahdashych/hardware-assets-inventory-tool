@@ -44,6 +44,31 @@ describe('the status counts', () => {
     }
   });
 
+  it('draws a tile for a status this workspace invented, in the payload order', async () => {
+    // The tiles are whatever the workspace has, in the workspace's order — the
+    // page carries no list of its own to fall out of date.
+    renderApp(
+      {
+        ...DASHBOARD_ROUTES,
+        'GET /dashboard': {
+          body: {
+            ...DASHBOARD,
+            statusCounts: [
+              { id: 'on_loan', label: 'On loan', color: 'info', count: 2 },
+              ...DASHBOARD.statusCounts,
+            ],
+          },
+        },
+      },
+      '/dashboard',
+    );
+
+    const first = await screen.findByRole('button', { name: 'On loan 2' });
+    expect(first).toBeInTheDocument();
+    await userEvent.click(first);
+    expect(await screen.findByRole('heading', { name: 'Assets' })).toBeInTheDocument();
+  });
+
   it('clicks through to the assets list, already filtered', async () => {
     renderApp(DASHBOARD_ROUTES, '/dashboard');
     await userEvent.click(await screen.findByRole('button', { name: 'In repair 1' }));

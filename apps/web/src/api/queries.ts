@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import type { AuditType } from '@inventory/shared';
+import type { AuditType, WorkflowPayload } from '@inventory/shared';
 import { ApiError, apiFetch } from './client';
 import type {
   Asset,
@@ -31,6 +31,7 @@ export const queryKeys = {
   employees: ['employees'] as const,
   employee: (id: string) => ['employee', id] as const,
   customFields: ['custom-fields'] as const,
+  workflow: ['workflow'] as const,
   members: ['members'] as const,
   settings: ['settings'] as const,
   dashboard: ['dashboard'] as const,
@@ -146,6 +147,20 @@ export function useCustomFields() {
     queryKey: queryKeys.customFields,
     queryFn: async () =>
       (await apiFetch<{ customFields: CustomFieldDef[] }>('/custom-fields')).customFields,
+    staleTime: 5 * 60 * 1000,
+  });
+}
+
+/**
+ * The workspace's statuses and the moves between them — read by every screen
+ * that draws a status pill, because the label and the colour are data now.
+ * Cached like the custom-field definitions: rarely edited, needed everywhere.
+ * Any workflow write invalidates it (see api/invalidate.ts).
+ */
+export function useWorkflow() {
+  return useQuery({
+    queryKey: queryKeys.workflow,
+    queryFn: () => apiFetch<WorkflowPayload>('/workflow'),
     staleTime: 5 * 60 * 1000,
   });
 }

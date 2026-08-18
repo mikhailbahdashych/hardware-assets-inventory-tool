@@ -15,4 +15,5 @@ export * from './schemas/import.js';
 export * from './schemas/members.js';
 export * from './schemas/mfa.js';
 export * from './schemas/settings.js';
+export * from './schemas/workflow.js';
 export * from './types/index.js';

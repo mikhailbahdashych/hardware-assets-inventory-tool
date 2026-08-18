@@ -1,11 +1,28 @@
 import type {
   AssetCategory,
-  AssetStatus,
   CheckinCondition,
-  CheckinNewStatus,
   EmployeeStatus,
   Role,
+  StatusCreateInput,
 } from '@inventory/shared';
+import { DEFAULT_ASSET_STATUSES, ASSIGNED_STATUS } from '@inventory/shared';
+
+// The demo dataset is written against the workflow a fresh instance is seeded
+// with, so its two status vocabularies are derived from that list rather than
+// from the workspace's rows — which do not exist yet when the file is read.
+// (They stay with the value they come from, per the types convention.)
+
+/** A status the dataset may give an asset directly. */
+export type DemoStatus = Exclude<
+  (typeof DEFAULT_ASSET_STATUSES)[number]['id'],
+  typeof ASSIGNED_STATUS
+>;
+
+/** A status a checked-in asset may land in: the seeded check-in targets. */
+export type DemoCheckinStatus = Extract<
+  (typeof DEFAULT_ASSET_STATUSES)[number],
+  { checkinTarget: true }
+>['id'];
 
 /** What `seedDemo` needs to know. */
 export interface DemoSeedOptions {
@@ -79,8 +96,17 @@ export interface DemoAsset {
    * of an open ownership record, which is the invariant this dataset exists to
    * demonstrate rather than contradict.
    */
-  status: Exclude<AssetStatus, 'assigned'>;
+  status: DemoStatus;
   custom?: { hostname?: string; costCenter?: string; mdm?: boolean; encrypted?: boolean };
+}
+
+/**
+ * The status the demo workspace adds for itself. It is exactly what the
+ * workflow service's create endpoint takes, plus the id that call will derive
+ * from the label — which the curated graph has to name before the row exists.
+ */
+export interface DemoWorkflowStatus extends StatusCreateInput {
+  id: string;
 }
 
 /** One leg of an asset's ownership history, closed or still open. */
@@ -97,6 +123,6 @@ export interface DemoHolding {
    * Where the asset lands at check-in. Only three statuses are reachable that
    * way — `ordered` and `lost_stolen` are not things a return can produce.
    */
-  returnedTo?: CheckinNewStatus;
+  returnedTo?: DemoCheckinStatus;
   notes?: string;
 }

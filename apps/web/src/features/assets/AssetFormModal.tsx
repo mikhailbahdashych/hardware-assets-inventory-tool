@@ -2,15 +2,14 @@ import { useState, type FormEvent } from 'react';
 import {
   ASSET_CATEGORIES,
   ASSET_CATEGORY_LABELS,
-  ASSET_STATUS_LABELS,
-  ASSET_STATUSES,
+  ASSIGNED_STATUS,
   can,
   centsToInputValue,
   parsePriceToCents,
 } from '@inventory/shared';
 import { fieldErrors } from '@/api/formErrors';
 import { useCreateAsset, useDeleteAsset, useUpdateAsset } from '@/api/mutations';
-import { useCustomFields, useEmployees, useNextAssetTag } from '@/api/queries';
+import { useCustomFields, useEmployees, useNextAssetTag, useWorkflow } from '@/api/queries';
 import type { Asset, CustomFieldValue } from '@/types/api';
 import { Button, Checkbox, Dropdown, Field, Input, Modal, Textarea } from '@/components/ui';
 import { useToast } from '@/providers/ToastProvider';
@@ -20,7 +19,9 @@ import styles from '@/components/ui/FormModal.module.css';
 const EMPTY: AssetFormState = {
   name: '',
   category: 'laptops',
-  status: 'available',
+  // Empty means "nobody has chosen yet": the workspace's own first status
+  // fills it in as soon as the workflow answers — see `status` below.
+  status: '',
   assetTag: '',
   serialNumber: '',
   model: '',
@@ -82,6 +83,7 @@ export function AssetFormModal({
 
   const toast = useToast();
   const defs = useCustomFields();
+  const workflow = useWorkflow();
   const employees = useEmployees();
   const nextTag = useNextAssetTag(!editing);
   const create = useCreateAsset();
@@ -100,11 +102,17 @@ export function AssetFormModal({
 
   // The suggestion only fills an untouched field, so a typed tag survives it.
   const tagValue = form.assetTag || (editing ? '' : (nextTag.data ?? ''));
-  const holderLocked = editing && asset.status === 'assigned';
+  const holderLocked = editing && asset.status === ASSIGNED_STATUS;
+  // Statuses that have not arrived are none to offer, and the form waits for
+  // them rather than defaulting to a status this workspace may not have.
+  const statuses = workflow.data?.statuses ?? [];
+  // A new asset starts on the first status the workspace lists that assign and
+  // check-in do not own; an untouched form has no choice of its own to keep.
+  const status = form.status || (statuses.find((option) => !option.isSystem)?.id ?? '');
   // A create may start an asset out as assigned (it opens the first ownership
   // record); an edit may not move one in or out of that status.
-  const statusOptions = ASSET_STATUSES.filter(
-    (status) => !editing || status !== 'assigned' || form.status === 'assigned',
+  const statusOptions = statuses.filter(
+    (option) => !editing || option.id !== ASSIGNED_STATUS || status === ASSIGNED_STATUS,
   );
 
   // `defs.data ?? []` throughout: definitions that have not loaded are no
@@ -144,7 +152,7 @@ export function AssetFormModal({
 
     if (editing) {
       update.mutate(
-        { ...shared, status: form.status, assetTag: tagValue },
+        { ...shared, status, assetTag: tagValue },
         {
           onSuccess: () => {
             toast.show('Asset saved.', 'ok');
@@ -158,12 +166,12 @@ export function AssetFormModal({
     create.mutate(
       {
         ...shared,
-        status: form.status,
+        status,
         assetTag: tagValue || undefined,
         currency: null,
         assignedToEmployeeId:
-          form.status === 'assigned' ? blankToNull(form.assignedToEmployeeId) : null,
-        checkoutDate: form.status === 'assigned' ? blankToNull(form.checkoutDate) : null,
+          status === ASSIGNED_STATUS ? blankToNull(form.assignedToEmployeeId) : null,
+        checkoutDate: status === ASSIGNED_STATUS ? blankToNull(form.checkoutDate) : null,
       },
       {
         onSuccess: ({ asset: created }) => {
@@ -220,7 +228,9 @@ export function AssetFormModal({
           <Button variant="ghost" onClick={onClose} disabled={pending}>
             Cancel
           </Button>
-          <Button type="submit" form="asset-form" disabled={pending}>
+          {/* Nothing can be saved before the workspace's statuses are known —
+              the Status select would have nothing in it either. */}
+          <Button type="submit" form="asset-form" disabled={pending || status === ''}>
             {editing ? 'Save changes' : 'Create asset'}
           </Button>
         </>
@@ -269,13 +279,13 @@ export function AssetFormModal({
             {(id) => (
               <Dropdown
                 id={id}
-                value={form.status}
+                value={status}
                 disabled={holderLocked}
-                options={statusOptions.map((status) => ({
-                  value: status,
-                  label: ASSET_STATUS_LABELS[status],
+                options={statusOptions.map((option) => ({
+                  value: option.id,
+                  label: option.label,
                 }))}
-                onChange={(status) => set('status', status)}
+                onChange={(chosen) => set('status', chosen)}
               />
             )}
           </Field>
@@ -316,7 +326,7 @@ export function AssetFormModal({
           )}
         </Field>
 
-        {!editing && form.status === 'assigned' && (
+        {!editing && status === ASSIGNED_STATUS && (
           <div className={styles.pair}>
             <Field
               label="Assigned to"

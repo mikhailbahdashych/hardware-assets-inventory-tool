@@ -12,3 +12,21 @@ export interface ImportColumn {
   header: string;
   required: boolean;
 }
+
+/**
+ * One value a CSV cell may name: the slug the database stores and the label a
+ * spreadsheet shows. Both are matched, in any casing, because a file this app
+ * exported must import straight back.
+ */
+export interface VocabularyEntry<T extends string = string> {
+  value: T;
+  label: string;
+}
+
+/**
+ * What `matchEnumValue` reads a cell against. Two shapes, because two kinds of
+ * vocabulary exist in the product: the ones still closed in code carry a label
+ * map keyed by slug, and the statuses — rows an admin edits — arrive as a list
+ * the caller has just read from the database.
+ */
+export type EnumVocabulary<T extends string> = Record<T, string> | readonly VocabularyEntry<T>[];

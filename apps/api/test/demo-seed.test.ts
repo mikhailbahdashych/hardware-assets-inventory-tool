@@ -1,8 +1,17 @@
-import { and, eq, isNull } from 'drizzle-orm';
+import { and, asc, eq, isNull } from 'drizzle-orm';
 import { afterEach, describe, expect, it } from 'vitest';
 import { AUDIT_TYPES } from '@inventory/shared';
-import { assets, assignments, auditEvents, employees, members } from '@/db/schema.js';
+import {
+  assets,
+  assetStatuses,
+  assetStatusTransitions,
+  assignments,
+  auditEvents,
+  employees,
+  members,
+} from '@/db/schema.js';
 import { seedDemo } from '@/db/demo.js';
+import { DEMO_STATUS, DEMO_TRANSITIONS } from '@/db/demo-data.js';
 import { buildTestApp, inject, type TestApp } from './helpers.js';
 
 let ctx: TestApp;
@@ -156,8 +165,9 @@ describe('the demo seed', () => {
 
     expect(body.pendingReturns.length).toBeGreaterThan(0);
     expect(body.recentActivity.length).toBeGreaterThan(0);
-    // Every status card has a number behind it, including the empty ones.
-    expect(Object.values(body.statusCounts).some((count) => Number(count) > 0)).toBe(true);
+    // Every status has a tile, including the ones nothing is in.
+    expect(body.statusCounts.length).toBeGreaterThan(0);
+    expect(body.statusCounts.some((tile: { count: number }) => tile.count > 0)).toBe(true);
   });
 
   it('shows every category and status the app can render', async () => {
@@ -167,6 +177,86 @@ describe('the demo seed', () => {
     expect(new Set(rows.map((row) => row.category)).size).toBeGreaterThanOrEqual(4);
     // A demo that only shows Available and Assigned hides half the pills.
     expect(new Set(rows.map((row) => row.status)).size).toBeGreaterThanOrEqual(5);
+  });
+
+  it('curates the workflow instead of leaving the seeded mesh', async () => {
+    await seeded();
+
+    const statuses = ctx.db
+      .select()
+      .from(assetStatuses)
+      .orderBy(asc(assetStatuses.sortOrder))
+      .all();
+    // The six a fresh instance is seeded with, plus the company's own — last
+    // in the list, because that is where a status somebody added belongs.
+    expect(statuses.map((row) => row.id)).toEqual([
+      'available',
+      'assigned',
+      'in_repair',
+      'ordered',
+      'retired',
+      'lost_stolen',
+      DEMO_STATUS.id,
+    ]);
+    const imaging = statuses.at(-1)!;
+    expect(imaging.label).toBe(DEMO_STATUS.label);
+    expect(imaging.color).toBe('info');
+    expect(imaging.checkinTarget).toBe(true);
+    expect(imaging.assignableFrom).toBe(false);
+
+    const edges = ctx.db
+      .select()
+      .from(assetStatusTransitions)
+      .all()
+      .map((row) => `${row.fromStatus}→${row.toStatus}`);
+    expect(edges.sort()).toEqual(DEMO_TRANSITIONS.map((edge) => `${edge.from}→${edge.to}`).sort());
+    // A graph worth photographing is one with shape: a new machine is imaged
+    // before it is lent out, and retirement is where an asset's story ends.
+    expect(edges.length).toBeLessThan(20);
+    expect(edges.filter((edge) => edge.startsWith('retired→'))).toEqual([]);
+  });
+
+  it('applies that workflow through the service, so the log carries it', async () => {
+    await seeded();
+    const rows = ctx.db.select().from(auditEvents).all();
+
+    const created = rows.find((row) => row.action === 'workflow.status_created');
+    const rewired = rows.find((row) => row.action === 'workflow.transitions_updated');
+    expect(created, 'the added status is missing from the log').toBeDefined();
+    expect(rewired, 'the rewired graph is missing from the log').toBeDefined();
+    expect(JSON.parse(created!.params)).toMatchObject({ label: DEMO_STATUS.label });
+    // The head of IT did it, like everything else the demo company did.
+    expect(created!.actorName).toBe('Ada Okafor');
+    expect(rewired!.actorName).toBe('Ada Okafor');
+    // The mesh it replaced was twenty edges wide: eight of them survive into
+    // the curated graph, twelve go, and the new status brings two of its own.
+    expect(JSON.parse(rewired!.params)).toMatchObject({ added: 2, removed: 12 });
+  });
+
+  it('replays its history under the seeded mesh, before the curation', async () => {
+    await seeded();
+
+    // The curated graph has no available → ordered edge, and the history is
+    // full of moves the curation would forbid. Both are true because the
+    // rewiring is the last thing that happens — assert the order, not the luck.
+    const rewired = ctx.db
+      .select()
+      .from(auditEvents)
+      .all()
+      .filter((row) => row.action.startsWith('workflow.'))
+      .map((row) => row.at);
+    const moves = ctx.db
+      .select()
+      .from(auditEvents)
+      .all()
+      .filter((row) => row.action === 'asset.checked_in' || row.action === 'asset.assigned')
+      .map((row) => row.at);
+
+    expect(rewired.length).toBeGreaterThan(0);
+    expect(moves.length).toBeGreaterThan(0);
+    expect(Math.min(...rewired.map(Date.parse))).toBeGreaterThan(
+      Math.max(...moves.map(Date.parse)),
+    );
   });
 
   it('refuses a workspace that already has data', async () => {

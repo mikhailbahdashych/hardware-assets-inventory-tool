@@ -1,7 +1,7 @@
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router';
-import { useAssets, useEmployees } from '@/api/queries';
+import { useAssets, useEmployees, useWorkflow } from '@/api/queries';
 import { Icon, Kbd } from '@/components/ui';
 import { useModals } from '@/providers/ModalProvider';
 import { useThemeControls } from './useThemeControls';
@@ -27,13 +27,20 @@ export function CommandPalette({ role, onClose }: CommandPaletteProps) {
   const { toggleTheme } = useThemeControls();
   const assets = useAssets();
   const employees = useEmployees();
+  const workflow = useWorkflow();
   const listRef = useRef<HTMLDivElement>(null);
 
   const groups = useMemo(
     // Lists that have not arrived are no rows to search yet.
     () =>
-      paletteGroups({ query, role, assets: assets.data ?? [], employees: employees.data ?? [] }),
-    [query, role, assets.data, employees.data],
+      paletteGroups({
+        query,
+        role,
+        assets: assets.data ?? [],
+        employees: employees.data ?? [],
+        statuses: workflow.data?.statuses ?? [],
+      }),
+    [query, role, assets.data, employees.data, workflow.data],
   );
   const rows = useMemo(() => paletteRows(groups), [groups]);
   // `active` is an index this component maintains across renders while the

@@ -9,6 +9,7 @@ describe('navItemsForRole', () => {
       'Employees',
       'Members',
       'Activity log',
+      'Workflow',
       'Admin',
     ]);
     expect(navItemsForRole('manager').map((item) => item.label)).toEqual([
@@ -25,11 +26,12 @@ describe('navItemsForRole', () => {
     ]);
   });
 
-  it('separates the two admin-only sections from the rest with the design gap', () => {
+  it('separates the admin-only sections from the rest with the design gap', () => {
     const admin = navItemsForRole('admin');
-    expect(admin.at(-2)).toMatchObject({ label: 'Activity log', to: '/activity', gapBefore: true });
+    expect(admin.at(-3)).toMatchObject({ label: 'Activity log', to: '/activity', gapBefore: true });
+    expect(admin.at(-2)).toMatchObject({ label: 'Workflow', to: '/workflow' });
     expect(admin.at(-1)).toMatchObject({ label: 'Admin', to: '/admin' });
-    // One gap, above the pair — not one above each of them.
+    // One gap, above the group — not one above each of them.
     expect(admin.filter((item) => item.gapBefore)).toHaveLength(1);
   });
 });
@@ -64,6 +66,7 @@ describe('breadcrumbForPath', () => {
     expect(breadcrumbForPath('/members')).toBe('Members');
     expect(breadcrumbForPath('/admin')).toBe('Admin');
     expect(breadcrumbForPath('/activity')).toBe('Activity log');
+    expect(breadcrumbForPath('/workflow')).toBe('Workflow');
   });
 
   it('appends the detail label when one is known', () => {

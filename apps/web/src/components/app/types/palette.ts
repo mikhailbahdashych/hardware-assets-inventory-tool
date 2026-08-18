@@ -1,4 +1,4 @@
-import type { can, Role } from '@inventory/shared';
+import type { can, Role, WorkflowStatus } from '@inventory/shared';
 import type { Asset, Employee } from '@/types/api';
 import type { IconName } from '@/components/ui';
 import type { GlobalModal } from '@/types/modals';
@@ -37,4 +37,6 @@ export interface PaletteInput {
   role: Role;
   assets: Asset[];
   employees: Employee[];
+  /** The workspace's statuses, so an asset row can name the one it carries. */
+  statuses: WorkflowStatus[];
 }

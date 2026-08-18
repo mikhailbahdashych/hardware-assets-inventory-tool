@@ -2,35 +2,41 @@ import { useState, type FormEvent } from 'react';
 import {
   CHECKIN_CONDITION_LABELS,
   CHECKIN_CONDITIONS,
-  CHECKIN_NEW_STATUS_LABELS,
-  CHECKIN_NEW_STATUSES,
   type CheckinCondition,
-  type CheckinNewStatus,
 } from '@inventory/shared';
 import { fieldErrors } from '@/api/formErrors';
 import { useCheckinAsset } from '@/api/mutations';
+import { useWorkflow } from '@/api/queries';
 import { Button, Dropdown, Field, Input, Modal, SegmentedControl, Textarea } from '@/components/ui';
 import { NotifyCheckbox } from '@/components/app/NotifyCheckbox';
+import { checkinTargets } from '@/lib/workflow';
 import { useToast } from '@/providers/ToastProvider';
 import type { CheckInModalProps } from './types/checkInModal';
 import formStyles from '@/components/ui/FormModal.module.css';
 
-const STATUS_OPTIONS = CHECKIN_NEW_STATUSES.map((status) => ({
-  value: status,
-  label: CHECKIN_NEW_STATUS_LABELS[status],
-}));
-
-/** Taking an asset back: closes the ownership record and lands the device. */
+/**
+ * Taking an asset back: closes the ownership record and lands the device.
+ *
+ * Where it may land is a workspace decision — the statuses flagged as check-in
+ * targets, in the workspace's order. The old "Return to stock" wording for
+ * `available` is gone with the enum: a label an admin chose speaks for itself.
+ */
 export function CheckInModal({ asset, onClose }: CheckInModalProps) {
   const [returnDate, setReturnDate] = useState(new Date().toISOString().slice(0, 10));
   const [condition, setCondition] = useState<CheckinCondition>('good');
-  const [newStatus, setNewStatus] = useState<CheckinNewStatus>('available');
+  const [chosen, setChosen] = useState('');
   const [notes, setNotes] = useState('');
   const [emailConfirmation, setEmailConfirmation] = useState(false);
 
   const toast = useToast();
+  const workflow = useWorkflow();
   const checkin = useCheckinAsset(asset.id);
   const errors = fieldErrors(checkin.error);
+
+  // Destinations that have not arrived are none to offer; the first one is the
+  // default until somebody picks another, so the choice cannot live in state.
+  const destinations = checkinTargets(workflow.data?.statuses ?? []);
+  const newStatus = chosen || (destinations[0]?.id ?? '');
 
   function submit(event: FormEvent) {
     event.preventDefault();
@@ -60,7 +66,11 @@ export function CheckInModal({ asset, onClose }: CheckInModalProps) {
           <Button variant="ghost" onClick={onClose} disabled={checkin.isPending}>
             Cancel
           </Button>
-          <Button type="submit" form="checkin-form" disabled={checkin.isPending}>
+          <Button
+            type="submit"
+            form="checkin-form"
+            disabled={checkin.isPending || newStatus === ''}
+          >
             Check in asset
           </Button>
         </>
@@ -100,12 +110,18 @@ export function CheckInModal({ asset, onClose }: CheckInModalProps) {
         </div>
 
         <Field label="New status" required error={errors.newStatus}>
-          <SegmentedControl
-            options={STATUS_OPTIONS}
-            value={newStatus}
-            onChange={setNewStatus}
-            grow
-          />
+          {destinations.length === 0 ? (
+            <p className={formStyles.empty}>
+              This workspace has no status for a returning asset to land in.
+            </p>
+          ) : (
+            <SegmentedControl
+              options={destinations.map((status) => ({ value: status.id, label: status.label }))}
+              value={newStatus}
+              onChange={setChosen}
+              grow
+            />
+          )}
         </Field>
 
         <Field label="Notes" error={errors.notes}>

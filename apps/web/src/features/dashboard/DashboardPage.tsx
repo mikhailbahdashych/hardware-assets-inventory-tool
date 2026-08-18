@@ -1,12 +1,5 @@
 import { Link, useNavigate } from 'react-router';
-import {
-  ASSET_CATEGORY_LABELS,
-  ASSET_STATUSES,
-  ASSET_STATUS_COLORS,
-  ASSET_STATUS_LABELS,
-  AUDIT_TYPE_COLORS,
-  renderAuditEvent,
-} from '@inventory/shared';
+import { ASSET_CATEGORY_LABELS, AUDIT_TYPE_COLORS, renderAuditEvent } from '@inventory/shared';
 import { useDashboard } from '@/api/queries';
 import { PageContainer } from '@/components/app/PageContainer';
 import { Button, EmptyState, Pill, Spinner } from '@/components/ui';
@@ -75,27 +68,32 @@ function today(): string {
   }).format(new Date());
 }
 
-/** Six tiles, each a link into the assets list already filtered to it. */
+/**
+ * A tile per status the workspace has, in its order, each a link into the
+ * assets list already filtered to it. The payload carries the label and the
+ * colour, so a status an admin added yesterday gets a tile with no code
+ * change — and the grid wraps rather than squeezing a seventh into six.
+ */
 function StatusCounts({ data }: StatusCountsProps) {
   const navigate = useNavigate();
   return (
     <div className={styles.kpis}>
-      {ASSET_STATUSES.map((status) => (
+      {data.statusCounts.map((status) => (
         <button
-          key={status}
+          key={status.id}
           type="button"
           className={styles.kpi}
           // What separates the label from the count on screen is layout, and an
           // accessible name cannot see layout — without this the two run
           // together as "Available4".
-          aria-label={`${ASSET_STATUS_LABELS[status]} ${data.statusCounts[status]}`}
-          onClick={() => navigate(`/assets?status=${status}`)}
+          aria-label={`${status.label} ${status.count}`}
+          onClick={() => navigate(`/assets?status=${encodeURIComponent(status.id)}`)}
         >
           <span className={styles.kpiLabel}>
-            <span className={styles.kpiDot} data-sv={ASSET_STATUS_COLORS[status]} />
-            {ASSET_STATUS_LABELS[status]}
+            <span className={styles.kpiDot} data-sv={status.color} />
+            {status.label}
           </span>
-          <span className={styles.kpiCount}>{data.statusCounts[status]}</span>
+          <span className={styles.kpiCount}>{status.count}</span>
         </button>
       ))}
     </div>

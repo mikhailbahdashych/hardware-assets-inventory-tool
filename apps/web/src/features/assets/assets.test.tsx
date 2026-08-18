@@ -8,6 +8,7 @@ import {
   LAPTOP_DETAIL,
   MONITOR,
   READY_META,
+  WORKFLOW,
 } from '@/test/api-stub';
 import { renderApp, resetAppState } from '@/test/render';
 import { choose } from '@/test/dropdown';
@@ -39,6 +40,29 @@ describe('asset list', () => {
     expect(screen.getByText('Maya Lindqvist')).toBeInTheDocument();
     expect(screen.getByText('In repair')).toBeInTheDocument();
     expect(screen.getByText('2 assets')).toBeInTheDocument();
+  });
+
+  it('draws each status in the words the workspace chose', async () => {
+    // Statuses are rows an admin edits, so the pill reads the workflow rather
+    // than a label map compiled into the bundle.
+    renderApp(
+      {
+        ...INVENTORY_ROUTES,
+        'GET /workflow': {
+          body: {
+            ...WORKFLOW,
+            statuses: WORKFLOW.statuses.map((status) =>
+              status.id === 'in_repair' ? { ...status, label: 'At the shop' } : status,
+            ),
+          },
+        },
+      },
+      '/assets',
+    );
+
+    expect(await screen.findByText('At the shop')).toBeInTheDocument();
+    expect(screen.queryByText('In repair')).toBeNull();
+    expect(screen.getByRole('button', { name: 'At the shop 1' })).toBeInTheDocument();
   });
 
   it('filters live by text and records the query in the URL', async () => {

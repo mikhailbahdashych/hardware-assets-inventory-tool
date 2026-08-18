@@ -2,6 +2,8 @@ import type { AppDeps } from '@/types/app.js';
 import {
   assetCustomValues,
   assets,
+  assetStatuses,
+  assetStatusTransitions,
   assignments,
   attachments,
   auditEvents,
@@ -61,6 +63,10 @@ export async function emptyWorkspace(deps: AppDeps): Promise<void> {
     tx.delete(assetCustomValues).run();
     tx.delete(assignments).run();
     tx.delete(assets).run();
+    // The workflow goes too, so the seed below lays the default one back down:
+    // a workspace that edited its statuses is not what a fresh container has.
+    tx.delete(assetStatusTransitions).run();
+    tx.delete(assetStatuses).run();
     tx.delete(customFieldDefs).run();
     tx.delete(authTokens).run();
     tx.delete(sessions).run();

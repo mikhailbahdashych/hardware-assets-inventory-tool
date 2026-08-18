@@ -60,15 +60,17 @@ describe('the dashboard payload', () => {
     ).json();
 
     expect(body.assetCount).toBe(3);
-    // Six KPI cards are drawn whatever the inventory holds, so six numbers.
-    expect(body.statusCounts).toEqual({
-      available: 2,
-      assigned: 0,
-      in_repair: 1,
-      ordered: 0,
-      retired: 0,
-      lost_stolen: 0,
-    });
+    // One tile per status the workspace has, in its own order, carrying the
+    // label and colour the tile renders in — the web needs no vocabulary of
+    // its own to draw them.
+    expect(body.statusCounts).toEqual([
+      { id: 'available', label: 'Available', color: 'ok', count: 2 },
+      { id: 'assigned', label: 'Assigned', color: 'acc', count: 0 },
+      { id: 'in_repair', label: 'In repair', color: 'warn', count: 1 },
+      { id: 'ordered', label: 'Ordered', color: 'info', count: 0 },
+      { id: 'retired', label: 'Retired', color: 'neut', count: 0 },
+      { id: 'lost_stolen', label: 'Lost/Stolen', color: 'err', count: 0 },
+    ]);
     expect(body.categoryCounts).toEqual([
       { category: 'laptops', count: 2 },
       { category: 'desktops', count: 0 },
@@ -76,6 +78,32 @@ describe('the dashboard payload', () => {
       { category: 'phones', count: 0 },
       { category: 'peripherals', count: 0 },
     ]);
+  });
+
+  it('gives a status the admin invented a tile of its own', async () => {
+    ctx = await buildTestApp();
+    const admin = await setupOrg(ctx.app);
+    await inject(ctx.app, {
+      method: 'POST',
+      url: '/api/v1/workflow/statuses',
+      cookie: admin,
+      body: { label: 'On loan', color: 'info' },
+    });
+    await createAsset(admin, { name: 'ThinkPad X1', status: 'on_loan' });
+
+    const body = (
+      await inject(ctx.app, { method: 'GET', url: '/api/v1/dashboard', cookie: admin })
+    ).json();
+
+    expect(body.assetCount).toBe(1);
+    expect(body.statusCounts).toHaveLength(7);
+    // Last, because a new status lands last — the tiles follow the sort order.
+    expect(body.statusCounts.at(-1)).toEqual({
+      id: 'on_loan',
+      label: 'On loan',
+      color: 'info',
+      count: 1,
+    });
   });
 
   it('shows the newest activity as the log would render it', async () => {
@@ -168,7 +196,9 @@ describe('the dashboard payload', () => {
     ).json();
 
     expect(body.assetCount).toBe(0);
-    expect(body.statusCounts.available).toBe(0);
+    expect(body.statusCounts.map((tile: { count: number }) => tile.count)).toEqual([
+      0, 0, 0, 0, 0, 0,
+    ]);
     expect(body.warrantyExpirations).toEqual([]);
     expect(body.pendingReturns).toEqual([]);
     // Setting the workspace up is itself the first thing that happened.

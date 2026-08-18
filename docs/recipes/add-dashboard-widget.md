@@ -62,4 +62,4 @@ Find the card by **heading**, not by text: the Customize modal lists the same na
 
 ## The step people forget
 
-**The KPI grid is `repeat(6, 1fr)`.** If your widget is a tile rather than a card, `Dashboard.module.css` has that number written out, and a seventh tile silently reflows the row. Anything that changes the count of KPI tiles is a design decision — look at it at 1440×900, the width the app is designed for, before shipping.
+**The KPI grid no longer counts.** It was `repeat(6, 1fr)` — one column per asset status — until a workspace could invent a seventh status from the Workflow page, so `Dashboard.module.css` says `repeat(auto-fill, minmax(148px, 1fr))` and the row wraps on its own. A tile you add joins that flow rather than a fixed track, which means the thing to check is what it looks like _wrapped_: eight tiles at 1440×900, the width the app is designed for, before shipping.

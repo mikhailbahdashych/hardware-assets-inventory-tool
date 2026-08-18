@@ -1,6 +1,5 @@
 import type {
   AssetCategory,
-  AssetStatus,
   AssignmentOutcome,
   AuditType,
   CheckinCondition,
@@ -11,6 +10,7 @@ import type {
   LogRetention,
   MemberStatus,
   Role,
+  SemanticColor,
 } from '@inventory/shared';
 import type { Density, Theme } from './theme';
 
@@ -19,7 +19,8 @@ import type { Density, Theme } from './theme';
 
 /** What `apiFetch` accepts beyond the path. */
 export interface ApiRequest {
-  method?: 'GET' | 'POST' | 'PATCH' | 'DELETE';
+  /** PUT is for the two workflow endpoints that replace a whole collection. */
+  method?: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
   body?: unknown;
   signal?: AbortSignal;
 }
@@ -86,7 +87,8 @@ export interface Asset {
   assetTag: string;
   name: string;
   category: AssetCategory;
-  status: AssetStatus;
+  /** A status id (`asset_statuses.id`) — a row an admin edits, not an enum. */
+  status: string;
   model: string | null;
   serialNumber: string | null;
   purchaseDate: string | null;
@@ -250,6 +252,18 @@ export interface CategoryCount {
   count: number;
 }
 
+/**
+ * One KPI tile. It carries its own label and colour, so the dashboard draws
+ * whatever statuses the workspace has, in the workspace's order, without a
+ * vocabulary of its own to fall out of date. Mirrors the API's `StatusCount`.
+ */
+export interface StatusCount {
+  id: string;
+  label: string;
+  color: SemanticColor;
+  count: number;
+}
+
 /** A warranty running out soon; `daysLeft` picks the pill's urgency colour. */
 export interface WarrantyExpiry {
   assetId: string;
@@ -271,7 +285,8 @@ export interface PendingReturn {
 /** Five widgets, one request — see `useDashboard`. */
 export interface DashboardPayload {
   assetCount: number;
-  statusCounts: Record<AssetStatus, number>;
+  /** Every status in sort order, zeros included — a tile is drawn regardless. */
+  statusCounts: StatusCount[];
   categoryCounts: CategoryCount[];
   recentActivity: AuditLogItem[];
   warrantyExpirations: WarrantyExpiry[];

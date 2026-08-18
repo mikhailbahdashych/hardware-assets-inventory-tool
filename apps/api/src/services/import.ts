@@ -1,5 +1,5 @@
 import { eq } from 'drizzle-orm';
-import type { ImportCommitInput, ImportValidateInput } from '@inventory/shared';
+import { ASSIGNED_STATUS, type ImportCommitInput, type ImportValidateInput } from '@inventory/shared'; // prettier-ignore
 import type { AppDeps } from '@/types/app.js';
 import type { Actor } from '@/types/audit.js';
 import type { DbOrTx } from '@/types/db.js';
@@ -17,6 +17,7 @@ import { newId } from '@/lib/ids.js';
 import { writeAudit } from './audit.js';
 import { openAssignment } from './assignments.js';
 import { planImport } from './import-validator.js';
+import { getWorkflow } from './workflow.js';
 
 /** Note left on the ownership records an import opens, so history says why. */
 const IMPORT_NOTE = 'Imported via CSV';
@@ -33,6 +34,9 @@ function importContext(db: DbOrTx): ImportContext {
     existingAssetTags: new Set(tags.map((row) => row.assetTag)),
     employeeIdByEmail: new Map(people.map((row) => [row.email, row.id])),
     employeeStatusById: new Map(people.map((row) => [row.id, row.status])),
+    // Read inside the same transaction on commit, so a status deleted between
+    // the dry run and the write cannot let a row through under an old name.
+    statuses: getWorkflow(db).statuses,
   };
 }
 
@@ -84,6 +88,19 @@ export function commitImport(deps: AppDeps, actor: Actor, input: ImportCommitInp
 function writeAssets(tx: DbOrTx, rows: PlannedAsset[], now: Date): ImportResult {
   const at = nowIso(now);
 
+  // Where a row that arrives Assigned is inserted before `openAssignment`
+  // moves it — that function is the only code allowed to pair `assigned` with
+  // an ownership row, and it runs a few lines later in the same transaction.
+  // Read once rather than per row: a file may hold thousands.
+  const free = getWorkflow(tx).statuses.find((status) => !status.isSystem);
+  if (!free) {
+    throw new AppError(
+      500,
+      'workflow_empty',
+      'This workspace has no status to import an asset into.',
+    );
+  }
+
   for (const row of rows) {
     const id = newId();
     tx.insert(assets)
@@ -94,9 +111,10 @@ function writeAssets(tx: DbOrTx, rows: PlannedAsset[], now: Date): ImportResult 
         category: row.category,
         model: null,
         serialNumber: row.serialNumber,
-        // openAssignment below is what actually sets 'assigned', so the row
-        // never exists in that state without its ownership record.
-        status: row.status === 'assigned' ? 'available' : row.status,
+        // openAssignment below is what actually sets `assigned`, so the row
+        // never exists in that state without its ownership record. The planner
+        // only leaves `assigned` standing when it found an active holder.
+        status: row.status === ASSIGNED_STATUS ? free.id : row.status,
         purchaseDate: row.purchaseDate,
         purchasePriceCents: row.purchasePriceCents,
         currency: row.currency,

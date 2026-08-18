@@ -1,11 +1,9 @@
 import { useEffect, useState } from 'react';
 import {
-  ASSET_STATUSES,
-  ASSET_STATUS_COLORS,
-  ASSET_STATUS_LABELS,
   AUDIT_TYPES,
   AUDIT_TYPE_COLORS,
   AUDIT_TYPE_LABELS,
+  DEFAULT_ASSET_STATUSES,
   ROLES,
   ROLE_COLORS,
   ROLE_DESCRIPTIONS,
@@ -43,14 +41,50 @@ import {
   ToggleSwitch,
   type IconName,
 } from '@/components/ui';
+import { WorkflowDiagram } from '@/features/workflow/WorkflowDiagram';
 import { useTheme } from '@/providers/ThemeProvider';
 import { useToast } from '@/providers/ToastProvider';
 import type { RowProps, SectionProps } from './types/kitchenSink';
 
+/**
+ * The workflow a fresh instance is seeded with, in the shape the API serves —
+ * six statuses and the full mesh among the five that are not `assigned`.
+ */
+const DEMO_WORKFLOW = (() => {
+  const statuses = DEFAULT_ASSET_STATUSES.map((status, sortOrder) => ({ ...status, sortOrder }));
+  const movable = statuses.filter((status) => !status.isSystem);
+  return {
+    statuses,
+    transitions: movable.flatMap((from) =>
+      movable.filter((to) => to.id !== from.id).map((to) => ({ from: from.id, to: to.id })),
+    ),
+  };
+})();
+
+// The status is a label and a colour rather than a slug, because that is what
+// a row carries once the workspace owns its own statuses.
 const DEMO_ROWS = [
-  { tag: 'AST-0142', name: 'MacBook Pro 14" M3', serial: 'C02XK1AZQ6L7', status: 'assigned' },
-  { tag: 'AST-0177', name: 'Dell UltraSharp U2723QE', serial: 'CN0J2Y8', status: 'available' },
-  { tag: 'AST-0089', name: 'MacBook Air M2', serial: 'C02FL9QXQ6L4', status: 'in_repair' },
+  {
+    tag: 'AST-0142',
+    name: 'MacBook Pro 14" M3',
+    serial: 'C02XK1AZQ6L7',
+    status: 'Assigned',
+    sv: 'acc',
+  },
+  {
+    tag: 'AST-0177',
+    name: 'Dell UltraSharp U2723QE',
+    serial: 'CN0J2Y8',
+    status: 'Available',
+    sv: 'ok',
+  },
+  {
+    tag: 'AST-0089',
+    name: 'MacBook Air M2',
+    serial: 'C02FL9QXQ6L4',
+    status: 'In repair',
+    sv: 'warn',
+  },
 ] as const;
 
 function Section({ title, children }: SectionProps) {
@@ -100,8 +134,11 @@ const ICON_NAMES: IconName[] = [
   'pencil',
   'chevronLeft',
   'chevronDown',
+  'chevronUp',
+  'trash',
   'check',
   'activity',
+  'workflow',
   'logOut',
   'x',
 ];
@@ -370,10 +407,13 @@ export function KitchenSink() {
       </Section>
 
       <Section title="Pills">
+        {/* Asset statuses are workspace data now, edited on /workflow — this is
+            the workflow a fresh instance is seeded with, one pill per semantic
+            colour. A workspace's own statuses may read anything at all. */}
         <Row>
-          {ASSET_STATUSES.map((status) => (
-            <Pill key={status} sv={ASSET_STATUS_COLORS[status]} dot>
-              {ASSET_STATUS_LABELS[status]}
+          {DEFAULT_ASSET_STATUSES.map((status) => (
+            <Pill key={status.id} sv={status.color} dot>
+              {status.label}
             </Pill>
           ))}
         </Row>
@@ -477,8 +517,8 @@ export function KitchenSink() {
               header: 'Status',
               width: '110px',
               render: (row) => (
-                <Pill sv={ASSET_STATUS_COLORS[row.status]} dot>
-                  {ASSET_STATUS_LABELS[row.status]}
+                <Pill sv={row.sv} dot>
+                  {row.status}
                 </Pill>
               ),
             },
@@ -629,6 +669,20 @@ export function KitchenSink() {
               <a href="#top">Audit log →</a>
             </div>
           </Card>
+        </div>
+      </Section>
+
+      <Section title="Workflow diagram">
+        {/* The one drawing in the product. It is here because it is built from
+            the tokens like everything else: a node takes its status's
+            `--{sv}` pair, the solid edges are --faint and the dashed pair
+            --acc, so both themes come free. This is the seeded default
+            workflow; /workflow draws whatever the workspace has. */}
+        <div style={{ maxWidth: 380 }}>
+          <WorkflowDiagram
+            statuses={DEMO_WORKFLOW.statuses}
+            transitions={DEMO_WORKFLOW.transitions}
+          />
         </div>
       </Section>
 

@@ -1,4 +1,4 @@
-import type { AssetCategory, AssetStatus } from '@inventory/shared';
+import type { AssetCategory, SemanticColor } from '@inventory/shared';
 import type { AuditItem } from './admin.js';
 
 // The whole dashboard in one payload. Five widgets, one request: they all read
@@ -7,6 +7,18 @@ import type { AuditItem } from './admin.js';
 
 export interface CategoryCount {
   category: AssetCategory;
+  count: number;
+}
+
+/**
+ * One KPI tile. It carries its own label and colour because statuses are rows
+ * an admin edits: the page draws whatever the workspace has, in the workspace's
+ * order, without a vocabulary of its own to fall out of date.
+ */
+export interface StatusCount {
+  id: string;
+  label: string;
+  color: SemanticColor;
   count: number;
 }
 
@@ -31,8 +43,8 @@ export interface PendingReturn {
 
 export interface DashboardPayload {
   assetCount: number;
-  /** Every status, zeros included: the design draws six KPI cards regardless. */
-  statusCounts: Record<AssetStatus, number>;
+  /** Every status in sort order, zeros included: a tile is drawn regardless. */
+  statusCounts: StatusCount[];
   /** Every category in enum order, so the bars keep their places. */
   categoryCounts: CategoryCount[];
   recentActivity: AuditItem[];

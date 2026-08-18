@@ -44,20 +44,18 @@ describe('checkinInput', () => {
     expect(checkinInput.safeParse({ newStatus: 'available' }).success).toBe(false);
   });
 
-  it('only lands in a status a returned asset can be in', () => {
+  it('takes any slug as a destination — which ones land is the API’s answer', () => {
     expect(
       checkinInput.safeParse({ returnDate: '2026-08-16', newStatus: 'in_repair' }).success,
     ).toBe(true);
-    expect(checkinInput.safeParse({ returnDate: '2026-08-16', newStatus: 'retired' }).success).toBe(
+    // Which statuses a returned asset may land in is a workspace's own choice
+    // (the `checkin_target` flag), so this package cannot rule any slug out —
+    // it only insists there is one. Checking in to Assigned or to Ordered is
+    // still refused, by the API, with a 422 naming the field.
+    expect(checkinInput.safeParse({ returnDate: '2026-08-16', newStatus: 'wiped' }).success).toBe(
       true,
     );
-    // Checking in cannot leave the asset assigned, or mark it as never received.
-    expect(
-      checkinInput.safeParse({ returnDate: '2026-08-16', newStatus: 'assigned' }).success,
-    ).toBe(false);
-    expect(checkinInput.safeParse({ returnDate: '2026-08-16', newStatus: 'ordered' }).success).toBe(
-      false,
-    );
+    expect(checkinInput.safeParse({ returnDate: '2026-08-16', newStatus: '' }).success).toBe(false);
   });
 
   it('takes an optional condition', () => {

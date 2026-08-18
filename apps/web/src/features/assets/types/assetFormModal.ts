@@ -1,10 +1,11 @@
-import type { AssetCategory, AssetStatus, Role } from '@inventory/shared';
+import type { AssetCategory, Role } from '@inventory/shared';
 import type { Asset, CustomFieldValue } from '@/types/api';
 
 export interface AssetFormState {
   name: string;
   category: AssetCategory;
-  status: AssetStatus;
+  /** A status id, or `''` while nobody has chosen and the workflow is loading. */
+  status: string;
   assetTag: string;
   serialNumber: string;
   model: string;

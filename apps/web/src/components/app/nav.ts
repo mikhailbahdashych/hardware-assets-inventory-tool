@@ -6,7 +6,7 @@ const ITEMS: GatedNavItem[] = [
   { label: 'Assets', to: '/assets', icon: 'cube' },
   { label: 'Employees', to: '/employees', icon: 'users' },
   { label: 'Members', to: '/members', icon: 'shieldCheck' },
-  // Both admin-only, together after the design's 10px gap.
+  // All three admin-only, together after the design's 10px gap.
   {
     label: 'Activity log',
     to: '/activity',
@@ -14,6 +14,7 @@ const ITEMS: GatedNavItem[] = [
     gapBefore: true,
     requires: 'audit.view',
   },
+  { label: 'Workflow', to: '/workflow', icon: 'workflow', requires: 'workflow.manage' },
   { label: 'Admin', to: '/admin', icon: 'gear', requires: 'settings.manage' },
 ];
 
@@ -35,6 +36,7 @@ const SECTION_LABELS: Record<string, string> = {
   employees: 'Employees',
   members: 'Members',
   activity: 'Activity log',
+  workflow: 'Workflow',
   admin: 'Admin',
 };
 

@@ -11,13 +11,14 @@ export function DataTable<T>({
   rowKey,
   onRowClick,
   title,
+  label,
   showHeader = true,
   footer,
   empty,
 }: DataTableProps<T>) {
   const template = columns.map((column) => column.width).join(' ');
   return (
-    <div className={styles.table} role="table">
+    <div className={styles.table} role="table" aria-label={label}>
       {title !== undefined && <div className={styles.tableTitle}>{title}</div>}
       {showHeader && (
         <div

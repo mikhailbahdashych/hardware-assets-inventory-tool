@@ -18,6 +18,7 @@ import { DashboardPage } from './features/dashboard/DashboardPage';
 import { EmployeeDetailPage } from './features/employees/EmployeeDetailPage';
 import { EmployeesPage } from './features/employees/EmployeesPage';
 import { MembersPage } from './features/members/MembersPage';
+import { WorkflowPage } from './features/workflow/WorkflowPage';
 
 /**
  * The design-system review page. `import.meta.env.DEV` is statically false in a
@@ -138,6 +139,18 @@ export function AppRoutes() {
           element={
             can(member.role, 'audit.view') ? (
               <ActivityLogPage />
+            ) : (
+              <Navigate to="/dashboard" replace />
+            )
+          }
+        />
+        {/* The vocabulary the whole app renders through, so it is its own page
+            rather than a card on Admin. */}
+        <Route
+          path="/workflow"
+          element={
+            can(member.role, 'workflow.manage') ? (
+              <WorkflowPage />
             ) : (
               <Navigate to="/dashboard" replace />
             )

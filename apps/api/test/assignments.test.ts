@@ -1,6 +1,6 @@
 import { eq, isNull } from 'drizzle-orm';
 import { afterEach, describe, expect, it } from 'vitest';
-import { assets, assignments, auditEvents } from '@/db/schema.js';
+import { assets, assetStatuses, assignments, auditEvents } from '@/db/schema.js';
 import type { Db } from '@/types/db.js';
 import { buildTestApp, inject, memberCookie, setupOrg, type TestApp } from './helpers.js';
 
@@ -129,6 +129,11 @@ describe('assigning an asset', () => {
     });
     expect(repairing.statusCode).toBe(409);
     expect(repairing.json().error.code).toBe('asset_unavailable');
+    // The message names the workspace's own assignable statuses, so an admin
+    // who renamed them reads their own words back.
+    expect(repairing.json().error.message).toBe(
+      'Only an asset that is Available or Ordered can be handed out.',
+    );
 
     const free = await createAsset(admin, { name: 'ThinkPad X1' });
     await assign(admin, free.id, { employeeId: first.id, checkoutDate: '2026-03-14' });
@@ -217,11 +222,67 @@ describe('checking an asset in', () => {
       .from(auditEvents)
       .all()
       .find((e) => e.action === 'asset.checked_in');
+    // The label at write time, not the slug: renaming or deleting a status
+    // afterwards must not rewrite what the log already said.
     expect(JSON.parse(event!.params)).toMatchObject({
       holderName: 'Maya Lindqvist',
       outcome: 'returned',
-      to: 'available',
+      to: 'Available',
     });
+    expectInvariant(ctx.db);
+  });
+
+  it('only offers the statuses the workflow marks as check-in destinations', async () => {
+    ctx = await buildTestApp();
+    const { admin, asset } = await held();
+
+    // Ordered is a real status, but nothing comes back from a person into it.
+    const ordered = await checkin(admin, asset.id, {
+      returnDate: '2026-08-16',
+      newStatus: 'ordered',
+    });
+    expect(ordered.statusCode).toBe(422);
+    expect(ordered.json().error.fields).toMatchObject({ newStatus: expect.any(String) });
+
+    const nowhere = await checkin(admin, asset.id, {
+      returnDate: '2026-08-16',
+      newStatus: 'teleported',
+    });
+    expect(nowhere.statusCode).toBe(422);
+
+    // Turning the flag off takes the destination away, live.
+    ctx.db
+      .update(assetStatuses)
+      .set({ checkinTarget: false })
+      .where(eq(assetStatuses.id, 'in_repair'))
+      .run();
+    const repair = await checkin(admin, asset.id, {
+      returnDate: '2026-08-16',
+      newStatus: 'in_repair',
+    });
+    expect(repair.statusCode).toBe(422);
+
+    expect(ctx.db.select().from(assets).all()[0]!.status).toBe('assigned');
+    expectInvariant(ctx.db);
+  });
+
+  it('follows the assignable flag rather than a hard-coded pair', async () => {
+    ctx = await buildTestApp();
+    const admin = await setupOrg(ctx.app);
+    const employee = await createEmployee(admin);
+    const asset = await createAsset(admin, { status: 'in_repair' });
+
+    ctx.db
+      .update(assetStatuses)
+      .set({ assignableFrom: true })
+      .where(eq(assetStatuses.id, 'in_repair'))
+      .run();
+
+    const res = await assign(admin, asset.id, {
+      employeeId: employee.id,
+      checkoutDate: '2026-03-14',
+    });
+    expect(res.statusCode).toBe(200);
     expectInvariant(ctx.db);
   });
 

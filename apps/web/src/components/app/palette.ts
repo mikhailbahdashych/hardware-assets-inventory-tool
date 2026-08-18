@@ -1,4 +1,5 @@
-import { ASSET_STATUS_LABELS, ASSET_CATEGORY_LABELS, can } from '@inventory/shared';
+import { ASSET_CATEGORY_LABELS, can } from '@inventory/shared';
+import { statusInfo, statusMap } from '@/lib/workflow';
 import type { ActionDefinition, PaletteGroup, PaletteInput, PaletteRow } from './types/palette';
 
 // The palette's contents, as data. Pure so the grouping, the cap and the
@@ -51,6 +52,9 @@ const matches = (query: string, ...fields: (string | null)[]): boolean =>
  */
 export function paletteGroups(input: PaletteInput): PaletteGroup[] {
   const query = input.query.trim().toLowerCase();
+  // Statuses are workspace data; a palette row names one, so it reads the same
+  // list every pill does rather than a label map of its own.
+  const byId = statusMap(input.statuses);
 
   const assets = input.assets
     .filter((asset) => matches(query, asset.name, asset.assetTag, asset.serialNumber))
@@ -59,7 +63,7 @@ export function paletteGroups(input: PaletteInput): PaletteGroup[] {
       id: `asset-${asset.id}`,
       icon: 'cube',
       title: asset.name,
-      subtitle: `${asset.assetTag} · ${ASSET_STATUS_LABELS[asset.status]}`,
+      subtitle: `${asset.assetTag} · ${statusInfo(byId, asset.status).label}`,
       hint: ASSET_CATEGORY_LABELS[asset.category],
       effect: { kind: 'navigate', to: `/assets/${asset.id}` },
     }));

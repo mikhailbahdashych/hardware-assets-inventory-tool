@@ -12,6 +12,7 @@ import { requireAction, requireAuth } from '@/plugins/rbac.js';
 import { dashboardPayload } from '@/services/dashboard.js';
 import { workspaceExport } from '@/services/export.js';
 import { commitImport, validateImport } from '@/services/import.js';
+import { getWorkflow } from '@/services/workflow.js';
 
 /**
  * The read-and-move-data endpoints: the dashboard, the CSV import round trip and
@@ -35,7 +36,9 @@ export function registerDataRoutes(app: FastifyInstance, deps: AppDeps): void {
       reply
         .header('content-type', 'text/csv; charset=utf-8')
         .header('content-disposition', `attachment; filename="${request.query.kind}-template.csv"`)
-        .send(csvTemplate(request.query.kind)),
+        // The example rows show this workspace's own statuses: a template
+        // naming one it does not have would be a template the app rejects.
+        .send(csvTemplate(request.query.kind, getWorkflow(deps.db).statuses)),
   );
 
   typed.post(

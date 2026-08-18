@@ -21,9 +21,13 @@ describe('assetCreateInput', () => {
     expect(assetCreateInput.parse({ ...MINIMAL, assetTag: 'AST-0224' }).assetTag).toBe('AST-0224');
   });
 
-  it('rejects unknown categories and statuses', () => {
+  it('rejects an unknown category, and takes any slug as a status', () => {
     expect(assetCreateInput.safeParse({ ...MINIMAL, category: 'servers' }).success).toBe(false);
-    expect(assetCreateInput.safeParse({ ...MINIMAL, status: 'on_fire' }).success).toBe(false);
+    // Statuses are rows in the database, so this package cannot know the
+    // vocabulary: the shape is "a slug", and the API answers 422 for a slug
+    // that names nothing. A blank one is still no slug at all.
+    expect(assetCreateInput.safeParse({ ...MINIMAL, status: 'on_fire' }).success).toBe(true);
+    expect(assetCreateInput.safeParse({ ...MINIMAL, status: '' }).success).toBe(false);
   });
 
   it('requires a name', () => {

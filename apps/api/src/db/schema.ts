@@ -145,6 +145,48 @@ export const assets = sqliteTable(
 );
 
 /**
+ * The workspace's asset statuses. Editable data rather than a code enum, which
+ * is why `assets.status` above stays plain TEXT with no FK: an asset keeps the
+ * slug it carries even if somebody deletes the status, and the services decide
+ * what is legal by reading these rows.
+ */
+export const assetStatuses = sqliteTable('asset_statuses', {
+  /** The slug, derived from the label once and never changed afterwards. */
+  id: text('id').primaryKey(),
+  /** Unique here and case-insensitively in the service — two statuses one
+   *  letter apart are two ways to lose track of the same asset. */
+  label: text('label').notNull().unique(),
+  color: text('color').notNull(),
+  /** True only for `assigned`: assign and check-in are its only doors. */
+  isSystem: integer('is_system', { mode: 'boolean' }).notNull().default(false),
+  assignableFrom: integer('assignable_from', { mode: 'boolean' }).notNull().default(false),
+  checkinTarget: integer('checkin_target', { mode: 'boolean' }).notNull().default(false),
+  /** Pills, tiles, selects and the matrix all read this one order. */
+  sortOrder: integer('sort_order').notNull(),
+  createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at').notNull(),
+});
+
+/**
+ * The transition graph: one row per allowed direct move. Deleting a status
+ * takes its edges with it, which is the whole reason these are real foreign
+ * keys while `assets.status` is not — an edge to nowhere has no meaning, and
+ * an asset in a retired status still has to render.
+ */
+export const assetStatusTransitions = sqliteTable(
+  'asset_status_transitions',
+  {
+    fromStatus: text('from_status')
+      .notNull()
+      .references(() => assetStatuses.id, { onDelete: 'cascade' }),
+    toStatus: text('to_status')
+      .notNull()
+      .references(() => assetStatuses.id, { onDelete: 'cascade' }),
+  },
+  (table) => [primaryKey({ columns: [table.fromStatus, table.toStatus] })],
+);
+
+/**
  * Ownership history — the only truth for "who holds it". At most one active
  * row (returned_at IS NULL) per asset, enforced structurally by a partial
  * unique index. holder_name_snapshot survives employee deletion.

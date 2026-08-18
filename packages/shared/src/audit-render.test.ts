@@ -25,9 +25,32 @@ describe('renderAuditEvent', () => {
     expect(
       renderAuditEvent({
         action: 'asset.status_changed',
-        params: { assetName: 'iPhone 15', from: 'available', to: 'in_repair' },
+        params: { assetName: 'iPhone 15', from: 'Available', to: 'In repair' },
       }),
     ).toBe('Changed iPhone 15 from Available to In repair');
+  });
+
+  /**
+   * Status events snapshot the label at write time, the same rule as
+   * `holder_name_snapshot`: renaming or deleting a status must not rewrite what
+   * the log already said. Everything written before that change carries slugs,
+   * and those still have to read like sentences.
+   */
+  it('still reads events written back when statuses were slugs', () => {
+    expect(
+      renderAuditEvent({
+        action: 'asset.status_changed',
+        params: { assetName: 'iPhone 15', from: 'available', to: 'lost_stolen' },
+      }),
+    ).toBe('Changed iPhone 15 from Available to Lost/Stolen');
+    // A slug from no vocabulary this build knows renders as itself — a log
+    // that hides an event is worse than an ugly one.
+    expect(
+      renderAuditEvent({
+        action: 'asset.status_changed',
+        params: { assetName: 'iPhone 15', from: 'On loan', to: 'wiped' },
+      }),
+    ).toBe('Changed iPhone 15 from On loan to wiped');
   });
 
   it('lists what an edit touched, in the words the form uses', () => {
@@ -108,6 +131,45 @@ describe('renderAuditEvent', () => {
     // the activity log existed to show it.
     expect(renderAuditEvent({ action: 'auth.password_reset', params: {} })).toBe(
       'Reset their password',
+    );
+  });
+
+  it('renders every workflow change as something an admin would recognise', () => {
+    expect(
+      renderAuditEvent({ action: 'workflow.status_created', params: { label: 'On loan' } }),
+    ).toBe('Added the asset status On loan');
+    expect(
+      renderAuditEvent({
+        action: 'workflow.status_updated',
+        params: { label: 'On loan', changedFields: ['label', 'checkinTarget'] },
+      }),
+    ).toBe('Updated the asset status On loan (name, check-in destination)');
+    expect(
+      renderAuditEvent({
+        action: 'workflow.status_deleted',
+        params: { label: 'Lost/Stolen', migratedToLabel: null, assetCount: 0 },
+      }),
+    ).toBe('Deleted the asset status Lost/Stolen');
+    expect(
+      renderAuditEvent({
+        action: 'workflow.status_deleted',
+        params: { label: 'Lost/Stolen', migratedToLabel: 'Retired', assetCount: 2 },
+      }),
+    ).toBe('Deleted the asset status Lost/Stolen · 2 assets moved to Retired');
+    expect(
+      renderAuditEvent({
+        action: 'workflow.status_deleted',
+        params: { label: 'On loan', migratedToLabel: 'Available', assetCount: 1 },
+      }),
+    ).toBe('Deleted the asset status On loan · 1 asset moved to Available');
+    expect(
+      renderAuditEvent({
+        action: 'workflow.transitions_updated',
+        params: { added: 1, removed: 3 },
+      }),
+    ).toBe('Changed the workflow (1 transition added, 3 removed)');
+    expect(renderAuditEvent({ action: 'workflow.statuses_reordered', params: {} })).toBe(
+      'Reordered the asset statuses',
     );
   });
 

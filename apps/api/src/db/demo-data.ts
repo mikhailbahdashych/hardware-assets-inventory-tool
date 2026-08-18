@@ -1,4 +1,5 @@
-import type { DemoAsset, DemoHolding, DemoPerson } from '@/types/demo.js';
+import type { WorkflowTransition } from '@inventory/shared';
+import type { DemoAsset, DemoHolding, DemoPerson, DemoWorkflowStatus } from '@/types/demo.js';
 
 /**
  * The demo company. Everything here is fictional and every address is under
@@ -576,4 +577,44 @@ export const HOLDINGS: DemoHolding[] = [
   { assetKey: 'mba-m3', personKey: 'mei', fromDaysAgo: 60 },
   // The most recent handout, so the dashboard has something from this week.
   { assetKey: 'keychron', personKey: 'mei', fromDaysAgo: 2 },
+];
+
+/**
+ * The status this company added for itself: a machine that has come back is
+ * wiped and re-imaged before anybody else gets it. It is a check-in target and
+ * deliberately not assignable — a device still being imaged is not one you can
+ * hand somebody.
+ */
+export const DEMO_STATUS: DemoWorkflowStatus = {
+  // What `statusSlug('In imaging')` derives, written down because the graph
+  // below has to name it before the row exists.
+  id: 'in_imaging',
+  label: 'In imaging',
+  color: 'info',
+  assignableFrom: false,
+  checkinTarget: true,
+};
+
+/**
+ * The workflow the demo company settled on, replacing the full mesh a fresh
+ * instance is seeded with. A mesh is the honest default — a new workspace has
+ * no opinion — but it draws as a ball of arrows and demonstrates nothing, so
+ * the demo shows a graph with a policy in it:
+ *
+ * a delivery is imaged or shelved, imaging ends in stock, an available machine
+ * can break, be written off or be retired, repairs and recoveries go back to
+ * the shelf or to the scrapheap — and retirement is where a device's story
+ * ends, so it has no way out at all.
+ */
+export const DEMO_TRANSITIONS: readonly WorkflowTransition[] = [
+  { from: 'ordered', to: DEMO_STATUS.id },
+  { from: 'ordered', to: 'available' },
+  { from: DEMO_STATUS.id, to: 'available' },
+  { from: 'available', to: 'in_repair' },
+  { from: 'available', to: 'retired' },
+  { from: 'available', to: 'lost_stolen' },
+  { from: 'in_repair', to: 'available' },
+  { from: 'in_repair', to: 'retired' },
+  { from: 'lost_stolen', to: 'available' },
+  { from: 'lost_stolen', to: 'retired' },
 ];

@@ -20,7 +20,7 @@ npm run e2e          # from the repo root
 ## Conventions
 
 - Select by role and accessible name (`getByRole('button', { name: 'Sign in', exact: true })`); never by hashed CSS-module class names.
-- Dropdowns are the app's own, not native `<select>`, so `selectOption` does nothing. Use `helpers/dropdown.ts` (`choose(page, scope, field, label)`) and match the option by its **label** — the value never reaches the DOM. The listbox is portalled to `<body>`, so it is looked up on the `page` even when the trigger is inside a dialog.
+- Dropdowns are the app's own, not native `<select>`, so `selectOption` does nothing. Use `helpers/dropdown.ts` (`choose(page, scope, field, label)`) and match the option by its **label** — the value never reaches the DOM. The listbox is portalled to `<body>`, so it is looked up on the `page` even when the trigger is inside a dialog. An option that carries a description has both in its accessible name ("Blue info") while the closed field shows only the label; that is what `choose`'s fifth argument is for.
 - The dev-only `/kitchen-sink` route does not exist in production builds — e2e covers real app routes only.
 - Assert theme/no-flash behavior on `<html data-theme>` immediately after `reload()`: it proves the inline script in `index.html` ran before hydration.
 - First run needs browsers: `npx playwright install chromium`.

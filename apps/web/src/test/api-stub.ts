@@ -1,4 +1,5 @@
 import { vi } from 'vitest';
+import { DEFAULT_ASSET_STATUSES, type WorkflowPayload } from '@inventory/shared';
 
 export type StubResponse = { status?: number; body?: unknown };
 export type StubHandler = StubResponse | ((body: unknown, search: string) => StubResponse);
@@ -97,6 +98,23 @@ export const READY_META = {
 
 /** The same instance with no SMTP — the state every email affordance must handle. */
 export const NO_SMTP_META = { ...READY_META, smtpConfigured: false };
+
+/**
+ * The workflow a freshly seeded instance serves: today's six statuses in
+ * today's order, plus the full mesh among the five that are not `assigned`.
+ * Every test that renders a status pill needs it, which is why it sits in the
+ * shared route tables rather than in each file.
+ */
+export const WORKFLOW: WorkflowPayload = (() => {
+  const statuses = DEFAULT_ASSET_STATUSES.map((status, sortOrder) => ({ ...status, sortOrder }));
+  const free = statuses.filter((status) => !status.isSystem);
+  return {
+    statuses,
+    transitions: free.flatMap((from) =>
+      free.filter((to) => to.id !== from.id).map((to) => ({ from: from.id, to: to.id })),
+    ),
+  };
+})();
 
 export const CUSTOM_FIELDS = [
   { id: 'cf-1', key: 'mdm_enrolled', label: 'MDM enrolled', type: 'boolean', sortOrder: 0 },
@@ -327,14 +345,16 @@ export const AUDIT_PAGE = {
 
 export const DASHBOARD = {
   assetCount: 13,
-  statusCounts: {
-    available: 4,
-    assigned: 6,
-    in_repair: 1,
-    ordered: 1,
-    retired: 1,
-    lost_stolen: 0,
-  },
+  // Ordered, labelled and coloured by the API from the statuses table — the
+  // dashboard renders it as it arrives.
+  statusCounts: [
+    { id: 'available', label: 'Available', color: 'ok', count: 4 },
+    { id: 'assigned', label: 'Assigned', color: 'acc', count: 6 },
+    { id: 'in_repair', label: 'In repair', color: 'warn', count: 1 },
+    { id: 'ordered', label: 'Ordered', color: 'info', count: 1 },
+    { id: 'retired', label: 'Retired', color: 'neut', count: 1 },
+    { id: 'lost_stolen', label: 'Lost/Stolen', color: 'err', count: 0 },
+  ],
   categoryCounts: [
     { category: 'laptops', count: 6 },
     { category: 'desktops', count: 1 },
@@ -379,6 +399,7 @@ export const INVENTORY_ROUTES: StubRoutes = {
   'GET /employees': { body: { employees: [MAYA] } },
   'GET /custom-fields': { body: { customFields: CUSTOM_FIELDS } },
   'GET /assets/next-tag': { body: { assetTag: 'AST-0144' } },
+  'GET /workflow': { body: WORKFLOW },
 };
 
 /**
@@ -401,4 +422,5 @@ export const ADMIN_ROUTES: StubRoutes = {
   'GET /members': { body: { members: [ADMIN_SUMMARY, INVITED_SUMMARY, LINKED_SUMMARY] } },
   'GET /settings': { body: { settings: SETTINGS } },
   'GET /audit': { body: AUDIT_PAGE },
+  'GET /workflow': { body: WORKFLOW },
 };

@@ -18,6 +18,7 @@ const ADMIN_ACTIONS: Action[] = [
   'employees.delete',
   'members.manage',
   'custom_fields.manage',
+  'workflow.manage',
   'settings.manage',
   'audit.view',
   'export.run',
