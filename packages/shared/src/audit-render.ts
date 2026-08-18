@@ -1,4 +1,5 @@
-import { DEFAULT_ASSET_STATUSES, ROLE_LABELS, type AuditType, type Role } from './enums.js';
+import { DEFAULT_ASSET_STATUSES, type AuditType } from './enums.js';
+import { DEFAULT_ROLES } from './rbac.js';
 import type { AuditParams, RenderableAuditEvent } from './types/audit.js';
 
 // Audit events are stored structured — an action plus params with name
@@ -31,11 +32,22 @@ const status = (params: AuditParams, key: string): string => {
   return typeof value === 'string' ? (LEGACY_STATUS_LABELS.get(value) ?? value) : 'unknown';
 };
 
+/** The labels the three default slugs were written with, for the fallback below. */
+const LEGACY_ROLE_LABELS = new Map<string, string>(
+  DEFAULT_ROLES.map((entry) => [entry.id, entry.label]),
+);
+
+/**
+ * A role as the event recorded it. Events written since roles became data carry
+ * the **label**, snapshotted at write time — the same rule as `status` above,
+ * so renaming or deleting a role never rewrites what the log already said.
+ * This is purely the fallback for what came before: older events carry slugs,
+ * and the three defaults are the only slugs that ever reached the log through a
+ * build that stored them. Anything else renders as itself.
+ */
 const role = (params: AuditParams, key: string): string => {
   const value = params[key];
-  // Same rule as `status` above: a role slug this build has no label for still
-  // renders as itself rather than vanishing from the sentence.
-  return typeof value === 'string' ? (ROLE_LABELS[value as Role] ?? value) : 'unknown';
+  return typeof value === 'string' ? (LEGACY_ROLE_LABELS.get(value) ?? value) : 'unknown';
 };
 
 /** Field names as the forms say them, so a log line reads like the UI. */

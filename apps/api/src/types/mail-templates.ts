@@ -5,7 +5,8 @@
 export interface InviteMail {
   orgName: string;
   inviterName: string;
-  role: string;
+  /** The role's **label**, not its id — the message is for a person to read. */
+  roleLabel: string;
   url: string;
 }
 

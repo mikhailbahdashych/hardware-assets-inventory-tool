@@ -13,6 +13,7 @@ import {
   resendInvite,
   updateMember,
 } from '@/services/members.js';
+import { requireRole } from '@/services/roles.js';
 import { sendInviteMail, sendResetMail } from '@/services/transactional.js';
 import { writeAudit } from '@/services/audit.js';
 import { resetMemberMfa } from '@/services/mfa.js';
@@ -41,7 +42,9 @@ export function registerMemberRoutes(app: FastifyInstance, deps: AppDeps): void 
         await sendInviteMail(deps, request.log, {
           to: result.member.email,
           inviterName: request.member!.displayName,
-          role: result.member.role,
+          // inviteMember has already checked the role exists, in the
+          // transaction that stored it.
+          roleLabel: requireRole(deps.db, result.member.role).label,
           url: result.inviteUrl,
         });
       }
@@ -59,7 +62,7 @@ export function registerMemberRoutes(app: FastifyInstance, deps: AppDeps): void 
       await sendInviteMail(deps, request.log, {
         to: member.email,
         inviterName: request.member!.displayName,
-        role: member.role,
+        roleLabel: requireRole(deps.db, member.role).label,
         url: result.inviteUrl,
       });
       return result;

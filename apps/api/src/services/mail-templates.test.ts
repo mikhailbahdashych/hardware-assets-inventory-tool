@@ -19,7 +19,7 @@ const ALL: [string, MailContent][] = [
     inviteEmail({
       orgName: ORG,
       inviterName: 'Tomasz Kowalski',
-      role: 'manager',
+      roleLabel: 'Manager',
       url: 'https://inventory.acme.io/accept-invite?token=abc',
     }),
   ],
@@ -166,7 +166,7 @@ describe('text that arrives from somebody else', () => {
     const mail = inviteEmail({
       orgName: ORG,
       inviterName: 'Tomasz Kowalski',
-      role: 'admin',
+      roleLabel: 'Admin',
       url: 'https://inventory.acme.io/accept-invite?token=abc&next=/assets',
     });
     expect(mail.html).toContain(
@@ -181,7 +181,7 @@ describe('text that arrives from somebody else', () => {
       inviteEmail({
         orgName: ORG,
         inviterName: 'T',
-        role: 'admin',
+        roleLabel: 'Admin',
         // Only reachable by setting APP_URL to this, which config also rejects.
         url: 'javascript:alert(1)',
       }),
@@ -194,7 +194,7 @@ describe('the links', () => {
     const invite = inviteEmail({
       orgName: ORG,
       inviterName: 'Tomasz Kowalski',
-      role: 'admin',
+      roleLabel: 'Admin',
       url: 'https://inventory.acme.io/accept-invite?token=abc',
     });
     expect(invite.text).toContain('https://inventory.acme.io/accept-invite?token=abc');
@@ -207,7 +207,7 @@ describe('what each one actually says', () => {
     const invite = inviteEmail({
       orgName: ORG,
       inviterName: 'Tomasz Kowalski',
-      role: 'manager',
+      roleLabel: 'Manager',
       url: 'https://x',
     });
     expect(invite.text).toContain('as a Manager');

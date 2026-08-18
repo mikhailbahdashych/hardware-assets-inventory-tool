@@ -1,7 +1,7 @@
 import { eq } from 'drizzle-orm';
 import type { FastifyInstance } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
-import { setupInput } from '@inventory/shared';
+import { ADMIN_ROLE, setupInput } from '@inventory/shared';
 import type { AppDeps } from '@/types/app.js';
 import { members, orgSettings } from '@/db/schema.js';
 import { AppError } from '@/lib/errors.js';
@@ -44,7 +44,8 @@ export function registerSetupRoutes(app: FastifyInstance, deps: AppDeps): void {
             email: request.body.email,
             displayName: request.body.name,
             passwordHash,
-            role: 'admin',
+            // The system role, which the boot seed has already laid down.
+            role: ADMIN_ROLE,
             status: 'active',
             createdAt: nowIso(now),
             updatedAt: nowIso(now),

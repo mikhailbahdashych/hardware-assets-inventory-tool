@@ -241,9 +241,12 @@ describe('invites', () => {
 
     const details = await ctx.app.inject({ method: 'GET', url: `/api/v1/auth/invite/${raw}` });
     expect(details.statusCode).toBe(200);
+    // The label as well as the id: this endpoint is unauthenticated, so the
+    // accept page cannot fetch /roles to find out what the role is called.
     expect(details.json()).toMatchObject({
       email: 'daniel@acme.io',
       role: 'viewer',
+      roleLabel: 'Viewer',
       orgName: 'Acme Corp',
     });
 

@@ -23,8 +23,16 @@ describe('inviteInput', () => {
     expect(parsed.sendEmail).toBe(false);
   });
 
-  it('rejects an unknown role', () => {
-    expect(inviteInput.safeParse({ email: 'a@acme.io', role: 'owner' }).success).toBe(false);
+  /**
+   * A role this schema has never heard of is fine here on purpose: roles are
+   * rows a workspace edits, so no build can list them. Whether the id names one
+   * is a fact about the database, and the members service asks the roles table
+   * — a 422 naming the `role` field, from there rather than from here.
+   */
+  it('takes any non-empty role id, and refuses an empty one', () => {
+    expect(inviteInput.safeParse({ email: 'a@acme.io', role: 'floor_staff' }).success).toBe(true);
+    expect(inviteInput.safeParse({ email: 'a@acme.io', role: '' }).success).toBe(false);
+    expect(inviteInput.safeParse({ email: 'a@acme.io' }).success).toBe(false);
   });
 });
 

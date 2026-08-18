@@ -1,4 +1,4 @@
-import type { MemberStatus, Role } from '@inventory/shared';
+import type { MemberStatus } from '@inventory/shared';
 import type { members } from '@/db/schema.js';
 
 /**
@@ -23,7 +23,8 @@ export interface MemberSummary {
   id: string;
   email: string;
   displayName: string;
-  role: Role;
+  /** A role id — a row in `roles`, so no build can narrow it to a union. */
+  role: string;
   status: MemberStatus;
   employeeId: string | null;
   linkedEmployee: LinkedEmployee | null;

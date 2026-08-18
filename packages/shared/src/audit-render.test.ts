@@ -53,6 +53,28 @@ describe('renderAuditEvent', () => {
     ).toBe('Changed iPhone 15 from On loan to wiped');
   });
 
+  /**
+   * Role events snapshot the label at write time too. Everything written
+   * before roles became data carries the three slugs, and those still have to
+   * read like sentences.
+   */
+  it('still reads membership events written back when roles were slugs', () => {
+    expect(
+      renderAuditEvent({
+        action: 'member.role_changed',
+        params: { memberName: 'Grace Chen', from: 'viewer', to: 'manager' },
+      }),
+    ).toBe('Changed Grace Chen from Viewer to Manager');
+    // A slug from no vocabulary this build knows renders as itself — a log
+    // that hides an event is worse than an ugly one.
+    expect(
+      renderAuditEvent({
+        action: 'member.role_changed',
+        params: { memberName: 'Grace Chen', from: 'manager', to: 'floor_staff' },
+      }),
+    ).toBe('Changed Grace Chen from Manager to floor_staff');
+  });
+
   it('lists what an edit touched, in the words the form uses', () => {
     expect(
       renderAuditEvent({
@@ -97,15 +119,23 @@ describe('renderAuditEvent', () => {
     expect(
       renderAuditEvent({
         action: 'member.invited',
-        params: { email: 'grace@acme.io', role: 'manager' },
+        params: { email: 'grace@acme.io', role: 'Manager' },
       }),
     ).toBe('Invited grace@acme.io as a Manager');
     expect(
       renderAuditEvent({
         action: 'member.role_changed',
-        params: { memberName: 'Grace Chen', from: 'manager', to: 'admin' },
+        params: { memberName: 'Grace Chen', from: 'Manager', to: 'Admin' },
       }),
     ).toBe('Changed Grace Chen from Manager to Admin');
+    // A role a workspace made up reads exactly as it is called, because that
+    // is what the event stored.
+    expect(
+      renderAuditEvent({
+        action: 'member.invited',
+        params: { email: 'grace@acme.io', role: 'Auditor' },
+      }),
+    ).toBe('Invited grace@acme.io as an Auditor');
     expect(
       renderAuditEvent({
         action: 'member.link_changed',

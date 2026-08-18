@@ -1,5 +1,5 @@
 import { and, asc, eq, ne } from 'drizzle-orm';
-import type { InviteInput, MemberPatchInput } from '@inventory/shared';
+import { ADMIN_ROLE, type InviteInput, type MemberPatchInput } from '@inventory/shared';
 import type { Config } from '@/types/config.js';
 import type { AppDeps } from '@/types/app.js';
 import type { Db, DbOrTx } from '@/types/db.js';
@@ -11,13 +11,14 @@ import type {
   MemberSummary,
   ResetLink,
 } from '@/types/members.js';
-import { employees, members } from '@/db/schema.js';
+import { employees, members, roles } from '@/db/schema.js';
 import { nowIso } from '@/lib/dates.js';
 import { AppError, invalidFields, notFound } from '@/lib/errors.js';
 import { newId } from '@/lib/ids.js';
 import { serializeMemberSummary } from '@/lib/serialize.js';
 import { writeAudit } from './audit.js';
 import { issueAuthToken } from './auth-tokens.js';
+import { requireRole } from './roles.js';
 
 // Members are the accounts that can sign in. Two rules run through everything
 // here: you may not change or remove your own account (which is also what
@@ -51,6 +52,9 @@ export function inviteMember(deps: AppDeps, actor: Actor, input: InviteInput): I
 
   const { member, raw } = deps.db.transaction((tx) => {
     requireFreeEmail(tx, input.email);
+    // Roles are rows, so the id on the form is checked against them here — the
+    // schema can only say it is a non-empty string.
+    const role = requireRole(tx, input.role);
     const employee = input.employeeId === null ? null : requireEmployee(tx, input.employeeId);
 
     const id = newId();
@@ -83,7 +87,9 @@ export function inviteMember(deps: AppDeps, actor: Actor, input: InviteInput): I
         actorMemberId: actor.id,
         actorName: actor.displayName,
         memberId: id,
-        params: { email: input.email, role: input.role },
+        // The label, snapshotted: a role renamed next month must not rewrite
+        // what this line already said.
+        params: { email: input.email, role: role.label },
       },
       now,
     );
@@ -171,6 +177,9 @@ export function updateMember(
   return deps.db.transaction((tx) => {
     const current = requireMember(tx, id);
     const values: Partial<typeof members.$inferInsert> = {};
+    // Named outside the branch so the audit event below can snapshot its label
+    // without asking the table a second time.
+    let destination = null as ReturnType<typeof requireRole> | null;
 
     if (patch.role !== undefined && patch.role !== current.role) {
       if (id === actor.id) {
@@ -180,8 +189,9 @@ export function updateMember(
           'You cannot change your own role — ask another admin to do it.',
         );
       }
+      destination = requireRole(tx, patch.role);
       // Losing the last admin is the one role change nobody may make.
-      if (current.role === 'admin' && patch.role !== 'admin') {
+      if (current.role === ADMIN_ROLE && patch.role !== ADMIN_ROLE) {
         assertNotLastAdmin(tx, current);
       }
       values.role = patch.role;
@@ -198,7 +208,11 @@ export function updateMember(
     values.updatedAt = nowIso(now);
     tx.update(members).set(values).where(eq(members.id, id)).run();
 
-    if (values.role) {
+    if (values.role && destination) {
+      // Both sides as labels. The role they came *from* may not exist by the
+      // time anybody reads this line, which is exactly why it is snapshotted;
+      // a row that is somehow gone already renders as the id it was.
+      const from = tx.select().from(roles).where(eq(roles.id, current.role)).get();
       writeAudit(
         tx,
         {
@@ -207,7 +221,11 @@ export function updateMember(
           actorMemberId: actor.id,
           actorName: actor.displayName,
           memberId: id,
-          params: { memberName: current.displayName, from: current.role, to: values.role },
+          params: {
+            memberName: current.displayName,
+            from: from ? from.label : current.role,
+            to: destination.label,
+          },
         },
         now,
       );
@@ -303,14 +321,20 @@ function readMember(tx: DbOrTx, id: string): MemberSummary {
  * Only **active** admins count. An invited admin has no password yet, so they
  * cannot sign in, so they cannot administer anything — counting them would let
  * the last usable admin go on the strength of an invitation nobody accepted.
+ *
+ * Anchored to `ADMIN_ROLE` rather than a literal, the way the workflow is
+ * anchored to `ASSIGNED_STATUS`: every other role is a row a workspace edits,
+ * and this one is the row it cannot.
  */
 function assertNotLastAdmin(tx: DbOrTx, target: MemberRow): void {
-  if (target.role !== 'admin' || target.status !== 'active') return;
+  if (target.role !== ADMIN_ROLE || target.status !== 'active') return;
 
   const remaining = tx
     .select({ id: members.id })
     .from(members)
-    .where(and(eq(members.role, 'admin'), eq(members.status, 'active'), ne(members.id, target.id)))
+    .where(
+      and(eq(members.role, ADMIN_ROLE), eq(members.status, 'active'), ne(members.id, target.id)),
+    )
     .all().length;
 
   if (remaining === 0) {
