@@ -44,16 +44,21 @@
 }
 
 /* The matrix's Save, beside its own card's heading rather than pinned — the
-   same placement the transition matrix uses, and for the same reason. */
+   same placement the transition matrix uses, and for the same reason. This
+   card's hint is long enough to squeeze the header's right side, so the note
+   holds its line and the hint is what wraps: three words folded into a column
+   read as a layout accident, a two-line hint reads as a paragraph. */
 .actions {
   display: flex;
   align-items: center;
   gap: 8px;
+  flex-shrink: 0;
 }
 
 .actionsNote {
   font-size: 12px;
   color: var(--muted);
+  white-space: nowrap;
 }
 
 /* A grid this wide scrolls sideways rather than squeezing its columns into

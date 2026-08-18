@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { ApiError } from '@/api/client';
 import { useDeleteRole } from '@/api/mutations';
 import { Button, Dropdown, Field, Modal } from '@/components/ui';
+import { leastPrivileged } from '@/lib/roles';
 import { useToast } from '@/providers/ToastProvider';
 import type { DeleteRoleModalProps } from './types/deleteRoleModal';
 import formStyles from '@/components/ui/FormModal.module.css';
@@ -17,7 +18,12 @@ import formStyles from '@/components/ui/FormModal.module.css';
  * the people who have actually signed in would undercount.
  */
 export function DeleteRoleModal({ role, destinations, onClose }: DeleteRoleModalProps) {
-  const [migrateTo, setMigrateTo] = useState(destinations[0]?.id ?? '');
+  // Preselected: the destination granting the fewest actions — the invite
+  // form's reasoning, with more at stake. The list is in the workspace's own
+  // order, which puts Admin first, and a hasty "Move and delete" must be a
+  // demotion at worst, never a mass promotion. Empty only if there is nothing
+  // to migrate to, and the button stays disabled on it.
+  const [migrateTo, setMigrateTo] = useState(leastPrivileged(destinations)?.id ?? '');
 
   const toast = useToast();
   const remove = useDeleteRole();

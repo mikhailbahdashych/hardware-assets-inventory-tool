@@ -294,6 +294,43 @@ describe('deleting a role', () => {
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
   });
 
+  it('defaults the migration to the least-privileged destination, never Admin', async () => {
+    const { routes } = workspace();
+    const api = renderApp(
+      {
+        ...routes,
+        'DELETE /roles/manager': (_body, search) =>
+          search.includes('migrateTo')
+            ? { status: 204 }
+            : {
+                status: 409,
+                body: {
+                  error: {
+                    code: 'role_in_use',
+                    message: '3 members hold this role. Choose where to move them first.',
+                  },
+                },
+              },
+      },
+      '/roles',
+    );
+    const rows = await roleRows();
+
+    await userEvent.click(within(rows[1]!).getByRole('button', { name: 'Delete Manager' }));
+    const dialog = await screen.findByRole('dialog');
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Delete role' }));
+    await within(dialog).findByText(/3 members hold this role/);
+
+    // Straight to the button: the preselected destination is the role granting
+    // the fewest actions, so a hasty "Move and delete" is a demotion at worst.
+    // Admin is first in the list, and defaulting there would make the same
+    // haste a mass promotion.
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Move and delete' }));
+
+    await waitFor(() => expect(api.calledAll('DELETE /roles/manager')).toHaveLength(2));
+    expect(api.calledAll('DELETE /roles/manager')[1]!.search).toBe('?migrateTo=viewer');
+  });
+
   it('deletes a role nobody holds in one press', async () => {
     const { routes, roles } = workspace();
     const api = renderApp(
