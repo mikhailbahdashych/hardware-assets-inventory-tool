@@ -18,7 +18,7 @@ import { RemoveMemberModal } from './RemoveMemberModal';
 import type { MembersDialog, MembersPageProps } from './types/membersPage';
 import styles from './Members.module.css';
 
-export function MembersPage({ role, memberId }: MembersPageProps) {
+export function MembersPage({ permissions, memberId }: MembersPageProps) {
   const [dialog, setDialog] = useState<MembersDialog | null>(null);
   const toast = useToast();
   const { openModal } = useModals();
@@ -28,7 +28,7 @@ export function MembersPage({ role, memberId }: MembersPageProps) {
   const resend = useResendInvite();
   const reset = useIssueResetLink();
   const resetMfa = useResetMemberMfa();
-  const manages = can(role, 'members.manage');
+  const manages = can(permissions, 'members.manage');
 
   // A list that has not arrived has no rows; the empty state renders below.
   const rows = members.data ?? [];

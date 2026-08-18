@@ -1,5 +1,5 @@
 import { eq } from 'drizzle-orm';
-import { deriveOutcome, ROLE_LABELS } from '@inventory/shared';
+import { deriveOutcome } from '@inventory/shared';
 import type { AppDeps } from '@/types/app.js';
 import type { Actor } from '@/types/audit.js';
 import type { DbOrTx } from '@/types/db.js';
@@ -32,6 +32,7 @@ import { addDays, nowIso, todayDate } from '@/lib/dates.js';
 import { hashPassword } from '@/lib/password.js';
 import { writeAudit } from '@/services/audit.js';
 import { activeAssignment, closeAssignment, openAssignment } from '@/services/assignments.js';
+import { requireRole } from '@/services/roles.js';
 import { createStatus, replaceTransitions } from '@/services/workflow.js';
 import { emptyWorkspace } from '@/services/workspace.js';
 
@@ -326,7 +327,9 @@ function seedMembers(tx: DbOrTx, at: Clock, ctx: MemberSeedContext): Map<string,
           actorMemberId: ctx.founderId,
           actorName: ctx.founderName,
           memberId: id,
-          params: { email, role: account.role, roleLabel: ROLE_LABELS[account.role] },
+          // The label as the row spells it, snapshot at write time — the same
+          // rule the members service follows, so a rename never rewrites the log.
+          params: { email, role: account.role, roleLabel: requireRole(tx, account.role).label },
         },
         invitedAt,
       );

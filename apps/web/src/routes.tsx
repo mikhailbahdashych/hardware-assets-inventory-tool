@@ -104,7 +104,7 @@ export function AppRoutes() {
     );
   }
 
-  const { member } = session;
+  const { member, permissions } = session;
 
   /**
    * A fourth state, between signed out and signed in: the workspace requires a
@@ -126,19 +126,30 @@ export function AppRoutes() {
       {/* Token screens stay reachable while signed in; they replace the session. */}
       <Route path="/reset-password" element={<ResetPasswordPage />} />
       <Route path="/accept-invite" element={<AcceptInvitePage />} />
-      <Route element={<AppShell member={member} orgName={orgMeta(meta.data).orgName} />}>
+      <Route
+        element={
+          <AppShell
+            member={member}
+            permissions={permissions}
+            orgName={orgMeta(meta.data).orgName}
+          />
+        }
+      >
         <Route path="/dashboard" element={<DashboardPage member={member} />} />
-        <Route path="/assets" element={<AssetsPage role={member.role} />} />
-        <Route path="/assets/:id" element={<AssetDetailPage role={member.role} />} />
-        <Route path="/employees" element={<EmployeesPage role={member.role} />} />
-        <Route path="/employees/:id" element={<EmployeeDetailPage role={member.role} />} />
-        <Route path="/members" element={<MembersPage role={member.role} memberId={member.id} />} />
+        <Route path="/assets" element={<AssetsPage permissions={permissions} />} />
+        <Route path="/assets/:id" element={<AssetDetailPage permissions={permissions} />} />
+        <Route path="/employees" element={<EmployeesPage permissions={permissions} />} />
+        <Route path="/employees/:id" element={<EmployeeDetailPage permissions={permissions} />} />
+        <Route
+          path="/members"
+          element={<MembersPage permissions={permissions} memberId={member.id} />}
+        />
         {/* Reading what happened and changing how the workspace behaves are
             different jobs, so they are different pages rather than two tabs. */}
         <Route
           path="/activity"
           element={
-            can(member.role, 'audit.view') ? (
+            can(permissions, 'audit.view') ? (
               <ActivityLogPage />
             ) : (
               <Navigate to="/dashboard" replace />
@@ -150,7 +161,7 @@ export function AppRoutes() {
         <Route
           path="/workflow"
           element={
-            can(member.role, 'workflow.manage') ? (
+            can(permissions, 'workflow.manage') ? (
               <WorkflowPage />
             ) : (
               <Navigate to="/dashboard" replace />
@@ -162,7 +173,7 @@ export function AppRoutes() {
         <Route
           path="/roles"
           element={
-            can(member.role, 'roles.manage') ? (
+            can(permissions, 'roles.manage') ? (
               <RolesPage ownRole={member.role} />
             ) : (
               <Navigate to="/dashboard" replace />
@@ -172,7 +183,7 @@ export function AppRoutes() {
         <Route
           path="/admin"
           element={
-            can(member.role, 'settings.manage') ? (
+            can(permissions, 'settings.manage') ? (
               <AdminPage />
             ) : (
               <Navigate to="/dashboard" replace />

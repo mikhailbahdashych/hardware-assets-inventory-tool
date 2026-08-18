@@ -11,7 +11,7 @@ import { useAdoptMemberPrefs } from './useThemeControls';
 import type { AppShellProps } from './types/appShell';
 
 /** Sidebar + topbar frame; only the content column scrolls. */
-export function AppShell({ member, orgName }: AppShellProps) {
+export function AppShell({ member, permissions, orgName }: AppShellProps) {
   const logout = useLogout();
   const navigate = useNavigate();
   useAdoptMemberPrefs(member);
@@ -22,6 +22,7 @@ export function AppShell({ member, orgName }: AppShellProps) {
         <div style={{ display: 'flex', height: '100vh', overflow: 'hidden' }}>
           <Sidebar
             member={member}
+            permissions={permissions}
             orgName={orgName}
             onSignOut={() => logout.mutate(undefined, { onSuccess: () => navigate('/login') })}
           />
@@ -33,7 +34,7 @@ export function AppShell({ member, orgName }: AppShellProps) {
           </div>
         </div>
         <PaletteHotkey />
-        <ModalHost member={member} />
+        <ModalHost member={member} permissions={permissions} />
       </ModalProvider>
     </BreadcrumbDetailProvider>
   );

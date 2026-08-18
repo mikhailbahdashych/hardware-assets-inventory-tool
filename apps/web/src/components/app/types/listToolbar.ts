@@ -1,8 +1,9 @@
 import type { ReactNode } from 'react';
-import type { Role } from '@inventory/shared';
+import type { Action } from '@inventory/shared';
 
 export interface ListToolbarProps {
   title: string;
-  role: Role;
+  /** What the signed-in member may do, resolved server-side — see `can`. */
+  permissions: Action[];
   children?: ReactNode;
 }

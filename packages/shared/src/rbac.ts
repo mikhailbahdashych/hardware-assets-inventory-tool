@@ -1,7 +1,4 @@
-import type { Role } from './enums.js';
 import type { ActionGroup, DefaultRole } from './types/roles.js';
-
-export type { Role };
 
 // Which actions exist is a **product** decision, so the list is compiled in
 // here with its UI copy and its grouping. Who may perform them is a
@@ -13,37 +10,44 @@ export type { Role };
 // declared below, because a route with no action named on it is a route nothing
 // guards.
 
-const MIN_ROLE = {
-  'assets.create': 'manager',
-  'assets.edit': 'manager',
-  'assets.assign': 'manager',
-  'assets.checkin': 'manager',
-  'assets.change_status': 'manager',
-  'assets.manage_attachments': 'manager',
-  'assets.delete': 'admin',
-  'employees.create': 'manager',
-  'employees.edit': 'manager',
-  'employees.delete': 'admin',
-  'import.run': 'manager',
-  'members.manage': 'admin',
-  'custom_fields.manage': 'admin',
-  'workflow.manage': 'admin',
-  'roles.manage': 'admin',
-  'settings.manage': 'admin',
-  'audit.view': 'admin',
-  'export.run': 'admin',
-  'workspace.delete': 'admin',
-} as const satisfies Record<string, Role>;
+export const ACTIONS = [
+  'assets.create',
+  'assets.edit',
+  'assets.assign',
+  'assets.checkin',
+  'assets.change_status',
+  'assets.manage_attachments',
+  'assets.delete',
+  'employees.create',
+  'employees.edit',
+  'employees.delete',
+  'import.run',
+  'members.manage',
+  'custom_fields.manage',
+  'workflow.manage',
+  'roles.manage',
+  'settings.manage',
+  'audit.view',
+  'export.run',
+  'workspace.delete',
+] as const;
 
-// Derived from the map that declares them, per the convention: the value is
+// Derived from the list that declares them, per the convention: the value is
 // the truth and a hand-written twin would drift.
-export type Action = keyof typeof MIN_ROLE;
-export const ACTIONS = Object.keys(MIN_ROLE) as Action[];
+export type Action = (typeof ACTIONS)[number];
 
-const RANK: Record<Role, number> = { viewer: 0, manager: 1, admin: 2 };
-
-export function can(role: Role, action: Action): boolean {
-  return RANK[role] >= RANK[MIN_ROLE[action]];
+/**
+ * The one permission question, asked the same way by the API guard and by every
+ * affordance the web draws — which is what keeps a button and the door behind
+ * it from disagreeing.
+ *
+ * The first argument used to be a role, ranked viewer < manager < admin. It is
+ * the resolved grant set now: `request.permissions` on the server, the
+ * `permissions` `/auth/me` hands the browser. Nothing else changed, because a
+ * rank was only ever a slow way of answering this.
+ */
+export function can(permissions: readonly Action[], action: Action): boolean {
+  return permissions.includes(action);
 }
 
 /**

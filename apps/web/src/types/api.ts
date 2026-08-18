@@ -10,10 +10,9 @@ import type {
   ImportKind,
   LogRetention,
   MemberStatus,
-  Role,
+  PermissionsPutInput,
   SemanticColor,
 } from '@inventory/shared';
-import type { PermissionsPutInput } from '@inventory/shared';
 import type { Density, Theme } from './theme';
 
 // Every shape the API sends back, named once. Nullable fields are nullable
@@ -38,7 +37,8 @@ export interface Member {
   id: string;
   email: string;
   displayName: string;
-  role: Role;
+  /** A role id — a row's slug, so no build can narrow it to a union. */
+  role: string;
   status: 'active' | 'invited';
   employeeId: string | null;
   lastActiveAt: string | null;

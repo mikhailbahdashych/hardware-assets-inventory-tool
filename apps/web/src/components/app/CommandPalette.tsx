@@ -17,7 +17,7 @@ import styles from './CommandPalette.module.css';
  * Everything is filtered client-side from the lists the app has already loaded.
  * At this scale that is instant and adds no search endpoint to defend.
  */
-export function CommandPalette({ role, onClose }: CommandPaletteProps) {
+export function CommandPalette({ permissions, onClose }: CommandPaletteProps) {
   const [query, setQuery] = useState('');
   const [active, setActive] = useState(0);
   const listId = useId();
@@ -35,12 +35,12 @@ export function CommandPalette({ role, onClose }: CommandPaletteProps) {
     () =>
       paletteGroups({
         query,
-        role,
+        permissions,
         assets: assets.data ?? [],
         employees: employees.data ?? [],
         statuses: workflow.data?.statuses ?? [],
       }),
-    [query, role, assets.data, employees.data, workflow.data],
+    [query, permissions, assets.data, employees.data, workflow.data],
   );
   const rows = useMemo(() => paletteRows(groups), [groups]);
   // `active` is an index this component maintains across renders while the

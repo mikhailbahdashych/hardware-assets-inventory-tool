@@ -2,13 +2,13 @@ import { Link, useLocation } from 'react-router';
 import { useRoles } from '@/api/queries';
 import { Avatar, Icon, IconButton } from '@/components/ui';
 import { roleInfo, roleMap } from '@/lib/roles';
-import { isNavItemActive, navItemsForRole } from './nav';
+import { isNavItemActive, navItemsFor } from './nav';
 import type { SidebarProps } from './types/sidebar';
 import styles from './Sidebar.module.css';
 
-export function Sidebar({ member, orgName, onSignOut }: SidebarProps) {
+export function Sidebar({ member, permissions, orgName, onSignOut }: SidebarProps) {
   const { pathname } = useLocation();
-  const items = navItemsForRole(member.role);
+  const items = navItemsFor(permissions);
   // The role under the member's name is a row's label, not a word this build
   // knows — the same lookup the Members page's pills go through.
   const roles = useRoles();

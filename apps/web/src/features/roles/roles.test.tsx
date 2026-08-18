@@ -2,7 +2,14 @@ import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ACTIONS, type Action, type WorkspaceRole } from '@inventory/shared';
-import { ADMIN_MEMBER, ADMIN_ROUTES, ROLES, type StubRoutes } from '@/test/api-stub';
+import {
+  ADMIN_MEMBER,
+  ADMIN_ROUTES,
+  MANAGER_ACTIONS,
+  ROLES,
+  session,
+  type StubRoutes,
+} from '@/test/api-stub';
 import { renderApp, resetAppState } from '@/test/render';
 import { choose } from '@/test/dropdown';
 
@@ -48,7 +55,7 @@ describe('reaching the roles page', () => {
     renderApp(
       {
         ...workspace().routes,
-        'GET /auth/me': { body: { member: { ...ADMIN_MEMBER, role: 'manager' } } },
+        'GET /auth/me': session({ ...ADMIN_MEMBER, role: 'manager' }, MANAGER_ACTIONS),
       },
       '/roles',
     );
@@ -86,6 +93,30 @@ describe('the roles card', () => {
     // The ordinary rows keep both.
     expect(within(rows[1]!).getByRole('button', { name: 'Edit Manager' })).toBeEnabled();
     expect(within(rows[1]!).getByRole('button', { name: 'Delete Manager' })).toBeEnabled();
+  });
+
+  it('locks the row of the role the reader holds, whatever else they may do', async () => {
+    // A member holding Manager, in a workspace that granted Manager the right
+    // to manage roles. Admin is locked because it is the system role; Manager
+    // is locked because it is theirs — two different rules, and this is the
+    // only arrangement that tells them apart.
+    renderApp(
+      {
+        ...workspace().routes,
+        'GET /auth/me': session({ ...ADMIN_MEMBER, role: 'manager' }, ['roles.manage']),
+      },
+      '/roles',
+    );
+    const rows = await roleRows();
+
+    expect(
+      within(rows[1]!).getByRole('button', { name: 'Edit Manager — ask another admin' }),
+    ).toBeDisabled();
+    expect(
+      within(rows[1]!).getByRole('button', { name: 'Delete Manager — ask another admin' }),
+    ).toBeDisabled();
+    // Everybody else's row is still theirs to edit.
+    expect(within(rows[2]!).getByRole('button', { name: 'Edit Viewer' })).toBeEnabled();
   });
 
   it('reorders by sending the whole order, not one row', async () => {
@@ -361,6 +392,25 @@ describe('the permissions matrix', () => {
     // Saved is the new starting point: the draft re-seeds from what came back.
     await waitFor(() => expect(save()).toBeDisabled());
     expect(cell('Viewer', 'View the activity log')).toBeChecked();
+  });
+
+  it('locks the column of the role the reader holds, and only that one', async () => {
+    renderApp(
+      {
+        ...workspace().routes,
+        'GET /auth/me': session({ ...ADMIN_MEMBER, role: 'manager' }, ['roles.manage']),
+      },
+      '/roles',
+    );
+    await screen.findByRole('table', { name: 'Permissions' });
+
+    const own = screen.getByRole('checkbox', {
+      name: 'Manager: Create assets — ask another admin',
+    });
+    expect(own).toBeDisabled();
+    expect(own).toBeChecked();
+    expect(cell('Viewer', 'Create assets')).toBeEnabled();
+    expect(cell('Admin', 'Create assets')).toBeDisabled();
   });
 
   it('lets a change be abandoned', async () => {

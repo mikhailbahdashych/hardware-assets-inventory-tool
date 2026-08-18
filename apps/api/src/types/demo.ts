@@ -2,7 +2,6 @@ import type {
   AssetCategory,
   CheckinCondition,
   EmployeeStatus,
-  Role,
   StatusCreateInput,
 } from '@inventory/shared';
 import { DEFAULT_ASSET_STATUSES, ASSIGNED_STATUS } from '@inventory/shared';
@@ -40,7 +39,8 @@ export interface DemoSeedOptions {
 export interface DemoAccount {
   email: string;
   password: string;
-  role: Role;
+  /** A role id — a row in `roles`, so no build can narrow it to a union. */
+  role: string;
   displayName: string;
 }
 
@@ -75,7 +75,7 @@ export interface DemoPerson {
   addedDaysAgo: number;
   status: EmployeeStatus;
   /** Set when this person also signs in; the member row links to them. */
-  account?: { role: Role; status: 'active' | 'invited' };
+  account?: { role: string; status: 'active' | 'invited' };
 }
 
 /** A device in the demo inventory, before any assignment has touched it. */

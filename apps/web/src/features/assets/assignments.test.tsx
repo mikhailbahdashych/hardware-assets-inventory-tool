@@ -6,8 +6,11 @@ import {
   INVENTORY_ROUTES,
   LAPTOP,
   LAPTOP_DETAIL,
+  MANAGER_ACTIONS,
   MAYA_DETAIL,
   MONITOR,
+  session,
+  VIEWER_ACTIONS,
   WORKFLOW,
 } from '@/test/api-stub';
 import { renderApp, resetAppState } from '@/test/render';
@@ -24,7 +27,7 @@ const detailRoutes = {
   'GET /employees/emp-1': { body: MAYA_DETAIL },
 };
 
-const viewer = { 'GET /auth/me': { body: { member: { ...ADMIN_MEMBER, role: 'viewer' } } } };
+const viewer = { 'GET /auth/me': session({ ...ADMIN_MEMBER, role: 'viewer' }, VIEWER_ACTIONS) };
 
 describe('the contextual primary action', () => {
   it('offers Check in for an asset somebody holds', async () => {
@@ -482,7 +485,7 @@ describe('managing custom fields', () => {
     renderApp(
       {
         ...detailRoutes,
-        'GET /auth/me': { body: { member: { ...ADMIN_MEMBER, role: 'manager' } } },
+        'GET /auth/me': session({ ...ADMIN_MEMBER, role: 'manager' }, MANAGER_ACTIONS),
       },
       '/assets/asset-1',
     );

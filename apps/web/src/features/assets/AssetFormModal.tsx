@@ -69,7 +69,7 @@ const blankToNull = (value: string) => (value.trim() === '' ? null : value.trim(
 export function AssetFormModal({
   asset,
   customFields,
-  role,
+  permissions,
   onClose,
   onDeleted,
 }: AssetFormModalProps) {
@@ -195,7 +195,7 @@ export function AssetFormModal({
         <>
           <div className={styles.footerLeft}>
             <span className={styles.required}>* Required</span>
-            {editing && can(role, 'assets.delete') && (
+            {editing && can(permissions, 'assets.delete') && (
               <Button
                 variant="danger"
                 size="sm"

@@ -10,6 +10,10 @@ import {
   type Action,
 } from './rbac.js';
 
+// The old role ranking, written down one last time: exactly what a manager
+// could do and exactly what only an admin could, before either was a row. The
+// seed has to reproduce it, or upgrading an instance would quietly give or take
+// a permission from every manager in every workspace.
 const MANAGER_ACTIONS: Action[] = [
   'assets.create',
   'assets.edit',
@@ -36,28 +40,24 @@ const ADMIN_ACTIONS: Action[] = [
 ];
 
 describe('can', () => {
-  it('lets viewers do nothing beyond reading', () => {
+  it('answers from the set a request resolved, not from a rank', () => {
+    expect(can(MANAGER_ACTIONS, 'assets.create')).toBe(true);
+    expect(can(MANAGER_ACTIONS, 'assets.delete')).toBe(false);
+  });
+
+  it('says no to everything for a role that grants nothing', () => {
     for (const action of ACTIONS) {
-      expect(can('viewer', action), `viewer should not ${action}`).toBe(false);
+      expect(can([], action), `an empty set should not allow ${action}`).toBe(false);
     }
   });
 
-  it('lets managers create and edit inventory but not administer', () => {
-    for (const action of MANAGER_ACTIONS) {
-      expect(can('manager', action), `manager should ${action}`).toBe(true);
-    }
-    for (const action of ADMIN_ACTIONS) {
-      expect(can('manager', action), `manager should not ${action}`).toBe(false);
-    }
-  });
-
-  it('lets admins do everything', () => {
+  it('says yes to everything for the set the system role resolves to', () => {
     for (const action of ACTIONS) {
-      expect(can('admin', action), `admin should ${action}`).toBe(true);
+      expect(can(ACTIONS, action), `every action should allow ${action}`).toBe(true);
     }
   });
 
-  it('covers every declared action in this matrix', () => {
+  it('covers every declared action across the two seeded halves', () => {
     expect(new Set(ACTIONS)).toEqual(new Set([...MANAGER_ACTIONS, ...ADMIN_ACTIONS]));
   });
 });
@@ -96,6 +96,14 @@ describe('DEFAULT_ROLES', () => {
     expect(DEFAULT_ROLES.map((role) => role.label)).toEqual(['Admin', 'Manager', 'Viewer']);
   });
 
+  it('describes and colours them with the exact copy from the design', () => {
+    expect(DEFAULT_ROLES.map((role) => [role.id, role.color, role.description])).toEqual([
+      ['admin', 'acc', 'Full access — settings, members, activity log'],
+      ['manager', 'info', 'Create and edit assets, employees and assignments'],
+      ['viewer', 'neut', 'Read-only access to all pages'],
+    ]);
+  });
+
   it('makes Admin the one system role, and stores no permissions for it', () => {
     expect(DEFAULT_ROLES.filter((role) => role.isSystem).map((role) => role.id)).toEqual([
       ADMIN_ROLE,
@@ -112,14 +120,11 @@ describe('DEFAULT_ROLES', () => {
    * every workspace.
    */
   it('grants Manager exactly what the role ranking let a manager do', () => {
-    const ranked = ACTIONS.filter((action) => can('manager', action));
-
-    expect([...roleFor('manager').grants].sort()).toEqual([...ranked].sort());
+    expect([...roleFor('manager').grants].sort()).toEqual([...MANAGER_ACTIONS].sort());
   });
 
   it('grants Viewer nothing — reads are open, so an empty set is today’s viewer', () => {
     expect(roleFor('viewer').grants).toEqual([]);
-    expect(ACTIONS.filter((action) => can('viewer', action))).toEqual([]);
   });
 
   it('grants only actions this build declares', () => {

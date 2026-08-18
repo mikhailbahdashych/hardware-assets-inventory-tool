@@ -10,6 +10,8 @@ import {
   MAYA,
   NO_SMTP_META,
   ROLES,
+  session,
+  VIEWER_ACTIONS,
 } from '@/test/api-stub';
 import { renderApp, resetAppState } from '@/test/render';
 import { choose } from '@/test/dropdown';
@@ -102,7 +104,7 @@ describe('the members list', () => {
     renderApp(
       {
         ...ADMIN_ROUTES,
-        'GET /auth/me': { body: { member: { ...ADMIN_MEMBER, role: 'viewer' } } },
+        'GET /auth/me': session({ ...ADMIN_MEMBER, role: 'viewer' }, VIEWER_ACTIONS),
       },
       '/members',
     );

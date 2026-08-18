@@ -3,6 +3,7 @@ import {
   ACTIONS,
   DEFAULT_ASSET_STATUSES,
   DEFAULT_ROLES,
+  type Action,
   type RolesPayload,
   type WorkflowPayload,
   type WorkspaceRole,
@@ -94,6 +95,24 @@ export const ADMIN_MEMBER = {
   widgets: {},
   mfaEnrolled: false,
 };
+
+/**
+ * What each seeded role resolves to, for the session stubs below. Roles are
+ * rows now, so a test that wants "a manager" is really asking for the grant set
+ * a manager holds — which is the same thing `/auth/me` hands the browser and
+ * the same thing `requireAction` reads.
+ */
+export const EVERY_ACTION: Action[] = [...ACTIONS];
+export const MANAGER_ACTIONS: Action[] = [
+  ...DEFAULT_ROLES.filter((role) => role.id === 'manager').flatMap((role) => role.grants),
+];
+/** Reads are open to everybody, so a viewer's set is genuinely empty. */
+export const VIEWER_ACTIONS: Action[] = [];
+
+/** One `GET /auth/me` body: who is signed in, and what they may do. */
+export function session(member: unknown = ADMIN_MEMBER, permissions: Action[] = EVERY_ACTION) {
+  return { body: { member, mustEnrolMfa: false, permissions } };
+}
 
 export const READY_META = {
   needsSetup: false,
@@ -430,7 +449,7 @@ export const DASHBOARD = {
 /** Signed-in admin with an empty-but-reachable inventory. */
 export const INVENTORY_ROUTES: StubRoutes = {
   'GET /meta': { body: READY_META },
-  'GET /auth/me': { body: { member: ADMIN_MEMBER } },
+  'GET /auth/me': session(),
   'GET /assets': { body: { assets: [LAPTOP, MONITOR] } },
   'GET /employees': { body: { employees: [MAYA] } },
   'GET /custom-fields': { body: { customFields: CUSTOM_FIELDS } },
@@ -454,7 +473,7 @@ export const DASHBOARD_ROUTES: StubRoutes = {
 /** The signed-in admin plus everything the Members and Admin pages read. */
 export const ADMIN_ROUTES: StubRoutes = {
   'GET /meta': { body: READY_META },
-  'GET /auth/me': { body: { member: ADMIN_MEMBER } },
+  'GET /auth/me': session(),
   'GET /employees': { body: { employees: [MAYA] } },
   'GET /members': { body: { members: [ADMIN_SUMMARY, INVITED_SUMMARY, LINKED_SUMMARY] } },
   'GET /settings': { body: { settings: SETTINGS } },

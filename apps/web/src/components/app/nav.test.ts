@@ -1,9 +1,14 @@
 import { describe, expect, it } from 'vitest';
-import { breadcrumbForPath, isNavItemActive, navItemsForRole } from './nav';
+import { ACTIONS, DEFAULT_ROLES, type Action } from '@inventory/shared';
+import { breadcrumbForPath, isNavItemActive, navItemsFor } from './nav';
 
-describe('navItemsForRole', () => {
-  it('shows Admin only to admins, in the design order', () => {
-    expect(navItemsForRole('admin').map((item) => item.label)).toEqual([
+/** The set the system role resolves to, and the one the seeded Manager gets. */
+const EVERYTHING: Action[] = [...ACTIONS];
+const MANAGER: Action[] = [...DEFAULT_ROLES.find((role) => role.id === 'manager')!.grants];
+
+describe('navItemsFor', () => {
+  it('shows the gated sections only to a set that holds their action', () => {
+    expect(navItemsFor(EVERYTHING).map((item) => item.label)).toEqual([
       'Dashboard',
       'Assets',
       'Employees',
@@ -13,13 +18,13 @@ describe('navItemsForRole', () => {
       'Roles',
       'Admin',
     ]);
-    expect(navItemsForRole('manager').map((item) => item.label)).toEqual([
+    expect(navItemsFor(MANAGER).map((item) => item.label)).toEqual([
       'Dashboard',
       'Assets',
       'Employees',
       'Members',
     ]);
-    expect(navItemsForRole('viewer').map((item) => item.label)).toEqual([
+    expect(navItemsFor([]).map((item) => item.label)).toEqual([
       'Dashboard',
       'Assets',
       'Employees',
@@ -27,8 +32,20 @@ describe('navItemsForRole', () => {
     ]);
   });
 
+  it('reveals one gated section for the one action it names, and no others', () => {
+    // The point of the whole feature: a workspace grants `audit.view` to a role
+    // of its own and that role gets the Activity log, nothing more.
+    expect(navItemsFor(['audit.view']).map((item) => item.label)).toEqual([
+      'Dashboard',
+      'Assets',
+      'Employees',
+      'Members',
+      'Activity log',
+    ]);
+  });
+
   it('separates the admin-only sections from the rest with the design gap', () => {
-    const admin = navItemsForRole('admin');
+    const admin = navItemsFor(EVERYTHING);
     expect(admin.at(-4)).toMatchObject({ label: 'Activity log', to: '/activity', gapBefore: true });
     expect(admin.at(-3)).toMatchObject({ label: 'Workflow', to: '/workflow' });
     expect(admin.at(-2)).toMatchObject({ label: 'Roles', to: '/roles' });

@@ -44,7 +44,12 @@ const blankToNull = (value: string) => (value.trim() === '' ? null : value.trim(
  * marking somebody as offboarding is the one employee change with a
  * consequence elsewhere (it schedules returns for what they hold).
  */
-export function EmployeeFormModal({ employee, role, onClose, onDeleted }: EmployeeFormModalProps) {
+export function EmployeeFormModal({
+  employee,
+  permissions,
+  onClose,
+  onDeleted,
+}: EmployeeFormModalProps) {
   const editing = employee !== undefined;
   // Every `?? ''` below translates a NULL column into the empty input that
   // means the same thing to the person filling the form in.
@@ -181,7 +186,7 @@ export function EmployeeFormModal({ employee, role, onClose, onDeleted }: Employ
         <>
           <div className={styles.footerLeft}>
             <span className={styles.required}>* Required</span>
-            {editing && can(role, 'employees.delete') && (
+            {editing && can(permissions, 'employees.delete') && (
               <Button
                 variant="danger"
                 size="sm"
@@ -337,7 +342,7 @@ export function EmployeeFormModal({ employee, role, onClose, onDeleted }: Employ
           )}
         </Field>
 
-        {!editing && can(role, 'members.manage') && (
+        {!editing && can(permissions, 'members.manage') && (
           <div className={styles.custom}>
             <Checkbox
               checked={inviting}

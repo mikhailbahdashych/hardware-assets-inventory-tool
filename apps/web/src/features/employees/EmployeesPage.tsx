@@ -55,7 +55,7 @@ const COLUMNS: TableColumn<Employee>[] = [
   },
 ];
 
-export function EmployeesPage({ role }: EmployeesPageProps) {
+export function EmployeesPage({ permissions }: EmployeesPageProps) {
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
   const { openModal } = useModals();
@@ -75,8 +75,8 @@ export function EmployeesPage({ role }: EmployeesPageProps) {
 
   return (
     <PageContainer maxWidth={1060}>
-      <ListToolbar title="Employees" role={role}>
-        {can(role, 'employees.create') && (
+      <ListToolbar title="Employees" permissions={permissions}>
+        {can(permissions, 'employees.create') && (
           <Button icon="plus" onClick={() => openModal('addEmployee')}>
             Add employee
           </Button>

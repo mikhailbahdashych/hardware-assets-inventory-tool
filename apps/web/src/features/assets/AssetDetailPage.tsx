@@ -53,7 +53,7 @@ function primaryAction(asset: Asset, status: WorkflowStatus | undefined): Primar
   return { label: 'Change status', modal: 'status', permission: 'assets.change_status' };
 }
 
-export function AssetDetailPage({ role }: AssetDetailPageProps) {
+export function AssetDetailPage({ permissions }: AssetDetailPageProps) {
   const { id = '' } = useParams();
   const [open, setOpen] = useState<OpenModal>(null);
   const navigate = useNavigate();
@@ -109,12 +109,12 @@ export function AssetDetailPage({ role }: AssetDetailPageProps) {
             {asset.serialNumber ? ` · ${asset.serialNumber}` : ''}
           </div>
         </div>
-        {can(role, 'assets.edit') && (
+        {can(permissions, 'assets.edit') && (
           <Button variant="ghost" onClick={() => setOpen('edit')}>
             Edit
           </Button>
         )}
-        {can(role, primary.permission) && (
+        {can(permissions, primary.permission) && (
           <Button onClick={() => setOpen(primary.modal)}>{primary.label}</Button>
         )}
       </div>
@@ -142,7 +142,7 @@ export function AssetDetailPage({ role }: AssetDetailPageProps) {
               title={
                 <span className={styles.cardHeader}>
                   Custom fields
-                  {can(role, 'custom_fields.manage') && (
+                  {can(permissions, 'custom_fields.manage') && (
                     <button
                       type="button"
                       className={styles.cardLink}
@@ -170,7 +170,7 @@ export function AssetDetailPage({ role }: AssetDetailPageProps) {
             </Card>
           )}
 
-          <AttachmentsCard assetId={asset.id} attachments={attachments} role={role} />
+          <AttachmentsCard assetId={asset.id} attachments={attachments} permissions={permissions} />
 
           <Card title="Audit log">
             {auditTrail.length === 0 ? (
@@ -244,7 +244,7 @@ export function AssetDetailPage({ role }: AssetDetailPageProps) {
         <AssetFormModal
           asset={asset}
           customFields={customFields}
-          role={role}
+          permissions={permissions}
           onClose={() => setOpen(null)}
           onDeleted={() => navigate('/assets', { replace: true })}
         />

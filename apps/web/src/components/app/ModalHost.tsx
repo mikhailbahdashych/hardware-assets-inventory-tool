@@ -15,16 +15,16 @@ import type { ModalHostProps } from './types/modalHost';
  * Lazily rendered: nothing here exists until it is asked for, so the palette's
  * query subscriptions and the wizard's file state start clean each time.
  */
-export function ModalHost({ member }: ModalHostProps) {
+export function ModalHost({ member, permissions }: ModalHostProps) {
   const { open, closeModal } = useModals();
 
   switch (open) {
     case 'palette':
-      return <CommandPalette role={member.role} onClose={closeModal} />;
+      return <CommandPalette permissions={permissions} onClose={closeModal} />;
     case 'newAsset':
-      return <AssetFormModal role={member.role} onClose={closeModal} />;
+      return <AssetFormModal permissions={permissions} onClose={closeModal} />;
     case 'addEmployee':
-      return <EmployeeFormModal role={member.role} onClose={closeModal} />;
+      return <EmployeeFormModal permissions={permissions} onClose={closeModal} />;
     case 'inviteMember':
       return <InviteMemberModal onClose={closeModal} />;
     case 'import':

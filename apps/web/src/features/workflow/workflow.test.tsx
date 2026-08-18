@@ -2,7 +2,14 @@ import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { WorkflowStatus } from '@inventory/shared';
-import { ADMIN_MEMBER, ADMIN_ROUTES, WORKFLOW, type StubRoutes } from '@/test/api-stub';
+import {
+  ADMIN_MEMBER,
+  ADMIN_ROUTES,
+  MANAGER_ACTIONS,
+  session,
+  WORKFLOW,
+  type StubRoutes,
+} from '@/test/api-stub';
 import { renderApp, resetAppState } from '@/test/render';
 import { choose } from '@/test/dropdown';
 
@@ -52,7 +59,7 @@ describe('reaching the workflow page', () => {
     renderApp(
       {
         ...workspace().routes,
-        'GET /auth/me': { body: { member: { ...ADMIN_MEMBER, role: 'manager' } } },
+        'GET /auth/me': session({ ...ADMIN_MEMBER, role: 'manager' }, MANAGER_ACTIONS),
       },
       '/workflow',
     );

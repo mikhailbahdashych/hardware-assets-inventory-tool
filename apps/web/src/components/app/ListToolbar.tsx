@@ -26,12 +26,12 @@ export function ImportCsvButton() {
 }
 
 /** Title · density · import · primary action, in the design's order. */
-export function ListToolbar({ title, role, children }: ListToolbarProps) {
+export function ListToolbar({ title, permissions, children }: ListToolbarProps) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
       <h1 style={{ fontSize: 18, fontWeight: 600, margin: 0, marginRight: 'auto' }}>{title}</h1>
       <DensityControl />
-      {can(role, 'import.run') && <ImportCsvButton />}
+      {can(permissions, 'import.run') && <ImportCsvButton />}
       {children}
     </div>
   );

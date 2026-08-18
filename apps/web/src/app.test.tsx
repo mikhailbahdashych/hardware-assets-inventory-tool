@@ -1,7 +1,17 @@
 import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { ADMIN_MEMBER, AUDITOR_ROLE, READY_META, ROLES, type StubRoutes } from './test/api-stub';
+import {
+  ADMIN_MEMBER,
+  AUDITOR_ROLE,
+  EVERY_ACTION,
+  READY_META,
+  ROLES,
+  session,
+  VIEWER_ACTIONS,
+  type StubRoutes,
+} from './test/api-stub';
+import type { Action } from '@inventory/shared';
 import { renderApp, resetAppState, UNAUTHENTICATED } from './test/render';
 
 afterEach(() => {
@@ -79,8 +89,7 @@ describe('login', () => {
     const api = renderApp(
       {
         'GET /meta': { body: READY_META },
-        'GET /auth/me': () =>
-          authenticated ? { body: { member: ADMIN_MEMBER } } : UNAUTHENTICATED,
+        'GET /auth/me': () => (authenticated ? session() : UNAUTHENTICATED),
         'POST /auth/login': () => {
           authenticated = true;
           return { body: { member: ADMIN_MEMBER } };
@@ -146,9 +155,12 @@ describe('accepting an invitation', () => {
 });
 
 describe('app shell', () => {
-  const authenticatedRoutes = (member = ADMIN_MEMBER): StubRoutes => ({
+  const authenticatedRoutes = (
+    member = ADMIN_MEMBER,
+    permissions: Action[] = EVERY_ACTION,
+  ): StubRoutes => ({
     'GET /meta': { body: READY_META },
-    'GET /auth/me': { body: { member } },
+    'GET /auth/me': session(member, permissions),
     // The sidebar names the role the member holds, and a role's words are a
     // row now — so every signed-in screen reads this one.
     'GET /roles': { body: ROLES },
@@ -185,7 +197,7 @@ describe('app shell', () => {
   });
 
   it('hides Admin from non-admins and keeps the page out of reach', async () => {
-    renderApp(authenticatedRoutes({ ...ADMIN_MEMBER, role: 'viewer' }), '/admin');
+    renderApp(authenticatedRoutes({ ...ADMIN_MEMBER, role: 'viewer' }, VIEWER_ACTIONS), '/admin');
     await screen.findByRole('navigation');
     expect(screen.queryByRole('link', { name: 'Admin' })).toBeNull();
     await waitFor(() =>
@@ -198,8 +210,7 @@ describe('app shell', () => {
     const api = renderApp(
       {
         'GET /meta': { body: READY_META },
-        'GET /auth/me': () =>
-          authenticated ? { body: { member: ADMIN_MEMBER } } : UNAUTHENTICATED,
+        'GET /auth/me': () => (authenticated ? session() : UNAUTHENTICATED),
         'POST /auth/logout': () => {
           authenticated = false;
           return { status: 204 };

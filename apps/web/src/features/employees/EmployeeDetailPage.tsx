@@ -35,7 +35,7 @@ function historyRange(holding: Holding): string {
   return holding.outcome ? `${range} · ${ASSIGNMENT_OUTCOME_LABELS[holding.outcome]}` : range;
 }
 
-export function EmployeeDetailPage({ role }: EmployeeDetailPageProps) {
+export function EmployeeDetailPage({ permissions }: EmployeeDetailPageProps) {
   const { id = '' } = useParams();
   const [editing, setEditing] = useState(false);
   const [assigning, setAssigning] = useState(false);
@@ -112,7 +112,7 @@ export function EmployeeDetailPage({ role }: EmployeeDetailPageProps) {
       width: '120px',
       align: 'right',
       render: (holding) =>
-        can(role, 'assets.checkin') ? (
+        can(permissions, 'assets.checkin') ? (
           <button
             type="button"
             className={styles.checkin}
@@ -142,12 +142,12 @@ export function EmployeeDetailPage({ role }: EmployeeDetailPageProps) {
           </div>
           <div className={styles.meta}>{details.join(' · ')}</div>
         </div>
-        {can(role, 'employees.edit') && (
+        {can(permissions, 'employees.edit') && (
           <Button variant="ghost" onClick={() => setEditing(true)}>
             Edit
           </Button>
         )}
-        {can(role, 'assets.assign') && employee.status === 'active' && (
+        {can(permissions, 'assets.assign') && employee.status === 'active' && (
           <Button onClick={() => setAssigning(true)}>Assign asset</Button>
         )}
       </div>
@@ -188,7 +188,7 @@ export function EmployeeDetailPage({ role }: EmployeeDetailPageProps) {
       {editing && (
         <EmployeeFormModal
           employee={employee}
-          role={role}
+          permissions={permissions}
           onClose={() => setEditing(false)}
           onDeleted={() => navigate('/employees', { replace: true })}
         />
