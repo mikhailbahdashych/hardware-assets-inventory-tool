@@ -203,6 +203,40 @@ describe('renderAuditEvent', () => {
     );
   });
 
+  it('renders every role change as something an admin would recognise', () => {
+    expect(renderAuditEvent({ action: 'role.created', params: { label: 'Auditor' } })).toBe(
+      'Added the role Auditor',
+    );
+    expect(
+      renderAuditEvent({
+        action: 'role.updated',
+        params: { label: 'Auditor', changedFields: ['label', 'color'] },
+      }),
+    ).toBe('Updated the role Auditor (name, color)');
+    expect(
+      renderAuditEvent({
+        action: 'role.deleted',
+        params: { label: 'Auditor', migratedToLabel: null, memberCount: 0 },
+      }),
+    ).toBe('Deleted the role Auditor');
+    expect(
+      renderAuditEvent({
+        action: 'role.deleted',
+        params: { label: 'Auditor', migratedToLabel: 'Viewer', memberCount: 3 },
+      }),
+    ).toBe('Deleted the role Auditor · 3 members moved to Viewer');
+    expect(
+      renderAuditEvent({
+        action: 'role.deleted',
+        params: { label: 'Auditor', migratedToLabel: 'Viewer', memberCount: 1 },
+      }),
+    ).toBe('Deleted the role Auditor · 1 member moved to Viewer');
+    expect(
+      renderAuditEvent({ action: 'role.permissions_changed', params: { added: 2, removed: 1 } }),
+    ).toBe('Changed the role permissions (2 granted, 1 revoked)');
+    expect(renderAuditEvent({ action: 'role.reordered', params: {} })).toBe('Reordered the roles');
+  });
+
   it('says which settings an admin touched', () => {
     expect(
       renderAuditEvent({
@@ -236,6 +270,10 @@ describe('auditTypeForAction', () => {
     expect(auditTypeForAction('auth.login')).toBe('auth');
     expect(auditTypeForAction('member.joined')).toBe('auth');
     expect(auditTypeForAction('member.invited')).toBe('auth');
+    // Roles are access control, so they file beside the member events rather
+    // than under System with the workspace's other settings.
+    expect(auditTypeForAction('role.created')).toBe('auth');
+    expect(auditTypeForAction('role.permissions_changed')).toBe('auth');
     expect(auditTypeForAction('system.settings_updated')).toBe('system');
     expect(auditTypeForAction('system.setup_completed')).toBe('system');
     expect(auditTypeForAction('custom_field.created')).toBe('system');

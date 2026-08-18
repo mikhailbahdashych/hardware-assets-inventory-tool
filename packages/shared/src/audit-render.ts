@@ -138,6 +138,25 @@ const RENDERERS: Record<string, (params: AuditParams) => string> = {
     return `Changed the workflow (${added} ${word} added, ${removed} removed)`;
   },
   'workflow.statuses_reordered': () => 'Reordered the asset statuses',
+  'role.created': (p) => `Added the role ${text(p, 'label', 'a role')}`,
+  'role.updated': (p) => `Updated the role ${text(p, 'label', 'a role')}${fieldList(p)}`,
+  'role.deleted': (p) => {
+    const deleted = `Deleted the role ${text(p, 'label', 'a role')}`;
+    // A role nobody held is deleted outright; one that members held took them
+    // somewhere, and the count is the part worth reading later.
+    if (typeof p.migratedToLabel !== 'string') return deleted;
+    const count = typeof p.memberCount === 'number' ? p.memberCount : 0;
+    return `${deleted} · ${count} ${count === 1 ? 'member' : 'members'} moved to ${p.migratedToLabel}`;
+  },
+  'role.permissions_changed': (p) => {
+    const added = typeof p.added === 'number' ? p.added : 0;
+    const removed = typeof p.removed === 'number' ? p.removed : 0;
+    // An event with no numbers still has to render — the sentence just stops
+    // short of counting, rather than reading "0 granted".
+    if (added === 0 && removed === 0) return 'Changed the role permissions';
+    return `Changed the role permissions (${added} granted, ${removed} revoked)`;
+  },
+  'role.reordered': () => 'Reordered the roles',
   'member.invited': (p) => {
     const named = typeof p.role === 'string';
     // "an Admin" but "a Manager" — derived from the label so renaming a role
@@ -183,6 +202,10 @@ export function renderAuditEvent(event: RenderableAuditEvent): string {
 export function auditTypeForAction(action: string): AuditType {
   if (action.startsWith('asset.')) return 'assets';
   if (action.startsWith('employee.')) return 'people';
-  if (action.startsWith('auth.') || action.startsWith('member.')) return 'auth';
+  // Roles are access control, so they file beside the member events rather
+  // than under System with the workspace's other settings.
+  if (action.startsWith('auth.') || action.startsWith('member.') || action.startsWith('role.')) {
+    return 'auth';
+  }
   return 'system';
 }

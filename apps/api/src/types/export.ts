@@ -4,6 +4,8 @@ import type {
   assignments,
   customFieldDefs,
   employees,
+  rolePermissions,
+  roles,
 } from '@/db/schema.js';
 import type { OrgSettingsRow } from '@/types/settings.js';
 
@@ -54,6 +56,9 @@ export interface WorkspaceExport {
   exportedAt: string;
   settings: OrgSettingsRow;
   members: ExportedMember[];
+  /** What the `role` on each member above meant, and what it allowed. */
+  roles: (typeof roles.$inferSelect)[];
+  rolePermissions: (typeof rolePermissions.$inferSelect)[];
   employees: (typeof employees.$inferSelect)[];
   assets: (typeof assets.$inferSelect)[];
   assignments: (typeof assignments.$inferSelect)[];
