@@ -1,5 +1,11 @@
-import { ASSIGNED_STATUS, DEFAULT_ASSET_STATUSES } from '@inventory/shared';
-import { assetStatuses, assetStatusTransitions, customFieldDefs } from './schema.js';
+import { ASSIGNED_STATUS, DEFAULT_ASSET_STATUSES, DEFAULT_ROLES } from '@inventory/shared';
+import {
+  assetStatuses,
+  assetStatusTransitions,
+  customFieldDefs,
+  rolePermissions,
+  roles,
+} from './schema.js';
 import type { Db } from '@/types/db.js';
 import { newId } from '@/lib/ids.js';
 import { nowIso } from '@/lib/dates.js';
@@ -12,9 +18,9 @@ const DEFAULT_CUSTOM_FIELDS = [
 ] as const;
 
 /** Idempotent boot seed: default custom-field definitions and, on an instance
- *  that has none, the default workflow. Org settings are created by the
- *  first-run setup flow, and nothing here invents demo data — a fresh
- *  container starts empty on purpose. */
+ *  that has none, the default workflow and the default roles. Org settings are
+ *  created by the first-run setup flow, and nothing here invents demo data — a
+ *  fresh container starts empty on purpose. */
 export function seed(db: Db): void {
   DEFAULT_CUSTOM_FIELDS.forEach((field, index) => {
     db.insert(customFieldDefs)
@@ -31,6 +37,7 @@ export function seed(db: Db): void {
   });
 
   seedWorkflow(db);
+  seedRoles(db);
 }
 
 /**
@@ -70,4 +77,37 @@ function seedWorkflow(db: Db): void {
       db.insert(assetStatusTransitions).values({ fromStatus: from.id, toStatus: to.id }).run();
     }
   }
+}
+
+/**
+ * Today's permissions, written down as data: the three roles an upgraded
+ * instance already names in `members.role`, with Manager granted exactly what
+ * the role ranking allowed. Admin gets no rows at all — the system role's set
+ * is `ACTIONS`, resolved rather than stored, which is what makes an action
+ * added in a future version its own without a boot-time reconciliation.
+ *
+ * Guarded on the table being empty, for the same reason the workflow above is:
+ * an admin who deleted a role deleted it on purpose.
+ */
+function seedRoles(db: Db): void {
+  if (db.select({ id: roles.id }).from(roles).limit(1).get()) return;
+
+  const at = nowIso();
+  DEFAULT_ROLES.forEach((role, index) => {
+    db.insert(roles)
+      .values({
+        id: role.id,
+        label: role.label,
+        description: role.description,
+        color: role.color,
+        isSystem: role.isSystem,
+        sortOrder: index,
+        createdAt: at,
+        updatedAt: at,
+      })
+      .run();
+    for (const action of role.grants) {
+      db.insert(rolePermissions).values({ roleId: role.id, action }).run();
+    }
+  });
 }
