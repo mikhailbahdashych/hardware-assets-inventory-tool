@@ -1,7 +1,16 @@
 import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { ADMIN_MEMBER, ADMIN_ROUTES, INVITED_SUMMARY, MAYA, NO_SMTP_META } from '@/test/api-stub';
+import {
+  ADMIN_MEMBER,
+  ADMIN_ROUTES,
+  AUDITOR_ROLE,
+  INVITED_SUMMARY,
+  LINKED_SUMMARY,
+  MAYA,
+  NO_SMTP_META,
+  ROLES,
+} from '@/test/api-stub';
 import { renderApp, resetAppState } from '@/test/render';
 import { choose } from '@/test/dropdown';
 
@@ -51,11 +60,42 @@ describe('the members list', () => {
     );
   });
 
-  it('counts the members and spells out the roles in the footer', async () => {
+  it('counts the members and names the workspace’s roles in the footer', async () => {
     renderApp(ADMIN_ROUTES, '/members');
     expect(await screen.findByText(/^3 members · roles:/)).toHaveTextContent(
-      'Admin (full access), Manager (edit), Viewer (read-only)',
+      'roles: Admin, Manager, Viewer',
     );
+  });
+
+  it('draws a role the workspace invented, in the words and colour it chose', async () => {
+    renderApp(
+      {
+        ...ADMIN_ROUTES,
+        'GET /roles': { body: { roles: [...ROLES.roles, AUDITOR_ROLE] } },
+        'GET /members': {
+          body: { members: [{ ...LINKED_SUMMARY, role: 'auditor' }] },
+        },
+      },
+      '/members',
+    );
+
+    const row = await memberRow('maya.lindqvist@acme.io');
+    expect(within(row).getByText('Auditor')).toHaveAttribute('data-sv', 'warn');
+  });
+
+  it('renders a role nobody has any more as the id the account still carries', async () => {
+    renderApp(
+      {
+        ...ADMIN_ROUTES,
+        'GET /members': { body: { members: [{ ...LINKED_SUMMARY, role: 'auditor' }] } },
+      },
+      '/members',
+    );
+
+    // Historical data: the role was deleted while this page was open. Showing
+    // the slug is uglier than showing nothing, and far more useful.
+    const row = await memberRow('maya.lindqvist@acme.io');
+    expect(within(row).getByText('auditor')).toHaveAttribute('data-sv', 'neut');
   });
 
   it('offers no invite or row actions to a role that cannot manage members', async () => {
@@ -119,10 +159,29 @@ describe('inviting a member', () => {
     expect(screen.getByText(/No SMTP is configured/)).toBeInTheDocument();
   });
 
-  it('starts on Viewer, the least a new member can be given', async () => {
-    renderApp(ADMIN_ROUTES, '/members');
+  it('offers every role the workspace has, with the words it gave them', async () => {
+    renderApp(
+      { ...ADMIN_ROUTES, 'GET /roles': { body: { roles: [...ROLES.roles, AUDITOR_ROLE] } } },
+      '/members',
+    );
+
     await userEvent.click(await screen.findByRole('button', { name: /invite member/i }));
-    expect(screen.getByRole('radio', { name: /viewer/i })).toBeChecked();
+    const auditor = await screen.findByRole('radio', { name: /auditor/i });
+    expect(auditor).toBeInTheDocument();
+    expect(screen.getByText('Reads the books: activity log and exports')).toBeInTheDocument();
+  });
+
+  it('starts on the role that grants the least, whatever it is called', async () => {
+    renderApp(
+      { ...ADMIN_ROUTES, 'GET /roles': { body: { roles: [...ROLES.roles, AUDITOR_ROLE] } } },
+      '/members',
+    );
+    await userEvent.click(await screen.findByRole('button', { name: /invite member/i }));
+
+    // Viewer grants nothing at all; Auditor, added last, grants two actions.
+    // A default of "the last row" would quietly hand out the wrong one.
+    expect(await screen.findByRole('radio', { name: /viewer/i })).toBeChecked();
+    expect(screen.getByRole('radio', { name: /auditor/i })).not.toBeChecked();
   });
 
   it('shows the server message when the email already signs in', async () => {

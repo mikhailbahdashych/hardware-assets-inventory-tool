@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router';
-import { ROLE_DESCRIPTIONS, ROLE_LABELS } from '@inventory/shared';
 import { fieldErrors } from '@/api/formErrors';
 import { useAcceptInvite } from '@/api/mutations';
 import { useInvite } from '@/api/queries';
@@ -49,9 +48,10 @@ export function AcceptInvitePage() {
   return (
     <AuthLayout
       title={`Join ${invite.data.orgName}`}
-      subtitle={`You've been invited as a ${ROLE_LABELS[invite.data.role]} — ${ROLE_DESCRIPTIONS[
-        invite.data.role
-      ].toLowerCase()}.`}
+      // The label rather than the id, and it arrives with the lookup: this
+      // screen has no session, so it cannot read /roles to find out what a
+      // workspace called the role it is inviting somebody into.
+      subtitle={`You've been invited with the ${invite.data.roleLabel} role.`}
     >
       <form
         style={{ display: 'contents' }}

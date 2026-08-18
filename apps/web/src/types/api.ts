@@ -79,7 +79,8 @@ export interface OrgMeta {
 
 export interface InviteDetails {
   email: string;
-  role: Role;
+  /** A role id — a row's slug, so no build can narrow it to a union. */
+  role: string;
   /**
    * What that role is called. The lookup is unauthenticated, so the accept page
    * cannot read `/roles` to find out what a workspace named its own role.
@@ -223,7 +224,8 @@ export interface MemberSummary {
   id: string;
   email: string;
   displayName: string;
-  role: Role;
+  /** A role id — a row's slug, so no build can narrow it to a union. */
+  role: string;
   status: MemberStatus;
   employeeId: string | null;
   /** The employee record for the same person, named so the list need not join. */

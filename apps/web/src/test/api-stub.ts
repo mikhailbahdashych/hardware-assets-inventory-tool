@@ -5,6 +5,7 @@ import {
   DEFAULT_ROLES,
   type RolesPayload,
   type WorkflowPayload,
+  type WorkspaceRole,
 } from '@inventory/shared';
 
 export type StubResponse = { status?: number; body?: unknown };
@@ -134,6 +135,21 @@ export const ROLES: RolesPayload = {
     memberCount: 1,
     permissions: role.isSystem ? [...ACTIONS] : [...role.grants],
   })),
+};
+
+/**
+ * A role a workspace invented. No build knows it exists, which is exactly what
+ * the surfaces that draw a role pill or a role card have to cope with.
+ */
+export const AUDITOR_ROLE: WorkspaceRole = {
+  id: 'auditor',
+  label: 'Auditor',
+  description: 'Reads the books: activity log and exports',
+  color: 'warn',
+  isSystem: false,
+  sortOrder: 3,
+  memberCount: 1,
+  permissions: ['audit.view', 'export.run'],
 };
 
 export const CUSTOM_FIELDS = [
@@ -420,6 +436,7 @@ export const INVENTORY_ROUTES: StubRoutes = {
   'GET /custom-fields': { body: { customFields: CUSTOM_FIELDS } },
   'GET /assets/next-tag': { body: { assetTag: 'AST-0144' } },
   'GET /workflow': { body: WORKFLOW },
+  'GET /roles': { body: ROLES },
 };
 
 /**
