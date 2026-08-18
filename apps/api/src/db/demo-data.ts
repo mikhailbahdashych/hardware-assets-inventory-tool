@@ -1,5 +1,11 @@
 import type { WorkflowTransition } from '@inventory/shared';
-import type { DemoAsset, DemoHolding, DemoPerson, DemoWorkflowStatus } from '@/types/demo.js';
+import type {
+  DemoAsset,
+  DemoHolding,
+  DemoPerson,
+  DemoRole,
+  DemoWorkflowStatus,
+} from '@/types/demo.js';
 
 /**
  * The demo company. Everything here is fictional and every address is under
@@ -146,6 +152,9 @@ export const PEOPLE: DemoPerson[] = [
     startYearsAgo: 5,
     addedDaysAgo: 123,
     status: 'active',
+    // Invited as a Viewer, because that was the closest thing the workspace
+    // had at the time. `DEMO_ROLE` is what it did about that, months later.
+    account: { role: 'viewer', status: 'active' },
   },
   {
     key: 'jonas',
@@ -578,6 +587,27 @@ export const HOLDINGS: DemoHolding[] = [
   // The most recent handout, so the dashboard has something from this week.
   { assetKey: 'keychron', personKey: 'mei', fromDaysAgo: 2 },
 ];
+
+/**
+ * The role this company added for itself, and the last thing it did.
+ *
+ * Finance wanted the activity log and the export-all file, and neither seeded
+ * role was the right answer: Manager could edit the entire inventory, Viewer
+ * could only look at it. Two ticks in the matrix is what "granular" means, so
+ * the demo shows exactly that rather than a role with a long list.
+ */
+export const DEMO_ROLE: DemoRole = {
+  // What `roleSlug('Auditor')` derives, written down because the promotion
+  // that follows has to name the role before the row exists.
+  id: 'auditor',
+  label: 'Auditor',
+  description: 'Reads the books: activity log and exports',
+  color: 'warn',
+  grants: ['audit.view', 'export.run'],
+  // The controller, who was invited as a Viewer months before this role
+  // existed — which is the story the activity log ends on.
+  holder: 'grace',
+};
 
 /**
  * The status this company added for itself: a machine that has come back is

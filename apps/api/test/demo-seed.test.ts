@@ -9,9 +9,11 @@ import {
   auditEvents,
   employees,
   members,
+  rolePermissions,
+  roles,
 } from '@/db/schema.js';
 import { seedDemo } from '@/db/demo.js';
-import { DEMO_STATUS, DEMO_TRANSITIONS } from '@/db/demo-data.js';
+import { DEMO_ROLE, DEMO_STATUS, DEMO_TRANSITIONS } from '@/db/demo-data.js';
 import { buildTestApp, inject, type TestApp } from './helpers.js';
 
 let ctx: TestApp;
@@ -63,6 +65,7 @@ describe('the demo seed', () => {
     const result = await seeded();
     expect(result.signIn.map((account) => account.role).sort()).toEqual([
       'admin',
+      DEMO_ROLE.id,
       'manager',
       'viewer',
     ]);
@@ -257,6 +260,68 @@ describe('the demo seed', () => {
     expect(Math.min(...rewired.map(Date.parse))).toBeGreaterThan(
       Math.max(...moves.map(Date.parse)),
     );
+  });
+
+  it('curates a fourth role instead of leaving the three it was seeded with', async () => {
+    await seeded();
+
+    const rows = ctx.db.select().from(roles).orderBy(asc(roles.sortOrder)).all();
+    // The three a fresh instance is seeded with, plus the company's own — last
+    // in the list, because that is where a role somebody added belongs.
+    expect(rows.map((row) => row.id)).toEqual(['admin', 'manager', 'viewer', DEMO_ROLE.id]);
+    const auditor = rows.at(-1)!;
+    expect(auditor.label).toBe(DEMO_ROLE.label);
+    expect(auditor.description).toBe(DEMO_ROLE.description);
+    expect(auditor.color).toBe('warn');
+    expect(auditor.isSystem).toBe(false);
+
+    const granted = (roleId: string) =>
+      ctx.db
+        .select()
+        .from(rolePermissions)
+        .where(eq(rolePermissions.roleId, roleId))
+        .all()
+        .map((row) => row.action)
+        .sort();
+    expect(granted(DEMO_ROLE.id)).toEqual(['audit.view', 'export.run']);
+    // The matrix saves every role's grants at once, so the curation has to
+    // carry Manager's along with it or the save would quietly revoke them.
+    expect(granted('manager').length).toBe(9);
+    // The system role stores no rows at all: its set is ACTIONS by definition.
+    expect(granted('admin')).toEqual([]);
+  });
+
+  it('hands that role to the one person whose job it describes', async () => {
+    const result = await seeded();
+
+    const holders = ctx.db.select().from(members).where(eq(members.role, DEMO_ROLE.id)).all();
+    expect(holders.length).toBe(1);
+    // And her login is printed with the others, so the role can be tried out.
+    const account = result.signIn.find((row) => row.role === DEMO_ROLE.id);
+    expect(account?.email).toBe(holders[0]!.email);
+  });
+
+  it('applies those roles through the service, so the log carries them', async () => {
+    await seeded();
+    const rows = ctx.db.select().from(auditEvents).all();
+
+    const created = rows.find((row) => row.action === 'role.created');
+    const granted = rows.find((row) => row.action === 'role.permissions_changed');
+    const moved = rows.find((row) => row.action === 'member.role_changed');
+    expect(created, 'the added role is missing from the log').toBeDefined();
+    expect(granted, 'the granted permissions are missing from the log').toBeDefined();
+    expect(moved, 'the promotion is missing from the log').toBeDefined();
+
+    expect(JSON.parse(created!.params)).toMatchObject({ label: DEMO_ROLE.label });
+    // Two ticks added, nothing revoked — the rest of the matrix was resent as
+    // it stood.
+    expect(JSON.parse(granted!.params)).toMatchObject({ added: 2, removed: 0 });
+    // Labels on both sides, snapshot at write time, so a rename never rewrites
+    // the sentence.
+    expect(JSON.parse(moved!.params)).toMatchObject({ from: 'Viewer', to: DEMO_ROLE.label });
+    // The head of IT did it, like everything else the demo company did.
+    expect(created!.actorName).toBe('Ada Okafor');
+    expect(moved!.actorName).toBe('Ada Okafor');
   });
 
   it('refuses a workspace that already has data', async () => {

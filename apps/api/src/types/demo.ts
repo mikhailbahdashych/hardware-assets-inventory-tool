@@ -1,7 +1,9 @@
 import type {
+  Action,
   AssetCategory,
   CheckinCondition,
   EmployeeStatus,
+  RoleCreateInput,
   StatusCreateInput,
 } from '@inventory/shared';
 import { DEFAULT_ASSET_STATUSES, ASSIGNED_STATUS } from '@inventory/shared';
@@ -107,6 +109,20 @@ export interface DemoAsset {
  */
 export interface DemoWorkflowStatus extends StatusCreateInput {
   id: string;
+}
+
+/**
+ * The role the demo workspace adds for itself. Like {@link DemoWorkflowStatus}
+ * it is what the service's create call takes plus the id that call will derive
+ * from the label — which the promotion below has to name before the row exists
+ * — and then the two things the Roles page does next: tick some boxes, and
+ * give the role to somebody.
+ */
+export interface DemoRole extends RoleCreateInput {
+  id: string;
+  grants: readonly Action[];
+  /** A `PEOPLE` key: the member whose role this becomes, last of all. */
+  holder: string;
 }
 
 /** One leg of an asset's ownership history, closed or still open. */

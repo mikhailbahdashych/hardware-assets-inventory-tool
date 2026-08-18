@@ -1,9 +1,10 @@
 import { eq } from 'drizzle-orm';
-import { deriveOutcome } from '@inventory/shared';
+import { ADMIN_ROLE, deriveOutcome } from '@inventory/shared';
 import type { AppDeps } from '@/types/app.js';
 import type { Actor } from '@/types/audit.js';
 import type { DbOrTx } from '@/types/db.js';
 import type { DemoAccount, DemoSeedOptions, DemoSeedResult } from '@/types/demo.js';
+import type { RoleActor } from '@/types/roles.js';
 import type { SQLiteTable } from 'drizzle-orm/sqlite-core';
 import {
   assetCustomValues,
@@ -17,6 +18,7 @@ import {
 } from '@/db/schema.js';
 import {
   ASSETS,
+  DEMO_ROLE,
   DEMO_STATUS,
   DEMO_TRANSITIONS,
   EMAIL_DOMAIN,
@@ -32,7 +34,8 @@ import { addDays, nowIso, todayDate } from '@/lib/dates.js';
 import { hashPassword } from '@/lib/password.js';
 import { writeAudit } from '@/services/audit.js';
 import { activeAssignment, closeAssignment, openAssignment } from '@/services/assignments.js';
-import { requireRole } from '@/services/roles.js';
+import { updateMember } from '@/services/members.js';
+import { createRole, listRoles, replacePermissions, requireRole } from '@/services/roles.js';
 import { createStatus, replaceTransitions } from '@/services/workflow.js';
 import { emptyWorkspace } from '@/services/workspace.js';
 
@@ -81,7 +84,9 @@ export async function seedDemo(deps: AppDeps, options: DemoSeedOptions): Promise
     displayName: `${founder.firstName} ${founder.lastName}`,
   };
 
-  deps.db.transaction((tx) => {
+  // The member ids come back out because the curation below promotes one of
+  // them, and that has to happen after this transaction closes.
+  const demoMembers = deps.db.transaction((tx) => {
     // Negative reaches forward, which is how a warranty lands next month and a
     // return falls due next week. Event timestamps only ever pass positives —
     // the audit-log test is what holds the story out of the future.
@@ -160,9 +165,12 @@ export async function seedDemo(deps: AppDeps, options: DemoSeedOptions): Promise
         at(daysAgo, hour, 12),
       );
     }
+
+    return memberIds;
   });
 
   curateWorkflow(deps, actor);
+  curateRoles(deps, actor, { memberIds: demoMembers, signIn });
 
   return {
     orgName: ORG_NAME,
@@ -190,6 +198,61 @@ export async function seedDemo(deps: AppDeps, options: DemoSeedOptions): Promise
 function curateWorkflow(deps: AppDeps, actor: Actor): void {
   createStatus(deps, actor, DEMO_STATUS);
   replaceTransitions(deps, actor, { transitions: [...DEMO_TRANSITIONS] });
+}
+
+interface RoleCurationContext {
+  /** Member row ids by `PEOPLE` key, as {@link seedMembers} handed them back. */
+  memberIds: Map<string, string>;
+  /** The printed logins, so the promoted account says what it ended up as. */
+  signIn: DemoAccount[];
+}
+
+/**
+ * The other thing this company outgrew: three roles.
+ *
+ * Same shape as {@link curateWorkflow} and for the same reasons — three service
+ * calls, each opening its own transaction, so the guards that protect roles
+ * have checked this and the activity log carries it with the head of IT's name
+ * on it. It runs last because that is the honest order: the workspace ran on
+ * what it was seeded with until finance asked for the log, and the promotion at
+ * the end only makes sense once the role exists to be promoted into.
+ */
+function curateRoles(deps: AppDeps, actor: Actor, ctx: RoleCurationContext): void {
+  // Ada is the founder, so the guard against editing your own role never fires
+  // here — Admin is the system role, and nothing below touches its column.
+  const admin: RoleActor = { ...actor, role: ADMIN_ROLE };
+  createRole(deps, admin, {
+    label: DEMO_ROLE.label,
+    description: DEMO_ROLE.description,
+    color: DEMO_ROLE.color,
+  });
+
+  // The matrix saves every non-system role's grants at once, so the two new
+  // ticks arrive on top of what the seed gave Manager rather than instead of
+  // it. Reading them back is also what makes this survive a change to
+  // DEFAULT_ROLES without quietly revoking something.
+  const stored = listRoles(deps.db)
+    .filter((role) => !role.isSystem)
+    .flatMap((role) => role.permissions.map((action) => ({ role: role.id, action })));
+  replacePermissions(deps, admin, {
+    grants: [...stored, ...DEMO_ROLE.grants.map((action) => ({ role: DEMO_ROLE.id, action }))],
+  });
+
+  const person = PEOPLE.find((candidate) => candidate.key === DEMO_ROLE.holder);
+  const holderId = ctx.memberIds.get(DEMO_ROLE.holder);
+  if (!person || !holderId) {
+    throw new Error(`demo-data: nobody keyed ${DEMO_ROLE.holder} has an account to promote.`);
+  }
+  updateMember(deps, actor, holderId, { role: DEMO_ROLE.id });
+
+  // The banner prints what each login *is*, and this one is no longer what it
+  // was invited as. Nothing upstream can know that — the invitation happened
+  // four months before the role existed — so the correction belongs here.
+  const account = ctx.signIn.find(
+    (row) => row.email === employeeEmail(person.firstName, person.lastName),
+  );
+  if (!account) throw new Error(`demo-data: ${DEMO_ROLE.holder} has no printed login to correct.`);
+  account.role = DEMO_ROLE.id;
 }
 
 /** The workspace itself, on the design's defaults. */
