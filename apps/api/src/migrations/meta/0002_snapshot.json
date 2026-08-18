@@ -35,12 +35,8 @@
           "name": "asset_custom_values_asset_id_assets_id_fk",
           "tableFrom": "asset_custom_values",
           "tableTo": "assets",
-          "columnsFrom": [
-            "asset_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["asset_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -48,22 +44,15 @@
           "name": "asset_custom_values_field_def_id_custom_field_defs_id_fk",
           "tableFrom": "asset_custom_values",
           "tableTo": "custom_field_defs",
-          "columnsFrom": [
-            "field_def_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["field_def_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {
         "asset_custom_values_asset_id_field_def_id_pk": {
-          "columns": [
-            "asset_id",
-            "field_def_id"
-          ],
+          "columns": ["asset_id", "field_def_id"],
           "name": "asset_custom_values_asset_id_field_def_id_pk"
         }
       },
@@ -94,12 +83,8 @@
           "name": "asset_status_transitions_from_status_asset_statuses_id_fk",
           "tableFrom": "asset_status_transitions",
           "tableTo": "asset_statuses",
-          "columnsFrom": [
-            "from_status"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["from_status"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -107,22 +92,15 @@
           "name": "asset_status_transitions_to_status_asset_statuses_id_fk",
           "tableFrom": "asset_status_transitions",
           "tableTo": "asset_statuses",
-          "columnsFrom": [
-            "to_status"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["to_status"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {
         "asset_status_transitions_from_status_to_status_pk": {
-          "columns": [
-            "from_status",
-            "to_status"
-          ],
+          "columns": ["from_status", "to_status"],
           "name": "asset_status_transitions_from_status_to_status_pk"
         }
       },
@@ -202,9 +180,7 @@
       "indexes": {
         "asset_statuses_label_unique": {
           "name": "asset_statuses_label_unique",
-          "columns": [
-            "label"
-          ],
+          "columns": ["label"],
           "isUnique": true
         }
       },
@@ -326,30 +302,22 @@
       "indexes": {
         "assets_asset_tag_unique": {
           "name": "assets_asset_tag_unique",
-          "columns": [
-            "asset_tag"
-          ],
+          "columns": ["asset_tag"],
           "isUnique": true
         },
         "assets_status_idx": {
           "name": "assets_status_idx",
-          "columns": [
-            "status"
-          ],
+          "columns": ["status"],
           "isUnique": false
         },
         "assets_category_idx": {
           "name": "assets_category_idx",
-          "columns": [
-            "category"
-          ],
+          "columns": ["category"],
           "isUnique": false
         },
         "assets_warranty_idx": {
           "name": "assets_warranty_idx",
-          "columns": [
-            "warranty_until"
-          ],
+          "columns": ["warranty_until"],
           "isUnique": false
         }
       },
@@ -456,32 +424,23 @@
       "indexes": {
         "assignments_one_active_per_asset": {
           "name": "assignments_one_active_per_asset",
-          "columns": [
-            "asset_id"
-          ],
+          "columns": ["asset_id"],
           "isUnique": true,
           "where": "returned_at IS NULL"
         },
         "assignments_employee_idx": {
           "name": "assignments_employee_idx",
-          "columns": [
-            "employee_id"
-          ],
+          "columns": ["employee_id"],
           "isUnique": false
         },
         "assignments_asset_history_idx": {
           "name": "assignments_asset_history_idx",
-          "columns": [
-            "asset_id",
-            "checked_out_at"
-          ],
+          "columns": ["asset_id", "checked_out_at"],
           "isUnique": false
         },
         "assignments_pending_return_idx": {
           "name": "assignments_pending_return_idx",
-          "columns": [
-            "expected_return_date"
-          ],
+          "columns": ["expected_return_date"],
           "isUnique": false,
           "where": "returned_at IS NULL"
         }
@@ -491,12 +450,8 @@
           "name": "assignments_asset_id_assets_id_fk",
           "tableFrom": "assignments",
           "tableTo": "assets",
-          "columnsFrom": [
-            "asset_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["asset_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -504,12 +459,8 @@
           "name": "assignments_employee_id_employees_id_fk",
           "tableFrom": "assignments",
           "tableTo": "employees",
-          "columnsFrom": [
-            "employee_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["employee_id"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         }
@@ -581,9 +532,7 @@
       "indexes": {
         "attachments_asset_idx": {
           "name": "attachments_asset_idx",
-          "columns": [
-            "asset_id"
-          ],
+          "columns": ["asset_id"],
           "isUnique": false
         }
       },
@@ -592,12 +541,8 @@
           "name": "attachments_asset_id_assets_id_fk",
           "tableFrom": "attachments",
           "tableTo": "assets",
-          "columnsFrom": [
-            "asset_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["asset_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -605,12 +550,8 @@
           "name": "attachments_uploaded_by_member_id_members_id_fk",
           "tableFrom": "attachments",
           "tableTo": "members",
-          "columnsFrom": [
-            "uploaded_by_member_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["uploaded_by_member_id"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         }
@@ -697,25 +638,17 @@
       "indexes": {
         "audit_at_idx": {
           "name": "audit_at_idx",
-          "columns": [
-            "at"
-          ],
+          "columns": ["at"],
           "isUnique": false
         },
         "audit_asset_idx": {
           "name": "audit_asset_idx",
-          "columns": [
-            "asset_id",
-            "at"
-          ],
+          "columns": ["asset_id", "at"],
           "isUnique": false
         },
         "audit_type_idx": {
           "name": "audit_type_idx",
-          "columns": [
-            "type",
-            "at"
-          ],
+          "columns": ["type", "at"],
           "isUnique": false
         }
       },
@@ -724,12 +657,8 @@
           "name": "audit_events_actor_member_id_members_id_fk",
           "tableFrom": "audit_events",
           "tableTo": "members",
-          "columnsFrom": [
-            "actor_member_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["actor_member_id"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         }
@@ -787,10 +716,7 @@
       "indexes": {
         "auth_tokens_member_idx": {
           "name": "auth_tokens_member_idx",
-          "columns": [
-            "member_id",
-            "purpose"
-          ],
+          "columns": ["member_id", "purpose"],
           "isUnique": false
         }
       },
@@ -799,12 +725,8 @@
           "name": "auth_tokens_member_id_members_id_fk",
           "tableFrom": "auth_tokens",
           "tableTo": "members",
-          "columnsFrom": [
-            "member_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["member_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -863,9 +785,7 @@
       "indexes": {
         "custom_field_defs_key_unique": {
           "name": "custom_field_defs_key_unique",
-          "columns": [
-            "key"
-          ],
+          "columns": ["key"],
           "isUnique": true
         }
       },
@@ -966,16 +886,12 @@
       "indexes": {
         "employees_email_unique": {
           "name": "employees_email_unique",
-          "columns": [
-            "email"
-          ],
+          "columns": ["email"],
           "isUnique": true
         },
         "employees_status_idx": {
           "name": "employees_status_idx",
-          "columns": [
-            "status"
-          ],
+          "columns": ["status"],
           "isUnique": false
         }
       },
@@ -1099,16 +1015,12 @@
       "indexes": {
         "members_email_unique": {
           "name": "members_email_unique",
-          "columns": [
-            "email"
-          ],
+          "columns": ["email"],
           "isUnique": true
         },
         "members_employee_idx": {
           "name": "members_employee_idx",
-          "columns": [
-            "employee_id"
-          ],
+          "columns": ["employee_id"],
           "isUnique": false
         }
       },
@@ -1117,12 +1029,8 @@
           "name": "members_employee_id_employees_id_fk",
           "tableFrom": "members",
           "tableTo": "employees",
-          "columnsFrom": [
-            "employee_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["employee_id"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         }
@@ -1173,9 +1081,7 @@
       "indexes": {
         "mfa_recovery_member_idx": {
           "name": "mfa_recovery_member_idx",
-          "columns": [
-            "member_id"
-          ],
+          "columns": ["member_id"],
           "isUnique": false
         }
       },
@@ -1184,12 +1090,8 @@
           "name": "mfa_recovery_codes_member_id_members_id_fk",
           "tableFrom": "mfa_recovery_codes",
           "tableTo": "members",
-          "columnsFrom": [
-            "member_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["member_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -1233,9 +1135,7 @@
       "indexes": {
         "notification_log_dedupe_key_unique": {
           "name": "notification_log_dedupe_key_unique",
-          "columns": [
-            "dedupe_key"
-          ],
+          "columns": ["dedupe_key"],
           "isUnique": true
         }
       },
@@ -1388,16 +1288,12 @@
       "indexes": {
         "sessions_member_idx": {
           "name": "sessions_member_idx",
-          "columns": [
-            "member_id"
-          ],
+          "columns": ["member_id"],
           "isUnique": false
         },
         "sessions_expires_idx": {
           "name": "sessions_expires_idx",
-          "columns": [
-            "expires_at"
-          ],
+          "columns": ["expires_at"],
           "isUnique": false
         }
       },
@@ -1406,12 +1302,8 @@
           "name": "sessions_member_id_members_id_fk",
           "tableFrom": "sessions",
           "tableTo": "members",
-          "columnsFrom": [
-            "member_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["member_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
