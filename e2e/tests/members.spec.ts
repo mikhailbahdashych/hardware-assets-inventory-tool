@@ -32,7 +32,8 @@ test('invites a viewer, who accepts and finds every mutation gone', async ({ pag
   await viewer.goto(inviteUrl);
 
   await expect(viewer.getByRole('heading', { name: 'Join Acme Corp' })).toBeVisible();
-  await expect(viewer.getByText(/invited as a Viewer/)).toBeVisible();
+  // The role's own label, read off the row rather than a compiled-in map.
+  await expect(viewer.getByText(/invited with the Viewer role/)).toBeVisible();
   await viewer.getByLabel('Your name').fill(GRACE.name);
   await viewer.getByLabel('Password').fill(GRACE.password);
   await viewer.getByRole('button', { name: 'Join workspace' }).click();
