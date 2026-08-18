@@ -1,4 +1,5 @@
 import type {
+  Action,
   AssetCategory,
   AssignmentOutcome,
   AuditType,
@@ -12,10 +13,18 @@ import type {
   Role,
   SemanticColor,
 } from '@inventory/shared';
+import type { PermissionsPutInput } from '@inventory/shared';
 import type { Density, Theme } from './theme';
 
 // Every shape the API sends back, named once. Nullable fields are nullable
 // because the column is: `null` here is a real state, not a missing value.
+
+/**
+ * One checked cell of the permissions matrix. Derived from the schema that
+ * validates the request rather than written out again — a hand-made twin of a
+ * wire shape is a drift waiting for the day somebody renames a field.
+ */
+export type RoleGrant = PermissionsPutInput['grants'][number];
 
 /** What `apiFetch` accepts beyond the path. */
 export interface ApiRequest {
@@ -71,6 +80,11 @@ export interface OrgMeta {
 export interface InviteDetails {
   email: string;
   role: Role;
+  /**
+   * What that role is called. The lookup is unauthenticated, so the accept page
+   * cannot read `/roles` to find out what a workspace named its own role.
+   */
+  roleLabel: string;
   orgName: string;
 }
 
@@ -184,6 +198,13 @@ export interface EmployeeDetail {
 export interface Session {
   member: Member;
   mustEnrolMfa: boolean;
+  /**
+   * What this member may do, resolved server-side from the role they hold. A
+   * sibling of the member for the same reason `mustEnrolMfa` is: it is a fact
+   * about them *and* about the workspace's roles, and it is the very set
+   * `requireAction` reads — so an affordance and a door cannot disagree.
+   */
+  permissions: Action[];
 }
 
 /**

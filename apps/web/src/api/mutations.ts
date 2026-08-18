@@ -18,6 +18,8 @@ import type {
   MfaConfirmInput,
   PrefsPatchInput,
   ResetPasswordInput,
+  RoleCreateInput,
+  RolePatchInput,
   SettingsPatchInput,
   SetupInput,
   StatusCreateInput,
@@ -25,6 +27,7 @@ import type {
   WorkflowStatus,
   WorkflowTransition,
   WorkspaceDeleteInput,
+  WorkspaceRole,
 } from '@inventory/shared';
 import { apiFetch, apiUpload } from './client';
 import { invalidateAdmin, invalidateInventory } from './invalidate';
@@ -39,20 +42,26 @@ import type {
   Member,
   MemberSummary,
   MfaEnrolment,
-  Session,
   OrgSettings,
+  RoleGrant,
+  Session,
 } from '@/types/api';
 
-/** Signing in, accepting an invite and resetting a password all end with a session. */
+/**
+ * Signing in, accepting an invite and resetting a password all end with a
+ * session. What comes back is the **member**, though, not the session: it says
+ * nothing about enrolment and carries none of the permissions their role
+ * grants. Writing it into the cache as a session meant inventing both, so these
+ * ask `/auth/me` for the real one instead — and await it, which keeps the form
+ * showing that it is working rather than flashing the signed-out screen.
+ */
 function useSessionMutation<TInput>(path: string) {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (input: TInput) =>
       apiFetch<{ member: Member }>(path, { method: 'POST', body: input }),
-    onSuccess: ({ member }) => {
-      // A member who just signed in owes no enrolment — the API would have
-      // answered with a challenge instead of a session if they did.
-      queryClient.setQueryData(queryKeys.me, { member, mustEnrolMfa: false });
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: queryKeys.me });
       queryClient.invalidateQueries({ queryKey: queryKeys.meta });
     },
   });
@@ -68,9 +77,9 @@ export function useLogin() {
   return useMutation({
     mutationFn: (input: LoginInput) =>
       apiFetch<LoginResult>('/auth/login', { method: 'POST', body: input }),
-    onSuccess: (result) => {
+    onSuccess: async (result) => {
       if ('mfaRequired' in result) return;
-      queryClient.setQueryData(queryKeys.me, { member: result.member, mustEnrolMfa: false });
+      await queryClient.invalidateQueries({ queryKey: queryKeys.me });
       queryClient.invalidateQueries({ queryKey: queryKeys.meta });
     },
   });
@@ -365,6 +374,74 @@ export const useSaveTransitions = () =>
     apiFetch<{ transitions: WorkflowTransition[] }>('/workflow/transitions', {
       method: 'PUT',
       body: { transitions },
+    }),
+  );
+
+// The roles: who this workspace has, and what each of them may do. Every one of
+// these writes changes a pill on the Members page, a card in the invite form or
+// the guard on somebody's next request, and each writes an audit event — which
+// is exactly the set `invalidateAdmin` refreshes, `roles` included.
+
+function useRolesMutation<TInput, TResult>(request: (input: TInput) => Promise<TResult>) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: request,
+    onSuccess: () => invalidateAdmin(queryClient),
+  });
+}
+
+const role = (id: string) => `/roles/${encodeURIComponent(id)}`;
+
+/**
+ * A new role starts with no permissions at all — the matrix is where they are
+ * granted, so creating one can never hand out access by accident.
+ */
+export const useCreateRole = () =>
+  useRolesMutation((input: RoleCreateInput) =>
+    apiFetch<{ role: WorkspaceRole }>('/roles', { method: 'POST', body: input }),
+  );
+
+/** Label, description and colour. The id was derived once and stays put. */
+export const useUpdateRole = () =>
+  useRolesMutation((input: { id: string } & RolePatchInput) =>
+    apiFetch<{ role: WorkspaceRole }>(role(input.id), {
+      method: 'PATCH',
+      body: { label: input.label, description: input.description, color: input.color },
+    }),
+  );
+
+/**
+ * `migrateTo` is where the members holding this role go. Absent is a real
+ * answer — "nobody holds it" — and the API refuses the delete rather than
+ * stranding accounts if that turns out to be wrong.
+ */
+export const useDeleteRole = () =>
+  useRolesMutation((input: { id: string; migrateTo?: string }) =>
+    apiFetch(
+      input.migrateTo === undefined
+        ? role(input.id)
+        : `${role(input.id)}?migrateTo=${encodeURIComponent(input.migrateTo)}`,
+      { method: 'DELETE' },
+    ),
+  );
+
+/** The arrows send the whole order, so the result is always coherent. */
+export const useReorderRoles = () =>
+  useRolesMutation((order: string[]) =>
+    apiFetch('/roles/order', { method: 'POST', body: { order } }),
+  );
+
+/**
+ * The matrix saves every grant it holds, not a diff — the same reasoning as the
+ * transition matrix: that is what a grid of checkboxes naturally is, and it
+ * makes two admins saving the same grid land on the same permissions. The
+ * counts that come back are what the toast could report; today it does not.
+ */
+export const useSaveRolePermissions = () =>
+  useRolesMutation((grants: RoleGrant[]) =>
+    apiFetch<{ added: number; removed: number }>('/roles/permissions', {
+      method: 'PUT',
+      body: { grants },
     }),
   );
 

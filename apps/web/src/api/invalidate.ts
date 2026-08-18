@@ -22,11 +22,16 @@ export function invalidateInventory(queryClient: QueryClient): void {
 }
 
 /**
- * The same idea for the admin surfaces. Every member and settings write also
- * writes an audit event, and renaming the workspace changes `/meta`, so all
- * four refresh together rather than each mutation remembering which it moved.
+ * The same idea for the admin surfaces. Every member, role and settings write
+ * also writes an audit event, and renaming the workspace changes `/meta`, so
+ * they refresh together rather than each mutation remembering which it moved.
+ *
+ * `roles` is in here rather than beside the role mutations because the traffic
+ * runs both ways: a role write changes what a member's pill says, and a member
+ * write changes the member counts the Roles page reads. Splitting them would
+ * mean inviting somebody left "2 members" on screen under the role they joined.
  */
-const ADMIN_PREFIXES = [['members'], ['settings'], ['audit'], ['meta']];
+const ADMIN_PREFIXES = [['members'], ['roles'], ['settings'], ['audit'], ['meta']];
 
 export function invalidateAdmin(queryClient: QueryClient): void {
   for (const queryKey of ADMIN_PREFIXES) {
