@@ -21,11 +21,8 @@ import {
   MEMBER_STATUSES,
   MEMBER_STATUS_COLORS,
   MEMBER_STATUS_LABELS,
-  ROLES,
-  ROLE_COLORS,
-  ROLE_DESCRIPTIONS,
-  ROLE_LABELS,
   SEMANTIC_COLORS,
+  SEMANTIC_COLOR_LABELS,
 } from './enums.js';
 
 /**
@@ -108,17 +105,6 @@ describe('people enums', () => {
     expect(MEMBER_STATUS_COLORS).toEqual({ active: 'ok', invited: 'info' });
   });
 
-  it('describes roles with the exact permission copy from the design', () => {
-    expect(ROLES).toEqual(['admin', 'manager', 'viewer']);
-    expect(ROLE_LABELS).toEqual({ admin: 'Admin', manager: 'Manager', viewer: 'Viewer' });
-    expect(ROLE_COLORS).toEqual({ admin: 'acc', manager: 'info', viewer: 'neut' });
-    expect(ROLE_DESCRIPTIONS).toEqual({
-      admin: 'Full access — settings, members, activity log',
-      manager: 'Create and edit assets, employees and assignments',
-      viewer: 'Read-only access to all pages',
-    });
-  });
-
   it('suggests the design departments including Other', () => {
     expect(DEPARTMENT_SUGGESTIONS).toEqual([
       'Engineering',
@@ -163,5 +149,16 @@ describe('misc enums', () => {
     expect(CURRENCY_LABELS.PLN).toBe('PLN (zł)');
     expect(ASSIGNMENT_OUTCOMES).toEqual(['returned', 'upgraded', 'in_repair', 'offboarded']);
     expect(ASSIGNMENT_OUTCOME_LABELS.in_repair).toBe('in repair');
+  });
+
+  it('names every semantic colour by the colour it is', () => {
+    expect(SEMANTIC_COLORS.map((color) => SEMANTIC_COLOR_LABELS[color])).toEqual([
+      'Green',
+      'Purple',
+      'Amber',
+      'Red',
+      'Blue',
+      'Grey',
+    ]);
   });
 });

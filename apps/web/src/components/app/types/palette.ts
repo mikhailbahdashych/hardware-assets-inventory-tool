@@ -1,4 +1,4 @@
-import type { can, Role, WorkflowStatus } from '@inventory/shared';
+import type { Action, WorkflowStatus } from '@inventory/shared';
 import type { Asset, Employee } from '@/types/api';
 import type { IconName } from '@/components/ui';
 import type { GlobalModal } from '@/types/modals';
@@ -27,14 +27,14 @@ export interface ActionDefinition {
   title: string;
   icon: IconName;
   effect: PaletteEffect;
-  /** Omitted for the actions every role may take (there is one: the theme). */
-  requires?: Parameters<typeof can>[1];
+  /** Omitted for the actions everybody may take (there is one: the theme). */
+  requires?: Action;
 }
 
-/** Everything `paletteGroups` needs: the query, the role, and the loaded lists. */
+/** Everything `paletteGroups` needs: the query, the permissions, the loaded lists. */
 export interface PaletteInput {
   query: string;
-  role: Role;
+  permissions: Action[];
   assets: Asset[];
   employees: Employee[];
   /** The workspace's statuses, so an asset row can name the one it carries. */

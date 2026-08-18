@@ -18,6 +18,7 @@ import { serializeMember } from '@/lib/serialize.js';
 import { requireSession } from '@/plugins/rbac.js';
 import { writeAudit } from '@/services/audit.js';
 import { consumeToken, findValidToken, issueAuthToken } from '@/services/auth-tokens.js';
+import { requireRole } from '@/services/roles.js';
 import { verifyChallenge } from '@/services/mfa.js';
 import {
   clearSessionCookie,
@@ -198,7 +199,15 @@ export function registerAuthRoutes(app: FastifyInstance, deps: AppDeps): void {
           'This instance has no organization settings, so the invite cannot be described.',
         );
       }
-      return { email: member.email, role: member.role, orgName: settings.orgName };
+      // The label as well as the id: this route is unauthenticated, so the
+      // accept page has no way to fetch /roles and find out what the role a
+      // workspace made up is called.
+      return {
+        email: member.email,
+        role: member.role,
+        roleLabel: requireRole(deps.db, member.role).label,
+        orgName: settings.orgName,
+      };
     },
   );
 
@@ -256,5 +265,10 @@ export function registerAuthRoutes(app: FastifyInstance, deps: AppDeps): void {
     // *and* this workspace's policy, and a non-admin cannot read settings to
     // work it out for themselves. It is what puts the setup screen up.
     mustEnrolMfa: request.mustEnrolMfa,
+    // Likewise a fact about the member and the workspace's roles, resolved by
+    // the same call `requireAction` reads — so an affordance the web draws and
+    // the door the API opens can never disagree. Sorted, because a payload
+    // whose order wobbles makes every diff of it unreadable.
+    permissions: [...request.permissions].sort(),
   }));
 }

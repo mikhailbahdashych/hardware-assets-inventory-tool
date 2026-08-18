@@ -1,5 +1,13 @@
 import { vi } from 'vitest';
-import { DEFAULT_ASSET_STATUSES, type WorkflowPayload } from '@inventory/shared';
+import {
+  ACTIONS,
+  DEFAULT_ASSET_STATUSES,
+  DEFAULT_ROLES,
+  type Action,
+  type RolesPayload,
+  type WorkflowPayload,
+  type WorkspaceRole,
+} from '@inventory/shared';
 
 export type StubResponse = { status?: number; body?: unknown };
 export type StubHandler = StubResponse | ((body: unknown, search: string) => StubResponse);
@@ -88,6 +96,24 @@ export const ADMIN_MEMBER = {
   mfaEnrolled: false,
 };
 
+/**
+ * What each seeded role resolves to, for the session stubs below. Roles are
+ * rows now, so a test that wants "a manager" is really asking for the grant set
+ * a manager holds — which is the same thing `/auth/me` hands the browser and
+ * the same thing `requireAction` reads.
+ */
+export const EVERY_ACTION: Action[] = [...ACTIONS];
+export const MANAGER_ACTIONS: Action[] = [
+  ...DEFAULT_ROLES.filter((role) => role.id === 'manager').flatMap((role) => role.grants),
+];
+/** Reads are open to everybody, so a viewer's set is genuinely empty. */
+export const VIEWER_ACTIONS: Action[] = [];
+
+/** One `GET /auth/me` body: who is signed in, and what they may do. */
+export function session(member: unknown = ADMIN_MEMBER, permissions: Action[] = EVERY_ACTION) {
+  return { body: { member, mustEnrolMfa: false, permissions } };
+}
+
 export const READY_META = {
   needsSetup: false,
   version: '0.1.0',
@@ -115,6 +141,35 @@ export const WORKFLOW: WorkflowPayload = (() => {
     ),
   };
 })();
+
+/**
+ * The roles a freshly seeded instance serves: today's three, in today's order,
+ * with the system role's set resolved to every action there is. One member
+ * holds each, which is what the three member fixtures below add up to.
+ */
+export const ROLES: RolesPayload = {
+  roles: DEFAULT_ROLES.map((role, sortOrder) => ({
+    ...role,
+    sortOrder,
+    memberCount: 1,
+    permissions: role.isSystem ? [...ACTIONS] : [...role.grants],
+  })),
+};
+
+/**
+ * A role a workspace invented. No build knows it exists, which is exactly what
+ * the surfaces that draw a role pill or a role card have to cope with.
+ */
+export const AUDITOR_ROLE: WorkspaceRole = {
+  id: 'auditor',
+  label: 'Auditor',
+  description: 'Reads the books: activity log and exports',
+  color: 'warn',
+  isSystem: false,
+  sortOrder: 3,
+  memberCount: 1,
+  permissions: ['audit.view', 'export.run'],
+};
 
 export const CUSTOM_FIELDS = [
   { id: 'cf-1', key: 'mdm_enrolled', label: 'MDM enrolled', type: 'boolean', sortOrder: 0 },
@@ -394,12 +449,13 @@ export const DASHBOARD = {
 /** Signed-in admin with an empty-but-reachable inventory. */
 export const INVENTORY_ROUTES: StubRoutes = {
   'GET /meta': { body: READY_META },
-  'GET /auth/me': { body: { member: ADMIN_MEMBER } },
+  'GET /auth/me': session(),
   'GET /assets': { body: { assets: [LAPTOP, MONITOR] } },
   'GET /employees': { body: { employees: [MAYA] } },
   'GET /custom-fields': { body: { customFields: CUSTOM_FIELDS } },
   'GET /assets/next-tag': { body: { assetTag: 'AST-0144' } },
   'GET /workflow': { body: WORKFLOW },
+  'GET /roles': { body: ROLES },
 };
 
 /**
@@ -417,10 +473,11 @@ export const DASHBOARD_ROUTES: StubRoutes = {
 /** The signed-in admin plus everything the Members and Admin pages read. */
 export const ADMIN_ROUTES: StubRoutes = {
   'GET /meta': { body: READY_META },
-  'GET /auth/me': { body: { member: ADMIN_MEMBER } },
+  'GET /auth/me': session(),
   'GET /employees': { body: { employees: [MAYA] } },
   'GET /members': { body: { members: [ADMIN_SUMMARY, INVITED_SUMMARY, LINKED_SUMMARY] } },
   'GET /settings': { body: { settings: SETTINGS } },
   'GET /audit': { body: AUDIT_PAGE },
   'GET /workflow': { body: WORKFLOW },
+  'GET /roles': { body: ROLES },
 };

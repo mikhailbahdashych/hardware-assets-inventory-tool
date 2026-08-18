@@ -1,8 +1,8 @@
 import { useState, type FormEvent } from 'react';
-import type { Role } from '@inventory/shared';
 import { fieldErrors } from '@/api/formErrors';
 import { useInviteMember } from '@/api/mutations';
-import { useEmployees } from '@/api/queries';
+import { useEmployees, useRoles } from '@/api/queries';
+import { leastPrivileged } from '@/lib/roles';
 import { Button, Dropdown, Field, Input, Modal } from '@/components/ui';
 import { NotifyCheckbox } from '@/components/app/NotifyCheckbox';
 import formStyles from '@/components/ui/FormModal.module.css';
@@ -19,14 +19,21 @@ import type { InviteMemberModalProps } from './types/inviteMemberModal';
 export function InviteMemberModal({ onClose }: InviteMemberModalProps) {
   const [email, setEmail] = useState('');
   const [employeeId, setEmployeeId] = useState('');
-  // The least a new member can be given; the admin raises it deliberately.
-  const [role, setRole] = useState<Role>('viewer');
+  const [chosenRole, setChosenRole] = useState('');
   const [sendEmail, setSendEmail] = useState(true);
   const [inviteUrl, setInviteUrl] = useState<string | null>(null);
 
   const employees = useEmployees();
+  const roles = useRoles();
   const invite = useInviteMember();
   const errors = fieldErrors(invite.error);
+
+  // Until the admin picks one it is the least a new member can be given —
+  // which is a question about the workspace's rows, not a slug this build can
+  // name. Empty only while the roles are still on their way, and Send is
+  // disabled until then: an invitation has to name a role that exists.
+  const suggested = leastPrivileged(roles.data === undefined ? [] : roles.data.roles);
+  const role = chosenRole === '' && suggested ? suggested.id : chosenRole;
 
   function submit(event: FormEvent) {
     event.preventDefault();
@@ -62,7 +69,7 @@ export function InviteMemberModal({ onClose }: InviteMemberModalProps) {
           <Button variant="ghost" onClick={onClose}>
             Cancel
           </Button>
-          <Button type="submit" form="invite-member" disabled={invite.isPending}>
+          <Button type="submit" form="invite-member" disabled={invite.isPending || role === ''}>
             Send invite
           </Button>
         </>
@@ -105,7 +112,7 @@ export function InviteMemberModal({ onClose }: InviteMemberModalProps) {
         </Field>
 
         <Field label="Role" required>
-          <RoleCards name="invite-role" value={role} onChange={setRole} />
+          <RoleCards name="invite-role" value={role} onChange={setChosenRole} />
         </Field>
 
         <NotifyCheckbox

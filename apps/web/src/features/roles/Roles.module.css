@@ -1,0 +1,119 @@
+.title {
+  font-size: 18px;
+  font-weight: 600;
+  margin: 0;
+}
+
+.summary {
+  color: var(--muted);
+  font-size: 12.5px;
+  margin: 2px 0 0;
+}
+
+.loading {
+  display: flex;
+  justify-content: center;
+  padding: 40px 0;
+}
+
+/* A card that holds a table: the table draws its own surface, so this one is
+   only the heading above it. */
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.cardHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.cardTitle {
+  font-weight: 600;
+  font-size: 13px;
+  margin: 0;
+}
+
+.cardHint {
+  font-size: 11.5px;
+  color: var(--muted);
+  margin: 2px 0 0;
+}
+
+/* The matrix's Save, beside its own card's heading rather than pinned — the
+   same placement the transition matrix uses, and for the same reason. This
+   card's hint is long enough to squeeze the header's right side, so the note
+   holds its line and the hint is what wraps: three words folded into a column
+   read as a layout accident, a two-line hint reads as a paragraph. */
+.actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.actionsNote {
+  font-size: 12px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+/* A grid this wide scrolls sideways rather than squeezing its columns into
+   ellipses — a matrix you cannot read the headers of is not a matrix.
+   `min-content` rather than a hardcoded width: the table's own minimum grows
+   with every role an admin adds, and a fixed number would let the table's
+   rounded box clip the last column instead of handing the overflow to this
+   scroll container. */
+.matrix {
+  overflow-x: auto;
+}
+
+.matrix > * {
+  min-width: min-content;
+}
+
+/* A checkbox sits under the middle of its column header, not against the left
+   edge of a cell three times its width. */
+.cell {
+  display: flex;
+  justify-content: center;
+}
+
+/* Icon buttons inside a table cell, which clips its own overflow. */
+.rowActions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.muted {
+  color: var(--muted);
+}
+
+/* The band that opens each area of the matrix. It is a table row like any
+   other — the group is a fact about the actions under it, not a second table —
+   so it is set apart by weight and case rather than by a rule of its own. */
+.groupLabel {
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+/* The form's live pill, so a colour is chosen by looking at it. */
+.preview {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding-top: 2px;
+}
+
+.previewLabel {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--muted);
+}

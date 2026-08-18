@@ -1,7 +1,7 @@
 import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { ADMIN_MEMBER, DASHBOARD_ROUTES } from '@/test/api-stub';
+import { ADMIN_MEMBER, DASHBOARD_ROUTES, session, VIEWER_ACTIONS } from '@/test/api-stub';
 import { renderApp, resetAppState } from '@/test/render';
 import { choose } from '@/test/dropdown';
 
@@ -239,7 +239,7 @@ describe('who may import', () => {
     renderApp(
       {
         ...DASHBOARD_ROUTES,
-        'GET /auth/me': { body: { member: { ...ADMIN_MEMBER, role: 'viewer' } } },
+        'GET /auth/me': session({ ...ADMIN_MEMBER, role: 'viewer' }, VIEWER_ACTIONS),
       },
       '/assets',
     );

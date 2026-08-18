@@ -3,7 +3,6 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { FastifyInstance, InjectOptions } from 'fastify';
-import type { Role } from '@inventory/shared';
 import { buildApp } from '@/app.js';
 import type { AppDeps } from '@/types/app.js';
 import type { MailMessage, Mailer } from '@/types/mail.js';
@@ -92,10 +91,12 @@ export async function setupOrg(app: FastifyInstance): Promise<string> {
 }
 
 /**
- * A signed-in member of the given role, without paying for an argon2 hash —
- * RBAC tests only need the session, never the password.
+ * A signed-in member holding the given role, without paying for an argon2 hash
+ * — RBAC tests only need the session, never the password. A plain string
+ * rather than a `Role`: roles are rows a workspace makes up now, and a test
+ * that wants somebody holding one has to be able to say so.
  */
-export function memberCookie(db: Db, role: Role): string {
+export function memberCookie(db: Db, role: string): string {
   const id = newId();
   const at = nowIso();
   db.insert(members)

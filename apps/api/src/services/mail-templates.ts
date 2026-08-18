@@ -1,4 +1,3 @@
-import { ROLE_LABELS, type Role } from '@inventory/shared';
 import type { MailContent } from '@/types/mail.js';
 import type {
   AssignmentMail,
@@ -81,8 +80,7 @@ const list = (items: string[]): string =>
 const linkLine = (url: string): string => `\n${url}\n`;
 
 export function inviteEmail(input: InviteMail): MailContent {
-  const role = ROLE_LABELS[input.role as Role] ?? input.role;
-  const intro = `${input.inviterName} invited you to ${input.orgName}'s hardware inventory as a ${role}.`;
+  const intro = `${input.inviterName} invited you to ${input.orgName}'s hardware inventory as a ${input.roleLabel}.`;
   return {
     subject: `Join ${input.orgName} on Inventory`,
     text: `${intro}\n\nSet your password and join:${linkLine(input.url)}\nThe link expires in seven days.`,

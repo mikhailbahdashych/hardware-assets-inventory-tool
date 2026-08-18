@@ -20,6 +20,21 @@ export const SEMANTIC_COLORS = ['ok', 'acc', 'warn', 'err', 'info', 'neut'] as c
 export type SemanticColor = (typeof SEMANTIC_COLORS)[number];
 
 /**
+ * The colours named by the colour they are, for the two forms where a person
+ * picks one — a status's pill and a role's. An admin choosing a colour is
+ * choosing what it looks like; the `sv` key rides along as the option's
+ * description, so the design system's own word for it is still on screen.
+ */
+export const SEMANTIC_COLOR_LABELS: Record<SemanticColor, string> = {
+  ok: 'Green',
+  acc: 'Purple',
+  warn: 'Amber',
+  err: 'Red',
+  info: 'Blue',
+  neut: 'Grey',
+};
+
+/**
  * The one status slug the code may reference by name. `assigned` is the system
  * status: only assign and check-in enter or leave it, which is what keeps
  * `assets.status = 'assigned'` ⇔ an open ownership row true.
@@ -136,23 +151,11 @@ export const MEMBER_STATUS_COLORS: Record<MemberStatus, SemanticColor> = {
   invited: 'info',
 };
 
-export const ROLES = ['admin', 'manager', 'viewer'] as const;
-export type Role = (typeof ROLES)[number];
-export const ROLE_LABELS: Record<Role, string> = {
-  admin: 'Admin',
-  manager: 'Manager',
-  viewer: 'Viewer',
-};
-export const ROLE_COLORS: Record<Role, SemanticColor> = {
-  admin: 'acc',
-  manager: 'info',
-  viewer: 'neut',
-};
-export const ROLE_DESCRIPTIONS: Record<Role, string> = {
-  admin: 'Full access — settings, members, activity log',
-  manager: 'Create and edit assets, employees and assignments',
-  viewer: 'Read-only access to all pages',
-};
+// Roles were an enum here, ranked and labelled at compile time. They are rows
+// in `roles` now, so what a workspace calls them and what each may do is
+// nobody's build-time knowledge — see `DEFAULT_ROLES` in rbac.ts for the three
+// a fresh instance is seeded with, and `ADMIN_ROLE` for the one id the code may
+// still name.
 
 export const CHECKIN_CONDITIONS = ['good', 'needs_repair', 'damaged'] as const;
 export type CheckinCondition = (typeof CHECKIN_CONDITIONS)[number];

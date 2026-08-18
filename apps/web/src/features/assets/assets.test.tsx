@@ -8,6 +8,8 @@ import {
   LAPTOP_DETAIL,
   MONITOR,
   READY_META,
+  session,
+  VIEWER_ACTIONS,
   WORKFLOW,
 } from '@/test/api-stub';
 import { renderApp, resetAppState } from '@/test/render';
@@ -20,7 +22,7 @@ afterEach(() => {
 
 const viewerRoutes = {
   ...INVENTORY_ROUTES,
-  'GET /auth/me': { body: { member: { ...ADMIN_MEMBER, role: 'viewer' } } },
+  'GET /auth/me': session({ ...ADMIN_MEMBER, role: 'viewer' }, VIEWER_ACTIONS),
 };
 
 async function rows() {
@@ -289,7 +291,7 @@ describe('meta', () => {
     renderApp(
       {
         'GET /meta': { body: READY_META },
-        'GET /auth/me': { body: { member: ADMIN_MEMBER } },
+        'GET /auth/me': session(),
         'GET /assets': {
           status: 500,
           body: { error: { code: 'internal', message: 'Something went wrong on the server.' } },

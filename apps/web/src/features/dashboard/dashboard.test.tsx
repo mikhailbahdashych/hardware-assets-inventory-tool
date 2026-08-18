@@ -1,7 +1,7 @@
 import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { ADMIN_MEMBER, DASHBOARD, DASHBOARD_ROUTES } from '@/test/api-stub';
+import { ADMIN_MEMBER, DASHBOARD, DASHBOARD_ROUTES, session } from '@/test/api-stub';
 import { renderApp, resetAppState } from '@/test/render';
 
 afterEach(() => {
@@ -167,7 +167,7 @@ describe('customizing the dashboard', () => {
     renderApp(
       {
         ...DASHBOARD_ROUTES,
-        'GET /auth/me': { body: { member: { ...ADMIN_MEMBER, widgets: { kpi: false } } } },
+        'GET /auth/me': session({ ...ADMIN_MEMBER, widgets: { kpi: false } }),
       },
       '/dashboard',
     );

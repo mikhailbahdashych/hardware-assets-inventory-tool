@@ -9,11 +9,11 @@ Worked example: a **Locations** section with its own nav entry, list page and de
 Inside the signed-in `<Route element={<AppShell …>}>` block:
 
 ```tsx
-<Route path="/locations" element={<LocationsPage role={member.role} />} />
-<Route path="/locations/:id" element={<LocationDetailPage role={member.role} />} />
+<Route path="/locations" element={<LocationsPage permissions={permissions} />} />
+<Route path="/locations/:id" element={<LocationDetailPage permissions={permissions} />} />
 ```
 
-`routes.tsx` holds the whole map and its guards, and picks one of three route sets from instance and session state. A page that only some roles may open goes behind `can(member.role, '…')` the way `/admin/*` does — never behind a hidden nav item alone, which hides the door without locking it.
+`routes.tsx` holds the whole map and its guards, and picks one of three route sets from instance and session state. A page not everybody may open goes behind `can(permissions, '…')` the way `/activity`, `/workflow`, `/roles` and `/admin` do — never behind a hidden nav item alone, which hides the door without locking it. `permissions` is the set `/auth/me` resolved for this request; nothing downstream knows what a role is called.
 
 ## 2. The nav entry — `apps/web/src/components/app/nav.ts`
 
@@ -21,19 +21,19 @@ Inside the signed-in `<Route element={<AppShell …>}>` block:
 { label: 'Locations', to: '/locations', icon: 'mapPin' },
 ```
 
-and add `locations: 'Locations'` to the breadcrumb map below it. `requires: '<action>'` on the entry hides it from roles that may not use it; `gapBefore: true` is the design's 10px separation, which only Admin has.
+and add `locations: 'Locations'` to the breadcrumb map below it. `requires: '<action>'` on the entry hides it from anybody whose role does not grant that action; `gapBefore: true` is the design's 10px separation, which only Admin has.
 
 If the icon does not exist yet, add its path to `components/ui/Icon.tsx` in the same Feather style at stroke 1.7. Do not add an icon library.
 
 ## 3. The page — `apps/web/src/features/locations/LocationsPage.tsx`
 
 ```tsx
-export function LocationsPage({ role }: { role: Role }) {
+export function LocationsPage({ permissions }: LocationsPageProps) {
   const locations = useLocations();
   return (
     <PageContainer maxWidth={1160}>
-      <ListToolbar title="Locations" role={role}>
-        {can(role, 'locations.create') && <Button icon="plus" …>Add location</Button>}
+      <ListToolbar title="Locations" permissions={permissions}>
+        {can(permissions, 'locations.create') && <Button icon="plus" …>Add location</Button>}
       </ListToolbar>
       {/* SearchInput, DataTable, EmptyState — see AssetsPage */}
     </PageContainer>
@@ -66,13 +66,13 @@ Writes go in `api/mutations.ts` and invalidate through `invalidateInventory` (or
 
 A module in `apps/api/src/modules/locations.ts` with thin routes, a service in `apps/api/src/services/locations.ts` holding anything transactional, and `registerLocationRoutes(app, deps)` wired into `apps/api/src/app.ts`.
 
-Guard every mutating route with `requireAction('<action>')`, and declare that action in `packages/shared/src/rbac.ts` — the same map the UI's `can()` reads, which is what keeps the button and the endpoint from disagreeing.
+Guard every mutating route with `requireAction('<action>')`, and declare that action in `packages/shared/src/rbac.ts` — the same list the UI's `can()` reads, which is what keeps the button and the endpoint from disagreeing. [`add-permission-action.md`](add-permission-action.md) is that change end to end; which _roles_ hold the action is workspace data, edited on **Roles**, so there is nothing to migrate.
 
 **Every mutation writes its audit event in the same transaction** (`writeAudit`), and every audited action needs a renderer in `packages/shared/src/audit-render.ts`. The test there asserts each one renders something other than its own slug.
 
 ## 6. Tests
 
-- `apps/api/test/locations.test.ts` — `buildTestApp()` and `app.inject`, covering the happy path, the role guard and the delete guard.
+- `apps/api/test/locations.test.ts` — `buildTestApp()` and `app.inject`, covering the happy path, the permission guard and the delete guard.
 - `apps/web/src/features/locations/locations.test.tsx` — drive the real client through `src/test/api-stub.ts`, as the other features do.
 - `apps/web/src/components/app/nav.test.ts` — the section is active on its detail page too.
 

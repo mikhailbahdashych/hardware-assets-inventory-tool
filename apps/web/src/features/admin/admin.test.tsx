@@ -1,7 +1,15 @@
 import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it } from 'vitest';
-import { ADMIN_MEMBER, ADMIN_ROUTES, AUDIT_PAGE, NO_SMTP_META, SETTINGS } from '@/test/api-stub';
+import {
+  ADMIN_MEMBER,
+  ADMIN_ROUTES,
+  AUDIT_PAGE,
+  MANAGER_ACTIONS,
+  NO_SMTP_META,
+  session,
+  SETTINGS,
+} from '@/test/api-stub';
 import { renderApp, resetAppState } from '@/test/render';
 import { choose } from '@/test/dropdown';
 
@@ -25,7 +33,7 @@ describe('the activity log', () => {
     renderApp(
       {
         ...ADMIN_ROUTES,
-        'GET /auth/me': { body: { member: { ...ADMIN_MEMBER, role: 'manager' } } },
+        'GET /auth/me': session({ ...ADMIN_MEMBER, role: 'manager' }, MANAGER_ACTIONS),
       },
       '/activity',
     );

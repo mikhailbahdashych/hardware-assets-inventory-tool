@@ -1,7 +1,16 @@
 import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { ADMIN_MEMBER, INVENTORY_ROUTES, LAPTOP, MAYA, MAYA_DETAIL } from '@/test/api-stub';
+import {
+  ADMIN_MEMBER,
+  INVENTORY_ROUTES,
+  LAPTOP,
+  MANAGER_ACTIONS,
+  MAYA,
+  MAYA_DETAIL,
+  session,
+  VIEWER_ACTIONS,
+} from '@/test/api-stub';
 import { renderApp, resetAppState } from '@/test/render';
 import { choose } from '@/test/dropdown';
 
@@ -53,7 +62,7 @@ describe('employee list', () => {
 
   it('offers no way to add people to a viewer', async () => {
     renderApp(
-      { ...ROUTES, 'GET /auth/me': { body: { member: { ...ADMIN_MEMBER, role: 'viewer' } } } },
+      { ...ROUTES, 'GET /auth/me': session({ ...ADMIN_MEMBER, role: 'viewer' }, VIEWER_ACTIONS) },
       '/employees',
     );
     await screen.findByText('Maya Lindqvist');
@@ -169,7 +178,7 @@ describe('employee list', () => {
     renderApp(
       {
         ...ROUTES,
-        'GET /auth/me': { body: { member: { ...ADMIN_MEMBER, role: 'manager' } } },
+        'GET /auth/me': session({ ...ADMIN_MEMBER, role: 'manager' }, MANAGER_ACTIONS),
       },
       '/employees',
     );

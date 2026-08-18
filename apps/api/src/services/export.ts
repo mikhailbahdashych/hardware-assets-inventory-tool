@@ -9,6 +9,8 @@ import {
   customFieldDefs,
   employees,
   members,
+  rolePermissions,
+  roles,
 } from '@/db/schema.js';
 import { getSettings } from './settings.js';
 
@@ -42,6 +44,10 @@ export function workspaceExport(db: Db, now: Date): WorkspaceExport {
       })
       .from(members)
       .all(),
+    // The roles those `role` ids name, and what each one allowed — the system
+    // role has no grant rows, because its set is resolved rather than stored.
+    roles: db.select().from(roles).orderBy(roles.sortOrder).all(),
+    rolePermissions: db.select().from(rolePermissions).all(),
     employees: db.select().from(employees).all(),
     assets: db.select().from(assets).all(),
     assignments: db.select().from(assignments).all(),

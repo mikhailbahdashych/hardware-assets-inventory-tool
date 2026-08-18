@@ -60,6 +60,30 @@ describe('the export-all endpoint', () => {
     expect(body.auditEvents.length).toBeGreaterThan(0);
   });
 
+  /**
+   * A file that says who had access without saying what that access allowed
+   * describes half the workspace. The grants come along for the same reason
+   * the custom-field definitions do: they are what the other rows mean.
+   */
+  it('describes the roles as well as who held them', async () => {
+    ctx = await buildTestApp();
+    const admin = await setupOrg(ctx.app);
+
+    const body = (
+      await inject(ctx.app, { method: 'GET', url: '/api/v1/export', cookie: admin })
+    ).json();
+
+    expect(body.roles.map((role: { id: string }) => role.id)).toEqual([
+      'admin',
+      'manager',
+      'viewer',
+    ]);
+    expect(body.roles[0]).toMatchObject({ label: 'Admin', isSystem: true });
+    // Manager's nine, and nothing for the system role — its set is resolved.
+    expect(body.rolePermissions).toHaveLength(9);
+    expect(body.rolePermissions.every((grant: { roleId: string }) => grant.roleId === 'manager')).toBe(true); // prettier-ignore
+  });
+
   it('carries no password hashes and no session or token rows', async () => {
     ctx = await buildTestApp();
     const admin = await setupOrg(ctx.app);

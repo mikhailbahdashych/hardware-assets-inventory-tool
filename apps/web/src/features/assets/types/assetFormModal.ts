@@ -1,4 +1,4 @@
-import type { AssetCategory, Role } from '@inventory/shared';
+import type { Action, AssetCategory } from '@inventory/shared';
 import type { Asset, CustomFieldValue } from '@/types/api';
 
 export interface AssetFormState {
@@ -23,7 +23,8 @@ export interface AssetFormModalProps {
   /** Absent for a create. */
   asset?: Asset;
   customFields?: CustomFieldValue[];
-  role: Role;
+  /** What the signed-in member may do, resolved server-side — see `can`. */
+  permissions: Action[];
   onClose: () => void;
   /** Where to go once the asset is gone; defaults to just closing. */
   onDeleted?: () => void;

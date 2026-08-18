@@ -1,7 +1,17 @@
 import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { ADMIN_MEMBER, READY_META, type StubRoutes } from './test/api-stub';
+import {
+  ADMIN_MEMBER,
+  AUDITOR_ROLE,
+  EVERY_ACTION,
+  READY_META,
+  ROLES,
+  session,
+  VIEWER_ACTIONS,
+  type StubRoutes,
+} from './test/api-stub';
+import type { Action } from '@inventory/shared';
 import { renderApp, resetAppState, UNAUTHENTICATED } from './test/render';
 
 afterEach(() => {
@@ -79,8 +89,7 @@ describe('login', () => {
     const api = renderApp(
       {
         'GET /meta': { body: READY_META },
-        'GET /auth/me': () =>
-          authenticated ? { body: { member: ADMIN_MEMBER } } : UNAUTHENTICATED,
+        'GET /auth/me': () => (authenticated ? session() : UNAUTHENTICATED),
         'POST /auth/login': () => {
           authenticated = true;
           return { body: { member: ADMIN_MEMBER } };
@@ -120,22 +129,64 @@ describe('login', () => {
   });
 });
 
+describe('accepting an invitation', () => {
+  it('names the role in the words the workspace chose, without a session', async () => {
+    renderApp(
+      {
+        'GET /meta': { body: READY_META },
+        'GET /auth/me': UNAUTHENTICATED,
+        // The lookup is unauthenticated, so it carries the label itself — the
+        // page has no way to read /roles and find out what "auditor" is called.
+        'GET /auth/invite/abc123': {
+          body: {
+            email: 'grace@acme.io',
+            role: 'auditor',
+            roleLabel: 'Auditor',
+            orgName: 'Acme Corp',
+          },
+        },
+      },
+      '/accept-invite?token=abc123',
+    );
+
+    expect(await screen.findByRole('heading', { name: 'Join Acme Corp' })).toBeInTheDocument();
+    expect(screen.getByText(/invited with the Auditor role/i)).toBeInTheDocument();
+  });
+});
+
 describe('app shell', () => {
-  const authenticatedRoutes = (member = ADMIN_MEMBER): StubRoutes => ({
+  const authenticatedRoutes = (
+    member = ADMIN_MEMBER,
+    permissions: Action[] = EVERY_ACTION,
+  ): StubRoutes => ({
     'GET /meta': { body: READY_META },
-    'GET /auth/me': { body: { member } },
+    'GET /auth/me': session(member, permissions),
+    // The sidebar names the role the member holds, and a role's words are a
+    // row now — so every signed-in screen reads this one.
+    'GET /roles': { body: ROLES },
   });
 
   it('shows the organization wordmark, the current member and the section nav', async () => {
     renderApp(authenticatedRoutes(), '/dashboard');
     expect(await screen.findByText('Acme Corp')).toBeInTheDocument();
     expect(screen.getByText('Tomasz Kowalski')).toBeInTheDocument();
-    expect(screen.getByText('Admin', { selector: 'div' })).toBeInTheDocument();
+    expect(await screen.findByText('Admin', { selector: 'div' })).toBeInTheDocument();
     const nav = screen.getByRole('navigation');
     expect(nav).toHaveTextContent('Dashboard');
     expect(nav).toHaveTextContent('Assets');
     expect(nav).toHaveTextContent('Employees');
     expect(nav).toHaveTextContent('Members');
+  });
+
+  it('names a role the workspace invented, not one this build knows', async () => {
+    renderApp(
+      {
+        ...authenticatedRoutes({ ...ADMIN_MEMBER, role: 'auditor' }),
+        'GET /roles': { body: { roles: [...ROLES.roles, AUDITOR_ROLE] } },
+      },
+      '/dashboard',
+    );
+    expect(await screen.findByText('Auditor', { selector: 'div' })).toBeInTheDocument();
   });
 
   it('marks the current section in the sidebar', async () => {
@@ -146,7 +197,7 @@ describe('app shell', () => {
   });
 
   it('hides Admin from non-admins and keeps the page out of reach', async () => {
-    renderApp(authenticatedRoutes({ ...ADMIN_MEMBER, role: 'viewer' }), '/admin');
+    renderApp(authenticatedRoutes({ ...ADMIN_MEMBER, role: 'viewer' }, VIEWER_ACTIONS), '/admin');
     await screen.findByRole('navigation');
     expect(screen.queryByRole('link', { name: 'Admin' })).toBeNull();
     await waitFor(() =>
@@ -159,8 +210,7 @@ describe('app shell', () => {
     const api = renderApp(
       {
         'GET /meta': { body: READY_META },
-        'GET /auth/me': () =>
-          authenticated ? { body: { member: ADMIN_MEMBER } } : UNAUTHENTICATED,
+        'GET /auth/me': () => (authenticated ? session() : UNAUTHENTICATED),
         'POST /auth/logout': () => {
           authenticated = false;
           return { status: 204 };

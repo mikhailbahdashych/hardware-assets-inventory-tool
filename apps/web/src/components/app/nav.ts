@@ -1,4 +1,4 @@
-import { can, type Role } from '@inventory/shared';
+import { can, type Action } from '@inventory/shared';
 import type { GatedNavItem, NavItem } from './types/nav';
 
 const ITEMS: GatedNavItem[] = [
@@ -6,7 +6,9 @@ const ITEMS: GatedNavItem[] = [
   { label: 'Assets', to: '/assets', icon: 'cube' },
   { label: 'Employees', to: '/employees', icon: 'users' },
   { label: 'Members', to: '/members', icon: 'shieldCheck' },
-  // All three admin-only, together after the design's 10px gap.
+  // The four that need an action of their own, together after the design's
+  // 10px gap. Each names the permission that makes it useful; a workspace that
+  // grants one of them to an ordinary role gets the item along with it.
   {
     label: 'Activity log',
     to: '/activity',
@@ -15,12 +17,18 @@ const ITEMS: GatedNavItem[] = [
     requires: 'audit.view',
   },
   { label: 'Workflow', to: '/workflow', icon: 'workflow', requires: 'workflow.manage' },
+  { label: 'Roles', to: '/roles', icon: 'key', requires: 'roles.manage' },
   { label: 'Admin', to: '/admin', icon: 'gear', requires: 'settings.manage' },
 ];
 
-/** Sidebar sections this role may see — Admin is admins-only. */
-export function navItemsForRole(role: Role): NavItem[] {
-  return ITEMS.filter((item) => !item.requires || can(role, item.requires)).map(
+/**
+ * The sections this member may see. Every gated item names an action rather
+ * than a role, so a workspace that grants `audit.view` to its own "Auditor"
+ * gets the Activity log in the sidebar without anybody teaching this file
+ * about the role.
+ */
+export function navItemsFor(permissions: Action[]): NavItem[] {
+  return ITEMS.filter((item) => !item.requires || can(permissions, item.requires)).map(
     ({ requires: _requires, ...item }) => item,
   );
 }
@@ -37,6 +45,7 @@ const SECTION_LABELS: Record<string, string> = {
   members: 'Members',
   activity: 'Activity log',
   workflow: 'Workflow',
+  roles: 'Roles',
   admin: 'Admin',
 };
 

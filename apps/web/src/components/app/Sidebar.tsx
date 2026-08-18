@@ -1,13 +1,18 @@
 import { Link, useLocation } from 'react-router';
-import { ROLE_LABELS } from '@inventory/shared';
+import { useRoles } from '@/api/queries';
 import { Avatar, Icon, IconButton } from '@/components/ui';
-import { isNavItemActive, navItemsForRole } from './nav';
+import { roleInfo, roleMap } from '@/lib/roles';
+import { isNavItemActive, navItemsFor } from './nav';
 import type { SidebarProps } from './types/sidebar';
 import styles from './Sidebar.module.css';
 
-export function Sidebar({ member, orgName, onSignOut }: SidebarProps) {
+export function Sidebar({ member, permissions, orgName, onSignOut }: SidebarProps) {
   const { pathname } = useLocation();
-  const items = navItemsForRole(member.role);
+  const items = navItemsFor(permissions);
+  // The role under the member's name is a row's label, not a word this build
+  // knows — the same lookup the Members page's pills go through.
+  const roles = useRoles();
+  const byId = roleMap(roles.data === undefined ? [] : roles.data.roles);
 
   return (
     <div className={styles.sidebar}>
@@ -41,7 +46,7 @@ export function Sidebar({ member, orgName, onSignOut }: SidebarProps) {
           <Avatar name={member.displayName} colorKey={member.id} size={24} />
           <div style={{ minWidth: 0, flex: 1 }}>
             <div className={styles.memberName}>{member.displayName}</div>
-            <div className={styles.memberRole}>{ROLE_LABELS[member.role]}</div>
+            <div className={styles.memberRole}>{roleInfo(byId, member.role).label}</div>
           </div>
           <IconButton icon="logOut" label="Sign out" size={26} iconSize={13} onClick={onSignOut} />
         </div>

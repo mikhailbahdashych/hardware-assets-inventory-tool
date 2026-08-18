@@ -4,12 +4,8 @@ import {
   AUDIT_TYPE_COLORS,
   AUDIT_TYPE_LABELS,
   DEFAULT_ASSET_STATUSES,
-  ROLES,
-  ROLE_COLORS,
-  ROLE_DESCRIPTIONS,
-  ROLE_LABELS,
+  DEFAULT_ROLES,
   SEMANTIC_COLORS,
-  type Role,
 } from '@inventory/shared';
 import {
   Avatar,
@@ -124,6 +120,7 @@ const ICON_NAMES: IconName[] = [
   'user',
   'shieldCheck',
   'shield',
+  'key',
   'gear',
   'search',
   'sun',
@@ -219,7 +216,7 @@ export function KitchenSink() {
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState('all');
   const [tab, setTab] = useState('activity');
-  const [role, setRole] = useState<Role>('viewer');
+  const [role, setRole] = useState('viewer');
   const [toggles, setToggles] = useState({ warranty: true, digest: false });
   const [modal, setModal] = useState<'none' | 'plain' | 'scroll'>('none');
   const [category, setCategory] = useState('laptops');
@@ -418,9 +415,12 @@ export function KitchenSink() {
           ))}
         </Row>
         <Row>
-          {ROLES.map((r) => (
-            <Pill key={r} sv={ROLE_COLORS[r]}>
-              {ROLE_LABELS[r]}
+          {/* Roles are workspace data now, edited on /roles — these are the
+              three a fresh instance is seeded with. A workspace's own roles may
+              read anything at all. */}
+          {DEFAULT_ROLES.map((r) => (
+            <Pill key={r.id} sv={r.color}>
+              {r.label}
             </Pill>
           ))}
           {AUDIT_TYPES.map((t) => (
@@ -573,15 +573,15 @@ export function KitchenSink() {
           <Checkbox label="Email confirmation to holder" />
         </Row>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxWidth: 440 }}>
-          {ROLES.map((r) => (
+          {DEFAULT_ROLES.map((r) => (
             <RadioCard
-              key={r}
+              key={r.id}
               name="ks-role"
-              value={r}
-              checked={role === r}
+              value={r.id}
+              checked={role === r.id}
               onChange={setRole}
-              title={ROLE_LABELS[r]}
-              description={ROLE_DESCRIPTIONS[r]}
+              title={r.label}
+              description={r.description}
             />
           ))}
         </div>

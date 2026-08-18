@@ -1,4 +1,5 @@
-import { DEFAULT_ASSET_STATUSES, ROLE_LABELS, type AuditType, type Role } from './enums.js';
+import { DEFAULT_ASSET_STATUSES, type AuditType } from './enums.js';
+import { DEFAULT_ROLES } from './rbac.js';
 import type { AuditParams, RenderableAuditEvent } from './types/audit.js';
 
 // Audit events are stored structured — an action plus params with name
@@ -31,11 +32,22 @@ const status = (params: AuditParams, key: string): string => {
   return typeof value === 'string' ? (LEGACY_STATUS_LABELS.get(value) ?? value) : 'unknown';
 };
 
+/** The labels the three default slugs were written with, for the fallback below. */
+const LEGACY_ROLE_LABELS = new Map<string, string>(
+  DEFAULT_ROLES.map((entry) => [entry.id, entry.label]),
+);
+
+/**
+ * A role as the event recorded it. Events written since roles became data carry
+ * the **label**, snapshotted at write time — the same rule as `status` above,
+ * so renaming or deleting a role never rewrites what the log already said.
+ * This is purely the fallback for what came before: older events carry slugs,
+ * and the three defaults are the only slugs that ever reached the log through a
+ * build that stored them. Anything else renders as itself.
+ */
 const role = (params: AuditParams, key: string): string => {
   const value = params[key];
-  // Same rule as `status` above: a role slug this build has no label for still
-  // renders as itself rather than vanishing from the sentence.
-  return typeof value === 'string' ? (ROLE_LABELS[value as Role] ?? value) : 'unknown';
+  return typeof value === 'string' ? (LEGACY_ROLE_LABELS.get(value) ?? value) : 'unknown';
 };
 
 /** Field names as the forms say them, so a log line reads like the UI. */
@@ -126,6 +138,25 @@ const RENDERERS: Record<string, (params: AuditParams) => string> = {
     return `Changed the workflow (${added} ${word} added, ${removed} removed)`;
   },
   'workflow.statuses_reordered': () => 'Reordered the asset statuses',
+  'role.created': (p) => `Added the role ${text(p, 'label', 'a role')}`,
+  'role.updated': (p) => `Updated the role ${text(p, 'label', 'a role')}${fieldList(p)}`,
+  'role.deleted': (p) => {
+    const deleted = `Deleted the role ${text(p, 'label', 'a role')}`;
+    // A role nobody held is deleted outright; one that members held took them
+    // somewhere, and the count is the part worth reading later.
+    if (typeof p.migratedToLabel !== 'string') return deleted;
+    const count = typeof p.memberCount === 'number' ? p.memberCount : 0;
+    return `${deleted} · ${count} ${count === 1 ? 'member' : 'members'} moved to ${p.migratedToLabel}`;
+  },
+  'role.permissions_changed': (p) => {
+    const added = typeof p.added === 'number' ? p.added : 0;
+    const removed = typeof p.removed === 'number' ? p.removed : 0;
+    // An event with no numbers still has to render — the sentence just stops
+    // short of counting, rather than reading "0 granted".
+    if (added === 0 && removed === 0) return 'Changed the role permissions';
+    return `Changed the role permissions (${added} granted, ${removed} revoked)`;
+  },
+  'role.reordered': () => 'Reordered the roles',
   'member.invited': (p) => {
     const named = typeof p.role === 'string';
     // "an Admin" but "a Manager" — derived from the label so renaming a role
@@ -171,6 +202,10 @@ export function renderAuditEvent(event: RenderableAuditEvent): string {
 export function auditTypeForAction(action: string): AuditType {
   if (action.startsWith('asset.')) return 'assets';
   if (action.startsWith('employee.')) return 'people';
-  if (action.startsWith('auth.') || action.startsWith('member.')) return 'auth';
+  // Roles are access control, so they file beside the member events rather
+  // than under System with the workspace's other settings.
+  if (action.startsWith('auth.') || action.startsWith('member.') || action.startsWith('role.')) {
+    return 'auth';
+  }
   return 'system';
 }

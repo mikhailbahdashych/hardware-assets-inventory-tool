@@ -21,6 +21,7 @@ import { registerEmployeeRoutes } from './modules/employees.js';
 import { registerMemberRoutes } from './modules/members.js';
 import { registerMeRoutes } from './modules/me.js';
 import { registerMetaRoutes } from './modules/meta.js';
+import { registerRoleRoutes } from './modules/roles.js';
 import { registerSetupRoutes } from './modules/setup.js';
 import { registerWorkflowRoutes } from './modules/workflow.js';
 
@@ -66,6 +67,7 @@ export async function buildApp(opts: BuildAppOptions): Promise<FastifyInstance> 
   registerCustomFieldRoutes(app, deps);
   registerWorkflowRoutes(app, deps);
   registerAttachmentRoutes(app, deps);
+  registerRoleRoutes(app, deps);
   registerMemberRoutes(app, deps);
   registerAdminRoutes(app, deps);
   registerDataRoutes(app, deps);

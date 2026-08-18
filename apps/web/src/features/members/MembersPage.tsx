@@ -1,18 +1,13 @@
 import { useState } from 'react';
 import { Link } from 'react-router';
-import {
-  can,
-  MEMBER_STATUS_COLORS,
-  MEMBER_STATUS_LABELS,
-  ROLE_COLORS,
-  ROLE_LABELS,
-} from '@inventory/shared';
+import { can, MEMBER_STATUS_COLORS, MEMBER_STATUS_LABELS } from '@inventory/shared';
 import { useIssueResetLink, useResetMemberMfa, useResendInvite } from '@/api/mutations';
-import { useMembers } from '@/api/queries';
+import { useMembers, useRoles } from '@/api/queries';
 import { PageContainer } from '@/components/app/PageContainer';
 import { Avatar, Button, DataTable, EmptyState, Menu, Pill, Spinner } from '@/components/ui';
 import type { MenuItem } from '@/components/ui';
 import { formatRelativeTime } from '@/lib/format';
+import { roleInfo, roleMap } from '@/lib/roles';
 import { useModals } from '@/providers/ModalProvider';
 import { useToast } from '@/providers/ToastProvider';
 import type { MemberSummary } from '@/types/api';
@@ -23,18 +18,22 @@ import { RemoveMemberModal } from './RemoveMemberModal';
 import type { MembersDialog, MembersPageProps } from './types/membersPage';
 import styles from './Members.module.css';
 
-export function MembersPage({ role, memberId }: MembersPageProps) {
+export function MembersPage({ permissions, memberId }: MembersPageProps) {
   const [dialog, setDialog] = useState<MembersDialog | null>(null);
   const toast = useToast();
   const { openModal } = useModals();
   const members = useMembers();
+  // A role pill has words and a colour only because a row says so.
+  const roles = useRoles();
   const resend = useResendInvite();
   const reset = useIssueResetLink();
   const resetMfa = useResetMemberMfa();
-  const manages = can(role, 'members.manage');
+  const manages = can(permissions, 'members.manage');
 
   // A list that has not arrived has no rows; the empty state renders below.
   const rows = members.data ?? [];
+  const roleRows = roles.data === undefined ? [] : roles.data.roles;
+  const byRoleId = roleMap(roleRows);
 
   function rowActions(member: MemberSummary): MenuItem[] {
     const items: MenuItem[] = [];
@@ -122,7 +121,10 @@ export function MembersPage({ role, memberId }: MembersPageProps) {
     {
       header: 'Role',
       width: '110px',
-      render: (member) => <Pill sv={ROLE_COLORS[member.role]}>{ROLE_LABELS[member.role]}</Pill>,
+      render: (member) => {
+        const role = roleInfo(byRoleId, member.role);
+        return <Pill sv={role.color}>{role.label}</Pill>;
+      },
     },
     {
       header: 'Linked employee',
@@ -187,7 +189,9 @@ export function MembersPage({ role, memberId }: MembersPageProps) {
           columns={columns}
           rows={rows}
           rowKey={(member) => member.id}
-          footer={`${rows.length} ${rows.length === 1 ? 'member' : 'members'} · roles: Admin (full access), Manager (edit), Viewer (read-only)`}
+          // The roles are the workspace's own, so the footer names the ones it
+          // has rather than the three this build used to ship with.
+          footer={`${rows.length} ${rows.length === 1 ? 'member' : 'members'} · roles: ${roleRows.map((role) => role.label).join(', ')}`}
           empty={<EmptyState>Nobody can sign in yet — invite your first member.</EmptyState>}
         />
       )}

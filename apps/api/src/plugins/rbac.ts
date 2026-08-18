@@ -1,5 +1,5 @@
 import type { FastifyReply, FastifyRequest } from 'fastify';
-import { can, type Action, type Role } from '@inventory/shared';
+import type { Action } from '@inventory/shared';
 import { AppError, forbidden, unauthorized } from '@/lib/errors.js';
 
 /**
@@ -33,8 +33,10 @@ export async function requireAuth(request: FastifyRequest, _reply: FastifyReply)
 }
 
 /**
- * Route preHandler: member whose role allows the action (see
- * packages/shared/src/rbac.ts — the single permission truth).
+ * Route preHandler: a member whose role grants the action. The set was
+ * resolved from the `roles` tables when the session was (see
+ * `plugins/session.ts`), so this is a lookup rather than a query, and a
+ * permission an admin revoked a second ago is already gone from it.
  */
 export function requireAction(action: Action) {
   return async (request: FastifyRequest, reply: FastifyReply): Promise<void> => {
@@ -44,6 +46,6 @@ export function requireAction(action: Action) {
     // read-only routes until this line existed, which meant a password-only
     // session could still switch two-factor off and wipe everybody's secrets.
     await requireAuth(request, reply);
-    if (!can(request.member!.role as Role, action)) throw forbidden();
+    if (!request.permissions.has(action)) throw forbidden();
   };
 }

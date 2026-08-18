@@ -3,7 +3,7 @@ import { statusInfo, statusMap } from '@/lib/workflow';
 import type { ActionDefinition, PaletteGroup, PaletteInput, PaletteRow } from './types/palette';
 
 // The palette's contents, as data. Pure so the grouping, the cap and the
-// role filtering are testable without a keyboard.
+// permission filtering are testable without a keyboard.
 
 /** Four of each: past that the list stops being scannable and starts being a table. */
 const PER_GROUP = 4;
@@ -82,7 +82,7 @@ export function paletteGroups(input: PaletteInput): PaletteGroup[] {
     }));
 
   const actions = ACTIONS.filter(
-    (action) => action.requires === undefined || can(input.role, action.requires),
+    (action) => action.requires === undefined || can(input.permissions, action.requires),
   )
     .filter((action) => matches(query, action.title))
     .map((action): PaletteRow => ({

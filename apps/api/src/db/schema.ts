@@ -85,6 +85,46 @@ export const members = sqliteTable(
   (table) => [index('members_employee_idx').on(table.employeeId)],
 );
 
+/**
+ * The workspace's roles. Editable data rather than a code enum, which is why
+ * `members.role` above stays plain TEXT with no FK: it carries the slug, the
+ * roles service validates it, and deleting a role migrates every member holding
+ * it in the same transaction rather than leaving the column to a cascade.
+ */
+export const roles = sqliteTable('roles', {
+  /** The slug, derived from the label once and never changed afterwards. */
+  id: text('id').primaryKey(),
+  /** Unique here and case-insensitively in the service — two roles one letter
+   *  apart are two ways to be surprised by what somebody may do. */
+  label: text('label').notNull().unique(),
+  description: text('description'),
+  color: text('color').notNull(),
+  /** True only for Admin: every action always, including future ones. */
+  isSystem: integer('is_system', { mode: 'boolean' }).notNull().default(false),
+  /** Pills, the members table, the invite cards and the matrix share it. */
+  sortOrder: integer('sort_order').notNull(),
+  createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at').notNull(),
+});
+
+/**
+ * One row per granted action. The system role has none on purpose — its set is
+ * `ACTIONS` by definition, resolved in `resolvePermissions`, which is what
+ * makes an action added in a future version Admin's with no reconciliation at
+ * boot. `action` is plain TEXT like every other slug column: a grant naming an
+ * action this build dropped is ignored when permissions resolve.
+ */
+export const rolePermissions = sqliteTable(
+  'role_permissions',
+  {
+    roleId: text('role_id')
+      .notNull()
+      .references(() => roles.id, { onDelete: 'cascade' }),
+    action: text('action').notNull(),
+  },
+  (table) => [primaryKey({ columns: [table.roleId, table.action] })],
+);
+
 /** id = sha256(raw cookie token); the raw token never touches the database. */
 export const sessions = sqliteTable(
   'sessions',

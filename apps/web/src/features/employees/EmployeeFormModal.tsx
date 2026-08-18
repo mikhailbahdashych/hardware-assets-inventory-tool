@@ -4,10 +4,6 @@ import {
   DEPARTMENT_SUGGESTIONS,
   EMPLOYEE_STATUS_LABELS,
   EMPLOYEE_STATUSES,
-  ROLE_DESCRIPTIONS,
-  ROLE_LABELS,
-  ROLES,
-  type Role,
 } from '@inventory/shared';
 import { fieldErrors } from '@/api/formErrors';
 import {
@@ -16,7 +12,9 @@ import {
   useInviteMember,
   useUpdateEmployee,
 } from '@/api/mutations';
+import { useRoles } from '@/api/queries';
 import { Button, Checkbox, Dropdown, Field, Input, Modal } from '@/components/ui';
+import { leastPrivileged } from '@/lib/roles';
 // Inviting is a members concern; this form borrows it rather than growing a
 // second way to show a one-time link.
 import { CopyLinkModal } from '@/features/members/CopyLinkModal';
@@ -46,7 +44,12 @@ const blankToNull = (value: string) => (value.trim() === '' ? null : value.trim(
  * marking somebody as offboarding is the one employee change with a
  * consequence elsewhere (it schedules returns for what they hold).
  */
-export function EmployeeFormModal({ employee, role, onClose, onDeleted }: EmployeeFormModalProps) {
+export function EmployeeFormModal({
+  employee,
+  permissions,
+  onClose,
+  onDeleted,
+}: EmployeeFormModalProps) {
   const editing = employee !== undefined;
   // Every `?? ''` below translates a NULL column into the empty input that
   // means the same thing to the person filling the form in.
@@ -73,9 +76,10 @@ export function EmployeeFormModal({ employee, role, onClose, onDeleted }: Employ
   );
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   // The design's "Also invite as a member of this app", admin-only because
-  // inviting is. Viewer is the least a new account can be given.
+  // inviting is. The role starts on the least a new account can be given,
+  // which is a question about the workspace's rows — see `leastPrivileged`.
   const [inviting, setInviting] = useState(false);
-  const [inviteRole, setInviteRole] = useState<Role>('viewer');
+  const [chosenRole, setChosenRole] = useState('');
   const [inviteUrl, setInviteUrl] = useState<string | null>(null);
 
   const toast = useToast();
@@ -84,6 +88,11 @@ export function EmployeeFormModal({ employee, role, onClose, onDeleted }: Employ
   const update = useUpdateEmployee(employee?.id ?? '');
   const remove = useDeleteEmployee();
   const invite = useInviteMember();
+
+  const roles = useRoles();
+  const roleOptions = roles.data === undefined ? [] : roles.data.roles;
+  const suggestedRole = leastPrivileged(roleOptions);
+  const inviteRole = chosenRole === '' && suggestedRole ? suggestedRole.id : chosenRole;
 
   const pending = create.isPending || update.isPending || remove.isPending || invite.isPending;
   // Whichever of the three ran is the one that can have failed.
@@ -177,7 +186,7 @@ export function EmployeeFormModal({ employee, role, onClose, onDeleted }: Employ
         <>
           <div className={styles.footerLeft}>
             <span className={styles.required}>* Required</span>
-            {editing && can(role, 'employees.delete') && (
+            {editing && can(permissions, 'employees.delete') && (
               <Button
                 variant="danger"
                 size="sm"
@@ -333,7 +342,7 @@ export function EmployeeFormModal({ employee, role, onClose, onDeleted }: Employ
           )}
         </Field>
 
-        {!editing && can(role, 'members.manage') && (
+        {!editing && can(permissions, 'members.manage') && (
           <div className={styles.custom}>
             <Checkbox
               checked={inviting}
@@ -349,12 +358,13 @@ export function EmployeeFormModal({ employee, role, onClose, onDeleted }: Employ
                   <Dropdown
                     id={id}
                     value={inviteRole}
-                    options={ROLES.map((option) => ({
-                      value: option,
-                      label: ROLE_LABELS[option],
-                      description: ROLE_DESCRIPTIONS[option],
+                    options={roleOptions.map((option) => ({
+                      value: option.id,
+                      label: option.label,
+                      // A nullable column: no description is no second line.
+                      description: option.description ?? undefined,
                     }))}
-                    onChange={setInviteRole}
+                    onChange={setChosenRole}
                   />
                 )}
               </Field>

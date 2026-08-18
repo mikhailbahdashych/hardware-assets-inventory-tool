@@ -2,7 +2,7 @@
 
 Self-hosted, single container, SQLite. Track devices, who holds them, and the full ownership history of every one.
 
-Built to be **customized by asking Claude Code**: every area of the repo carries a `CLAUDE.md` explaining its patterns, and [`docs/recipes/`](docs/recipes/) has step-by-step checklists for the changes teams actually make — a new field, a new page, a new widget, a new email.
+Built to be **customized by asking Claude Code**: every area of the repo carries a `CLAUDE.md` explaining its patterns, and [`docs/recipes/`](docs/recipes/) has step-by-step checklists for the changes teams actually make — a new field, a new page, a new permission, a new email.
 
 MIT licensed.
 
@@ -39,7 +39,8 @@ docker compose up -d
 - **Employees** — the people who hold devices. Separate from the accounts that sign in, optionally linked to them, because most staff never need a login.
 - **Ownership history** — who had what, when, and how it came back. Held in one table that is the only truth about it; an asset's status and its open ownership record cannot disagree.
 - **Custom statuses & workflow** — the statuses an asset can be in are yours, not ours: an admin adds, renames, recolours and reorders them, and draws the moves between them as a checkbox matrix with a live diagram beside it. The API enforces the graph, so taking an edge off it stops that move being offered _and_ stops it being accepted.
-- **Members and invitations** — three roles (Admin / Manager / Viewer), invite by email or by a copyable link.
+- **Custom roles & permissions** — who may do what is yours as well: an admin invents a role, colours it, writes the line that appears under its name on the invite card, and ticks what it may do in a matrix of every action the product has. Admin is the one locked row — it holds every permission including the ones a later version adds — and nobody may edit the role they hold themselves. Permissions resolve per request, so a grant lands on that member's very next click, and the set the sidebar reads is the same one the API guard checks.
+- **Members and invitations** — the accounts that sign in, each holding one of those roles, invited by email or by a copyable link.
 - **Activity log** — every mutation, rendered as a sentence, filterable and exportable as CSV.
 - **Dashboard** — status counts that click through to a filtered list, fleet composition, recent activity, warranties running out, and what is due back.
 - **⌘K** — search assets and people or run a command, entirely from the keyboard.
@@ -62,6 +63,14 @@ _The demo workspace's own workflow. Northwind added "In imaging" for machines be
 ![The Change status modal for a laptop that is in repair, its status list open and offering only Available and Retired](media/workflow-change-status.png)
 
 _The same graph, one screen later: In repair has two edges leaving it, so those are the two moves on offer — and the only two the API would accept if you asked another way._
+
+![The Roles page: four roles with their colours, descriptions and member counts, above a matrix of every action with a checkbox per role](media/roles.png)
+
+_The demo workspace's own roles. Northwind wanted somebody in finance to read the log and pull the export without being able to touch the inventory, so it added Auditor and ticked exactly two boxes — both further down the matrix, under Data and Administration. The Admin column is ticked and locked the whole way, because its set is every action there is, by definition rather than by rows._
+
+![The Invite member modal: a radio card per role, each with the description its admin wrote, above the email field](media/roles-invite.png)
+
+_Everywhere a role is named reads the same table, so a role invented at four o'clock is on the invite form at four o'clock, with the words its admin wrote. The card selected by default is the one granting the fewest actions, not a slug the code knows._
 
 ![The activity log: filter pills counting assets, people, auth and system events, above a table of events written as sentences](media/activity-log.png)
 
@@ -163,16 +172,17 @@ Either way the API runs on `:3000` and Vite on `:5173` and proxies to it — **o
 
 ### Seeing it with data in it
 
-A fresh instance is empty and lands on `/setup`, which is the real first-run experience but leaves every screen blank — and this app is largely about history. `npm run seed:demo` gives you a fictional company: twelve people, twenty-six devices, four months of assignments, returns and audit history. It prints one login per role, so you can see what an admin, a manager and a viewer each get:
+A fresh instance is empty and lands on `/setup`, which is the real first-run experience but leaves every screen blank — and this app is largely about history. `npm run seed:demo` gives you a fictional company: twelve people, twenty-six devices, four months of assignments, returns and audit history. It prints one login per role — including the fourth one the workspace invented for itself — so you can see what each of them gets:
 
 ```
   Northwind Robotics is ready in /path/to/repo/data
 
-  26 assets · 12 employees · 19 ownership records · 74 logged events
+  26 assets · 12 employees · 19 ownership records · 79 logged events
 
   ada.okafor@northwind.example    demo-password  (admin)
   marco.rossi@northwind.example   demo-password  (manager)
   lena.fischer@northwind.example  demo-password  (viewer)
+  grace.chen@northwind.example    demo-password  (auditor)
 ```
 
 Every date is relative to the moment you run it, so warranties are always about to lapse and returns are always about to fall due — the dashboard is never a museum. It refuses to touch a workspace that already has data; add `--reset` to replace one.

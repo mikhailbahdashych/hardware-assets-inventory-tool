@@ -12,13 +12,13 @@ import styles from './Attachments.module.css';
  * links the browser renders, so the anchor points at the API and the browser
  * saves it — see the content-disposition header on the download route.
  */
-export function AttachmentsCard({ assetId, attachments, role }: AttachmentsCardProps) {
+export function AttachmentsCard({ assetId, attachments, permissions }: AttachmentsCardProps) {
   const input = useRef<HTMLInputElement>(null);
   const [failure, setFailure] = useState<string | null>(null);
   const toast = useToast();
   const upload = useUploadAttachment(assetId);
   const remove = useDeleteAttachment();
-  const editable = can(role, 'assets.manage_attachments');
+  const editable = can(permissions, 'assets.manage_attachments');
 
   return (
     <Card

@@ -1,4 +1,4 @@
-import type { Action, Role } from '@inventory/shared';
+import type { Action } from '@inventory/shared';
 
 export type OpenModal = 'edit' | 'assign' | 'checkin' | 'status' | 'fields' | null;
 
@@ -9,5 +9,6 @@ export interface PrimaryAction {
 }
 
 export interface AssetDetailPageProps {
-  role: Role;
+  /** What the signed-in member may do, resolved server-side — see `can`. */
+  permissions: Action[];
 }

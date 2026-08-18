@@ -124,7 +124,12 @@ describe('inviting a member', () => {
     expect(res.statusCode).toBe(401);
   });
 
-  it('audits the invitation with the role it granted', async () => {
+  /**
+   * The **label**, snapshotted at write time — the same rule as
+   * `holder_name_snapshot`. A role that is renamed or deleted tomorrow must not
+   * rewrite what the log already said.
+   */
+  it('audits the invitation with the name of the role it granted', async () => {
     ctx = await buildTestApp();
     const admin = await setupOrg(ctx.app);
     await invite(admin, { role: 'viewer' });
@@ -135,7 +140,40 @@ describe('inviting a member', () => {
       .where(eq(auditEvents.action, 'member.invited'))
       .get();
     expect(event?.type).toBe('auth');
-    expect(JSON.parse(event!.params)).toMatchObject({ email: 'grace@acme.io', role: 'viewer' });
+    expect(JSON.parse(event!.params)).toMatchObject({ email: 'grace@acme.io', role: 'Viewer' });
+  });
+
+  it('refuses a role this workspace does not have', async () => {
+    ctx = await buildTestApp();
+    const admin = await setupOrg(ctx.app);
+
+    const res = await invite(admin, { role: 'nowhere' });
+
+    expect(res.statusCode).toBe(422);
+    expect(res.json().error.fields.role).toMatch(/nowhere/);
+    expect(ctx.db.select().from(members).all()).toHaveLength(1);
+  });
+
+  it('invites into a role the workspace made up, and the log says its name', async () => {
+    ctx = await buildTestApp();
+    const admin = await setupOrg(ctx.app);
+    await inject(ctx.app, {
+      method: 'POST',
+      url: '/api/v1/roles',
+      cookie: admin,
+      body: { label: 'Auditor', color: 'warn' },
+    });
+
+    const res = await invite(admin, { role: 'auditor' });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.json().member.role).toBe('auditor');
+    const event = ctx.db
+      .select()
+      .from(auditEvents)
+      .where(eq(auditEvents.action, 'member.invited'))
+      .get();
+    expect(JSON.parse(event!.params)).toMatchObject({ role: 'Auditor' });
   });
 
   it('refuses an email that already signs in here', async () => {
@@ -273,7 +311,25 @@ describe('changing a member', () => {
       .from(auditEvents)
       .where(eq(auditEvents.action, 'member.role_changed'))
       .get();
-    expect(JSON.parse(event!.params)).toMatchObject({ from: 'manager', to: 'admin' });
+    // Both sides as they were called at the time, not as slugs.
+    expect(JSON.parse(event!.params)).toMatchObject({ from: 'Manager', to: 'Admin' });
+  });
+
+  it('refuses a move into a role this workspace does not have', async () => {
+    ctx = await buildTestApp();
+    const admin = await setupOrg(ctx.app);
+    const { member } = (await invite(admin)).json();
+
+    const res = await inject(ctx.app, {
+      method: 'PATCH',
+      url: `/api/v1/members/${member.id}`,
+      cookie: admin,
+      body: { role: 'nowhere' },
+    });
+
+    expect(res.statusCode).toBe(422);
+    expect(res.json().error.fields.role).toMatch(/nowhere/);
+    expect(ctx.db.select().from(members).all().at(-1)!.role).toBe('manager');
   });
 
   it('links and unlinks an employee record', async () => {

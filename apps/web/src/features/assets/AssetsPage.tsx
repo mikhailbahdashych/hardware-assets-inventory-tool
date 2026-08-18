@@ -87,7 +87,7 @@ const assetColumns = (statuses: WorkflowStatus[]): TableColumn<Asset>[] => {
   ];
 };
 
-export function AssetsPage({ role }: AssetsPageProps) {
+export function AssetsPage({ permissions }: AssetsPageProps) {
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
   const { openModal } = useModals();
@@ -120,8 +120,8 @@ export function AssetsPage({ role }: AssetsPageProps) {
 
   return (
     <PageContainer>
-      <ListToolbar title="Assets" role={role}>
-        {can(role, 'assets.create') && (
+      <ListToolbar title="Assets" permissions={permissions}>
+        {can(permissions, 'assets.create') && (
           <Button icon="plus" onClick={() => openModal('newAsset')}>
             New asset
           </Button>

@@ -53,6 +53,28 @@ describe('renderAuditEvent', () => {
     ).toBe('Changed iPhone 15 from On loan to wiped');
   });
 
+  /**
+   * Role events snapshot the label at write time too. Everything written
+   * before roles became data carries the three slugs, and those still have to
+   * read like sentences.
+   */
+  it('still reads membership events written back when roles were slugs', () => {
+    expect(
+      renderAuditEvent({
+        action: 'member.role_changed',
+        params: { memberName: 'Grace Chen', from: 'viewer', to: 'manager' },
+      }),
+    ).toBe('Changed Grace Chen from Viewer to Manager');
+    // A slug from no vocabulary this build knows renders as itself — a log
+    // that hides an event is worse than an ugly one.
+    expect(
+      renderAuditEvent({
+        action: 'member.role_changed',
+        params: { memberName: 'Grace Chen', from: 'manager', to: 'floor_staff' },
+      }),
+    ).toBe('Changed Grace Chen from Manager to floor_staff');
+  });
+
   it('lists what an edit touched, in the words the form uses', () => {
     expect(
       renderAuditEvent({
@@ -97,15 +119,23 @@ describe('renderAuditEvent', () => {
     expect(
       renderAuditEvent({
         action: 'member.invited',
-        params: { email: 'grace@acme.io', role: 'manager' },
+        params: { email: 'grace@acme.io', role: 'Manager' },
       }),
     ).toBe('Invited grace@acme.io as a Manager');
     expect(
       renderAuditEvent({
         action: 'member.role_changed',
-        params: { memberName: 'Grace Chen', from: 'manager', to: 'admin' },
+        params: { memberName: 'Grace Chen', from: 'Manager', to: 'Admin' },
       }),
     ).toBe('Changed Grace Chen from Manager to Admin');
+    // A role a workspace made up reads exactly as it is called, because that
+    // is what the event stored.
+    expect(
+      renderAuditEvent({
+        action: 'member.invited',
+        params: { email: 'grace@acme.io', role: 'Auditor' },
+      }),
+    ).toBe('Invited grace@acme.io as an Auditor');
     expect(
       renderAuditEvent({
         action: 'member.link_changed',
@@ -173,6 +203,40 @@ describe('renderAuditEvent', () => {
     );
   });
 
+  it('renders every role change as something an admin would recognise', () => {
+    expect(renderAuditEvent({ action: 'role.created', params: { label: 'Auditor' } })).toBe(
+      'Added the role Auditor',
+    );
+    expect(
+      renderAuditEvent({
+        action: 'role.updated',
+        params: { label: 'Auditor', changedFields: ['label', 'color'] },
+      }),
+    ).toBe('Updated the role Auditor (name, color)');
+    expect(
+      renderAuditEvent({
+        action: 'role.deleted',
+        params: { label: 'Auditor', migratedToLabel: null, memberCount: 0 },
+      }),
+    ).toBe('Deleted the role Auditor');
+    expect(
+      renderAuditEvent({
+        action: 'role.deleted',
+        params: { label: 'Auditor', migratedToLabel: 'Viewer', memberCount: 3 },
+      }),
+    ).toBe('Deleted the role Auditor · 3 members moved to Viewer');
+    expect(
+      renderAuditEvent({
+        action: 'role.deleted',
+        params: { label: 'Auditor', migratedToLabel: 'Viewer', memberCount: 1 },
+      }),
+    ).toBe('Deleted the role Auditor · 1 member moved to Viewer');
+    expect(
+      renderAuditEvent({ action: 'role.permissions_changed', params: { added: 2, removed: 1 } }),
+    ).toBe('Changed the role permissions (2 granted, 1 revoked)');
+    expect(renderAuditEvent({ action: 'role.reordered', params: {} })).toBe('Reordered the roles');
+  });
+
   it('says which settings an admin touched', () => {
     expect(
       renderAuditEvent({
@@ -206,6 +270,10 @@ describe('auditTypeForAction', () => {
     expect(auditTypeForAction('auth.login')).toBe('auth');
     expect(auditTypeForAction('member.joined')).toBe('auth');
     expect(auditTypeForAction('member.invited')).toBe('auth');
+    // Roles are access control, so they file beside the member events rather
+    // than under System with the workspace's other settings.
+    expect(auditTypeForAction('role.created')).toBe('auth');
+    expect(auditTypeForAction('role.permissions_changed')).toBe('auth');
     expect(auditTypeForAction('system.settings_updated')).toBe('system');
     expect(auditTypeForAction('system.setup_completed')).toBe('system');
     expect(auditTypeForAction('custom_field.created')).toBe('system');

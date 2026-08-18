@@ -13,6 +13,8 @@ import {
   members,
   notificationLog,
   orgSettings,
+  rolePermissions,
+  roles,
   sessions,
 } from '@/db/schema.js';
 import { invalidFields } from '@/lib/errors.js';
@@ -71,6 +73,11 @@ export async function emptyWorkspace(deps: AppDeps): Promise<void> {
     tx.delete(authTokens).run();
     tx.delete(sessions).run();
     tx.delete(members).run();
+    // The roles go with the members that held them, so the seed below lays the
+    // default three back down — a workspace that edited its roles is not what a
+    // fresh container has either.
+    tx.delete(rolePermissions).run();
+    tx.delete(roles).run();
     tx.delete(employees).run();
     tx.delete(orgSettings).run();
   });

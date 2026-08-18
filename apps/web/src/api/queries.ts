@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import type { AuditType, WorkflowPayload } from '@inventory/shared';
+import type { AuditType, RolesPayload, WorkflowPayload } from '@inventory/shared';
 import { ApiError, apiFetch } from './client';
 import type {
   Asset,
@@ -32,6 +32,7 @@ export const queryKeys = {
   employee: (id: string) => ['employee', id] as const,
   customFields: ['custom-fields'] as const,
   workflow: ['workflow'] as const,
+  roles: ['roles'] as const,
   members: ['members'] as const,
   settings: ['settings'] as const,
   dashboard: ['dashboard'] as const,
@@ -161,6 +162,20 @@ export function useWorkflow() {
   return useQuery({
     queryKey: queryKeys.workflow,
     queryFn: () => apiFetch<WorkflowPayload>('/workflow'),
+    staleTime: 5 * 60 * 1000,
+  });
+}
+
+/**
+ * The workspace's roles, what each one may do, and how many people hold it.
+ * Open to every member for the same reason the workflow is: a role pill has a
+ * label and a colour only because a row says so, and the Members page draws one
+ * per person. The Roles page edits the same payload it renders.
+ */
+export function useRoles() {
+  return useQuery({
+    queryKey: queryKeys.roles,
+    queryFn: () => apiFetch<RolesPayload>('/roles'),
     staleTime: 5 * 60 * 1000,
   });
 }

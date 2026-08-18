@@ -1,7 +1,14 @@
 import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { ADMIN_MEMBER, DASHBOARD_ROUTES, LAPTOP, MAYA } from '@/test/api-stub';
+import {
+  ADMIN_MEMBER,
+  DASHBOARD_ROUTES,
+  LAPTOP,
+  MAYA,
+  session,
+  VIEWER_ACTIONS,
+} from '@/test/api-stub';
 import { renderApp, resetAppState } from '@/test/render';
 
 afterEach(() => {
@@ -163,7 +170,7 @@ describe('the actions', () => {
     renderApp(
       {
         ...DASHBOARD_ROUTES,
-        'GET /auth/me': { body: { member: { ...ADMIN_MEMBER, role: 'viewer' } } },
+        'GET /auth/me': session({ ...ADMIN_MEMBER, role: 'viewer' }, VIEWER_ACTIONS),
       },
       '/dashboard',
     );

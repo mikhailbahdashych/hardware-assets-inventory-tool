@@ -1,4 +1,4 @@
-import type { MemberStatus, Role } from '@inventory/shared';
+import type { MemberStatus } from '@inventory/shared';
 import type { assets, employees } from '@/db/schema.js';
 import type { AssignmentRow } from '@/types/assignments.js';
 import type { MemberRow, MemberSummary } from '@/types/members.js';
@@ -38,10 +38,11 @@ export function serializeMemberSummary(
     id: member.id,
     email: member.email,
     displayName: member.displayName,
-    // Enum columns are TEXT with no CHECK constraint on purpose (adding a role
-    // is a code-only change); the zod schema on every write is what holds them
-    // to the slugs these types name.
-    role: member.role as Role,
+    // The role is a row id and stays a string — a workspace makes its own, so
+    // there is no union to narrow to. `status` is still an enum column: TEXT
+    // with no CHECK constraint on purpose, held to its slugs by the zod schema
+    // on every write.
+    role: member.role,
     status: member.status as MemberStatus,
     employeeId: member.employeeId,
     linkedEmployee: linked
