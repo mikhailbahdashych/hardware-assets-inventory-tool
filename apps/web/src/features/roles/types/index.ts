@@ -3,4 +3,4 @@
 // forming an import cycle.
 export type { DeleteRoleModalProps } from './deleteRoleModal';
 export type { RoleFormModalProps, RoleFormState } from './roleFormModal';
-export type { RolesCardProps, RolesPageProps } from './rolesPage';
+export type { MatrixRow, PermissionsCardProps, RolesCardProps, RolesPageProps } from './rolesPage';

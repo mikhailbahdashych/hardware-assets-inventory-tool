@@ -1,7 +1,7 @@
 import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { WorkspaceRole } from '@inventory/shared';
+import { ACTIONS, type Action, type WorkspaceRole } from '@inventory/shared';
 import { ADMIN_MEMBER, ADMIN_ROUTES, ROLES, type StubRoutes } from '@/test/api-stub';
 import { renderApp, resetAppState } from '@/test/render';
 import { choose } from '@/test/dropdown';
@@ -286,5 +286,92 @@ describe('deleting a role', () => {
 
     await waitFor(() => expect(api.called('DELETE /roles/viewer')).toBeDefined());
     await waitFor(async () => expect(rowLabels(await roleRows())).not.toContain('Viewer'));
+  });
+});
+
+describe('the permissions matrix', () => {
+  /** One cell of the grid, by the role and the action it stands for. */
+  const cell = (role: string, action: string) =>
+    screen.getByRole('checkbox', { name: new RegExp(`^${role}: ${action}`) });
+
+  it('draws every action under the group it belongs to', async () => {
+    renderApp(workspace().routes, '/roles');
+    const table = within(await screen.findByRole('table', { name: 'Permissions' }));
+
+    // Five group bands plus one row per action, and no action left out.
+    const rows = table.getAllByRole('row').filter((row) => row.dataset.testid !== 'table-header');
+    expect(rows).toHaveLength(ACTIONS.length + 5);
+    for (const group of ['Assets', 'Employees', 'People', 'Data', 'Administration']) {
+      expect(table.getByText(group)).toBeInTheDocument();
+    }
+    expect(table.getByText('Manage roles and permissions')).toBeInTheDocument();
+    // A band names its area and nothing else — no checkbox belongs to it.
+    expect(within(rows[0]!).queryByRole('checkbox')).toBeNull();
+  });
+
+  it('ticks and locks every box in the system role’s column', async () => {
+    renderApp(workspace().routes, '/roles');
+    await screen.findByRole('table', { name: 'Permissions' });
+
+    expect(cell('Admin', 'Delete the workspace')).toBeChecked();
+    expect(cell('Admin', 'Delete the workspace')).toBeDisabled();
+    expect(cell('Admin', 'Create assets')).toBeChecked();
+    expect(cell('Manager', 'Create assets')).toBeChecked();
+    expect(cell('Manager', 'Create assets')).toBeEnabled();
+    expect(cell('Viewer', 'Create assets')).not.toBeChecked();
+  });
+
+  it('saves the grants the boxes hold, and only once something has changed', async () => {
+    const { routes, roles } = workspace();
+    const api = renderApp(
+      {
+        ...routes,
+        'PUT /roles/permissions': (body) => {
+          const { grants } = body as { grants: { role: string; action: Action }[] };
+          for (const role of roles) {
+            if (role.isSystem) continue;
+            role.permissions = grants
+              .filter((grant) => grant.role === role.id)
+              .map((grant) => grant.action);
+          }
+          return { body: { added: 1, removed: 0 } };
+        },
+      },
+      '/roles',
+    );
+    await screen.findByRole('table', { name: 'Permissions' });
+
+    const save = () => screen.getByRole('button', { name: 'Save permissions' });
+    expect(save()).toBeDisabled();
+
+    await userEvent.click(cell('Viewer', 'View the activity log'));
+    expect(save()).toBeEnabled();
+    await userEvent.click(save());
+
+    await waitFor(() => expect(api.called('PUT /roles/permissions')).toBeDefined());
+    const sent = api.called('PUT /roles/permissions')!.body as {
+      grants: { role: string; action: string }[];
+    };
+    expect(sent.grants).toContainEqual({ role: 'viewer', action: 'audit.view' });
+    // Every other role's column travels too — the matrix saves the whole grid.
+    expect(sent.grants).toContainEqual({ role: 'manager', action: 'assets.create' });
+    // The system role's column is not the workspace's to send.
+    expect(sent.grants.some((grant) => grant.role === 'admin')).toBe(false);
+
+    // Saved is the new starting point: the draft re-seeds from what came back.
+    await waitFor(() => expect(save()).toBeDisabled());
+    expect(cell('Viewer', 'View the activity log')).toBeChecked();
+  });
+
+  it('lets a change be abandoned', async () => {
+    renderApp(workspace().routes, '/roles');
+    await screen.findByRole('table', { name: 'Permissions' });
+
+    await userEvent.click(cell('Manager', 'Create assets'));
+    expect(cell('Manager', 'Create assets')).not.toBeChecked();
+
+    await userEvent.click(screen.getByRole('button', { name: 'Discard' }));
+    expect(cell('Manager', 'Create assets')).toBeChecked();
+    expect(screen.getByRole('button', { name: 'Save permissions' })).toBeDisabled();
   });
 });

@@ -1,14 +1,20 @@
 import { useState } from 'react';
-import type { WorkspaceRole } from '@inventory/shared';
-import { useReorderRoles } from '@/api/mutations';
+import { ACTION_GROUPS, ACTION_LABELS, type Action, type WorkspaceRole } from '@inventory/shared';
+import { useReorderRoles, useSaveRolePermissions } from '@/api/mutations';
 import { useRoles } from '@/api/queries';
 import { PageContainer } from '@/components/app/PageContainer';
-import { Button, DataTable, IconButton, Pill, Spinner } from '@/components/ui';
+import { Button, Checkbox, DataTable, IconButton, Pill, Spinner } from '@/components/ui';
 import type { TableColumn } from '@/types/table';
 import { useToast } from '@/providers/ToastProvider';
 import { DeleteRoleModal } from './DeleteRoleModal';
 import { RoleFormModal } from './RoleFormModal';
-import type { RolesCardProps, RolesPageProps } from './types/rolesPage';
+import { draftChanged, draftFromRoles, draftKey, grantsFromDraft } from './rolesDraft';
+import type {
+  MatrixRow,
+  PermissionsCardProps,
+  RolesCardProps,
+  RolesPageProps,
+} from './types/rolesPage';
 import styles from './Roles.module.css';
 
 /**
@@ -37,7 +43,17 @@ export function RolesPage({ ownRole }: RolesPageProps) {
           <Spinner size={18} />
         </div>
       ) : (
-        <RolesCard roles={roles.data.roles} ownRole={ownRole} />
+        <>
+          <RolesCard roles={roles.data.roles} ownRole={ownRole} />
+          {/* Keyed on the stored grants, so a save — this admin's or anybody
+              else's — re-seeds the draft instead of leaving stale boxes on
+              screen. The same trick the transition matrix plays. */}
+          <PermissionsCard
+            key={[...draftFromRoles(roles.data.roles)].sort().join()}
+            roles={roles.data.roles}
+            ownRole={ownRole}
+          />
+        </>
       )}
     </PageContainer>
   );
@@ -180,6 +196,123 @@ function RolesCard({ roles, ownRole }: RolesCardProps) {
           onClose={() => setDeleting(null)}
         />
       )}
+    </section>
+  );
+}
+
+/**
+ * Every action the product has, as a grid of checkboxes: a row is something a
+ * person can do, a column is a role that may or may not do it. The whole thing
+ * is one draft in local state and Save sends every grant — which is what a grid
+ * of checkboxes naturally holds, and what makes the operation idempotent.
+ *
+ * The diff against the stored set is also the dirty check, so the button and
+ * the payload cannot disagree; the same reasoning as the settings form, which
+ * says why at length in apps/web/CLAUDE.md.
+ *
+ * Two columns are never editable. The system role's is ticked throughout,
+ * because its set is every action by definition; the caller's own is locked,
+ * because nobody may widen the role they hold.
+ */
+function PermissionsCard({ roles, ownRole }: PermissionsCardProps) {
+  const stored = draftFromRoles(roles);
+  const [draft, setDraft] = useState<Set<string>>(stored);
+
+  const toast = useToast();
+  const save = useSaveRolePermissions();
+  const dirty = draftChanged(stored, draft);
+
+  const toggle = (role: string, action: Action) =>
+    setDraft((current) => {
+      const next = new Set(current);
+      const key = draftKey(role, action);
+      if (!next.delete(key)) next.add(key);
+      return next;
+    });
+
+  /** A band per area, then the actions under it — in the order shared lists them. */
+  const rows: MatrixRow[] = ACTION_GROUPS.flatMap((group) => [
+    { kind: 'group', key: `group:${group.label}`, label: group.label },
+    ...group.actions.map((action): MatrixRow => ({ kind: 'action', key: action, action })),
+  ]);
+
+  const columns: TableColumn<MatrixRow>[] = [
+    {
+      header: 'Action',
+      width: 'minmax(200px, 1.6fr)',
+      render: (row) =>
+        row.kind === 'group' ? (
+          <span className={styles.groupLabel}>{row.label}</span>
+        ) : (
+          ACTION_LABELS[row.action]
+        ),
+    },
+    ...roles.map((role): TableColumn<MatrixRow> => {
+      const own = role.id === ownRole;
+      return {
+        header: <span className={styles.cell}>{role.label}</span>,
+        // 72px holds a checkbox under a role's name; ten of them beside the
+        // action column still fit the 1060 the page is drawn at, and the
+        // column only stretches from here.
+        width: 'minmax(72px, 1fr)',
+        render: (row) => {
+          if (row.kind === 'group') return null;
+          return (
+            <span className={styles.cell}>
+              <Checkbox
+                // The box is the whole control; its name is the grant it stands for.
+                label={null}
+                aria-label={`${role.label}: ${ACTION_LABELS[row.action]}${own ? ' — ask another admin' : ''}`} // prettier-ignore
+                checked={role.isSystem || draft.has(draftKey(role.id, row.action))}
+                disabled={role.isSystem || own || save.isPending}
+                onChange={() => toggle(role.id, row.action)}
+              />
+            </span>
+          );
+        },
+      };
+    }),
+  ];
+
+  return (
+    <section className={styles.card}>
+      <div className={styles.cardHead}>
+        <div>
+          <h2 className={styles.cardTitle}>Permissions</h2>
+          <p className={styles.cardHint}>
+            A tick is permission to change something. Reading is open to everyone who can sign in,
+            so a role with nothing ticked is a read-only one — and Admin holds every action there
+            is, including the ones a later version adds.
+          </p>
+        </div>
+        <div className={styles.actions}>
+          <span className={styles.actionsNote}>
+            {dirty ? 'Unsaved changes' : 'Everything here is saved'}
+          </span>
+          <Button
+            variant="ghost"
+            disabled={!dirty || save.isPending}
+            onClick={() => setDraft(stored)}
+          >
+            Discard
+          </Button>
+          <Button
+            disabled={!dirty || save.isPending}
+            onClick={() =>
+              save.mutate(grantsFromDraft(draft), {
+                onSuccess: () => toast.show('Permissions saved.', 'ok'),
+                onError: (error) => toast.show(error.message, 'err'),
+              })
+            }
+          >
+            {save.isPending ? 'Saving…' : 'Save permissions'}
+          </Button>
+        </div>
+      </div>
+
+      <div className={styles.matrix}>
+        <DataTable columns={columns} rows={rows} rowKey={(row) => row.key} label="Permissions" />
+      </div>
     </section>
   );
 }
