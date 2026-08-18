@@ -124,6 +124,7 @@ const ICON_NAMES: IconName[] = [
   'user',
   'shieldCheck',
   'shield',
+  'key',
   'gear',
   'search',
   'sun',

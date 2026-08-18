@@ -26,6 +26,7 @@ import {
   ROLE_DESCRIPTIONS,
   ROLE_LABELS,
   SEMANTIC_COLORS,
+  SEMANTIC_COLOR_LABELS,
 } from './enums.js';
 
 /**
@@ -163,5 +164,16 @@ describe('misc enums', () => {
     expect(CURRENCY_LABELS.PLN).toBe('PLN (zł)');
     expect(ASSIGNMENT_OUTCOMES).toEqual(['returned', 'upgraded', 'in_repair', 'offboarded']);
     expect(ASSIGNMENT_OUTCOME_LABELS.in_repair).toBe('in repair');
+  });
+
+  it('names every semantic colour by the colour it is', () => {
+    expect(SEMANTIC_COLORS.map((color) => SEMANTIC_COLOR_LABELS[color])).toEqual([
+      'Green',
+      'Purple',
+      'Amber',
+      'Red',
+      'Blue',
+      'Grey',
+    ]);
   });
 });

@@ -6,7 +6,9 @@ const ITEMS: GatedNavItem[] = [
   { label: 'Assets', to: '/assets', icon: 'cube' },
   { label: 'Employees', to: '/employees', icon: 'users' },
   { label: 'Members', to: '/members', icon: 'shieldCheck' },
-  // All three admin-only, together after the design's 10px gap.
+  // The four that need an action of their own, together after the design's
+  // 10px gap. Each names the permission that makes it useful; a workspace that
+  // grants one of them to an ordinary role gets the item along with it.
   {
     label: 'Activity log',
     to: '/activity',
@@ -15,6 +17,7 @@ const ITEMS: GatedNavItem[] = [
     requires: 'audit.view',
   },
   { label: 'Workflow', to: '/workflow', icon: 'workflow', requires: 'workflow.manage' },
+  { label: 'Roles', to: '/roles', icon: 'key', requires: 'roles.manage' },
   { label: 'Admin', to: '/admin', icon: 'gear', requires: 'settings.manage' },
 ];
 
@@ -37,6 +40,7 @@ const SECTION_LABELS: Record<string, string> = {
   members: 'Members',
   activity: 'Activity log',
   workflow: 'Workflow',
+  roles: 'Roles',
   admin: 'Admin',
 };
 

@@ -20,6 +20,21 @@ export const SEMANTIC_COLORS = ['ok', 'acc', 'warn', 'err', 'info', 'neut'] as c
 export type SemanticColor = (typeof SEMANTIC_COLORS)[number];
 
 /**
+ * The colours named by the colour they are, for the two forms where a person
+ * picks one — a status's pill and a role's. An admin choosing a colour is
+ * choosing what it looks like; the `sv` key rides along as the option's
+ * description, so the design system's own word for it is still on screen.
+ */
+export const SEMANTIC_COLOR_LABELS: Record<SemanticColor, string> = {
+  ok: 'Green',
+  acc: 'Purple',
+  warn: 'Amber',
+  err: 'Red',
+  info: 'Blue',
+  neut: 'Grey',
+};
+
+/**
  * The one status slug the code may reference by name. `assigned` is the system
  * status: only assign and check-in enter or leave it, which is what keeps
  * `assets.status = 'assigned'` ⇔ an open ownership row true.

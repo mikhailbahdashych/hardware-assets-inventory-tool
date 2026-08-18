@@ -18,6 +18,7 @@ import { DashboardPage } from './features/dashboard/DashboardPage';
 import { EmployeeDetailPage } from './features/employees/EmployeeDetailPage';
 import { EmployeesPage } from './features/employees/EmployeesPage';
 import { MembersPage } from './features/members/MembersPage';
+import { RolesPage } from './features/roles/RolesPage';
 import { WorkflowPage } from './features/workflow/WorkflowPage';
 
 /**
@@ -151,6 +152,18 @@ export function AppRoutes() {
           element={
             can(member.role, 'workflow.manage') ? (
               <WorkflowPage />
+            ) : (
+              <Navigate to="/dashboard" replace />
+            )
+          }
+        />
+        {/* Who may do what, for the same reason: it is workspace vocabulary
+            the whole app reads, not a setting on a form. */}
+        <Route
+          path="/roles"
+          element={
+            can(member.role, 'roles.manage') ? (
+              <RolesPage ownRole={member.role} />
             ) : (
               <Navigate to="/dashboard" replace />
             )

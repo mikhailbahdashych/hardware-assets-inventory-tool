@@ -1,5 +1,11 @@
 import { vi } from 'vitest';
-import { DEFAULT_ASSET_STATUSES, type WorkflowPayload } from '@inventory/shared';
+import {
+  ACTIONS,
+  DEFAULT_ASSET_STATUSES,
+  DEFAULT_ROLES,
+  type RolesPayload,
+  type WorkflowPayload,
+} from '@inventory/shared';
 
 export type StubResponse = { status?: number; body?: unknown };
 export type StubHandler = StubResponse | ((body: unknown, search: string) => StubResponse);
@@ -115,6 +121,20 @@ export const WORKFLOW: WorkflowPayload = (() => {
     ),
   };
 })();
+
+/**
+ * The roles a freshly seeded instance serves: today's three, in today's order,
+ * with the system role's set resolved to every action there is. One member
+ * holds each, which is what the three member fixtures below add up to.
+ */
+export const ROLES: RolesPayload = {
+  roles: DEFAULT_ROLES.map((role, sortOrder) => ({
+    ...role,
+    sortOrder,
+    memberCount: 1,
+    permissions: role.isSystem ? [...ACTIONS] : [...role.grants],
+  })),
+};
 
 export const CUSTOM_FIELDS = [
   { id: 'cf-1', key: 'mdm_enrolled', label: 'MDM enrolled', type: 'boolean', sortOrder: 0 },
@@ -423,4 +443,5 @@ export const ADMIN_ROUTES: StubRoutes = {
   'GET /settings': { body: { settings: SETTINGS } },
   'GET /audit': { body: AUDIT_PAGE },
   'GET /workflow': { body: WORKFLOW },
+  'GET /roles': { body: ROLES },
 };

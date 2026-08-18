@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react';
-import { SEMANTIC_COLORS, statusSlug, type SemanticColor } from '@inventory/shared';
+import { SEMANTIC_COLORS, SEMANTIC_COLOR_LABELS, statusSlug } from '@inventory/shared';
 import { fieldErrors } from '@/api/formErrors';
 import { useCreateStatus, useUpdateStatus } from '@/api/mutations';
 import { Button, Dropdown, Field, Input, Modal, Pill } from '@/components/ui';
@@ -7,22 +7,6 @@ import { useToast } from '@/providers/ToastProvider';
 import type { StatusFormModalProps, StatusFormState } from './types/statusFormModal';
 import formStyles from '@/components/ui/FormModal.module.css';
 import styles from './Workflow.module.css';
-
-/**
- * The six semantic colors, named by the colour they are rather than by the
- * token behind them: an admin picking a pill colour is choosing what it looks
- * like, and the swatch beside each option is the rest of the answer. The `sv`
- * key rides along as the description, so the design system's own word for it
- * is still on screen.
- */
-const COLOR_LABELS: Record<SemanticColor, string> = {
-  ok: 'Green',
-  acc: 'Purple',
-  warn: 'Amber',
-  err: 'Red',
-  info: 'Blue',
-  neut: 'Grey',
-};
 
 /**
  * One form for adding a status and for renaming one — the same mode switch the
@@ -136,7 +120,7 @@ export function StatusFormModal({ status, onClose }: StatusFormModalProps) {
               value={form.color}
               options={SEMANTIC_COLORS.map((color) => ({
                 value: color,
-                label: COLOR_LABELS[color],
+                label: SEMANTIC_COLOR_LABELS[color],
                 description: color,
               }))}
               onChange={(color) => setForm({ ...form, color })}
