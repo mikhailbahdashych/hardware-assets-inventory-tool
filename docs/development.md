@@ -59,14 +59,15 @@ It also means every screen is empty, and this app is largely about history — w
 ```
   Northwind Robotics is ready in /path/to/repo/data
 
-  26 assets · 12 employees · 19 ownership records · 72 logged events
+  26 assets · 12 employees · 19 ownership records · 79 logged events
 
   ada.okafor@northwind.example    demo-password  (admin)
   marco.rossi@northwind.example   demo-password  (manager)
   lena.fischer@northwind.example  demo-password  (viewer)
+  grace.chen@northwind.example    demo-password  (auditor)
 ```
 
-Sign in as any of the three to see what that role can do — the viewer has no mutation affordances anywhere, the manager has no Admin section.
+Sign in as any of the four to see what that role can do — the viewer has no mutation affordances anywhere, the manager has no Admin section, and Auditor is the role the demo workspace invented for itself on the Roles page: two ticks, so the activity log and the export open and nothing else does.
 
 Every date is relative to the moment you ran it, so warranties are always about to lapse and returns are always about to fall due. It refuses to touch a workspace that already has data; add `-- --reset` (native) or `--reset` (Docker) to replace one.
 
