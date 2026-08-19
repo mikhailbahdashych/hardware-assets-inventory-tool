@@ -137,6 +137,11 @@ export function MembersPage({ permissions, memberId }: MembersPageProps) {
    * overflow. The bracketed one is drawn only for a viewer who can act on it:
    * the payload is the same for everybody, because reads are open, and the
    * gate is the affordance — as it is for every other admin control here.
+   *
+   * The other widths shrank to make room for it, because they have to: this
+   * page is 960 wide by the design's own note, the table clips its overflow
+   * (that clip is what gives the cells their ellipsis), and a seventh column
+   * that did not fit would take the `···` button off the right-hand edge.
    */
   const columns: TableColumn<MemberSummary>[] = [
     {
@@ -154,7 +159,7 @@ export function MembersPage({ permissions, memberId }: MembersPageProps) {
     },
     {
       header: 'Role',
-      width: '110px',
+      width: '100px',
       render: (member) => {
         const role = roleInfo(byRoleId, member.role);
         return <Pill sv={role.color}>{role.label}</Pill>;
@@ -162,7 +167,7 @@ export function MembersPage({ permissions, memberId }: MembersPageProps) {
     },
     {
       header: 'Linked employee',
-      width: '140px',
+      width: '120px',
       render: (member) =>
         member.linkedEmployee ? (
           <Link to={`/employees/${member.linkedEmployee.id}`} className={styles.linkCell}>
@@ -175,14 +180,14 @@ export function MembersPage({ permissions, memberId }: MembersPageProps) {
     },
     {
       header: 'Last active',
-      width: '110px',
+      width: '95px',
       render: (member) => (
         <span className={styles.muted}>{formatRelativeTime(member.lastActiveAt)}</span>
       ),
     },
     {
       header: 'Status',
-      width: '110px',
+      width: '100px',
       render: (member) => (
         <Pill sv={MEMBER_STATUS_COLORS[member.status]}>{MEMBER_STATUS_LABELS[member.status]}</Pill>
       ),
@@ -191,7 +196,7 @@ export function MembersPage({ permissions, memberId }: MembersPageProps) {
       ? [
           {
             header: 'Two-factor',
-            width: '150px',
+            width: '130px',
             render: (member: MemberSummary) =>
               // A null count and "not enrolled" are the same fact from two
               // sides: no authenticator, so no set of codes to count. The
