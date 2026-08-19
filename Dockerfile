@@ -52,10 +52,17 @@ RUN mkdir -p /data && chown -R node:node /data /app
 VOLUME /data
 EXPOSE 3000
 
-# Deliberately no `USER node`: the entrypoint starts as root only long enough
-# to take ownership of a bind-mounted /data, then drops to node itself. A
-# bind mount carries the host's ownership, so an image that simply ran as node
-# would fail its first mkdir on somebody's very first start.
+# `USER node`, so the app runs unprivileged and so does every `docker exec`
+# into the container — a shell that lands as root is a root shell someone will
+# eventually paste something into. The cost: a bind-mounted /data arrives with
+# the host directory's ownership, and nothing in this path is allowed to chown
+# it. That is why the entrypoint probes the directory and prints the two fixes
+# rather than dying on an EACCES nobody can read.
+#
+# `--user root` is the explicit escape hatch, and the entrypoint's root branch
+# is what it buys: take ownership, drop back to node, run. One such run heals
+# a mount in place.
+USER node
 COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 ENTRYPOINT ["docker-entrypoint.sh"]
 
