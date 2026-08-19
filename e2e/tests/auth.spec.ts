@@ -92,3 +92,15 @@ test('serves an unknown deep link through the SPA instead of a 404', async ({ pa
   expect(response?.status()).toBe(200);
   await expect(page.getByRole('heading', { name: 'Sign in to Inventory' })).toBeVisible();
 });
+
+test('serves the document under an enforced content security policy', async ({ page }) => {
+  const response = await page.goto('/login');
+  const headers = response?.headers() ?? {};
+  const policy = headers['content-security-policy'];
+  expect(policy).toContain("default-src 'self'");
+  // The hash is computed from this build's index.html, so the theme tests
+  // above are the other half of the proof: that inline script still runs.
+  expect(policy).toMatch(/script-src 'self' 'sha256-[A-Za-z0-9+/=]+'/);
+  expect(policy).toContain("frame-ancestors 'none'");
+  expect(headers['x-frame-options']).toBe('DENY');
+});

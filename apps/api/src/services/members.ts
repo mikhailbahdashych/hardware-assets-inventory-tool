@@ -18,6 +18,7 @@ import { newId } from '@/lib/ids.js';
 import { serializeMemberSummary } from '@/lib/serialize.js';
 import { writeAudit } from './audit.js';
 import { issueAuthToken } from './auth-tokens.js';
+import { unusedRecoveryCodeCount, unusedRecoveryCodeCounts } from './mfa.js';
 import { requireRole } from './roles.js';
 
 // Members are the accounts that can sign in. Two rules run through everything
@@ -37,13 +38,22 @@ function tokenUrl(config: Config, path: string, raw: string): string {
 }
 
 export function listMembers(db: Db): MemberSummary[] {
-  return db
-    .select({ member: members, employee: employees })
-    .from(members)
-    .leftJoin(employees, eq(members.employeeId, employees.id))
-    .orderBy(asc(members.displayName))
-    .all()
-    .map((row) => serializeMemberSummary(row.member, row.employee));
+  // One grouped count for the whole page rather than a query per row.
+  const codesLeft = unusedRecoveryCodeCounts(db);
+  return (
+    db
+      .select({ member: members, employee: employees })
+      .from(members)
+      .leftJoin(employees, eq(members.employeeId, employees.id))
+      .orderBy(asc(members.displayName))
+      .all()
+      // A member with no row in that map has spent every code (or never had
+      // any): a Map miss that is a genuine zero, which is the one shape of `??`
+      // this codebase keeps.
+      .map((row) =>
+        serializeMemberSummary(row.member, row.employee, codesLeft.get(row.member.id) ?? 0),
+      )
+  );
 }
 
 export function inviteMember(deps: AppDeps, actor: Actor, input: InviteInput): InviteResult {
@@ -301,7 +311,11 @@ function readMember(tx: DbOrTx, id: string): MemberSummary {
     .where(eq(members.id, id))
     .get();
   if (!row) throw notFound('That member');
-  return serializeMemberSummary(row.member, row.employee);
+  return serializeMemberSummary(
+    row.member,
+    row.employee,
+    unusedRecoveryCodeCount(tx, row.member.id),
+  );
 }
 
 /**

@@ -29,10 +29,15 @@ export function serializeMember(member: MemberRow) {
  * density or widget layout, which belong to `serializeMember` above and to the
  * person themselves. The linked employee is named here so the list needs no
  * second request to render its "Linked employee" column.
+ *
+ * `unusedRecoveryCodes` is a plain count the caller reads off the codes table;
+ * turning it into "how many are left" or "there is no set" happens here, in the
+ * one place that already knows whether this member is enrolled.
  */
 export function serializeMemberSummary(
   member: MemberRow,
   linked: typeof employees.$inferSelect | null,
+  unusedRecoveryCodes: number,
 ): MemberSummary {
   return {
     id: member.id,
@@ -49,6 +54,9 @@ export function serializeMemberSummary(
       ? { id: linked.id, displayName: `${linked.firstName} ${linked.lastName}` }
       : null,
     mfaEnrolled: member.mfaConfirmedAt !== null,
+    // Nobody's codes are worth counting until an authenticator is confirmed —
+    // an abandoned enrolment issued none, so the answer is "no set", not zero.
+    recoveryCodesLeft: member.mfaConfirmedAt === null ? null : unusedRecoveryCodes,
     lastActiveAt: member.lastActiveAt,
     createdAt: member.createdAt,
   };

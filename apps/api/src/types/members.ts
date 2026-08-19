@@ -30,6 +30,13 @@ export interface MemberSummary {
   linkedEmployee: LinkedEmployee | null;
   /** Whether they hold a confirmed authenticator — the Members page shows it. */
   mfaEnrolled: boolean;
+  /**
+   * Unspent recovery codes, or null for somebody who is not enrolled: there is
+   * no set to count, which is a different fact from a set that is used up. A
+   * genuine `0` is the state an admin has to act on — the member's next
+   * two-factor sign-in issues a fresh ten.
+   */
+  recoveryCodesLeft: number | null;
   lastActiveAt: string | null;
   createdAt: string;
 }

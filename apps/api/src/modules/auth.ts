@@ -19,7 +19,7 @@ import { requireSession } from '@/plugins/rbac.js';
 import { writeAudit } from '@/services/audit.js';
 import { consumeToken, findValidToken, issueAuthToken } from '@/services/auth-tokens.js';
 import { requireRole } from '@/services/roles.js';
-import { verifyChallenge } from '@/services/mfa.js';
+import { replenishRecoveryCodes, verifyChallenge } from '@/services/mfa.js';
 import {
   clearSessionCookie,
   createSession,
@@ -103,28 +103,57 @@ export function registerAuthRoutes(app: FastifyInstance, deps: AppDeps): void {
       const member = deps.db.select().from(members).where(eq(members.id, token.memberId)).get();
       if (!member || member.status !== 'active') throw invalidCredentials();
 
-      if (!verifyChallenge(deps.db, member, request.body.code, now)) {
-        // The challenge survives a wrong code — a mistyped digit should not
-        // send somebody back to the password screen — and the rate limit is
-        // what stops that being useful to anybody else.
-        throw new AppError(422, 'mfa_code_invalid', 'That code is not right.');
-      }
+      // One transaction for everything the code buys: the recovery code it
+      // spends, the challenge it consumes, the sign-in it records — and, for
+      // somebody who has just run out, a fresh set with the line that says so.
+      const recoveryCodes = deps.db.transaction((tx) => {
+        if (!verifyChallenge(tx, member, request.body.code, now)) {
+          // The challenge survives a wrong code — a mistyped digit should not
+          // send somebody back to the password screen — and the rate limit is
+          // what stops that being useful to anybody else.
+          throw new AppError(422, 'mfa_code_invalid', 'That code is not right.');
+        }
 
-      consumeToken(deps.db, token.id, now);
-      writeAudit(
-        deps.db,
-        {
-          type: 'auth',
-          action: 'auth.login',
-          actorMemberId: member.id,
-          actorName: member.displayName,
-          memberId: member.id,
-        },
-        now,
-      );
+        consumeToken(tx, token.id, now);
+        writeAudit(
+          tx,
+          {
+            type: 'auth',
+            action: 'auth.login',
+            actorMemberId: member.id,
+            actorName: member.displayName,
+            memberId: member.id,
+          },
+          now,
+        );
+
+        const codes = replenishRecoveryCodes(tx, member, now);
+        if (codes) {
+          writeAudit(
+            tx,
+            {
+              type: 'auth',
+              action: 'member.mfa_codes_regenerated',
+              // The member themselves: nobody asked for this, the sign-in did.
+              actorMemberId: member.id,
+              actorName: member.displayName,
+              memberId: member.id,
+              params: { memberName: member.displayName },
+            },
+            now,
+          );
+        }
+        return codes;
+      });
+
       const session = createSession(deps.db, member.id, now);
       setSessionCookie(reply, session.raw, session.expiresAt, deps.config);
-      return { member: serializeMember(member) };
+      // `recoveryCodes` is absent on every ordinary sign-in, and present
+      // exactly once when a set was minted: this response is the only place
+      // those codes will ever exist in readable form.
+      return recoveryCodes
+        ? { member: serializeMember(member), recoveryCodes }
+        : { member: serializeMember(member) };
     },
   );
 

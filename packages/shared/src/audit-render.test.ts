@@ -157,6 +157,18 @@ describe('renderAuditEvent', () => {
     expect(
       renderAuditEvent({ action: 'member.removed', params: { memberName: 'Grace Chen' } }),
     ).toBe('Removed Grace Chen from the workspace');
+    // The two recovery-code events. Neither says anything about the codes
+    // themselves — the log records that a set changed hands, never what is in
+    // it, because the response that created them is the only place they exist.
+    expect(
+      renderAuditEvent({ action: 'member.mfa_codes_reset', params: { memberName: 'Grace Chen' } }),
+    ).toBe('Reset the recovery codes for Grace Chen');
+    expect(
+      renderAuditEvent({
+        action: 'member.mfa_codes_regenerated',
+        params: { memberName: 'Grace Chen' },
+      }),
+    ).toBe('Grace Chen’s recovery codes were reissued');
     // Written by /auth/reset-password since PR 2, but nothing rendered it until
     // the activity log existed to show it.
     expect(renderAuditEvent({ action: 'auth.password_reset', params: {} })).toBe(

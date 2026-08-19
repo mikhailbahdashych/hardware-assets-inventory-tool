@@ -1,11 +1,11 @@
 import { randomInt } from 'node:crypto';
-import { and, eq, isNull } from 'drizzle-orm';
+import { and, eq, isNull, sql } from 'drizzle-orm';
 import { RECOVERY_CODE_COUNT } from '@inventory/shared';
 import type { Db, DbOrTx } from '@/types/db.js';
 import type { MfaEnrolment, MfaStatus } from '@/types/mfa.js';
 import type { MemberRow } from '@/types/members.js';
 import { members, mfaRecoveryCodes, sessions } from '@/db/schema.js';
-import { AppError } from '@/lib/errors.js';
+import { AppError, notFound } from '@/lib/errors.js';
 import { newId } from '@/lib/ids.js';
 import { nowIso } from '@/lib/dates.js';
 import { hashToken } from '@/lib/tokens.js';
@@ -96,7 +96,7 @@ export function confirmEnrolment(db: Db, member: MemberRow, code: string, now: D
  * recovery codes, decided by what matches rather than by what they claim.
  * A recovery code is spent here, in the same call that accepts it.
  */
-export function verifyChallenge(db: Db, member: MemberRow, code: string, now: Date): boolean {
+export function verifyChallenge(db: DbOrTx, member: MemberRow, code: string, now: Date): boolean {
   const candidate = code.trim().toLowerCase();
   if (member.mfaSecret && verifyTotp(member.mfaSecret, code, now)) return true;
 
@@ -122,12 +122,29 @@ export function verifyChallenge(db: Db, member: MemberRow, code: string, now: Da
 }
 
 /** How many are left, for the UI to say so before somebody runs out. */
-export function unusedRecoveryCodeCount(db: Db, memberId: string): number {
+export function unusedRecoveryCodeCount(db: DbOrTx, memberId: string): number {
   return db
     .select({ id: mfaRecoveryCodes.id })
     .from(mfaRecoveryCodes)
     .where(and(eq(mfaRecoveryCodes.memberId, memberId), isNull(mfaRecoveryCodes.usedAt)))
     .all().length;
+}
+
+/**
+ * The same number for everybody at once, because the members list draws it on
+ * every row — one grouped query rather than one per member. A member absent
+ * from the map has none left, which is a genuine zero and not a missing answer;
+ * whether that means anything is `serializeMemberSummary`'s decision, since
+ * somebody who never enrolled has no set to count either.
+ */
+export function unusedRecoveryCodeCounts(db: DbOrTx): Map<string, number> {
+  const rows = db
+    .select({ memberId: mfaRecoveryCodes.memberId, count: sql<number>`count(*)` })
+    .from(mfaRecoveryCodes)
+    .where(isNull(mfaRecoveryCodes.usedAt))
+    .groupBy(mfaRecoveryCodes.memberId)
+    .all();
+  return new Map(rows.map((row) => [row.memberId, row.count]));
 }
 
 /**
@@ -145,6 +162,56 @@ export function resetMemberMfa(db: DbOrTx, memberId: string, now: Date): void {
   // suspect; leaving live sessions signed in would keep exactly the access the
   // reset is meant to interrupt, now with one factor instead of two.
   db.delete(sessions).where(eq(sessions.memberId, memberId)).run();
+}
+
+/**
+ * A fresh ten for an enrolled member who has none left, or null when nothing
+ * was needed — which is every ordinary sign-in.
+ *
+ * This is the whole regeneration story, and it lives on the sign-in path on
+ * purpose: recovery codes exist for the moment somebody cannot reach their
+ * authenticator, so the one place a new set can be handed over safely is a
+ * sign-in that has just proved a factor. It also means the member who spends
+ * their **last** code is not told "none left" and sent away — the answer
+ * arrives in the same response.
+ *
+ * The raws are returned once and stored hashed, same rule as an invite link.
+ * Call it inside the caller's transaction, with the audit event beside it.
+ */
+export function replenishRecoveryCodes(db: DbOrTx, member: MemberRow, now: Date): string[] | null {
+  // Somebody mid-enrolment has no set to run out of, and issuing one before
+  // an authenticator is confirmed would hand out the way around a lock that
+  // does not exist yet.
+  if (member.mfaConfirmedAt === null) return null;
+  if (unusedRecoveryCodeCount(db, member.id) > 0) return null;
+
+  const codes = Array.from({ length: RECOVERY_CODE_COUNT }, generateRecoveryCode);
+  replaceRecoveryCodes(db, member.id, codes, now);
+  return codes;
+}
+
+/**
+ * Empties somebody's recovery codes and leaves everything else alone. There is
+ * no way to ask for a new set, so the sign-in that needs one issues it: the
+ * next successful two-factor verify finds zero codes and mints ten.
+ *
+ * Deliberately **not** the session purge `resetMemberMfa` performs above. That
+ * one takes the second factor away, so leaving live sessions signed in would
+ * keep exactly the access it exists to interrupt. This one takes nothing away —
+ * the authenticator still stands and still guards the next sign-in — so ending
+ * sessions would be a punishment for an admin's housekeeping.
+ */
+export function resetMemberRecoveryCodes(db: DbOrTx, memberId: string): void {
+  const member = db.select().from(members).where(eq(members.id, memberId)).get();
+  if (!member) throw notFound('That member');
+  if (member.mfaConfirmedAt === null) {
+    throw new AppError(
+      409,
+      'not_enrolled',
+      'That member has no authenticator, so there are no codes to reset.',
+    );
+  }
+  db.delete(mfaRecoveryCodes).where(eq(mfaRecoveryCodes.memberId, memberId)).run();
 }
 
 /**

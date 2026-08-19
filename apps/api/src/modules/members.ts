@@ -16,7 +16,7 @@ import {
 import { requireRole } from '@/services/roles.js';
 import { sendInviteMail, sendResetMail } from '@/services/transactional.js';
 import { writeAudit } from '@/services/audit.js';
-import { resetMemberMfa } from '@/services/mfa.js';
+import { resetMemberMfa, resetMemberRecoveryCodes } from '@/services/mfa.js';
 
 const idParam = z.object({ id: z.string().min(1) });
 
@@ -105,6 +105,42 @@ export function registerMemberRoutes(app: FastifyInstance, deps: AppDeps): void 
             actorMemberId: request.member!.id,
             actorName: request.member!.displayName,
             memberId: target.id,
+            params: { memberName: target.displayName },
+          },
+          now,
+        );
+      });
+      return reply.status(204).send();
+    },
+  );
+
+  /**
+   * Empty somebody's recovery codes without touching their authenticator, for
+   * the member who has run out or who thinks the list on their desk was read.
+   * Their next two-factor sign-in hands them a fresh ten, which is the only way
+   * a new set is ever issued.
+   *
+   * Same guard and the same self-service reasoning as the full reset above —
+   * and, unlike it, no session purge: nothing here is un-protected, so signing
+   * everybody out would be a punishment for housekeeping.
+   */
+  typed.post(
+    '/api/v1/members/:id/mfa/reset-codes',
+    { schema: { params: idParam }, preHandler: requireAction('members.manage') },
+    async (request, reply) => {
+      const now = deps.now();
+      const target = memberById(deps.db, request.params.id);
+      deps.db.transaction((tx) => {
+        resetMemberRecoveryCodes(tx, target.id);
+        writeAudit(
+          tx,
+          {
+            type: 'auth',
+            action: 'member.mfa_codes_reset',
+            actorMemberId: request.member!.id,
+            actorName: request.member!.displayName,
+            memberId: target.id,
+            // The name as it stands, snapshotted. Never a count, never a code.
             params: { memberName: target.displayName },
           },
           now,

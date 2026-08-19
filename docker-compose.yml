@@ -17,6 +17,12 @@ services:
       - '3000:3000'
     volumes:
       # The SQLite database and the uploaded attachments. Nothing else is state.
+      #
+      # Run `mkdir -p data` before the first `up`: the container is unprivileged
+      # (uid 1000) and cannot take ownership of anything, and a directory the
+      # daemon creates for you arrives owned by root. Making it yourself makes
+      # it yours. If it ends up owned by somebody else anyway, the container
+      # says so on start — `chown -R 1000:1000 ./data` is the fix.
       - ./data:/data
     environment:
       # The address a browser reaches this instance at. Invitation and reset
