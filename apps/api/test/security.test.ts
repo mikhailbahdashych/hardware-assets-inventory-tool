@@ -20,6 +20,33 @@ describe('origin guard', () => {
     expect(res.json().error.code).toBe('bad_origin');
   });
 
+  // This exact request used to pass: the guard also accepted an origin that
+  // matched the Host header, which any caller sets to whatever it likes.
+  it('rejects a foreign Origin even when the Host header agrees with it', async () => {
+    ctx = await buildTestApp();
+    const res = await ctx.app.inject({
+      method: 'POST',
+      url: '/api/v1/setup',
+      headers: { origin: 'https://evil.example', host: 'evil.example' },
+      body: SETUP_BODY,
+    });
+    expect(res.statusCode).toBe(403);
+    expect(res.json().error.code).toBe('bad_origin');
+  });
+
+  it('names the origin this instance expects, so a wrong APP_URL is diagnosable', async () => {
+    ctx = await buildTestApp({ APP_URL: 'https://inventory.acme.io' });
+    const res = await ctx.app.inject({
+      method: 'POST',
+      url: '/api/v1/setup',
+      headers: { origin: 'http://localhost:3000' },
+      body: SETUP_BODY,
+    });
+    expect(res.statusCode).toBe(403);
+    expect(res.json().error.message).toContain('APP_URL is misconfigured');
+    expect(res.json().error.message).toContain('https://inventory.acme.io');
+  });
+
   it('allows same-origin mutations and all GETs', async () => {
     ctx = await buildTestApp();
     const res = await ctx.app.inject({

@@ -35,10 +35,11 @@ const { db, sqlite } = createDb(join(config.dataDir, 'inventory.db'));
 runMigrations(db, fileURLToPath(new URL('./migrations', import.meta.url)));
 seed(db);
 
-// One omission, two protections off, and nothing else would say so: with the
-// default APP_URL the session cookie is not Secure, and the origin guard has
-// no configured origin to compare against. Both are correct for localhost and
-// wrong for anything a browser reaches over TLS.
+// One omission, and nothing else would say so until somebody tries to use the
+// instance: with the default APP_URL the session cookie is not Secure, and the
+// origin guard compares every mutation against http://localhost:3000 — so a
+// browser reaching this instance at its real address is refused with a 403
+// naming APP_URL. Both are correct for localhost and wrong for anything else.
 if (config.nodeEnv === 'production' && config.appUrl === 'http://localhost:3000') {
   process.stderr.write(
     `APP_URL is still http://localhost:3000 on a production instance.\n` +
