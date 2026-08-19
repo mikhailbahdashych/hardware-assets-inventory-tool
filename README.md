@@ -117,7 +117,9 @@ This is a first-class way to run it, not a degraded one.
 Off by default. An admin turns it on for the whole workspace in **Admin → Settings → Security**, and from that moment every member — existing sessions included, on their next request — has to set up an authenticator before they can do anything else.
 
 - **TOTP**, so any authenticator works: 1Password, Bitwarden, Aegis, Google Authenticator. Enrolment shows a QR and the key in text for entering by hand.
-- **Ten recovery codes**, shown once at enrolment and stored only as hashes. Each works once, in place of a code from the app.
+- **Ten recovery codes**, shown once and stored only as hashes. Each works once, in place of a code from the app.
+- **A spent set replaces itself at the next sign-in.** Sign in with your last recovery code and ten fresh ones arrive with it, on that screen, once. An admin can arm the same thing from the Members page — "Reset recovery codes" empties the set without touching the authenticator, so nobody is signed out and the new set is handed to the member themselves.
+- **The Members page says where everybody stands**: who is enrolled, and how many codes they have left.
 - **Only admins reset it**, from the Members page. There is no self-service reset, because a second factor you can clear with a stolen password is not a second factor.
 - **Turning the requirement off deletes every stored secret and recovery code.** A disabled second factor that quietly kept its secrets would come back on with authenticators nobody remembers adding.
 
