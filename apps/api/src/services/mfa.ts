@@ -1,5 +1,5 @@
 import { randomInt } from 'node:crypto';
-import { and, eq, isNull } from 'drizzle-orm';
+import { and, eq, isNull, sql } from 'drizzle-orm';
 import { RECOVERY_CODE_COUNT } from '@inventory/shared';
 import type { Db, DbOrTx } from '@/types/db.js';
 import type { MfaEnrolment, MfaStatus } from '@/types/mfa.js';
@@ -122,12 +122,29 @@ export function verifyChallenge(db: Db, member: MemberRow, code: string, now: Da
 }
 
 /** How many are left, for the UI to say so before somebody runs out. */
-export function unusedRecoveryCodeCount(db: Db, memberId: string): number {
+export function unusedRecoveryCodeCount(db: DbOrTx, memberId: string): number {
   return db
     .select({ id: mfaRecoveryCodes.id })
     .from(mfaRecoveryCodes)
     .where(and(eq(mfaRecoveryCodes.memberId, memberId), isNull(mfaRecoveryCodes.usedAt)))
     .all().length;
+}
+
+/**
+ * The same number for everybody at once, because the members list draws it on
+ * every row — one grouped query rather than one per member. A member absent
+ * from the map has none left, which is a genuine zero and not a missing answer;
+ * whether that means anything is `serializeMemberSummary`'s decision, since
+ * somebody who never enrolled has no set to count either.
+ */
+export function unusedRecoveryCodeCounts(db: DbOrTx): Map<string, number> {
+  const rows = db
+    .select({ memberId: mfaRecoveryCodes.memberId, count: sql<number>`count(*)` })
+    .from(mfaRecoveryCodes)
+    .where(isNull(mfaRecoveryCodes.usedAt))
+    .groupBy(mfaRecoveryCodes.memberId)
+    .all();
+  return new Map(rows.map((row) => [row.memberId, row.count]));
 }
 
 /**

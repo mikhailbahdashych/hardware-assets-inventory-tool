@@ -400,6 +400,70 @@ describe('admin control', () => {
   });
 });
 
+describe('what the members list says about two-factor', () => {
+  /** The signed-in member's own row, which is the one these tests enrolled. */
+  async function summary(cookie: string, email = ADMIN.email) {
+    const res = await inject(ctx.app, { method: 'GET', url: '/api/v1/members', cookie });
+    expect(res.statusCode, res.body).toBe(200);
+    const listed = res.json().members as {
+      email: string;
+      mfaEnrolled: boolean;
+      recoveryCodesLeft: number | null;
+    }[];
+    const found = listed.find((member) => member.email === email);
+    if (!found) throw new Error(`${email} is not on the members list`);
+    return found;
+  }
+
+  /** One sign-in that spends a recovery code, ending with a live session. */
+  async function spend(code: string) {
+    const res = await inject(ctx.app, {
+      method: 'POST',
+      url: '/api/v1/auth/mfa/verify',
+      body: { challengeToken: (await login(ADMIN)).json().challengeToken, code },
+    });
+    expect(res.statusCode, res.body).toBe(200);
+    return sessionCookie(res);
+  }
+
+  it('counts a fresh enrolment as all ten', async () => {
+    ctx = await buildTestApp();
+    const cookie = await setupOrg(ctx.app);
+    await enrol(cookie, ADMIN.email);
+
+    expect(await summary(cookie)).toMatchObject({ mfaEnrolled: true, recoveryCodesLeft: 10 });
+  });
+
+  it('counts down as codes are spent', async () => {
+    ctx = await buildTestApp();
+    const cookie = await setupOrg(ctx.app);
+    const { recoveryCodes } = await enrol(cookie, ADMIN.email);
+
+    await spend(recoveryCodes[0]!);
+    const latest = await spend(recoveryCodes[1]!);
+
+    expect((await summary(latest)).recoveryCodesLeft).toBe(8);
+  });
+
+  it('says null for somebody with no authenticator — there is no set to count', async () => {
+    ctx = await buildTestApp();
+    const cookie = await setupOrg(ctx.app);
+
+    expect(await summary(cookie)).toMatchObject({ mfaEnrolled: false, recoveryCodesLeft: null });
+  });
+
+  it('says zero — not null — for an enrolled member whose codes are gone', async () => {
+    ctx = await buildTestApp();
+    const cookie = await setupOrg(ctx.app);
+    await enrol(cookie, ADMIN.email);
+    ctx.db.delete(mfaRecoveryCodes).run();
+
+    // The difference the column exists for: "none left" is a state to fix,
+    // "no set at all" is somebody who never enrolled.
+    expect(await summary(cookie)).toMatchObject({ mfaEnrolled: true, recoveryCodesLeft: 0 });
+  });
+});
+
 describe('what the log must never contain', () => {
   it('keeps the secret and the recovery codes out of the member list', async () => {
     ctx = await buildTestApp();
