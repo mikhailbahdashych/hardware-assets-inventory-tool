@@ -96,7 +96,7 @@ export function confirmEnrolment(db: Db, member: MemberRow, code: string, now: D
  * recovery codes, decided by what matches rather than by what they claim.
  * A recovery code is spent here, in the same call that accepts it.
  */
-export function verifyChallenge(db: Db, member: MemberRow, code: string, now: Date): boolean {
+export function verifyChallenge(db: DbOrTx, member: MemberRow, code: string, now: Date): boolean {
   const candidate = code.trim().toLowerCase();
   if (member.mfaSecret && verifyTotp(member.mfaSecret, code, now)) return true;
 
@@ -162,6 +162,32 @@ export function resetMemberMfa(db: DbOrTx, memberId: string, now: Date): void {
   // suspect; leaving live sessions signed in would keep exactly the access the
   // reset is meant to interrupt, now with one factor instead of two.
   db.delete(sessions).where(eq(sessions.memberId, memberId)).run();
+}
+
+/**
+ * A fresh ten for an enrolled member who has none left, or null when nothing
+ * was needed — which is every ordinary sign-in.
+ *
+ * This is the whole regeneration story, and it lives on the sign-in path on
+ * purpose: recovery codes exist for the moment somebody cannot reach their
+ * authenticator, so the one place a new set can be handed over safely is a
+ * sign-in that has just proved a factor. It also means the member who spends
+ * their **last** code is not told "none left" and sent away — the answer
+ * arrives in the same response.
+ *
+ * The raws are returned once and stored hashed, same rule as an invite link.
+ * Call it inside the caller's transaction, with the audit event beside it.
+ */
+export function replenishRecoveryCodes(db: DbOrTx, member: MemberRow, now: Date): string[] | null {
+  // Somebody mid-enrolment has no set to run out of, and issuing one before
+  // an authenticator is confirmed would hand out the way around a lock that
+  // does not exist yet.
+  if (member.mfaConfirmedAt === null) return null;
+  if (unusedRecoveryCodeCount(db, member.id) > 0) return null;
+
+  const codes = Array.from({ length: RECOVERY_CODE_COUNT }, generateRecoveryCode);
+  replaceRecoveryCodes(db, member.id, codes, now);
+  return codes;
 }
 
 /**

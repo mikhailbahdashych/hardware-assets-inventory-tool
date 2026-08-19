@@ -1,6 +1,7 @@
-import { eq } from 'drizzle-orm';
+import { eq, ne } from 'drizzle-orm';
 import { afterEach, describe, expect, it } from 'vitest';
 import { members, mfaRecoveryCodes, orgSettings } from '@/db/schema.js';
+import { hashToken } from '@/lib/tokens.js';
 import { totpCode } from '@/lib/totp.js';
 import {
   buildTestApp,
@@ -485,6 +486,121 @@ describe('resetting somebody’s recovery codes', () => {
     expect((await resetCodes(viewer, id)).statusCode).toBe(403);
     // And the refusal really refused: the codes are still there.
     expect(ctx.db.select().from(mfaRecoveryCodes).all()).toHaveLength(10);
+  });
+});
+
+describe('a sign-in that finds no codes left', () => {
+  /** A full second-factor sign-in, ending in whatever the verify answered. */
+  async function signIn(code: string) {
+    const res = await inject(ctx.app, {
+      method: 'POST',
+      url: '/api/v1/auth/mfa/verify',
+      body: { challengeToken: (await login(ADMIN)).json().challengeToken, code },
+    });
+    expect(res.statusCode, res.body).toBe(200);
+    return res;
+  }
+
+  const totp = () => totpCode(storedSecret(ADMIN.email), new Date());
+
+  /** Codes still in hand, straight off the table. */
+  const unusedCount = () =>
+    ctx.db
+      .select()
+      .from(mfaRecoveryCodes)
+      .all()
+      .filter((row) => row.usedAt === null).length;
+
+  /** Every code an admin's reset would leave behind: none. */
+  async function resetCodes(cookie: string) {
+    const me = await inject(ctx.app, { method: 'GET', url: '/api/v1/auth/me', cookie });
+    const res = await inject(ctx.app, {
+      method: 'POST',
+      url: `/api/v1/members/${me.json().member.id}/mfa/reset-codes`,
+      cookie,
+    });
+    expect(res.statusCode).toBe(204);
+  }
+
+  it('hands over a fresh ten, stored hashed like the first ten were', async () => {
+    ctx = await buildTestApp();
+    const cookie = await setupOrg(ctx.app);
+    await enrol(cookie, ADMIN.email);
+    await resetCodes(cookie);
+
+    const codes = (await signIn(totp())).json().recoveryCodes as string[];
+
+    expect(codes).toHaveLength(10);
+    expect(new Set(codes).size).toBe(10);
+    for (const code of codes) expect(code).toMatch(/^[a-z0-9]{5}-[a-z0-9]{5}$/);
+
+    // The response is the only place they exist in the clear: what the table
+    // holds is their hashes, and nothing else is left over from the old set.
+    const stored = ctx.db.select().from(mfaRecoveryCodes).all();
+    expect(stored.map((row) => row.codeHash).sort()).toEqual(codes.map(hashToken).sort());
+    for (const row of stored) expect(row.usedAt).toBeNull();
+  });
+
+  it('says nothing about codes on an ordinary sign-in', async () => {
+    ctx = await buildTestApp();
+    const cookie = await setupOrg(ctx.app);
+    await enrol(cookie, ADMIN.email);
+
+    // Nine still in hand, so nothing is reissued and the key is simply absent.
+    expect((await signIn(totp())).json().recoveryCodes).toBeUndefined();
+  });
+
+  it('reissues in the very response that spent the last code', async () => {
+    ctx = await buildTestApp();
+    const cookie = await setupOrg(ctx.app);
+    const { recoveryCodes } = await enrol(cookie, ADMIN.email);
+    const last = recoveryCodes[0]!;
+    // Nine sign-ins' worth of spending, without nine logins the rate limiter
+    // would rightly refuse. Marked used rather than deleted, exactly as
+    // verifying with one leaves them.
+    ctx.db
+      .update(mfaRecoveryCodes)
+      .set({ usedAt: '2026-08-18T00:00:00.000Z' })
+      .where(ne(mfaRecoveryCodes.codeHash, hashToken(last)))
+      .run();
+
+    const codes = (await signIn(last)).json().recoveryCodes as string[];
+
+    // Somebody who signs in on their last code must not be told "0 left" and
+    // sent away — the answer arrives with the sign-in that needed it.
+    expect(codes).toHaveLength(10);
+    expect(codes).not.toContain(last);
+  });
+
+  it('issues codes that really work next time', async () => {
+    ctx = await buildTestApp();
+    const cookie = await setupOrg(ctx.app);
+    await enrol(cookie, ADMIN.email);
+    await resetCodes(cookie);
+    const codes = (await signIn(totp())).json().recoveryCodes as string[];
+
+    const again = await signIn(codes[0]!);
+    expect(again.json().member.email).toBe(ADMIN.email);
+    // Spent, not reissued: nine is not zero, so nothing was minted.
+    expect(unusedCount()).toBe(9);
+    expect(again.json().recoveryCodes).toBeUndefined();
+  });
+
+  it('records the reissue in the log, under the member who signed in', async () => {
+    ctx = await buildTestApp();
+    const cookie = await setupOrg(ctx.app);
+    await enrol(cookie, ADMIN.email);
+    await resetCodes(cookie);
+    const session = sessionCookie(await signIn(totp()));
+
+    const log = await inject(ctx.app, { method: 'GET', url: '/api/v1/audit', cookie: session });
+    const entry = (
+      log.json().items as { action: string; actorName: string; params: Record<string, unknown> }[]
+    ).find((item) => item.action === 'member.mfa_codes_regenerated');
+    expect(entry).toBeDefined();
+    expect(entry!.actorName).toBe('Tomasz Kowalski');
+    // The fact, never the codes.
+    expect(entry!.params).toEqual({ memberName: 'Tomasz Kowalski' });
   });
 });
 
