@@ -2,7 +2,14 @@ import { eq } from 'drizzle-orm';
 import { afterEach, describe, expect, it } from 'vitest';
 import { members, mfaRecoveryCodes, orgSettings } from '@/db/schema.js';
 import { totpCode } from '@/lib/totp.js';
-import { buildTestApp, inject, sessionCookie, setupOrg, type TestApp } from './helpers.js';
+import {
+  buildTestApp,
+  inject,
+  memberCookie,
+  sessionCookie,
+  setupOrg,
+  type TestApp,
+} from './helpers.js';
 
 let ctx: TestApp;
 afterEach(async () => {
@@ -397,6 +404,87 @@ describe('admin control', () => {
     const actions = log.json().items.map((item: { action: string }) => item.action);
     expect(actions).toContain('member.mfa_enrolled');
     expect(actions).toContain('member.mfa_reset');
+  });
+});
+
+describe('resetting somebody’s recovery codes', () => {
+  /** The signed-in admin's own member id — the target of most of these. */
+  async function myId(cookie: string): Promise<string> {
+    const me = await inject(ctx.app, { method: 'GET', url: '/api/v1/auth/me', cookie });
+    return me.json().member.id as string;
+  }
+
+  function resetCodes(cookie: string, id: string) {
+    return inject(ctx.app, {
+      method: 'POST',
+      url: `/api/v1/members/${id}/mfa/reset-codes`,
+      cookie,
+    });
+  }
+
+  it('empties the set, and leaves the authenticator and the session alone', async () => {
+    ctx = await buildTestApp();
+    const cookie = await setupOrg(ctx.app);
+    await enrol(cookie, ADMIN.email);
+    const id = await myId(cookie);
+
+    const res = await resetCodes(cookie, id);
+    expect(res.statusCode, res.body).toBe(204);
+
+    expect(ctx.db.select().from(mfaRecoveryCodes).all()).toHaveLength(0);
+    // Unlike the full reset, nothing here is un-protected: the authenticator
+    // still stands, so the sessions it guards keep working.
+    const row = ctx.db.select().from(members).where(eq(members.id, id)).get()!;
+    expect(row.mfaConfirmedAt).not.toBeNull();
+    expect(row.mfaSecret).not.toBeNull();
+    expect(
+      (await inject(ctx.app, { method: 'GET', url: '/api/v1/audit', cookie })).statusCode,
+    ).toBe(200);
+  });
+
+  it('is allowed on your own account, and says so in the log', async () => {
+    ctx = await buildTestApp();
+    const cookie = await setupOrg(ctx.app);
+    await enrol(cookie, ADMIN.email);
+    const id = await myId(cookie);
+    expect((await resetCodes(cookie, id)).statusCode).toBe(204);
+
+    const log = await inject(ctx.app, { method: 'GET', url: '/api/v1/audit', cookie });
+    const entry = (log.json().items as { action: string; params: Record<string, unknown> }[]).find(
+      (item) => item.action === 'member.mfa_codes_reset',
+    );
+    expect(entry).toBeDefined();
+    // The name as it was, snapshotted — and nothing about the codes.
+    expect(entry!.params).toEqual({ memberName: 'Tomasz Kowalski' });
+  });
+
+  it('refuses a target with no authenticator — there are no codes to reset', async () => {
+    ctx = await buildTestApp();
+    const cookie = await setupOrg(ctx.app);
+    const id = await myId(cookie);
+
+    const res = await resetCodes(cookie, id);
+    expect(res.statusCode).toBe(409);
+    expect(res.json().error.code).toBe('not_enrolled');
+    expect(res.json().error.message).toContain('no authenticator');
+  });
+
+  it('404s on somebody who does not exist', async () => {
+    ctx = await buildTestApp();
+    const cookie = await setupOrg(ctx.app);
+    expect((await resetCodes(cookie, 'nobody')).statusCode).toBe(404);
+  });
+
+  it('is admin-only — a viewer cannot reset anybody’s codes', async () => {
+    ctx = await buildTestApp();
+    const cookie = await setupOrg(ctx.app);
+    await enrol(cookie, ADMIN.email);
+    const id = await myId(cookie);
+
+    const viewer = memberCookie(ctx.db, 'viewer');
+    expect((await resetCodes(viewer, id)).statusCode).toBe(403);
+    // And the refusal really refused: the codes are still there.
+    expect(ctx.db.select().from(mfaRecoveryCodes).all()).toHaveLength(10);
   });
 });
 

@@ -181,6 +181,13 @@ const RENDERERS: Record<string, (params: AuditParams) => string> = {
     `${text(p, 'memberName', 'A member')} set up two-factor authentication`,
   'member.mfa_reset': (p) =>
     `Reset two-factor authentication for ${text(p, 'memberName', 'a member')}`,
+  // Neither of the next two says anything about the codes themselves. The log
+  // records that a set changed, never what is in it — the response that
+  // created them is the only place they ever exist in readable form.
+  'member.mfa_codes_reset': (p) =>
+    `Reset the recovery codes for ${text(p, 'memberName', 'a member')}`,
+  'member.mfa_codes_regenerated': (p) =>
+    `${text(p, 'memberName', 'A member')}’s recovery codes were reissued`,
   'auth.login': () => 'Signed in',
   'auth.password_reset': () => 'Reset their password',
   'system.setup_completed': (p) => `Set up ${text(p, 'orgName', 'the workspace')}`,

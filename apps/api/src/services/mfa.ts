@@ -5,7 +5,7 @@ import type { Db, DbOrTx } from '@/types/db.js';
 import type { MfaEnrolment, MfaStatus } from '@/types/mfa.js';
 import type { MemberRow } from '@/types/members.js';
 import { members, mfaRecoveryCodes, sessions } from '@/db/schema.js';
-import { AppError } from '@/lib/errors.js';
+import { AppError, notFound } from '@/lib/errors.js';
 import { newId } from '@/lib/ids.js';
 import { nowIso } from '@/lib/dates.js';
 import { hashToken } from '@/lib/tokens.js';
@@ -162,6 +162,30 @@ export function resetMemberMfa(db: DbOrTx, memberId: string, now: Date): void {
   // suspect; leaving live sessions signed in would keep exactly the access the
   // reset is meant to interrupt, now with one factor instead of two.
   db.delete(sessions).where(eq(sessions.memberId, memberId)).run();
+}
+
+/**
+ * Empties somebody's recovery codes and leaves everything else alone. There is
+ * no way to ask for a new set, so the sign-in that needs one issues it: the
+ * next successful two-factor verify finds zero codes and mints ten.
+ *
+ * Deliberately **not** the session purge `resetMemberMfa` performs above. That
+ * one takes the second factor away, so leaving live sessions signed in would
+ * keep exactly the access it exists to interrupt. This one takes nothing away —
+ * the authenticator still stands and still guards the next sign-in — so ending
+ * sessions would be a punishment for an admin's housekeeping.
+ */
+export function resetMemberRecoveryCodes(db: DbOrTx, memberId: string): void {
+  const member = db.select().from(members).where(eq(members.id, memberId)).get();
+  if (!member) throw notFound('That member');
+  if (member.mfaConfirmedAt === null) {
+    throw new AppError(
+      409,
+      'not_enrolled',
+      'That member has no authenticator, so there are no codes to reset.',
+    );
+  }
+  db.delete(mfaRecoveryCodes).where(eq(mfaRecoveryCodes.memberId, memberId)).run();
 }
 
 /**
