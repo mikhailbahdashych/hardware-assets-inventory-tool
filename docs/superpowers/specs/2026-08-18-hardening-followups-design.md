@@ -22,7 +22,7 @@ are already deleted on use, so no flag column exists or is needed.
   after verification and inside the same transaction, if the member is
   enrolled and now has zero codes, generate the standard ten, store hashes,
   and return the raw codes in the verify response as `recoveryCodes:
-  string[]` (optional field — absent on every ordinary sign-in). Shown-once
+string[]` (optional field — absent on every ordinary sign-in). Shown-once
   rule preserved: this response is the only place they ever exist raw.
   Audits `member.mfa_codes_regenerated` (actor = the member; the sentence
   says codes were reissued, never what they are). Note the natural
@@ -73,9 +73,9 @@ production build — exercises every journey under the policy.
 - Directives (verify each against the real built app before enforcing —
   the MFA QR's rendering decides `img-src`, self-hosted fonts decide
   `font-src`): `default-src 'self'; script-src 'self' 'sha256-…'; style-src
-  'self' 'unsafe-inline'` (React style attributes are load-bearing);
+'self' 'unsafe-inline'` (React style attributes are load-bearing);
   `img-src 'self' data:; font-src 'self'; connect-src 'self'; object-src
-  'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'`.
+'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'`.
   Plus `X-Frame-Options: DENY` on the same responses.
 - Send the header on the HTML document responses (the SPA fallback and
   `/index.html`); static assets and API JSON don't execute as documents, but
@@ -96,7 +96,7 @@ production build — exercises every journey under the policy.
   behavior — mkdir, conditional chown, setpriv drop. Node branch (the new
   default): `mkdir -p "$DATA_DIR"` if possible, then a writability probe;
   on failure, exit 1 with the exact remedies printed — `chown -R 1000:1000
-  ./data` on the host, or run the container once with `--user root` to let
+./data` on the host, or run the container once with `--user root` to let
   it fix itself.
 - **README quick start gains `mkdir -p data`** before `docker compose up`
   (the directory is then owned by whoever runs compose; the compose daemon

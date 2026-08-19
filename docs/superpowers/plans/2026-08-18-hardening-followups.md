@@ -41,6 +41,7 @@ recovery-codes presentation), `e2e/tests/` (the MFA spec from PR #23).
 ### Task 1: `recoveryCodesLeft` on the member summary
 
 **Files:**
+
 - Modify: `apps/api/src/lib/serialize.ts`, `apps/api/src/services/members.ts`
   (`listMembers`), `apps/api/src/types/members.ts` (`MemberSummary`)
 - Test: the members service/route tests
@@ -51,8 +52,11 @@ count of remaining `mfa_recovery_codes` rows. One grouped query, not N:
 
 ```ts
 const counts = new Map(
-  db.select({ memberId: mfaRecoveryCodes.memberId, count: sql<number>`count(*)` })
-    .from(mfaRecoveryCodes).groupBy(mfaRecoveryCodes.memberId).all()
+  db
+    .select({ memberId: mfaRecoveryCodes.memberId, count: sql<number>`count(*)` })
+    .from(mfaRecoveryCodes)
+    .groupBy(mfaRecoveryCodes.memberId)
+    .all()
     .map((row) => [row.memberId, row.count]),
 );
 // per member: member.mfaConfirmedAt === null ? null : (counts.get(member.id) ?? 0)
@@ -60,21 +64,24 @@ const counts = new Map(
 ```
 
 **Steps:**
+
 - [ ] Failing tests: enrolled member with a full set reports 10; after two
-  are consumed reports 8; unenrolled reports null; enrolled-with-zero reports 0.
-  Drive through `GET /api/v1/members` with a real enrolment (the MFA test
-  helpers exist — reuse them).
+      are consumed reports 8; unenrolled reports null; enrolled-with-zero reports 0.
+      Drive through `GET /api/v1/members` with a real enrolment (the MFA test
+      helpers exist — reuse them).
 - [ ] Run/fail → implement → run/pass → commit.
 
 ### Task 2: `POST /api/v1/members/:id/mfa/reset-codes`
 
 **Files:**
+
 - Modify: `apps/api/src/services/mfa.ts` (new `resetMemberRecoveryCodes`),
   `apps/api/src/modules/members.ts` (route beside `/:id/mfa/reset`),
   `packages/shared/src/audit-render.ts` (renderer for `member.mfa_codes_reset`)
 - Test: members route tests + audit renderer goldens
 
 **Interfaces (produces):**
+
 ```ts
 export function resetMemberRecoveryCodes(db: DbOrTx, memberId: string): void;
 // 409 not_enrolled ("That member has no authenticator, so there are no codes
@@ -83,21 +90,24 @@ export function resetMemberRecoveryCodes(db: DbOrTx, memberId: string): void;
 // sessions: the authenticator still stands, nothing is un-protected — comment
 // contrasts this with resetMemberMfa directly above it.
 ```
+
 Route: `requireAction('members.manage')`, allowed on your own account (same
 reasoning comment as the full reset), 204. Audit in the same transaction:
 `member.mfa_codes_reset`, type `auth`, params `{ name }` (target's display
 name snapshot). Renderer: "Reset NAME's recovery codes".
 
 **Steps:**
+
 - [ ] Failing tests: 403 without `members.manage`; 409 on an unenrolled
-  target with the envelope; codes gone after the call while **sessions
-  survive** (assert the target's session cookie still works); audit row with
-  the name; works on the caller's own account.
+      target with the envelope; codes gone after the call while **sessions
+      survive** (assert the target's session cookie still works); audit row with
+      the name; works on the caller's own account.
 - [ ] Run/fail → implement → run/pass → commit.
 
 ### Task 3: Fresh codes at the next two-factor sign-in
 
 **Files:**
+
 - Modify: `apps/api/src/services/mfa.ts` (the verify path),
   `apps/api/src/modules/auth.ts` (verify response shape),
   `packages/shared/src/audit-render.ts` (`member.mfa_codes_regenerated`)
@@ -114,17 +124,19 @@ params `{ name }`; renderer: "NAME's recovery codes were reissued" (the
 sentence names the fact, never the codes).
 
 **Steps:**
+
 - [ ] Failing tests: after an admin reset, the next TOTP verify returns
-  exactly 10 raw codes and they verify against stored hashes; an ordinary
-  verify (codes remaining) returns no `recoveryCodes` key; **spending the
-  last recovery code returns a fresh 10 in that same response**; one of the
-  fresh codes works for a later sign-in; the audit row exists with the
-  member as actor.
+      exactly 10 raw codes and they verify against stored hashes; an ordinary
+      verify (codes remaining) returns no `recoveryCodes` key; **spending the
+      last recovery code returns a fresh 10 in that same response**; one of the
+      fresh codes works for a later sign-in; the audit row exists with the
+      member as actor.
 - [ ] Run/fail → implement → run/pass → commit.
 
 ### Task 4: Members page — the Two-factor column + reset action
 
 **Files:**
+
 - Modify: `apps/web/src/types/api.ts` (`MemberSummary` wire type),
   `apps/web/src/api/mutations.ts` (`useResetRecoveryCodes`),
   `apps/web/src/features/members/MembersPage.tsx` (+ its types/ and CSS module)
@@ -140,15 +152,17 @@ toast `` `${member.displayName} will get fresh codes at their next sign-in.` ``.
 Mutation invalidates through `invalidateAdmin` like its neighbours.
 
 **Steps:**
+
 - [ ] Failing tests: column present for a members.manage viewer and absent
-  otherwise; "3 of 10 codes left" renders from the stub; em dash for
-  unenrolled; menu item fires `POST /members/:id/mfa/reset-codes` and shows
-  the toast.
+      otherwise; "3 of 10 codes left" renders from the stub; em dash for
+      unenrolled; menu item fires `POST /members/:id/mfa/reset-codes` and shows
+      the toast.
 - [ ] Run/fail → implement → run/pass → commit.
 
 ### Task 5: The codes handed over at sign-in
 
 **Files:**
+
 - Modify: the login MFA step in `apps/web/src/features/auth/` (verify
   response handling), extract the recovery-codes presentation from
   `MfaEnrollPage` into a shared component in `features/auth/` if it is not
@@ -162,14 +176,16 @@ They will not be shown again."), and a confirm button that then completes
 sign-in as normal. No `recoveryCodes` → today's flow byte-for-byte.
 
 **Steps:**
+
 - [ ] Failing tests: stubbed verify with 10 codes → codes screen renders all
-  10 and the app shell is NOT mounted; confirm → lands on the dashboard;
-  stubbed verify without codes → straight in, no interstitial.
+      10 and the app shell is NOT mounted; confirm → lands on the dashboard;
+      stubbed verify without codes → straight in, no interstitial.
 - [ ] Run/fail → implement → run/pass → commit.
 
 ### Task 6: e2e + docs + Phase A gate
 
 **Files:**
+
 - Create/extend: the e2e MFA spec (`e2e/tests/`)
 - Modify: `apps/api/CLAUDE.md` (two-factor section), `apps/web/CLAUDE.md`
   (members/auth notes) where their claims change
@@ -180,10 +196,11 @@ recovery code → count reads 9 → admin resets codes (count 0) → the member'
 next sign-in presents ten fresh codes → confirm → count reads 10.
 
 **Steps:**
+
 - [ ] Write the spec, run the FULL `npm run e2e`, fix regressions honestly
-  (never weaken an assertion to pass).
+      (never weaken an assertion to pass).
 - [ ] **Phase A gate** (Global Constraints command) all green. Update the two
-  CLAUDE.mds. Commit.
+      CLAUDE.mds. Commit.
 
 ---
 
@@ -197,6 +214,7 @@ Prior art: `apps/api/src/plugins/origin-guard.ts` (44 lines — read it all),
 ### Task 7: Origin guard, strict
 
 **Files:**
+
 - Modify: `apps/api/src/plugins/origin-guard.ts`
 - Test: the origin-guard tests
 
@@ -211,15 +229,17 @@ APP_URL, which is exactly when it became the only check — a wrong APP_URL
 now fails loudly at the first mutation, and the startup warning names it.
 
 **Steps:**
+
 - [ ] Failing tests: `Origin: https://evil.example` + `Host: evil.example`
-  is now 403 (this exact case passed before — flip the old test's
-  expectation, do not delete it); matching-origin mutation still 200; the
-  403 message names the expected origin.
+      is now 403 (this exact case passed before — flip the old test's
+      expectation, do not delete it); matching-origin mutation still 200; the
+      403 message names the expected origin.
 - [ ] Run/fail → implement → run/pass → commit.
 
 ### Task 8: Content-Security-Policy from the built HTML
 
 **Files:**
+
 - Modify: `apps/api/src/plugins/static-spa.ts` (+ `apps/api/src/types/` if a
   named shape appears)
 - Test: the static-spa tests (they already fixture a fake dist dir — extend it)
@@ -229,8 +249,9 @@ every inline script body, hash each:
 
 ```ts
 import { createHash } from 'node:crypto';
-const bodies = [...html.matchAll(/<script(?![^>]*\bsrc=)[^>]*>([\s\S]*?)<\/script>/g)]
-  .map((m) => m[1]!); // the group is non-optional in a matched result
+const bodies = [...html.matchAll(/<script(?![^>]*\bsrc=)[^>]*>([\s\S]*?)<\/script>/g)].map(
+  (m) => m[1]!,
+); // the group is non-optional in a matched result
 const hashes = bodies.map((b) => `'sha256-${createHash('sha256').update(b).digest('base64')}'`);
 ```
 
@@ -245,18 +266,19 @@ fallback and `/index.html`); asset responses may carry it too if the plugin's
 shape makes that simpler — decide there, in a comment.
 
 **Steps:**
+
 - [ ] Failing tests: the fixture dist's HTML gets a CSP header whose
-  script-src contains the sha256 of the fixture's inline script; a fixture
-  with no inline script yields a policy with no hash; `frame-ancestors
-  'none'` and `x-frame-options` present; API JSON routes unaffected (or
-  deliberately affected — match the implementation).
+      script-src contains the sha256 of the fixture's inline script; a fixture
+      with no inline script yields a policy with no hash; `frame-ancestors
+'none'` and `x-frame-options` present; API JSON routes unaffected (or
+      deliberately affected — match the implementation).
 - [ ] Run/fail → implement → run/pass.
 - [ ] **Run the full e2e suite** — 45+ journeys under the enforced policy is
-  the real proof. A CSP violation shows up as a broken screen; investigate
-  any failure as a policy bug, not a test bug. Add one e2e assertion that the
-  document response carries the header.
+      the real proof. A CSP violation shows up as a broken screen; investigate
+      any failure as a policy bug, not a test bug. Add one e2e assertion that the
+      document response carries the header.
 - [ ] **Phase B gate** all green. Update `apps/api/CLAUDE.md`'s security
-  bullet (CSRF stance + new CSP paragraph). Commit.
+      bullet (CSRF stance + new CSP paragraph). Commit.
 
 ---
 
@@ -271,6 +293,7 @@ start, `docs/development.md`, `docs/backup-restore.md`.
 ### Task 9: Image runs as node; entrypoint probes instead of chowns
 
 **Files:**
+
 - Modify: `Dockerfile` (add `USER node` after the existing
   `RUN mkdir -p /data && chown -R node:node /data /app`; rewrite the
   "deliberately no USER" comment to explain the inverse), `docker-entrypoint.sh`
@@ -312,18 +335,20 @@ exec "$@"
 ```
 
 **Steps:**
+
 - [ ] `docker build` the image locally. Verify all four behaviors:
-  (1) run with a bind mount pre-owned by uid 1000 → healthy, and
-  `docker exec <c> id -u` prints **1000** — the acceptance test;
-  (2) run with a root-owned bind mount → exits 1 printing both remedies;
-  (3) `--user root` run against that same mount → chowns, drops, healthy —
-  and a normal restart afterwards works;
-  (4) restart survives (data intact).
+      (1) run with a bind mount pre-owned by uid 1000 → healthy, and
+      `docker exec <c> id -u` prints **1000** — the acceptance test;
+      (2) run with a root-owned bind mount → exits 1 printing both remedies;
+      (3) `--user root` run against that same mount → chowns, drops, healthy —
+      and a normal restart afterwards works;
+      (4) restart survives (data intact).
 - [ ] Commit.
 
 ### Task 10: Docs + CI
 
 **Files:**
+
 - Modify: `README.md` (quick start gains `mkdir -p data` before
   `docker compose up`, one sentence on why; a line that exec sessions are
   uid 1000 now), `docker-compose.yml` (comment above the volume: create
@@ -334,9 +359,10 @@ exec "$@"
   `test "$(docker exec inventory id -u)" = "1000"`)
 
 **Steps:**
+
 - [ ] Make the edits; re-run the local docker verification once more after
-  any Dockerfile touch.
+      any Dockerfile touch.
 - [ ] **Phase C gate**: the full Global Constraints command (the app code is
-  untouched, but the gate is cheap insurance), plus the docker verification
-  protocol above. Commit. Do NOT delete `docs/superpowers/` — the
-  orchestrator does that.
+      untouched, but the gate is cheap insurance), plus the docker verification
+      protocol above. Commit. Do NOT delete `docs/superpowers/` — the
+      orchestrator does that.
