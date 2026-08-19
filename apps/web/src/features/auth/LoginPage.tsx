@@ -1,9 +1,11 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router';
 import { fieldErrors } from '@/api/formErrors';
-import { useLogin, useMfaVerify } from '@/api/mutations';
+import { useLogin, useMfaVerify, useRefreshSession } from '@/api/mutations';
 import { useMeta } from '@/api/queries';
 import { AuthField, AuthLayout, FormError } from './AuthLayout';
+import { RecoveryCodesScreen } from './RecoveryCodesScreen';
+import type { MfaChallengeProps } from './types/loginPage';
 import styles from './Auth.module.css';
 
 export function LoginPage() {
@@ -86,16 +88,30 @@ export function LoginPage() {
  * decides which by what matches — asking somebody to pick "authenticator" or
  * "recovery" before typing is a choice they should not have to make.
  */
-function MfaChallenge({
-  challengeToken,
-  orgName,
-}: {
-  challengeToken: string;
-  orgName: string | undefined;
-}) {
+function MfaChallenge({ challengeToken, orgName }: MfaChallengeProps) {
   const navigate = useNavigate();
   const verify = useMfaVerify();
+  const refreshSession = useRefreshSession();
   const [code, setCode] = useState('');
+  /**
+   * A set the server minted because this member had none left. Its presence is
+   * a third step nobody asked for: the session already exists, but these codes
+   * exist nowhere else, so the app waits behind them.
+   */
+  const [recoveryCodes, setRecoveryCodes] = useState<string[] | null>(null);
+
+  if (recoveryCodes) {
+    return (
+      <RecoveryCodesScreen
+        codes={recoveryCodes}
+        reason="Your recovery codes were reset, so here is a new set."
+        onDone={() => {
+          void refreshSession();
+          navigate('/dashboard');
+        }}
+      />
+    );
+  }
 
   return (
     <AuthLayout
@@ -108,7 +124,15 @@ function MfaChallenge({
         style={{ display: 'contents' }}
         onSubmit={(event) => {
           event.preventDefault();
-          verify.mutate({ challengeToken, code }, { onSuccess: () => navigate('/dashboard') });
+          verify.mutate(
+            { challengeToken, code },
+            {
+              onSuccess: (result) => {
+                if (result.recoveryCodes) setRecoveryCodes(result.recoveryCodes);
+                else navigate('/dashboard');
+              },
+            },
+          );
         }}
       >
         <FormError error={verify.error} />

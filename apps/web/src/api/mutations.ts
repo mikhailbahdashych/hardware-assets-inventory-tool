@@ -42,6 +42,7 @@ import type {
   Member,
   MemberSummary,
   MfaEnrolment,
+  MfaVerifyResult,
   OrgSettings,
   RoleGrant,
   Session,
@@ -85,8 +86,41 @@ export function useLogin() {
   });
 }
 
-/** The code step: a challenge token plus an authenticator or recovery code. */
-export const useMfaVerify = () => useSessionMutation<MfaChallengeInput>('/auth/mfa/verify');
+/**
+ * The code step: a challenge token plus an authenticator or recovery code.
+ *
+ * Not `useSessionMutation`, because this one may have something to hand over
+ * first. A sign-in that found no recovery codes left mints ten and returns
+ * them here — the only place they will ever be readable — and refreshing the
+ * session at that moment would swap the auth screens for the app and take the
+ * codes with them. `useRefreshSession` below is what the codes screen calls
+ * when the member says they have kept them.
+ */
+export function useMfaVerify() {
+  const refresh = useRefreshSession();
+  return useMutation({
+    mutationFn: (input: MfaChallengeInput) =>
+      apiFetch<MfaVerifyResult>('/auth/mfa/verify', { method: 'POST', body: input }),
+    onSuccess: async (result) => {
+      if (result.recoveryCodes) return;
+      await refresh();
+    },
+  });
+}
+
+/**
+ * Re-asks `/auth/me` for the session a sign-in already created. The routes
+ * render from that query, so this is what turns a signed-out screen into the
+ * app — deliberately separate from the request that created the session, for
+ * the one flow that has a screen to show in between.
+ */
+export function useRefreshSession(): () => Promise<void> {
+  const queryClient = useQueryClient();
+  return async () => {
+    await queryClient.invalidateQueries({ queryKey: queryKeys.me });
+    queryClient.invalidateQueries({ queryKey: queryKeys.meta });
+  };
+}
 
 /** Begins enrolment — a fresh secret, not yet confirmed. */
 export function useMfaEnroll() {

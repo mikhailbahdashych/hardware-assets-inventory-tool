@@ -220,6 +220,17 @@ export interface MfaEnrolment {
   otpauthUri: string;
 }
 
+/**
+ * The second half of a sign-in. `recoveryCodes` is there exactly when that
+ * sign-in minted a fresh set — because the member had none left — and absent
+ * on every ordinary one. It is the only place those codes are ever readable,
+ * the same rule as an invitation link.
+ */
+export interface MfaVerifyResult {
+  member: Member;
+  recoveryCodes?: string[];
+}
+
 export interface MemberSummary {
   id: string;
   email: string;
