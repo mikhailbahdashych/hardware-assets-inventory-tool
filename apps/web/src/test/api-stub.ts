@@ -305,7 +305,11 @@ export const MAYA_DETAIL = {
   ],
 };
 
-/** The signed-in admin as the Members page reads them (no preferences). */
+/**
+ * The signed-in admin as the Members page reads them (no preferences). The one
+ * fixture with an authenticator, and deliberately down to three recovery codes
+ * — the state the Two-factor column exists to make visible.
+ */
 export const ADMIN_SUMMARY = {
   id: 'member-1',
   email: 'tomasz@acme.io',
@@ -316,6 +320,8 @@ export const ADMIN_SUMMARY = {
   linkedEmployee: null,
   lastActiveAt: '2026-08-17T08:00:00.000Z',
   createdAt: '2026-01-01T00:00:00.000Z',
+  mfaEnrolled: true,
+  recoveryCodesLeft: 3,
 };
 
 export const INVITED_SUMMARY = {
@@ -328,6 +334,9 @@ export const INVITED_SUMMARY = {
   linkedEmployee: null,
   lastActiveAt: null,
   createdAt: '2026-02-01T00:00:00.000Z',
+  mfaEnrolled: false,
+  // Null, not zero: nobody with no authenticator has a set to count.
+  recoveryCodesLeft: null,
 };
 
 export const LINKED_SUMMARY = {
@@ -340,6 +349,8 @@ export const LINKED_SUMMARY = {
   linkedEmployee: { id: 'emp-1', displayName: 'Maya Lindqvist' },
   lastActiveAt: '2026-08-10T08:00:00.000Z',
   createdAt: '2026-03-01T00:00:00.000Z',
+  mfaEnrolled: false,
+  recoveryCodesLeft: null,
 };
 
 export const SETTINGS = {

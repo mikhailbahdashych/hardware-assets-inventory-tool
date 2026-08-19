@@ -1,7 +1,17 @@
 import { useState } from 'react';
 import { Link } from 'react-router';
-import { can, MEMBER_STATUS_COLORS, MEMBER_STATUS_LABELS } from '@inventory/shared';
-import { useIssueResetLink, useResetMemberMfa, useResendInvite } from '@/api/mutations';
+import {
+  can,
+  MEMBER_STATUS_COLORS,
+  MEMBER_STATUS_LABELS,
+  RECOVERY_CODE_COUNT,
+} from '@inventory/shared';
+import {
+  useIssueResetLink,
+  useResendInvite,
+  useResetMemberMfa,
+  useResetRecoveryCodes,
+} from '@/api/mutations';
 import { useMembers, useRoles } from '@/api/queries';
 import { PageContainer } from '@/components/app/PageContainer';
 import { Avatar, Button, DataTable, EmptyState, Menu, Pill, Spinner } from '@/components/ui';
@@ -28,6 +38,7 @@ export function MembersPage({ permissions, memberId }: MembersPageProps) {
   const resend = useResendInvite();
   const reset = useIssueResetLink();
   const resetMfa = useResetMemberMfa();
+  const resetCodes = useResetRecoveryCodes();
   const manages = can(permissions, 'members.manage');
 
   // A list that has not arrived has no rows; the empty state renders below.
@@ -88,6 +99,24 @@ export function MembersPage({ permissions, memberId }: MembersPageProps) {
             },
           ),
       });
+      // The gentler half: the authenticator stays, the codes go. There is no
+      // link or list to show afterwards — a new set can only be handed over by
+      // the sign-in that needs it, which is where the member will meet it.
+      items.push({
+        label: 'Reset recovery codes',
+        onSelect: () =>
+          resetCodes.mutate(
+            { id: member.id },
+            {
+              onSuccess: () =>
+                toast.show(
+                  `${member.displayName} will get fresh codes at their next sign-in.`,
+                  'ok',
+                ),
+              onError: (error) => toast.show(error.message, 'err'),
+            },
+          ),
+      });
     }
 
     // Your own account is not yours to demote or delete — the API refuses too,
@@ -103,7 +132,12 @@ export function MembersPage({ permissions, memberId }: MembersPageProps) {
     return items;
   }
 
-  /** Member · Role · Linked employee · Last active · Status · overflow. */
+  /**
+   * Member · Role · Linked employee · Last active · Status · [Two-factor] ·
+   * overflow. The bracketed one is drawn only for a viewer who can act on it:
+   * the payload is the same for everybody, because reads are open, and the
+   * gate is the affordance — as it is for every other admin control here.
+   */
   const columns: TableColumn<MemberSummary>[] = [
     {
       header: 'Member',
@@ -153,6 +187,28 @@ export function MembersPage({ permissions, memberId }: MembersPageProps) {
         <Pill sv={MEMBER_STATUS_COLORS[member.status]}>{MEMBER_STATUS_LABELS[member.status]}</Pill>
       ),
     },
+    ...(manages
+      ? [
+          {
+            header: 'Two-factor',
+            width: '150px',
+            render: (member: MemberSummary) =>
+              // A null count and "not enrolled" are the same fact from two
+              // sides: no authenticator, so no set of codes to count. The
+              // design's em dash says it.
+              member.recoveryCodesLeft === null ? (
+                <span className={styles.muted}>—</span>
+              ) : (
+                <div className={styles.twoFactor}>
+                  <Pill sv="ok">Enrolled</Pill>
+                  <span className={styles.codesLeft}>
+                    {member.recoveryCodesLeft} of {RECOVERY_CODE_COUNT} codes left
+                  </span>
+                </div>
+              ),
+          },
+        ]
+      : []),
     {
       header: '',
       width: '40px',

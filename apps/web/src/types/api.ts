@@ -233,6 +233,12 @@ export interface MemberSummary {
   lastActiveAt: string | null;
   createdAt: string;
   mfaEnrolled: boolean;
+  /**
+   * Unspent recovery codes, or null for somebody with no authenticator — there
+   * is no set to count, which is why this is nullable and `0` is a real state
+   * (enrolled, every code spent; their next sign-in issues ten more).
+   */
+  recoveryCodesLeft: number | null;
 }
 
 export interface OrgSettings {

@@ -49,8 +49,9 @@ describe('the members list', () => {
     const invited = await memberRow('grace@acme.io');
     expect(within(invited).getByText('Invited')).toBeInTheDocument();
     expect(within(invited).getByText('Manager')).toBeInTheDocument();
-    // No employee link and no last-active time: two em dashes, both meant.
-    expect(within(invited).getAllByText('—')).toHaveLength(2);
+    // No employee link, no last-active time and no authenticator: three em
+    // dashes, all three meant.
+    expect(within(invited).getAllByText('—')).toHaveLength(3);
   });
 
   it('explains the difference from employees, and links there', async () => {
@@ -98,6 +99,35 @@ describe('the members list', () => {
     // the slug is uglier than showing nothing, and far more useful.
     const row = await memberRow('maya.lindqvist@acme.io');
     expect(within(row).getByText('auditor')).toHaveAttribute('data-sv', 'neut');
+  });
+
+  it('shows the two-factor state, and how much recovery is left', async () => {
+    renderApp(ADMIN_ROUTES, '/members');
+
+    const enrolled = await memberRow('tomasz@acme.io');
+    expect(within(enrolled).getByText('Enrolled')).toBeInTheDocument();
+    // The number is the point: an admin should see somebody running out
+    // before they are the one being phoned about it.
+    expect(within(enrolled).getByText('3 of 10 codes left')).toBeInTheDocument();
+
+    const unenrolled = await memberRow('maya.lindqvist@acme.io');
+    expect(within(unenrolled).queryByText('Enrolled')).toBeNull();
+  });
+
+  it('keeps the two-factor column to the people who can act on it', async () => {
+    renderApp(
+      {
+        ...ADMIN_ROUTES,
+        'GET /auth/me': session({ ...ADMIN_MEMBER, role: 'viewer' }, VIEWER_ACTIONS),
+      },
+      '/members',
+    );
+
+    // The payload is the same for everybody — reads are open — but a viewer
+    // has nothing to do with the answer, so the column is not drawn.
+    await screen.findByRole('heading', { name: 'Members' });
+    expect(screen.queryByRole('columnheader', { name: 'Two-factor' })).toBeNull();
+    expect(screen.queryByText('3 of 10 codes left')).toBeNull();
   });
 
   it('offers no invite or row actions to a role that cannot manage members', async () => {
@@ -289,6 +319,31 @@ describe('the row actions', () => {
     expect(await screen.findByText(/will no longer be able to sign in/i)).toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: 'Remove member' }));
     await waitFor(() => expect(api.called('DELETE /members/member-3')).toBeDefined());
+  });
+
+  it('resets the recovery codes of somebody who has an authenticator', async () => {
+    const api = renderApp(
+      { ...ADMIN_ROUTES, 'POST /members/member-1/mfa/reset-codes': { status: 204 } },
+      '/members',
+    );
+
+    await openMenu('tomasz@acme.io');
+    await userEvent.click(screen.getByRole('menuitem', { name: 'Reset recovery codes' }));
+
+    await waitFor(() => expect(api.called('POST /members/member-1/mfa/reset-codes')).toBeDefined());
+    // Nothing is shown here, because there is nothing to show yet: the codes
+    // are minted by the member's next sign-in and handed to them there.
+    expect(
+      await screen.findByText('Tomasz Kowalski will get fresh codes at their next sign-in.'),
+    ).toBeInTheDocument();
+  });
+
+  it('offers neither two-factor action to somebody with no authenticator', async () => {
+    renderApp(ADMIN_ROUTES, '/members');
+    await openMenu('maya.lindqvist@acme.io');
+
+    expect(screen.queryByRole('menuitem', { name: 'Reset recovery codes' })).toBeNull();
+    expect(screen.queryByRole('menuitem', { name: 'Reset two-factor' })).toBeNull();
   });
 
   it('never offers to remove you, or to change your own role', async () => {

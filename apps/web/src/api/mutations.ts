@@ -117,6 +117,18 @@ export function useResetMemberMfa() {
     apiFetch(`/members/${input.id}/mfa/reset`, { method: 'POST' }),
   );
 }
+
+/**
+ * Admin-only, and gentler: the authenticator stays, only the recovery codes
+ * go. Nothing comes back to show — the fresh set is minted by the member's own
+ * next two-factor sign-in and handed to them there, which is the only place a
+ * set can be handed over safely.
+ */
+export function useResetRecoveryCodes() {
+  return useAdminMutation((input: { id: string }) =>
+    apiFetch(`/members/${input.id}/mfa/reset-codes`, { method: 'POST' }),
+  );
+}
 export const useSetup = () => useSessionMutation<SetupInput>('/setup');
 export const useAcceptInvite = () => useSessionMutation<AcceptInviteInput>('/auth/accept-invite');
 export const useResetPassword = () =>
