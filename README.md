@@ -15,6 +15,7 @@ _The demo workspace, as `npm run seed:demo` leaves it._
 ## Quick start
 
 ```bash
+mkdir -p data
 docker run -d --name inventory \
   -p 3000:3000 \
   -v ./data:/data \
@@ -24,10 +25,13 @@ docker run -d --name inventory \
 
 Open <http://localhost:3000> and the first screen creates your organization and its first admin. That is the whole install.
 
+`mkdir -p data` first because the container runs unprivileged as uid 1000 and may not take ownership of anything: a data directory the Docker daemon creates for you arrives owned by root, and then nothing inside the container can write it. Making it yourself makes it yours — which on a normal single-user Linux host is uid 1000 already. If it is not, `chown -R 1000:1000 data` once and it is settled; the container prints that line itself rather than dying on an unreadable permission error.
+
 With compose, which is the same thing written down:
 
 ```bash
 curl -O https://raw.githubusercontent.com/mikhailbahdashych/hardware-assets-inventory-tool/main/docker-compose.yml
+mkdir -p data
 docker compose up -d
 ```
 
@@ -147,7 +151,8 @@ Copy `DATA_DIR`. See [`docs/backup-restore.md`](docs/backup-restore.md), which a
 ## Deployment notes
 
 - **Single replica.** The scheduler runs in-process and SQLite is one file; two containers on one volume would both fire the nightly jobs. Scale the machine, not the count.
-- **The mounted data directory is taken over on start.** The container's entrypoint runs as root only long enough to `chown` it, then drops to an unprivileged user — so `-v ./data:/data` works whoever owns the directory on the host. Starting the image with an explicit `--user` skips that, and then the directory has to be writable by that user already.
+- **Nothing in the container runs as root, `docker compose exec` sessions included** — every process, and every shell you open into a running instance, is uid 1000. The price is that the mounted data directory has to be writable by uid 1000 before the first start, because the container has no privilege left to fix it: create `./data` yourself, or `chown -R 1000:1000 ./data`. A container that finds it unwritable says so and stops, printing both remedies.
+- **`--user root` is the escape hatch, and it heals a mount in one run.** Started that way the entrypoint does what it always did — take ownership of the data directory, drop back to uid 1000 with `setpriv`, run the app — so `docker compose run --rm --user root inventory node -e ''` is enough to hand a stray directory over, after which normal starts work again.
 - Put it behind a reverse proxy for TLS and set `APP_URL` to the public address.
 - Roughly 10,000 assets is the point where the unpaginated list endpoints stop being comfortable. Past that, open an issue — the schema is ready for Postgres, the code is not yet.
 

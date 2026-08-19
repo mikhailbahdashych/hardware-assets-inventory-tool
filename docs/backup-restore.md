@@ -52,6 +52,8 @@ cp -a ./backups/data-2026-08-17 ./data
 docker compose up -d
 ```
 
+`cp -a` keeps whatever ownership it finds, and the container is unprivileged (uid 1000) and cannot take the directory over — so if the restored `./data` came back owned by somebody else, `sudo chown -R 1000:1000 ./data` before starting. A container that finds it unwritable says so and stops rather than starting half-broken.
+
 If you restored from a `.backup` snapshot, the file is called `backup.db` — rename it to `inventory.db` and delete any `-wal` and `-shm` files beside it; they belong to the database they were taken from.
 
 A restored database from an older release is fine: migrations run at boot and bring it forward.

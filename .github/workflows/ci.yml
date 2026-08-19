@@ -60,13 +60,21 @@ jobs:
 
       - name: Start it on a fresh volume
         run: |
+          # The image runs as uid 1000 and may not chown its bind mount, so the
+          # directory has to arrive owned by it — the runner's own user is not 1000.
           mkdir -p /tmp/inventory-data
+          sudo chown -R 1000:1000 /tmp/inventory-data
           docker run -d --name inventory \
             -p 3000:3000 -v /tmp/inventory-data:/data \
             -e APP_URL=http://localhost:3000 inventory:ci
 
       - name: Wait for the healthcheck to pass
         run: timeout 60 bash -c 'until curl -sf http://localhost:3000/api/v1/healthz; do sleep 2; done'
+
+      # The point of the whole arrangement: a shell into the instance is not a
+      # root shell.
+      - name: Nothing in there is root
+        run: test "$(docker exec inventory id -u)" = "1000"
 
       - name: Set up a workspace and read it back
         run: |
