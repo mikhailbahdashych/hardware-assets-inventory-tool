@@ -1,8 +1,8 @@
 import { mkdirSync } from 'node:fs';
-import { join, resolve } from 'node:path';
+import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { loadConfig } from '@/config.js';
-import { createDb } from '@/db/client.js';
+import { createDb, describeStore } from '@/db/client.js';
 import { runMigrations } from '@/db/migrate.js';
 import { seed } from '@/db/seed.js';
 import { seedDemo } from '@/db/demo.js';
@@ -46,7 +46,7 @@ async function main(): Promise<void> {
     process.stdout.write(
       // Absolute, because `./data` is relative to whichever workspace npm
       // ran this in — which is not where somebody at the repo root looks.
-      `\n  ${result.orgName} is ready in ${resolve(config.dataDir)}\n\n` +
+      `\n  ${result.orgName} is ready in ${describeStore(config)}\n\n` +
         `  ${result.counts.assets} assets · ${result.counts.employees} employees · ` +
         `${result.counts.assignments} ownership records · ${result.counts.auditEvents} logged events\n\n` +
         result.signIn

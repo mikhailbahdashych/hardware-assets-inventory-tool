@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "DATA_DIR=${DATA_DIR:-../../data} APP_URL=${APP_URL:-http://localhost:5173} HOST=${HOST:-127.0.0.1} tsx watch src/index.ts",
-    "build": "tsup && node -e \"for (const d of ['migrations','migrations-pg']) fs.cpSync(`src/${d}`,`dist/${d}`,{recursive:true})\"",
+    "build": "tsup && node -e \"for (const d of ['migrations','migrations-pg']) fs.cpSync('src/' + d, 'dist/' + d, {recursive:true})\"",
     "start": "node dist/index.js",
     "test": "vitest run",
     "test:watch": "vitest",

@@ -1,6 +1,6 @@
 import { eq } from 'drizzle-orm';
 import { loadConfig } from '@/config.js';
-import { createDb } from '@/db/client.js';
+import { createDb, describeStore } from '@/db/client.js';
 import { members } from '@/db/schema.js';
 import { resetMemberMfa } from '@/services/mfa.js';
 import { writeAudit } from '@/services/audit.js';
@@ -36,7 +36,9 @@ async function main(): Promise<void> {
   try {
     const [member] = await db.select().from(members).where(eq(members.email, email));
     if (!member) {
-      process.stderr.write(`\n  No member with the email ${email} in ${config.dataDir}.\n\n`);
+      process.stderr.write(
+        `\n  No member with the email ${email} in ${describeStore(config)}.\n\n`,
+      );
       process.exit(1);
     }
 

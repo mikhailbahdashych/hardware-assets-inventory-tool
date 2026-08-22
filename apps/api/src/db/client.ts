@@ -154,6 +154,17 @@ export async function createDb(config: Config): Promise<DbHandle> {
 }
 
 /**
+ * Where this configuration's rows live, for the CLIs that have to say so. The
+ * Postgres form is the host and the database and nothing else: a terminal is a
+ * place output gets pasted, and a connection string carries a password.
+ */
+export function describeStore(config: Config): string {
+  if (config.databaseUrl === undefined) return resolve(config.dataDir);
+  const url = new URL(config.databaseUrl);
+  return `${url.host}${url.pathname}`;
+}
+
+/**
  * The database handle for one SQLite file. `path` is a filesystem path — the
  * `file:` URL libsql wants is this function's business, and an absolute one
  * because a relative URL would be resolved against whatever the process
