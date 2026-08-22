@@ -38,6 +38,17 @@ const envSchema = z.object({
    */
   TRUST_PROXY: z.string().optional(),
   WEB_DIST: z.string().optional(),
+  // Present means the bucket, absent means the uploads directory under
+  // DATA_DIR — the only way an instance picks where attachments live. The rest
+  // describe how to reach it: a region for AWS, an endpoint and path-style
+  // addressing for the MinIO-compatible stores that have neither.
+  S3_BUCKET: z.string().optional(),
+  S3_REGION: z.string().optional(),
+  S3_ENDPOINT: z
+    .url()
+    .refine((value) => /^https?:\/\//i.test(value), 'S3_ENDPOINT must be an http(s) URL')
+    .optional(),
+  S3_FORCE_PATH_STYLE: z.enum(['true', 'false']).optional(),
   SMTP_HOST: z.string().optional(),
   SMTP_PORT: z.coerce.number().int().positive().default(587),
   SMTP_SECURE: z.enum(['true', 'false']).optional(),
@@ -64,6 +75,10 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
     trustProxy: readTrustProxy(parsed.TRUST_PROXY),
     // fastify-static needs an absolute root.
     webDist: parsed.WEB_DIST ? resolve(parsed.WEB_DIST) : undefined,
+    s3Bucket: parsed.S3_BUCKET,
+    s3Region: parsed.S3_REGION,
+    s3Endpoint: parsed.S3_ENDPOINT,
+    s3ForcePathStyle: parsed.S3_FORCE_PATH_STYLE === 'true',
     smtp: readSmtp(parsed),
   };
 }
