@@ -36,7 +36,7 @@ describe('the activity log', () => {
       const res = await inject(ctx.app, {
         method: 'GET',
         url: '/api/v1/audit',
-        cookie: memberCookie(ctx.db, role),
+        cookie: await memberCookie(ctx.db, role),
       });
       expect(res.statusCode).toBe(403);
     }
@@ -163,7 +163,7 @@ describe('workspace settings', () => {
   it('are admin-only to read and to change', async () => {
     ctx = await buildTestApp();
     await setupOrg(ctx.app);
-    const manager = memberCookie(ctx.db, 'manager');
+    const manager = await memberCookie(ctx.db, 'manager');
     expect(
       (await inject(ctx.app, { method: 'GET', url: '/api/v1/settings', cookie: manager }))
         .statusCode,
@@ -238,7 +238,7 @@ describe('workspace settings', () => {
       emailWeeklyDigest: true,
     });
 
-    const event = ctx.db
+    const event = await ctx.db
       .select()
       .from(auditEvents)
       .where(eq(auditEvents.action, 'system.settings_updated'))
@@ -265,7 +265,7 @@ describe('workspace settings', () => {
     expect(before.json().storageUsedBytes).toBe(0);
 
     const asset = await createAsset(admin);
-    ctx.db
+    await ctx.db
       .insert(attachments)
       .values({
         id: 'att-1',
@@ -297,11 +297,11 @@ describe('workspace settings', () => {
     expect(res.json().settings.uploadQuotaMb).toBe(500);
     expect(
       JSON.parse(
-        ctx.db
+        (await ctx.db
           .select()
           .from(auditEvents)
           .where(eq(auditEvents.action, 'system.settings_updated'))
-          .get()!.params,
+          .get())!.params,
       ).changedFields,
     ).toEqual(['uploadQuotaMb']);
 
@@ -328,7 +328,7 @@ describe('workspace settings', () => {
       body: { orgName: 'Acme Corp' },
     });
     expect(
-      ctx.db
+      await ctx.db
         .select()
         .from(auditEvents)
         .where(eq(auditEvents.action, 'system.settings_updated'))
@@ -379,7 +379,7 @@ describe('deleting the workspace', () => {
         await inject(ctx.app, {
           method: 'POST',
           url: '/api/v1/workspace/delete',
-          cookie: memberCookie(ctx.db, 'manager'),
+          cookie: await memberCookie(ctx.db, 'manager'),
           body: { confirmText: 'Acme Corp' },
         })
       ).statusCode,
@@ -393,7 +393,7 @@ describe('deleting the workspace', () => {
     });
     expect(wrong.statusCode).toBe(422);
     expect(wrong.json().error.fields.confirmText).toBeTruthy();
-    expect(ctx.db.select().from(orgSettings).get()).toBeTruthy();
+    expect(await ctx.db.select().from(orgSettings).get()).toBeTruthy();
   });
 
   it('wipes every table and leaves an instance that asks to be set up again', async () => {
@@ -415,11 +415,11 @@ describe('deleting the workspace', () => {
     });
     expect(res.statusCode).toBe(204);
 
-    expect(ctx.db.select().from(orgSettings).all()).toEqual([]);
-    expect(ctx.db.select().from(members).all()).toEqual([]);
-    expect(ctx.db.select().from(assets).all()).toEqual([]);
-    expect(ctx.db.select().from(employees).all()).toEqual([]);
-    expect(ctx.db.select().from(auditEvents).all()).toEqual([]);
+    expect(await ctx.db.select().from(orgSettings).all()).toEqual([]);
+    expect(await ctx.db.select().from(members).all()).toEqual([]);
+    expect(await ctx.db.select().from(assets).all()).toEqual([]);
+    expect(await ctx.db.select().from(employees).all()).toEqual([]);
+    expect(await ctx.db.select().from(auditEvents).all()).toEqual([]);
 
     expect((await ctx.app.inject({ method: 'GET', url: '/api/v1/meta' })).json().needsSetup).toBe(
       true,

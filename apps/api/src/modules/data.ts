@@ -38,13 +38,13 @@ export function registerDataRoutes(app: FastifyInstance, deps: AppDeps): void {
         .header('content-disposition', `attachment; filename="${request.query.kind}-template.csv"`)
         // The example rows show this workspace's own statuses: a template
         // naming one it does not have would be a template the app rejects.
-        .send(csvTemplate(request.query.kind, getWorkflow(deps.db).statuses)),
+        .send(csvTemplate(request.query.kind, (await getWorkflow(deps.db)).statuses)),
   );
 
   typed.post(
     '/api/v1/import/validate',
     { schema: { body: importValidateInput }, preHandler: requireAction('import.run') },
-    async (request) => ({ report: validateImport(deps, request.body) }),
+    async (request) => ({ report: await validateImport(deps, request.body) }),
   );
 
   typed.post(
@@ -61,7 +61,7 @@ export function registerDataRoutes(app: FastifyInstance, deps: AppDeps): void {
       return reply
         .header('content-type', 'application/json; charset=utf-8')
         .header('content-disposition', `attachment; filename="inventory-export-${day}.json"`)
-        .send(JSON.stringify(workspaceExport(deps.db, deps.now()), null, 2));
+        .send(JSON.stringify(await workspaceExport(deps.db, deps.now()), null, 2));
     },
   );
 }

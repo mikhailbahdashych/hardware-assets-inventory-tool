@@ -5,17 +5,23 @@ import { newId } from '@/lib/ids.js';
 import { nowIso } from '@/lib/dates.js';
 
 /**
- * Writes one audit event. Call it inside the same better-sqlite3 transaction
- * as the mutation it describes — a mutation without its audit row (or the
- * reverse) must be impossible.
+ * Writes one audit event. `await` it inside the same transaction as the
+ * mutation it describes, taking that transaction's `tx` — a mutation without
+ * its audit row (or the reverse) must be impossible, and an unawaited write is
+ * one the COMMIT need not wait for.
  *
  * The coalescing below is the domain rule, not a safety net: the subject
  * columns are nullable because an event need not be about an asset, a person
  * and a member at once, an anonymous flow really is attributed to 'system',
  * and an event with nothing to add stores an empty params object.
  */
-export function writeAudit(db: DbOrTx, entry: AuditEntry, now: Date = new Date()): void {
-  db.insert(auditEvents)
+export async function writeAudit(
+  db: DbOrTx,
+  entry: AuditEntry,
+  now: Date = new Date(),
+): Promise<void> {
+  await db
+    .insert(auditEvents)
     .values({
       id: newId(),
       at: nowIso(now),

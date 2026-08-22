@@ -10,5 +10,5 @@ export default defineConfig({
   sourcemap: true,
   // Workspace source is inlined; native modules stay external runtime deps.
   noExternal: [/@inventory\/shared/],
-  external: ['better-sqlite3', '@node-rs/argon2'],
+  external: ['@libsql/client', 'libsql', '@node-rs/argon2'],
 });

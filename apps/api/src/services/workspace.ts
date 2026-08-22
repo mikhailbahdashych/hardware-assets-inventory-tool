@@ -32,7 +32,7 @@ import { getSettings } from './settings.js';
  * restarting is not part of the procedure.
  */
 export async function deleteWorkspace(deps: AppDeps, confirmText: string): Promise<void> {
-  const settings = getSettings(deps.db);
+  const settings = await getSettings(deps.db);
   if (confirmText !== settings.orgName) {
     throw invalidFields({
       confirmText: `Type the organization name exactly: ${settings.orgName}`,
@@ -51,37 +51,35 @@ export async function deleteWorkspace(deps: AppDeps, confirmText: string): Promi
  */
 export async function emptyWorkspace(deps: AppDeps): Promise<void> {
   // Read the file names before the rows go, or nothing knows what to unlink.
-  const storedNames = deps.db
-    .select({ storedName: attachments.storedName })
-    .from(attachments)
-    .all()
-    .map((row) => row.storedName);
+  const storedNames = (
+    await deps.db.select({ storedName: attachments.storedName }).from(attachments).all()
+  ).map((row) => row.storedName);
 
-  deps.db.transaction((tx) => {
+  await deps.db.transaction(async (tx) => {
     // Children first, so the wipe never depends on which cascades are enabled.
-    tx.delete(notificationLog).run();
-    tx.delete(auditEvents).run();
-    tx.delete(attachments).run();
-    tx.delete(assetCustomValues).run();
-    tx.delete(assignments).run();
-    tx.delete(assets).run();
+    await tx.delete(notificationLog).run();
+    await tx.delete(auditEvents).run();
+    await tx.delete(attachments).run();
+    await tx.delete(assetCustomValues).run();
+    await tx.delete(assignments).run();
+    await tx.delete(assets).run();
     // The workflow goes too, so the seed below lays the default one back down:
     // a workspace that edited its statuses is not what a fresh container has.
-    tx.delete(assetStatusTransitions).run();
-    tx.delete(assetStatuses).run();
-    tx.delete(customFieldDefs).run();
-    tx.delete(authTokens).run();
-    tx.delete(sessions).run();
-    tx.delete(members).run();
+    await tx.delete(assetStatusTransitions).run();
+    await tx.delete(assetStatuses).run();
+    await tx.delete(customFieldDefs).run();
+    await tx.delete(authTokens).run();
+    await tx.delete(sessions).run();
+    await tx.delete(members).run();
     // The roles go with the members that held them, so the seed below lays the
     // default three back down — a workspace that edited its roles is not what a
     // fresh container has either.
-    tx.delete(rolePermissions).run();
-    tx.delete(roles).run();
-    tx.delete(employees).run();
-    tx.delete(orgSettings).run();
+    await tx.delete(rolePermissions).run();
+    await tx.delete(roles).run();
+    await tx.delete(employees).run();
+    await tx.delete(orgSettings).run();
   });
 
   await removeStoredFiles(deps, storedNames);
-  seed(deps.db);
+  await seed(deps.db);
 }

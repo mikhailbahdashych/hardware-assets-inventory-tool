@@ -13,12 +13,14 @@ afterEach(async () => {
  * The one thing a workspace may never lose. An invited admin cannot sign in,
  * so they cannot administer anything — only active ones count.
  */
-function activeAdmins(): number {
-  return ctx.db
-    .select({ id: members.id })
-    .from(members)
-    .where(and(eq(members.role, 'admin'), eq(members.status, 'active')))
-    .all().length;
+async function activeAdmins(): Promise<number> {
+  return (
+    await ctx.db
+      .select({ id: members.id })
+      .from(members)
+      .where(and(eq(members.role, 'admin'), eq(members.status, 'active')))
+      .all()
+  ).length;
 }
 
 async function meId(cookie: string): Promise<string> {
@@ -48,7 +50,7 @@ describe('a workspace always keeps an admin', () => {
     ctx = await buildTestApp();
     const admin = await setupOrg(ctx.app);
     const id = await meId(admin);
-    expect(activeAdmins()).toBe(1);
+    expect(await activeAdmins()).toBe(1);
 
     const demote = await inject(ctx.app, {
       method: 'PATCH',
@@ -65,7 +67,7 @@ describe('a workspace always keeps an admin', () => {
     });
     expect(remove.statusCode).toBe(409);
 
-    expect(activeAdmins()).toBe(1);
+    expect(await activeAdmins()).toBe(1);
   });
 
   it('survives a sequence of member operations that tries to empty it', async () => {
@@ -75,7 +77,7 @@ describe('a workspace always keeps an admin', () => {
 
     const second = await addMember(first, 'second@acme.io', 'admin');
     const third = await addMember(first, 'third@acme.io', 'manager');
-    expect(activeAdmins()).toBe(2);
+    expect(await activeAdmins()).toBe(2);
 
     // Every operation a session can reach, in an order chosen to end up with
     // as few admins as the rules allow. The invariant is asserted after each.
@@ -132,11 +134,11 @@ describe('a workspace always keeps an admin', () => {
 
     for (const [name, run] of operations) {
       await run();
-      expect(activeAdmins(), `after: ${name}`).toBeGreaterThan(0);
+      expect(await activeAdmins(), `after: ${name}`).toBeGreaterThan(0);
     }
 
     // The last one standing is still an admin, and still the only one.
-    expect(activeAdmins()).toBe(1);
+    expect(await activeAdmins()).toBe(1);
   });
 
   it('does not count an invited admin, who cannot sign in to administer anything', async () => {
@@ -150,8 +152,10 @@ describe('a workspace always keeps an admin', () => {
     });
 
     // Two admin rows, one usable account.
-    expect(ctx.db.select().from(members).where(eq(members.role, 'admin')).all()).toHaveLength(2);
-    expect(activeAdmins()).toBe(1);
+    expect(await ctx.db.select().from(members).where(eq(members.role, 'admin')).all()).toHaveLength(
+      2,
+    );
+    expect(await activeAdmins()).toBe(1);
   });
 });
 
@@ -172,10 +176,10 @@ describe('the last-admin guard itself', () => {
 
     // A different actor id is what the self-rule would otherwise catch first.
     const asSomebodyElse = { id: 'not-this-member', displayName: 'Somebody Else' };
-    expect(() => updateMember(ctx.deps, asSomebodyElse, id, { role: 'viewer' })).toThrow(
+    await expect(updateMember(ctx.deps, asSomebodyElse, id, { role: 'viewer' })).rejects.toThrow(
       /only admin/i,
     );
-    expect(activeAdmins()).toBe(1);
+    expect(await activeAdmins()).toBe(1);
   });
 
   it('refuses to remove the last admin, whoever is asking', async () => {
@@ -184,8 +188,8 @@ describe('the last-admin guard itself', () => {
     const id = await meId(admin);
 
     const asSomebodyElse = { id: 'not-this-member', displayName: 'Somebody Else' };
-    expect(() => removeMember(ctx.deps, asSomebodyElse, id)).toThrow(/only admin/i);
-    expect(activeAdmins()).toBe(1);
+    await expect(removeMember(ctx.deps, asSomebodyElse, id)).rejects.toThrow(/only admin/i);
+    expect(await activeAdmins()).toBe(1);
   });
 
   it('allows both once a second admin exists', async () => {
@@ -193,11 +197,11 @@ describe('the last-admin guard itself', () => {
     const admin = await setupOrg(ctx.app);
     const id = await meId(admin);
     const second = await addMember(admin, 'second@acme.io', 'admin');
-    expect(activeAdmins()).toBe(2);
+    expect(await activeAdmins()).toBe(2);
 
     const asSecond = { id: second.id, displayName: 'Second' };
-    updateMember(ctx.deps, asSecond, id, { role: 'viewer' });
-    expect(activeAdmins()).toBe(1);
+    await updateMember(ctx.deps, asSecond, id, { role: 'viewer' });
+    expect(await activeAdmins()).toBe(1);
   });
 
   it('does not stand in the way of changes that are not about the role', async () => {
@@ -207,7 +211,9 @@ describe('the last-admin guard itself', () => {
 
     // Linking the last admin to an employee record touches no admin count.
     const asSomebodyElse = { id: 'not-this-member', displayName: 'Somebody Else' };
-    expect(() => updateMember(ctx.deps, asSomebodyElse, id, { employeeId: null })).not.toThrow();
-    expect(activeAdmins()).toBe(1);
+    await expect(
+      updateMember(ctx.deps, asSomebodyElse, id, { employeeId: null }),
+    ).resolves.not.toThrow();
+    expect(await activeAdmins()).toBe(1);
   });
 });

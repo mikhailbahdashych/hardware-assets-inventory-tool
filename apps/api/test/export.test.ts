@@ -15,7 +15,7 @@ describe('the export-all endpoint', () => {
       const res = await inject(ctx.app, {
         method: 'GET',
         url: '/api/v1/export',
-        cookie: memberCookie(ctx.db, role),
+        cookie: await memberCookie(ctx.db, role),
       });
       expect(res.statusCode).toBe(403);
     }

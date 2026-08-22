@@ -38,11 +38,9 @@ describe('custom field definitions', () => {
       type: 'text',
     });
 
-    const event = ctx.db
-      .select()
-      .from(auditEvents)
-      .all()
-      .find((e) => e.action === 'custom_field.created');
+    const event = (await ctx.db.select().from(auditEvents).all()).find(
+      (e) => e.action === 'custom_field.created',
+    );
     expect(event).toMatchObject({ type: 'system' });
   });
 
@@ -75,11 +73,9 @@ describe('custom field definitions', () => {
       },
     });
     const assetId = asset.json().asset.id;
-    const field = ctx.db
-      .select()
-      .from(customFieldDefs)
-      .all()
-      .find((f) => f.key === 'hostname')!;
+    const field = (await ctx.db.select().from(customFieldDefs).all()).find(
+      (f) => f.key === 'hostname',
+    )!;
 
     const res = await inject(ctx.app, {
       method: 'PATCH',
@@ -114,11 +110,9 @@ describe('custom field definitions', () => {
         customValues: { hostname: 'maya-mbp' },
       },
     });
-    const field = ctx.db
-      .select()
-      .from(customFieldDefs)
-      .all()
-      .find((f) => f.key === 'hostname')!;
+    const field = (await ctx.db.select().from(customFieldDefs).all()).find(
+      (f) => f.key === 'hostname',
+    )!;
 
     const res = await inject(ctx.app, {
       method: 'DELETE',
@@ -126,15 +120,15 @@ describe('custom field definitions', () => {
       cookie: admin,
     });
     expect(res.statusCode).toBe(204);
-    expect(ctx.db.select().from(assetCustomValues).all()).toHaveLength(0);
-    expect(ctx.db.select().from(customFieldDefs).all()).toHaveLength(3);
+    expect(await ctx.db.select().from(assetCustomValues).all()).toHaveLength(0);
+    expect(await ctx.db.select().from(customFieldDefs).all()).toHaveLength(3);
   });
 
   it('is readable by everyone but editable only by admins', async () => {
     ctx = await buildTestApp();
     await setupOrg(ctx.app);
-    const viewer = memberCookie(ctx.db, 'viewer');
-    const manager = memberCookie(ctx.db, 'manager');
+    const viewer = await memberCookie(ctx.db, 'viewer');
+    const manager = await memberCookie(ctx.db, 'manager');
 
     expect((await list(viewer)).statusCode).toBe(200);
     expect((await create(viewer, { label: 'Nope', type: 'text' })).statusCode).toBe(403);

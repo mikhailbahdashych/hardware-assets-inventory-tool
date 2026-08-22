@@ -24,13 +24,13 @@ export function registerAssetRoutes(app: FastifyInstance, deps: AppDeps): void {
   const typed = app.withTypeProvider<ZodTypeProvider>();
 
   typed.get('/api/v1/assets', { preHandler: requireAuth }, async () => ({
-    assets: listAssets(deps.db),
+    assets: await listAssets(deps.db),
   }));
 
   typed.get(
     '/api/v1/assets/next-tag',
     { preHandler: requireAction('assets.create') },
-    async () => ({ assetTag: nextAssetTag(deps.db) }),
+    async () => ({ assetTag: await nextAssetTag(deps.db) }),
   );
 
   typed.get(
@@ -42,7 +42,7 @@ export function registerAssetRoutes(app: FastifyInstance, deps: AppDeps): void {
   typed.post(
     '/api/v1/assets',
     { schema: { body: assetCreateInput }, preHandler: requireAction('assets.create') },
-    async (request) => ({ asset: createAsset(deps, request.member!, request.body) }),
+    async (request) => ({ asset: await createAsset(deps, request.member!, request.body) }),
   );
 
   typed.patch(
@@ -52,7 +52,7 @@ export function registerAssetRoutes(app: FastifyInstance, deps: AppDeps): void {
       preHandler: requireAction('assets.edit'),
     },
     async (request) => ({
-      asset: updateAsset(deps, request.member!, request.params.id, request.body),
+      asset: await updateAsset(deps, request.member!, request.params.id, request.body),
     }),
   );
 
@@ -60,7 +60,7 @@ export function registerAssetRoutes(app: FastifyInstance, deps: AppDeps): void {
     '/api/v1/assets/:id',
     { schema: { params: idParam }, preHandler: requireAction('assets.delete') },
     async (request, reply) => {
-      const storedNames = deleteAsset(deps, request.member!, request.params.id);
+      const storedNames = await deleteAsset(deps, request.member!, request.params.id);
       await removeStoredFiles(deps, storedNames);
       return reply.status(204).send();
     },
@@ -96,10 +96,10 @@ export function registerAssetRoutes(app: FastifyInstance, deps: AppDeps): void {
    * and the handover has already happened by the time anyone would read it.
    */
   async function handOver(request: AssignRequest) {
-    const asset = assignAsset(deps, request.member!, request.params.id, request.body);
+    const asset = await assignAsset(deps, request.member!, request.params.id, request.body);
     if (!request.body.notify) return asset;
 
-    const holder = currentHolderContact(deps.db, request.params.id);
+    const holder = await currentHolderContact(deps.db, request.params.id);
     if (holder) {
       await sendAssignmentMail(deps, request.log, {
         to: holder.email,
@@ -116,9 +116,9 @@ export function registerAssetRoutes(app: FastifyInstance, deps: AppDeps): void {
   /** The holder is read *before* the check-in: afterwards there is not one. */
   async function takeBack(request: CheckinRequest) {
     const holder = request.body.emailConfirmation
-      ? currentHolderContact(deps.db, request.params.id)
+      ? await currentHolderContact(deps.db, request.params.id)
       : null;
-    const asset = checkinAsset(deps, request.member!, request.params.id, request.body);
+    const asset = await checkinAsset(deps, request.member!, request.params.id, request.body);
 
     if (holder) {
       await sendCheckinMail(deps, request.log, {

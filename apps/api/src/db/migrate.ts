@@ -1,4 +1,4 @@
-import { migrate } from 'drizzle-orm/better-sqlite3/migrator';
+import { migrate } from 'drizzle-orm/libsql/migrator';
 import type { Db } from '@/types/db.js';
 
 /**
@@ -7,6 +7,6 @@ import type { Db } from '@/types/db.js';
  * (src/migrations in dev/tests, dist/migrations in the built image) because
  * bundling changes file depths.
  */
-export function runMigrations(db: Db, migrationsFolder: string): void {
-  migrate(db, { migrationsFolder });
+export async function runMigrations(db: Db, migrationsFolder: string): Promise<void> {
+  await migrate(db, { migrationsFolder });
 }

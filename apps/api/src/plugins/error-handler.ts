@@ -2,6 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import { hasZodFastifySchemaValidationErrors } from 'fastify-type-provider-zod';
 import type { ApiErrorEnvelope } from '@inventory/shared';
 import { AppError } from '@/lib/errors.js';
+import { translateUniqueViolation } from '@/lib/unique.js';
 import type { HttpErrorLike, ZodValidationParams } from '@/types/errors.js';
 
 /** The one envelope shape, built in one place so no route can invent another. */
@@ -38,6 +39,19 @@ export function registerErrorHandler(app: FastifyInstance): void {
 
     if (error instanceof AppError) {
       return reply.status(error.statusCode).send(envelope(error.code, error.message, error.fields));
+    }
+
+    // A unique index that refused is the same answer the pre-check in front of
+    // it would have given, arriving from the other direction. Translated here
+    // rather than inside each writing transaction because this is where the
+    // codebase already turns a thrown thing into the envelope, and because
+    // every writing path gets it — including the ones nobody put a pre-check
+    // in front of.
+    const duplicate = translateUniqueViolation(error);
+    if (duplicate) {
+      return reply
+        .status(duplicate.statusCode)
+        .send(envelope(duplicate.code, duplicate.message, duplicate.fields));
     }
 
     const httpError = asHttpError(error);

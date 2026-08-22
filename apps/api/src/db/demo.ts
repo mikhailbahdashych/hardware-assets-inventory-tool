@@ -59,7 +59,7 @@ import { emptyWorkspace } from '@/services/workspace.js';
  * same workspace, so `--reset` genuinely restores rather than reshuffles.
  */
 export async function seedDemo(deps: AppDeps, options: DemoSeedOptions): Promise<DemoSeedResult> {
-  const existing = deps.db.select().from(orgSettings).get();
+  const existing = await deps.db.select().from(orgSettings).get();
   if (existing && !options.reset) {
     throw new AppError(
       409,
@@ -86,7 +86,7 @@ export async function seedDemo(deps: AppDeps, options: DemoSeedOptions): Promise
 
   // The member ids come back out because the curation below promotes one of
   // them, and that has to happen after this transaction closes.
-  const demoMembers = deps.db.transaction((tx) => {
+  const demoMembers = await deps.db.transaction(async (tx) => {
     // Negative reaches forward, which is how a warranty lands next month and a
     // return falls due next week. Event timestamps only ever pass positives —
     // the audit-log test is what holds the story out of the future.
@@ -96,25 +96,25 @@ export async function seedDemo(deps: AppDeps, options: DemoSeedOptions): Promise
       return day;
     };
 
-    seedSettings(tx, now);
+    await seedSettings(tx, now);
 
     const founderId = actor.id;
     const founderName = actor.displayName;
 
-    const employeeIds = seedPeople(tx, at);
-    const memberIds = seedMembers(tx, at, {
+    const employeeIds = await seedPeople(tx, at);
+    const memberIds = await seedMembers(tx, at, {
       founderId,
       founderName,
       passwordHash,
-      employeeIds,
+      employeeIds: employeeIds,
       signIn,
       password: options.password,
     });
-    auditPeopleAdded(tx, at, founderId, founderName, employeeIds);
+    await auditPeopleAdded(tx, at, founderId, founderName, employeeIds);
 
     // Written after the founder's row exists, because `actor_member_id` is a
     // real foreign key — but stamped first, and the log is read by time.
-    writeAudit(
+    await writeAudit(
       tx,
       {
         type: 'system',
@@ -127,14 +127,19 @@ export async function seedDemo(deps: AppDeps, options: DemoSeedOptions): Promise
       at(HISTORY_DAYS, 8, 30),
     );
 
-    const assetIds = seedAssets(tx, at, founderId, founderName);
-    seedCustomValues(tx, assetIds);
-    seedHoldings(tx, at, { founderId, founderName, employeeIds, assetIds });
-    seedOffboarding(tx, at, founderId, founderName, employeeIds);
+    const assetIds = await seedAssets(tx, at, founderId, founderName);
+    await seedCustomValues(tx, assetIds);
+    await seedHoldings(tx, at, {
+      founderId,
+      founderName,
+      employeeIds: employeeIds,
+      assetIds: assetIds,
+    });
+    await seedOffboarding(tx, at, founderId, founderName, employeeIds);
 
     // A settings change and a couple of sign-ins, so the log's Auth and System
     // pills are not empty for the sake of a demo about an audit trail.
-    writeAudit(
+    await writeAudit(
       tx,
       {
         type: 'system',
@@ -153,7 +158,7 @@ export async function seedDemo(deps: AppDeps, options: DemoSeedOptions): Promise
       const memberId = memberIds.get(key);
       const person = PEOPLE.find((candidate) => candidate.key === key);
       if (!memberId || !person) continue;
-      writeAudit(
+      await writeAudit(
         tx,
         {
           type: 'auth',
@@ -169,13 +174,13 @@ export async function seedDemo(deps: AppDeps, options: DemoSeedOptions): Promise
     return memberIds;
   });
 
-  curateWorkflow(deps, actor);
-  curateRoles(deps, actor, { memberIds: demoMembers, signIn });
+  await curateWorkflow(deps, actor);
+  await curateRoles(deps, actor, { memberIds: demoMembers, signIn });
 
   return {
     orgName: ORG_NAME,
     signIn,
-    counts: countRows(deps.db),
+    counts: await countRows(deps.db),
   };
 }
 
@@ -195,9 +200,9 @@ export async function seedDemo(deps: AppDeps, options: DemoSeedOptions): Promise
  * the change with the head of IT's name on it. Both calls open their own
  * transaction, which is why this sits outside the one above rather than in it.
  */
-function curateWorkflow(deps: AppDeps, actor: Actor): void {
-  createStatus(deps, actor, DEMO_STATUS);
-  replaceTransitions(deps, actor, { transitions: [...DEMO_TRANSITIONS] });
+async function curateWorkflow(deps: AppDeps, actor: Actor): Promise<void> {
+  await createStatus(deps, actor, DEMO_STATUS);
+  await replaceTransitions(deps, actor, { transitions: [...DEMO_TRANSITIONS] });
 }
 
 interface RoleCurationContext {
@@ -217,11 +222,11 @@ interface RoleCurationContext {
  * what it was seeded with until finance asked for the log, and the promotion at
  * the end only makes sense once the role exists to be promoted into.
  */
-function curateRoles(deps: AppDeps, actor: Actor, ctx: RoleCurationContext): void {
+async function curateRoles(deps: AppDeps, actor: Actor, ctx: RoleCurationContext): Promise<void> {
   // Ada is the founder, so the guard against editing your own role never fires
   // here — Admin is the system role, and nothing below touches its column.
   const admin: RoleActor = { ...actor, role: ADMIN_ROLE };
-  createRole(deps, admin, {
+  await createRole(deps, admin, {
     label: DEMO_ROLE.label,
     description: DEMO_ROLE.description,
     color: DEMO_ROLE.color,
@@ -231,10 +236,10 @@ function curateRoles(deps: AppDeps, actor: Actor, ctx: RoleCurationContext): voi
   // ticks arrive on top of what the seed gave Manager rather than instead of
   // it. Reading them back is also what makes this survive a change to
   // DEFAULT_ROLES without quietly revoking something.
-  const stored = listRoles(deps.db)
+  const stored = (await listRoles(deps.db))
     .filter((role) => !role.isSystem)
     .flatMap((role) => role.permissions.map((action) => ({ role: role.id, action })));
-  replacePermissions(deps, admin, {
+  await replacePermissions(deps, admin, {
     grants: [...stored, ...DEMO_ROLE.grants.map((action) => ({ role: DEMO_ROLE.id, action }))],
   });
 
@@ -243,7 +248,7 @@ function curateRoles(deps: AppDeps, actor: Actor, ctx: RoleCurationContext): voi
   if (!person || !holderId) {
     throw new Error(`demo-data: nobody keyed ${DEMO_ROLE.holder} has an account to promote.`);
   }
-  updateMember(deps, actor, holderId, { role: DEMO_ROLE.id });
+  await updateMember(deps, actor, holderId, { role: DEMO_ROLE.id });
 
   // The banner prints what each login *is*, and this one is no longer what it
   // was invited as. Nothing upstream can know that — the invitation happened
@@ -256,8 +261,9 @@ function curateRoles(deps: AppDeps, actor: Actor, ctx: RoleCurationContext): voi
 }
 
 /** The workspace itself, on the design's defaults. */
-function seedSettings(tx: DbOrTx, now: Date): void {
-  tx.insert(orgSettings)
+async function seedSettings(tx: DbOrTx, now: Date): Promise<void> {
+  await tx
+    .insert(orgSettings)
     .values({
       id: 1,
       orgName: ORG_NAME,
@@ -279,15 +285,16 @@ type Clock = (daysAgo: number, hour?: number, minute?: number) => Date;
  * key, and members cannot exist until the employees they link to do. So the
  * order is employees → members → the events that name both.
  */
-function seedPeople(tx: DbOrTx, at: Clock): Map<string, string> {
+async function seedPeople(tx: DbOrTx, at: Clock): Promise<Map<string, string>> {
   const ids = new Map<string, string>();
 
-  PEOPLE.forEach((person, index) => {
+  for (const [index, person] of PEOPLE.entries()) {
     const id = newId();
     ids.set(person.key, id);
     const added = at(person.addedDaysAgo, 10, index);
 
-    tx.insert(employees)
+    await tx
+      .insert(employees)
       .values({
         id,
         firstName: person.firstName,
@@ -304,23 +311,23 @@ function seedPeople(tx: DbOrTx, at: Clock): Map<string, string> {
         updatedAt: nowIso(added),
       })
       .run();
-  });
+  }
 
   return ids;
 }
 
 /** The other half of {@link seedPeople}, once there is an actor to attribute to. */
-function auditPeopleAdded(
+async function auditPeopleAdded(
   tx: DbOrTx,
   at: Clock,
   actorId: string,
   actorName: string,
   ids: Map<string, string>,
-): void {
-  PEOPLE.forEach((person, index) => {
+): Promise<void> {
+  for (const [index, person] of PEOPLE.entries()) {
     const id = ids.get(person.key);
-    if (!id) return;
-    writeAudit(
+    if (!id) continue;
+    await writeAudit(
       tx,
       {
         type: 'people',
@@ -332,7 +339,7 @@ function auditPeopleAdded(
       },
       at(person.addedDaysAgo, 10, index),
     );
-  });
+  }
 }
 
 interface MemberSeedContext {
@@ -344,12 +351,16 @@ interface MemberSeedContext {
   password: string;
 }
 
-function seedMembers(tx: DbOrTx, at: Clock, ctx: MemberSeedContext): Map<string, string> {
+async function seedMembers(
+  tx: DbOrTx,
+  at: Clock,
+  ctx: MemberSeedContext,
+): Promise<Map<string, string>> {
   const ids = new Map<string, string>();
 
-  PEOPLE.filter((person) => person.account).forEach((person, index) => {
+  for (const [index, person] of PEOPLE.filter((person) => person.account).entries()) {
     const account = person.account;
-    if (!account) return;
+    if (!account) continue;
     const displayName = `${person.firstName} ${person.lastName}`;
     const email = employeeEmail(person.firstName, person.lastName);
     // The founder's own row is the one the setup event was attributed to.
@@ -359,7 +370,8 @@ function seedMembers(tx: DbOrTx, at: Clock, ctx: MemberSeedContext): Map<string,
     const invitedAt = at(person.addedDaysAgo, 9, 30 + index);
     const active = account.status === 'active';
 
-    tx.insert(members)
+    await tx
+      .insert(members)
       .values({
         id,
         email,
@@ -382,7 +394,7 @@ function seedMembers(tx: DbOrTx, at: Clock, ctx: MemberSeedContext): Map<string,
 
     // The founder set the place up; nobody invited them.
     if (account.role !== 'admin') {
-      writeAudit(
+      await writeAudit(
         tx,
         {
           type: 'auth',
@@ -392,12 +404,16 @@ function seedMembers(tx: DbOrTx, at: Clock, ctx: MemberSeedContext): Map<string,
           memberId: id,
           // The label as the row spells it, snapshot at write time — the same
           // rule the members service follows, so a rename never rewrites the log.
-          params: { email, role: account.role, roleLabel: requireRole(tx, account.role).label },
+          params: {
+            email,
+            role: account.role,
+            roleLabel: (await requireRole(tx, account.role)).label,
+          },
         },
         invitedAt,
       );
       if (active) {
-        writeAudit(
+        await writeAudit(
           tx,
           {
             type: 'auth',
@@ -411,26 +427,27 @@ function seedMembers(tx: DbOrTx, at: Clock, ctx: MemberSeedContext): Map<string,
         );
       }
     }
-  });
+  }
 
   return ids;
 }
 
-function seedAssets(
+async function seedAssets(
   tx: DbOrTx,
   at: Clock,
   actorId: string,
   actorName: string,
-): Map<string, string> {
+): Promise<Map<string, string>> {
   const ids = new Map<string, string>();
 
-  ASSETS.forEach((asset, index) => {
+  for (const [index, asset] of ASSETS.entries()) {
     const id = newId();
     ids.set(asset.key, id);
     const added = at(asset.addedDaysAgo, 11, index % 50);
     const assetTag = `AST-${String(index + 1).padStart(4, '0')}`;
 
-    tx.insert(assets)
+    await tx
+      .insert(assets)
       .values({
         id,
         assetTag,
@@ -451,7 +468,7 @@ function seedAssets(
       })
       .run();
 
-    writeAudit(
+    await writeAudit(
       tx,
       {
         type: 'assets',
@@ -463,19 +480,20 @@ function seedAssets(
       },
       added,
     );
-  });
+  }
 
   return ids;
 }
 
 /** The four boot-seeded custom fields, filled in for the machines that have them. */
-function seedCustomValues(tx: DbOrTx, assetIds: Map<string, string>): void {
+async function seedCustomValues(tx: DbOrTx, assetIds: Map<string, string>): Promise<void> {
   const defs = new Map(
-    tx
-      .select({ id: customFieldDefs.id, key: customFieldDefs.key })
-      .from(customFieldDefs)
-      .all()
-      .map((row) => [row.key, row.id]),
+    (
+      await tx
+        .select({ id: customFieldDefs.id, key: customFieldDefs.key })
+        .from(customFieldDefs)
+        .all()
+    ).map((row) => [row.key, row.id]),
   );
 
   for (const asset of ASSETS) {
@@ -495,7 +513,7 @@ function seedCustomValues(tx: DbOrTx, assetIds: Map<string, string>): void {
     for (const [key, value] of values) {
       const fieldDefId = defs.get(key);
       if (value === undefined || !fieldDefId) continue;
-      tx.insert(assetCustomValues).values({ assetId, fieldDefId, value }).run();
+      await tx.insert(assetCustomValues).values({ assetId, fieldDefId, value }).run();
     }
   }
 }
@@ -513,7 +531,7 @@ interface HoldingSeedContext {
  * rather than a row to skip quietly — a demo missing half its history would
  * look like the app losing it.
  */
-function seedHoldings(tx: DbOrTx, at: Clock, ctx: HoldingSeedContext): void {
+async function seedHoldings(tx: DbOrTx, at: Clock, ctx: HoldingSeedContext): Promise<void> {
   const ordered = [...HOLDINGS].sort((a, b) => b.fromDaysAgo - a.fromDaysAgo);
 
   for (const holding of ordered) {
@@ -530,7 +548,7 @@ function seedHoldings(tx: DbOrTx, at: Clock, ctx: HoldingSeedContext): void {
     const holderName = `${person.firstName} ${person.lastName}`;
     const out = at(holding.fromDaysAgo, 13, 0);
 
-    openAssignment(
+    await openAssignment(
       tx,
       {
         assetId,
@@ -543,7 +561,7 @@ function seedHoldings(tx: DbOrTx, at: Clock, ctx: HoldingSeedContext): void {
       },
       out,
     );
-    writeAudit(
+    await writeAudit(
       tx,
       {
         type: 'assets',
@@ -560,7 +578,7 @@ function seedHoldings(tx: DbOrTx, at: Clock, ctx: HoldingSeedContext): void {
     if (holding.untilDaysAgo === undefined) continue;
 
     const back = at(holding.untilDaysAgo, 15, 0);
-    const open = activeAssignment(tx, assetId);
+    const open = await activeAssignment(tx, assetId);
     if (!open) {
       throw new Error(`demo-data: ${holding.assetKey} has no open record to close.`);
     }
@@ -575,7 +593,7 @@ function seedHoldings(tx: DbOrTx, at: Clock, ctx: HoldingSeedContext): void {
       newStatus,
     });
 
-    closeAssignment(
+    await closeAssignment(
       tx,
       {
         assignment: open,
@@ -587,7 +605,7 @@ function seedHoldings(tx: DbOrTx, at: Clock, ctx: HoldingSeedContext): void {
       },
       back,
     );
-    writeAudit(
+    await writeAudit(
       tx,
       {
         type: 'assets',
@@ -607,20 +625,21 @@ function seedHoldings(tx: DbOrTx, at: Clock, ctx: HoldingSeedContext): void {
  * The last thing that happened: somebody is leaving, and the two devices they
  * hold now have a return date. This is what fills the Pending returns widget.
  */
-function seedOffboarding(
+async function seedOffboarding(
   tx: DbOrTx,
   at: Clock,
   actorId: string,
   actorName: string,
   employeeIds: Map<string, string>,
-): void {
+): Promise<void> {
   for (const person of PEOPLE.filter((candidate) => candidate.status === 'offboarding')) {
     const id = employeeIds.get(person.key);
     if (!id) continue;
     const when = at(OFFBOARDING_DAYS_AGO, 16, 10);
     const displayName = `${person.firstName} ${person.lastName}`;
 
-    tx.update(employees)
+    await tx
+      .update(employees)
       .set({ status: 'offboarding', updatedAt: nowIso(when) })
       .where(eq(employees.id, id))
       .run();
@@ -629,7 +648,7 @@ function seedOffboarding(
       (holding) => holding.personKey === person.key && holding.untilDaysAgo === undefined,
     ).length;
 
-    writeAudit(
+    await writeAudit(
       tx,
       {
         type: 'people',
@@ -655,13 +674,13 @@ function employeeEmail(firstName: string, lastName: string): string {
   return `${strip(firstName)}.${strip(lastName)}@${EMAIL_DOMAIN}`;
 }
 
-function countRows(db: AppDeps['db']): DemoSeedResult['counts'] {
-  const rows = (table: SQLiteTable) => db.select().from(table).all().length;
+async function countRows(db: AppDeps['db']): Promise<DemoSeedResult['counts']> {
+  const rows = async (table: SQLiteTable) => (await db.select().from(table).all()).length;
   return {
-    members: rows(members),
-    employees: rows(employees),
-    assets: rows(assets),
-    assignments: rows(assignments),
-    auditEvents: rows(auditEvents),
+    members: await rows(members),
+    employees: await rows(employees),
+    assets: await rows(assets),
+    assignments: await rows(assignments),
+    auditEvents: await rows(auditEvents),
   };
 }

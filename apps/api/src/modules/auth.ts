@@ -42,7 +42,7 @@ export function registerAuthRoutes(app: FastifyInstance, deps: AppDeps): void {
     { schema: { body: loginInput }, config: { rateLimit: LOGIN_RATE } },
     async (request, reply) => {
       const now = deps.now();
-      const member = deps.db
+      const member = await deps.db
         .select()
         .from(members)
         .where(eq(members.email, request.body.email))
@@ -63,11 +63,11 @@ export function registerAuthRoutes(app: FastifyInstance, deps: AppDeps): void {
       if (member.mfaConfirmedAt) {
         return {
           mfaRequired: true,
-          challengeToken: issueAuthToken(deps.db, member.id, 'mfa_challenge', now),
+          challengeToken: await issueAuthToken(deps.db, member.id, 'mfa_challenge', now),
         };
       }
 
-      writeAudit(
+      await writeAudit(
         deps.db,
         {
           type: 'auth',
@@ -78,7 +78,7 @@ export function registerAuthRoutes(app: FastifyInstance, deps: AppDeps): void {
         },
         now,
       );
-      const session = createSession(deps.db, member.id, now);
+      const session = await createSession(deps.db, member.id, now);
       setSessionCookie(reply, session.raw, session.expiresAt, deps.config);
       return { member: serializeMember(member) };
     },
@@ -97,25 +97,34 @@ export function registerAuthRoutes(app: FastifyInstance, deps: AppDeps): void {
     { schema: { body: mfaChallengeInput }, config: { rateLimit: LOGIN_RATE } },
     async (request, reply) => {
       const now = deps.now();
-      const token = findValidToken(deps.db, request.body.challengeToken, 'mfa_challenge', now);
+      const token = await findValidToken(
+        deps.db,
+        request.body.challengeToken,
+        'mfa_challenge',
+        now,
+      );
       if (!token) throw invalidToken();
 
-      const member = deps.db.select().from(members).where(eq(members.id, token.memberId)).get();
+      const member = await deps.db
+        .select()
+        .from(members)
+        .where(eq(members.id, token.memberId))
+        .get();
       if (!member || member.status !== 'active') throw invalidCredentials();
 
       // One transaction for everything the code buys: the recovery code it
       // spends, the challenge it consumes, the sign-in it records — and, for
       // somebody who has just run out, a fresh set with the line that says so.
-      const recoveryCodes = deps.db.transaction((tx) => {
-        if (!verifyChallenge(tx, member, request.body.code, now)) {
+      const recoveryCodes = await deps.db.transaction(async (tx) => {
+        if (!(await verifyChallenge(tx, member, request.body.code, now))) {
           // The challenge survives a wrong code — a mistyped digit should not
           // send somebody back to the password screen — and the rate limit is
           // what stops that being useful to anybody else.
           throw new AppError(422, 'mfa_code_invalid', 'That code is not right.');
         }
 
-        consumeToken(tx, token.id, now);
-        writeAudit(
+        await consumeToken(tx, token.id, now);
+        await writeAudit(
           tx,
           {
             type: 'auth',
@@ -127,9 +136,9 @@ export function registerAuthRoutes(app: FastifyInstance, deps: AppDeps): void {
           now,
         );
 
-        const codes = replenishRecoveryCodes(tx, member, now);
+        const codes = await replenishRecoveryCodes(tx, member, now);
         if (codes) {
-          writeAudit(
+          await writeAudit(
             tx,
             {
               type: 'auth',
@@ -146,7 +155,7 @@ export function registerAuthRoutes(app: FastifyInstance, deps: AppDeps): void {
         return codes;
       });
 
-      const session = createSession(deps.db, member.id, now);
+      const session = await createSession(deps.db, member.id, now);
       setSessionCookie(reply, session.raw, session.expiresAt, deps.config);
       // `recoveryCodes` is absent on every ordinary sign-in, and present
       // exactly once when a set was minted: this response is the only place
@@ -159,7 +168,7 @@ export function registerAuthRoutes(app: FastifyInstance, deps: AppDeps): void {
 
   typed.post('/api/v1/auth/logout', {}, async (request, reply) => {
     const raw = request.cookies[SESSION_COOKIE];
-    if (raw) deleteSession(deps.db, raw);
+    if (raw) await deleteSession(deps.db, raw);
     clearSessionCookie(reply, deps.config);
     return reply.status(204).send();
   });
@@ -178,18 +187,23 @@ export function registerAuthRoutes(app: FastifyInstance, deps: AppDeps): void {
     { schema: { body: resetPasswordInput }, config: { rateLimit: TOKEN_RATE } },
     async (request, reply) => {
       const now = deps.now();
-      const token = findValidToken(deps.db, request.body.token, 'password_reset', now);
+      const token = await findValidToken(deps.db, request.body.token, 'password_reset', now);
       if (!token) throw invalidToken();
       const passwordHash = await hashPassword(request.body.newPassword);
 
-      const member = deps.db.transaction((tx) => {
-        tx.update(members)
+      const member = await deps.db.transaction(async (tx) => {
+        await tx
+          .update(members)
           .set({ passwordHash, updatedAt: nowIso(now) })
           .where(eq(members.id, token.memberId))
           .run();
-        consumeToken(tx, token.id, now);
-        const updated = tx.select().from(members).where(eq(members.id, token.memberId)).get()!;
-        writeAudit(
+        await consumeToken(tx, token.id, now);
+        const updated = (await tx
+          .select()
+          .from(members)
+          .where(eq(members.id, token.memberId))
+          .get())!;
+        await writeAudit(
           tx,
           {
             type: 'auth',
@@ -200,11 +214,11 @@ export function registerAuthRoutes(app: FastifyInstance, deps: AppDeps): void {
           },
           now,
         );
-        tx.delete(sessions).where(eq(sessions.memberId, updated.id)).run();
+        await tx.delete(sessions).where(eq(sessions.memberId, updated.id)).run();
         return updated;
       });
 
-      const session = createSession(deps.db, member.id, now);
+      const session = await createSession(deps.db, member.id, now);
       setSessionCookie(reply, session.raw, session.expiresAt, deps.config);
       return { member: serializeMember(member) };
     },
@@ -214,13 +228,17 @@ export function registerAuthRoutes(app: FastifyInstance, deps: AppDeps): void {
     '/api/v1/auth/invite/:token',
     { schema: { params: z.object({ token: z.string() }) } },
     async (request) => {
-      const token = findValidToken(deps.db, request.params.token, 'invite', deps.now());
+      const token = await findValidToken(deps.db, request.params.token, 'invite', deps.now());
       if (!token) throw invalidToken();
-      const member = deps.db.select().from(members).where(eq(members.id, token.memberId)).get();
+      const member = await deps.db
+        .select()
+        .from(members)
+        .where(eq(members.id, token.memberId))
+        .get();
       if (!member || member.status !== 'invited') throw invalidToken();
       // An invite can only exist once setup has run, so the settings row is
       // always there. Naming an unnamed organization would be the bug.
-      const settings = deps.db.select().from(orgSettings).get();
+      const settings = await deps.db.select().from(orgSettings).get();
       if (!settings) {
         throw new AppError(
           500,
@@ -234,7 +252,7 @@ export function registerAuthRoutes(app: FastifyInstance, deps: AppDeps): void {
       return {
         email: member.email,
         role: member.role,
-        roleLabel: requireRole(deps.db, member.role).label,
+        roleLabel: (await requireRole(deps.db, member.role)).label,
         orgName: settings.orgName,
       };
     },
@@ -245,14 +263,19 @@ export function registerAuthRoutes(app: FastifyInstance, deps: AppDeps): void {
     { schema: { body: acceptInviteInput }, config: { rateLimit: TOKEN_RATE } },
     async (request, reply) => {
       const now = deps.now();
-      const token = findValidToken(deps.db, request.body.token, 'invite', now);
+      const token = await findValidToken(deps.db, request.body.token, 'invite', now);
       if (!token) throw invalidToken();
-      const invited = deps.db.select().from(members).where(eq(members.id, token.memberId)).get();
+      const invited = await deps.db
+        .select()
+        .from(members)
+        .where(eq(members.id, token.memberId))
+        .get();
       if (!invited || invited.status !== 'invited') throw invalidToken();
 
       const passwordHash = await hashPassword(request.body.password);
-      const member = deps.db.transaction((tx) => {
-        tx.update(members)
+      const member = await deps.db.transaction(async (tx) => {
+        await tx
+          .update(members)
           .set({
             displayName: request.body.name,
             passwordHash,
@@ -261,9 +284,9 @@ export function registerAuthRoutes(app: FastifyInstance, deps: AppDeps): void {
           })
           .where(eq(members.id, invited.id))
           .run();
-        consumeToken(tx, token.id, now);
-        const updated = tx.select().from(members).where(eq(members.id, invited.id)).get()!;
-        writeAudit(
+        await consumeToken(tx, token.id, now);
+        const updated = (await tx.select().from(members).where(eq(members.id, invited.id)).get())!;
+        await writeAudit(
           tx,
           {
             type: 'auth',
@@ -280,7 +303,7 @@ export function registerAuthRoutes(app: FastifyInstance, deps: AppDeps): void {
         return updated;
       });
 
-      const session = createSession(deps.db, member.id, now);
+      const session = await createSession(deps.db, member.id, now);
       setSessionCookie(reply, session.raw, session.expiresAt, deps.config);
       return { member: serializeMember(member) };
     },

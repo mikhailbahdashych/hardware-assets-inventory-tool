@@ -23,8 +23,8 @@ export const MAX_AUDIT_LIMIT = 500;
  * pill. The counts are taken over the whole log rather than the page, so
  * switching pills never makes the other numbers move.
  */
-export function auditPage(db: Db, query: AuditQuery): AuditPage {
-  const rows = db
+export async function auditPage(db: Db, query: AuditQuery): Promise<AuditPage> {
+  const rows = await db
     .select()
     .from(auditEvents)
     .where(query.type ? eq(auditEvents.type, query.type) : undefined)
@@ -33,7 +33,7 @@ export function auditPage(db: Db, query: AuditQuery): AuditPage {
     .offset(query.offset)
     .all();
 
-  const counts = typeCounts(db);
+  const counts = await typeCounts(db);
   return {
     items: rows.map(toAuditItem),
     typeCounts: counts,
@@ -42,14 +42,15 @@ export function auditPage(db: Db, query: AuditQuery): AuditPage {
 }
 
 /** The same rows the screen shows, as a file — one renderer, so they agree. */
-export function auditCsv(db: Db, type?: AuditType): string {
-  const rows = db
-    .select()
-    .from(auditEvents)
-    .where(type ? eq(auditEvents.type, type) : undefined)
-    .orderBy(desc(auditEvents.at), desc(auditEvents.id))
-    .all()
-    .map(toAuditItem);
+export async function auditCsv(db: Db, type?: AuditType): Promise<string> {
+  const rows = (
+    await db
+      .select()
+      .from(auditEvents)
+      .where(type ? eq(auditEvents.type, type) : undefined)
+      .orderBy(desc(auditEvents.at), desc(auditEvents.id))
+      .all()
+  ).map(toAuditItem);
 
   return toCsv(
     ['Time', 'Actor', 'Event', 'Type'],
@@ -62,8 +63,8 @@ export function auditCsv(db: Db, type?: AuditType): string {
   );
 }
 
-function typeCounts(db: Db): AuditTypeCounts {
-  const rows = db
+async function typeCounts(db: Db): Promise<AuditTypeCounts> {
+  const rows = await db
     .select({ type: auditEvents.type, count: sql<number>`count(*)` })
     .from(auditEvents)
     .groupBy(auditEvents.type)

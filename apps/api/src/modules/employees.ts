@@ -19,7 +19,7 @@ export function registerEmployeeRoutes(app: FastifyInstance, deps: AppDeps): voi
   const typed = app.withTypeProvider<ZodTypeProvider>();
 
   typed.get('/api/v1/employees', { preHandler: requireAuth }, async () => ({
-    employees: listEmployees(deps.db),
+    employees: await listEmployees(deps.db),
   }));
 
   typed.get(
@@ -31,7 +31,7 @@ export function registerEmployeeRoutes(app: FastifyInstance, deps: AppDeps): voi
   typed.post(
     '/api/v1/employees',
     { schema: { body: employeeCreateInput }, preHandler: requireAction('employees.create') },
-    async (request) => ({ employee: createEmployee(deps, request.member!, request.body) }),
+    async (request) => ({ employee: await createEmployee(deps, request.member!, request.body) }),
   );
 
   typed.patch(
@@ -41,7 +41,7 @@ export function registerEmployeeRoutes(app: FastifyInstance, deps: AppDeps): voi
       preHandler: requireAction('employees.edit'),
     },
     async (request) => ({
-      employee: updateEmployee(deps, request.member!, request.params.id, request.body),
+      employee: await updateEmployee(deps, request.member!, request.params.id, request.body),
     }),
   );
 
@@ -49,7 +49,7 @@ export function registerEmployeeRoutes(app: FastifyInstance, deps: AppDeps): voi
     '/api/v1/employees/:id',
     { schema: { params: idParam }, preHandler: requireAction('employees.delete') },
     async (request, reply) => {
-      deleteEmployee(deps, request.member!, request.params.id);
+      await deleteEmployee(deps, request.member!, request.params.id);
       return reply.status(204).send();
     },
   );

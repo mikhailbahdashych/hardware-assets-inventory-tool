@@ -10,8 +10,8 @@ afterEach(async () => {
   await ctx?.close();
 });
 
-const roleRows = () => ctx.db.select().from(roles).orderBy(roles.sortOrder).all();
-const grantRows = () => ctx.db.select().from(rolePermissions).all();
+const roleRows = async () => await ctx.db.select().from(roles).orderBy(roles.sortOrder).all();
+const grantRows = async () => await ctx.db.select().from(rolePermissions).all();
 
 /**
  * An upgraded instance must behave exactly as it did before roles were
@@ -21,7 +21,7 @@ const grantRows = () => ctx.db.select().from(rolePermissions).all();
 describe('the boot seed lays down today’s roles', () => {
   it('writes the three default roles in the default order', async () => {
     ctx = await buildTestApp();
-    const rows = roleRows();
+    const rows = await roleRows();
 
     expect(rows.map((row) => row.id)).toEqual(['admin', 'manager', 'viewer']);
     expect(rows.map((row) => row.sortOrder)).toEqual([0, 1, 2]);
@@ -40,29 +40,29 @@ describe('the boot seed lays down today’s roles', () => {
     ctx = await buildTestApp();
 
     const manager = DEFAULT_ROLES.find((role) => role.id === 'manager')!;
-    expect(grantRows().filter((row) => row.roleId === 'manager').map((row) => row.action).sort()).toEqual([...manager.grants].sort()); // prettier-ignore
+    expect((await grantRows()).filter((row) => row.roleId === 'manager').map((row) => row.action).sort()).toEqual([...manager.grants].sort()); // prettier-ignore
     // The system role's set is every action there is, resolved rather than
     // stored — a stored set is one a future action would be missing from.
-    expect(grantRows().filter((row) => row.roleId === 'admin')).toEqual([]);
-    expect(grantRows().filter((row) => row.roleId === 'viewer')).toEqual([]);
+    expect((await grantRows()).filter((row) => row.roleId === 'admin')).toEqual([]);
+    expect((await grantRows()).filter((row) => row.roleId === 'viewer')).toEqual([]);
   });
 
   it('changes nothing when it runs again — it runs at every boot', async () => {
     ctx = await buildTestApp();
-    const before = { roles: roleRows(), grants: grantRows() };
+    const before = { roles: await roleRows(), grants: await grantRows() };
 
-    seed(ctx.db);
-    seed(ctx.db);
+    await seed(ctx.db);
+    await seed(ctx.db);
 
-    expect(roleRows()).toEqual(before.roles);
-    expect(grantRows()).toEqual(before.grants);
+    expect(await roleRows()).toEqual(before.roles);
+    expect(await grantRows()).toEqual(before.grants);
   });
 
   it('leaves an edited set alone rather than putting a deleted role back', async () => {
     ctx = await buildTestApp();
-    ctx.db.delete(rolePermissions).run();
-    ctx.db.delete(roles).run();
-    ctx.db
+    await ctx.db.delete(rolePermissions).run();
+    await ctx.db.delete(roles).run();
+    await ctx.db
       .insert(roles)
       .values({
         id: 'auditor',
@@ -76,10 +76,10 @@ describe('the boot seed lays down today’s roles', () => {
       })
       .run();
 
-    seed(ctx.db);
+    await seed(ctx.db);
 
-    expect(roleRows().map((row) => row.id)).toEqual(['auditor']);
-    expect(grantRows()).toEqual([]);
+    expect((await roleRows()).map((row) => row.id)).toEqual(['auditor']);
+    expect(await grantRows()).toEqual([]);
   });
 
   /**
@@ -90,12 +90,12 @@ describe('the boot seed lays down today’s roles', () => {
    */
   it('comes back to the default after the workspace is emptied', async () => {
     ctx = await buildTestApp();
-    ctx.db.delete(rolePermissions).run();
-    ctx.db.delete(roles).run();
+    await ctx.db.delete(rolePermissions).run();
+    await ctx.db.delete(roles).run();
 
     await emptyWorkspace(ctx.deps);
 
-    expect(roleRows().map((row) => row.id)).toEqual(['admin', 'manager', 'viewer']);
-    expect(grantRows()).toHaveLength(9);
+    expect((await roleRows()).map((row) => row.id)).toEqual(['admin', 'manager', 'viewer']);
+    expect(await grantRows()).toHaveLength(9);
   });
 });

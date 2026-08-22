@@ -9,12 +9,14 @@ Worked example: **Assets by location**, a card people can turn off like the othe
 The whole dashboard is **one request**: the widgets read the same few tables, and toggling one off should not change how many round trips the page makes. Add your numbers to `dashboardPayload` rather than adding an endpoint.
 
 ```ts
-locationCounts: db
+locationCounts: await db
   .select({ location: assets.location, count: sql<number>`count(*)` })
   .from(assets)
   .groupBy(assets.location)
   .all(),
 ```
+
+**Keep the `await`.** Drizzle's builders are thenables, so a query without one still compiles and still hands the widget a truthy object — it just never ran. `no-floating-promises` catches the statement form; an object property like this one is caught by nothing but the eye, which is why it is written down here.
 
 Add the shape to `DashboardPayload` in `apps/api/src/types/dashboard.ts` and mirror it in `apps/web/src/types/api.ts`.
 

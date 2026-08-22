@@ -22,7 +22,7 @@ import { newId } from '@/lib/ids.js';
  */
 export async function sendOnce(deps: AppDeps, notification: Notification): Promise<boolean> {
   if (!deps.mailer) return false;
-  if (alreadySent(deps, notification.dedupeKey)) return false;
+  if (await alreadySent(deps, notification.dedupeKey)) return false;
 
   await deps.mailer.send({
     to: notification.to,
@@ -31,7 +31,7 @@ export async function sendOnce(deps: AppDeps, notification: Notification): Promi
     html: notification.content.html,
   });
 
-  deps.db
+  await deps.db
     .insert(notificationLog)
     .values({
       id: newId(),
@@ -47,10 +47,13 @@ export async function sendOnce(deps: AppDeps, notification: Notification): Promi
   return true;
 }
 
-function alreadySent(deps: AppDeps, dedupeKey: string): boolean {
+async function alreadySent(deps: AppDeps, dedupeKey: string): Promise<boolean> {
   return (
-    deps.db.select().from(notificationLog).where(eq(notificationLog.dedupeKey, dedupeKey)).get() !==
-    undefined
+    (await deps.db
+      .select()
+      .from(notificationLog)
+      .where(eq(notificationLog.dedupeKey, dedupeKey))
+      .get()) !== undefined
   );
 }
 

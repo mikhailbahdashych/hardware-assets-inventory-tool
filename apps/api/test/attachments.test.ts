@@ -61,7 +61,7 @@ describe('attachments', () => {
       uploadedByName: 'Tomasz Kowalski',
     });
 
-    const row = ctx.db.select().from(attachments).all()[0]!;
+    const row = (await ctx.db.select().from(attachments).all())[0]!;
     // The stored name is ours, never the caller's — an uploaded name is not a path.
     expect(row.storedName).not.toBe('invoice-ast-0001.pdf');
     expect(existsSync(join(ctx.uploadsDir, row.storedName))).toBe(true);
@@ -112,7 +112,7 @@ describe('attachments', () => {
     const admin = await setupOrg(ctx.app);
     const asset = await createAsset(admin);
     const uploaded = await upload(admin, asset.id, 'warranty.pdf', 'warranty bytes');
-    const stored = ctx.db.select().from(attachments).all()[0]!.storedName;
+    const stored = (await ctx.db.select().from(attachments).all())[0]!.storedName;
 
     const res = await inject(ctx.app, {
       method: 'DELETE',
@@ -120,7 +120,7 @@ describe('attachments', () => {
       cookie: admin,
     });
     expect(res.statusCode).toBe(204);
-    expect(ctx.db.select().from(attachments).all()).toHaveLength(0);
+    expect(await ctx.db.select().from(attachments).all()).toHaveLength(0);
     expect(existsSync(join(ctx.uploadsDir, stored))).toBe(false);
   });
 
@@ -136,7 +136,7 @@ describe('attachments', () => {
       cookie: admin,
     });
     expect(res.statusCode).toBe(204);
-    expect(ctx.db.select().from(attachments).all()).toHaveLength(0);
+    expect(await ctx.db.select().from(attachments).all()).toHaveLength(0);
     expect(readdirSync(ctx.uploadsDir)).toHaveLength(0);
   });
 
@@ -145,7 +145,7 @@ describe('attachments', () => {
     const admin = await setupOrg(ctx.app);
     const asset = await createAsset(admin);
     const uploaded = await upload(admin, asset.id, 'warranty.pdf', 'warranty bytes');
-    const viewer = memberCookie(ctx.db, 'viewer');
+    const viewer = await memberCookie(ctx.db, 'viewer');
 
     expect((await upload(viewer, asset.id, 'nope.pdf', 'x')).statusCode).toBe(403);
     expect(
@@ -176,7 +176,7 @@ describe('attachments', () => {
 
     await upload(admin, asset.id, 'invoice.pdf', content);
 
-    const row = ctx.db.select().from(attachments).all()[0]!;
+    const row = (await ctx.db.select().from(attachments).all())[0]!;
     expect(row.sha256).toBe(createHash('sha256').update(content).digest('hex'));
   });
 
@@ -204,7 +204,7 @@ describe('the upload policy', () => {
       '.exe files are not accepted. Attachments can be images, PDFs, office documents, text or archives.',
     );
 
-    expect(ctx.db.select().from(attachments).all()).toEqual([]);
+    expect(await ctx.db.select().from(attachments).all()).toEqual([]);
     expect(existsSync(ctx.uploadsDir) ? readdirSync(ctx.uploadsDir) : []).toEqual([]);
   });
 
@@ -246,7 +246,7 @@ describe('the upload policy', () => {
       body: { uploadQuotaMb: 100 },
     });
     // Earlier uploads that filled the workspace, bar a hundred bytes.
-    ctx.db
+    await ctx.db
       .insert(attachments)
       .values({
         id: newId(),
@@ -268,7 +268,7 @@ describe('the upload policy', () => {
     );
 
     // The row was never written, and the bytes are not left on the volume.
-    expect(ctx.db.select().from(attachments).all()).toHaveLength(1);
+    expect(await ctx.db.select().from(attachments).all()).toHaveLength(1);
     expect(readdirSync(ctx.uploadsDir)).toEqual([]);
   });
 
@@ -283,7 +283,7 @@ describe('the upload policy', () => {
       cookie: admin,
       body: { uploadQuotaMb: 100 },
     });
-    ctx.db
+    await ctx.db
       .insert(attachments)
       .values({
         id: newId(),

@@ -1,8 +1,8 @@
 # One container: the API serving its own built SPA, with SQLite on /data.
 #
-# bookworm-slim rather than alpine because better-sqlite3 and @node-rs/argon2
-# ship glibc prebuilds — on musl they compile from source, which turns a
-# 40-second build into several minutes and needs a toolchain in the image.
+# bookworm-slim rather than alpine because libsql and @node-rs/argon2 ship
+# glibc prebuilds — on musl they would need the musl variants at best and a
+# Rust toolchain at worst, which turns a 40-second build into several minutes.
 
 FROM node:22-bookworm-slim AS deps
 WORKDIR /app
@@ -13,10 +13,10 @@ COPY apps/api/package.json apps/api/
 COPY apps/web/package.json apps/web/
 COPY packages/shared/package.json packages/shared/
 COPY e2e/package.json e2e/
-# --ignore-scripts: better-sqlite3 and @node-rs/argon2 both ship their compiled
-# binaries inside the package, so npm's automatic `node-gyp rebuild` would
-# recompile what is already there — and would need Python and a C++ toolchain
-# in the image to do it. esbuild resolves its platform binary the same way.
+# --ignore-scripts: nothing here builds a native module at install time.
+# `libsql` (under @libsql/client) and @node-rs/argon2 both resolve a prebuilt
+# `.node` from a platform package npm picks by os/cpu — an optional dependency,
+# not an install script — and esbuild resolves its binary the same way.
 RUN npm ci --ignore-scripts
 
 

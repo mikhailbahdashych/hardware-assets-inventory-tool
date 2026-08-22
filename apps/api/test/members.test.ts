@@ -38,7 +38,7 @@ describe('the member list', () => {
     const res = await inject(ctx.app, {
       method: 'GET',
       url: '/api/v1/members',
-      cookie: memberCookie(ctx.db, 'viewer'),
+      cookie: await memberCookie(ctx.db, 'viewer'),
     });
     expect(res.statusCode).toBe(200);
   });
@@ -77,8 +77,8 @@ describe('inviting a member', () => {
   it('is admin-only', async () => {
     ctx = await buildTestApp();
     await setupOrg(ctx.app);
-    expect((await invite(memberCookie(ctx.db, 'manager'))).statusCode).toBe(403);
-    expect((await invite(memberCookie(ctx.db, 'viewer'))).statusCode).toBe(403);
+    expect((await invite(await memberCookie(ctx.db, 'manager'))).statusCode).toBe(403);
+    expect((await invite(await memberCookie(ctx.db, 'viewer'))).statusCode).toBe(403);
   });
 
   it('creates an invited member and hands back a usable link', async () => {
@@ -103,7 +103,7 @@ describe('inviting a member', () => {
     expect(preview.statusCode).toBe(200);
     expect(preview.json()).toMatchObject({ email: 'grace@acme.io', role: 'manager' });
 
-    const stored = ctx.db
+    const stored = await ctx.db
       .select()
       .from(authTokens)
       .where(eq(authTokens.id, hashToken(token)))
@@ -134,7 +134,7 @@ describe('inviting a member', () => {
     const admin = await setupOrg(ctx.app);
     await invite(admin, { role: 'viewer' });
 
-    const event = ctx.db
+    const event = await ctx.db
       .select()
       .from(auditEvents)
       .where(eq(auditEvents.action, 'member.invited'))
@@ -151,7 +151,7 @@ describe('inviting a member', () => {
 
     expect(res.statusCode).toBe(422);
     expect(res.json().error.fields.role).toMatch(/nowhere/);
-    expect(ctx.db.select().from(members).all()).toHaveLength(1);
+    expect(await ctx.db.select().from(members).all()).toHaveLength(1);
   });
 
   it('invites into a role the workspace made up, and the log says its name', async () => {
@@ -168,7 +168,7 @@ describe('inviting a member', () => {
 
     expect(res.statusCode).toBe(200);
     expect(res.json().member.role).toBe('auditor');
-    const event = ctx.db
+    const event = await ctx.db
       .select()
       .from(auditEvents)
       .where(eq(auditEvents.action, 'member.invited'))
@@ -232,7 +232,7 @@ describe('resending an invitation', () => {
   it('refuses for a member who already joined', async () => {
     ctx = await buildTestApp();
     const admin = await setupOrg(ctx.app);
-    const me = ctx.db.select().from(members).get()!;
+    const me = (await ctx.db.select().from(members).get())!;
 
     const res = await inject(ctx.app, {
       method: 'POST',
@@ -248,14 +248,14 @@ describe('issuing a password reset link', () => {
   it('is the recovery path when there is no SMTP, and it is admin-only', async () => {
     ctx = await buildTestApp();
     const admin = await setupOrg(ctx.app);
-    const me = ctx.db.select().from(members).get()!;
+    const me = (await ctx.db.select().from(members).get())!;
 
     expect(
       (
         await inject(ctx.app, {
           method: 'POST',
           url: `/api/v1/members/${me.id}/reset-link`,
-          cookie: memberCookie(ctx.db, 'manager'),
+          cookie: await memberCookie(ctx.db, 'manager'),
         })
       ).statusCode,
     ).toBe(403);
@@ -306,7 +306,7 @@ describe('changing a member', () => {
     expect(res.statusCode).toBe(200);
     expect(res.json().member.role).toBe('admin');
 
-    const event = ctx.db
+    const event = await ctx.db
       .select()
       .from(auditEvents)
       .where(eq(auditEvents.action, 'member.role_changed'))
@@ -329,7 +329,7 @@ describe('changing a member', () => {
 
     expect(res.statusCode).toBe(422);
     expect(res.json().error.fields.role).toMatch(/nowhere/);
-    expect(ctx.db.select().from(members).all().at(-1)!.role).toBe('manager');
+    expect((await ctx.db.select().from(members).all()).at(-1)!.role).toBe('manager');
   });
 
   it('links and unlinks an employee record', async () => {
@@ -354,7 +354,7 @@ describe('changing a member', () => {
     });
     expect(unlinked.json().member.linkedEmployee).toBeNull();
 
-    const events = ctx.db
+    const events = await ctx.db
       .select()
       .from(auditEvents)
       .where(eq(auditEvents.action, 'member.link_changed'))
@@ -365,7 +365,7 @@ describe('changing a member', () => {
   it('refuses to change your own role, which is what keeps an admin in the room', async () => {
     ctx = await buildTestApp();
     const admin = await setupOrg(ctx.app);
-    const me = ctx.db.select().from(members).get()!;
+    const me = (await ctx.db.select().from(members).get())!;
 
     const res = await inject(ctx.app, {
       method: 'PATCH',
@@ -380,8 +380,10 @@ describe('changing a member', () => {
   it('lets one admin demote another, because the one doing it stays', async () => {
     ctx = await buildTestApp();
     await setupOrg(ctx.app);
-    const otherCookie = memberCookie(ctx.db, 'admin');
-    const setupAdmin = ctx.db.select().from(members).where(eq(members.role, 'admin')).all()[0]!;
+    const otherCookie = await memberCookie(ctx.db, 'admin');
+    const setupAdmin = (
+      await ctx.db.select().from(members).where(eq(members.role, 'admin')).all()
+    )[0]!;
 
     const res = await inject(ctx.app, {
       method: 'PATCH',
@@ -391,7 +393,7 @@ describe('changing a member', () => {
     });
     expect(res.statusCode).toBe(200);
 
-    const remaining = ctx.db.select().from(members).where(eq(members.role, 'admin')).all();
+    const remaining = await ctx.db.select().from(members).where(eq(members.role, 'admin')).all();
     expect(remaining).toHaveLength(1);
   });
 });
@@ -400,8 +402,8 @@ describe('removing a member', () => {
   it('takes their sessions with them', async () => {
     ctx = await buildTestApp();
     const admin = await setupOrg(ctx.app);
-    const victimCookie = memberCookie(ctx.db, 'manager');
-    const victim = ctx.db.select().from(members).where(eq(members.role, 'manager')).get()!;
+    const victimCookie = await memberCookie(ctx.db, 'manager');
+    const victim = (await ctx.db.select().from(members).where(eq(members.role, 'manager')).get())!;
 
     const res = await inject(ctx.app, {
       method: 'DELETE',
@@ -410,15 +412,15 @@ describe('removing a member', () => {
     });
     expect(res.statusCode).toBe(204);
 
-    expect(ctx.db.select().from(sessions).where(eq(sessions.memberId, victim.id)).all()).toEqual(
-      [],
-    );
+    expect(
+      await ctx.db.select().from(sessions).where(eq(sessions.memberId, victim.id)).all(),
+    ).toEqual([]);
     expect(
       (await inject(ctx.app, { method: 'GET', url: '/api/v1/assets', cookie: victimCookie }))
         .statusCode,
     ).toBe(401);
 
-    const event = ctx.db
+    const event = await ctx.db
       .select()
       .from(auditEvents)
       .where(eq(auditEvents.action, 'member.removed'))
@@ -429,7 +431,7 @@ describe('removing a member', () => {
   it('refuses to remove you, which is the same guard the last admin relies on', async () => {
     ctx = await buildTestApp();
     const admin = await setupOrg(ctx.app);
-    const me = ctx.db.select().from(members).get()!;
+    const me = (await ctx.db.select().from(members).get())!;
 
     const self = await inject(ctx.app, {
       method: 'DELETE',
@@ -438,14 +440,14 @@ describe('removing a member', () => {
     });
     expect(self.statusCode).toBe(409);
     expect(self.json().error.code).toBe('self_delete');
-    expect(ctx.db.select().from(members).all()).toHaveLength(1);
+    expect(await ctx.db.select().from(members).all()).toHaveLength(1);
   });
 
   it('keeps the audit trail an ex-member wrote', async () => {
     ctx = await buildTestApp();
     const admin = await setupOrg(ctx.app);
-    const managerCookie = memberCookie(ctx.db, 'manager');
-    const manager = ctx.db.select().from(members).where(eq(members.role, 'manager')).get()!;
+    const managerCookie = await memberCookie(ctx.db, 'manager');
+    const manager = (await ctx.db.select().from(members).where(eq(members.role, 'manager')).get())!;
 
     await inject(ctx.app, {
       method: 'POST',
@@ -459,7 +461,7 @@ describe('removing a member', () => {
       cookie: admin,
     });
 
-    const created = ctx.db
+    const created = await ctx.db
       .select()
       .from(auditEvents)
       .where(eq(auditEvents.action, 'asset.created'))

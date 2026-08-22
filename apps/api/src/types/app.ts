@@ -1,4 +1,4 @@
-import type Database from 'better-sqlite3';
+import type { Client } from '@libsql/client';
 import type { Config } from '@/types/config.js';
 import type { Db } from '@/types/db.js';
 import type { Mailer } from '@/types/mail.js';
@@ -10,7 +10,11 @@ import type { Mailer } from '@/types/mail.js';
 export interface AppDeps {
   config: Config;
   db: Db;
-  sqlite: Database.Database;
+  /**
+   * The libsql client behind `db`, for the health check that pings it and the
+   * shutdown that closes it. Every query goes through `db`.
+   */
+  client: Client;
   /** Injectable clock — tests control time through it. */
   now: () => Date;
   /**
@@ -25,7 +29,7 @@ export interface AppDeps {
 export interface BuildAppOptions {
   config: Config;
   db: Db;
-  sqlite: Database.Database;
+  client: Client;
   now?: () => Date;
   /** Omitted means "build one from the config", which may still be null. */
   mailer?: Mailer | null;

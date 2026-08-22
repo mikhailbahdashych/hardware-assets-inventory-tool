@@ -110,7 +110,7 @@ describe('RBAC guard', () => {
 
     // Downgrade the admin to viewer and try again.
     const { members } = await import('../src/db/schema.js');
-    ctx.db.update(members).set({ role: 'viewer' }).run();
+    await ctx.db.update(members).set({ role: 'viewer' }).run();
     const viewerAdminOnly = await inject(ctx.app, {
       method: 'POST',
       url: '/api/v1/_test/admin-only',

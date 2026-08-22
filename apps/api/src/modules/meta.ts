@@ -6,7 +6,7 @@ import pkg from '../../package.json';
 /** Public instance metadata: drives the web app's /setup redirect and the login footer. */
 export function registerMetaRoutes(app: FastifyInstance, deps: AppDeps): void {
   app.get('/api/v1/meta', async () => {
-    const settings = deps.db.select().from(orgSettings).get();
+    const settings = await deps.db.select().from(orgSettings).get();
     return {
       needsSetup: !settings,
       version: pkg.version,
@@ -21,7 +21,7 @@ export function registerMetaRoutes(app: FastifyInstance, deps: AppDeps): void {
   });
 
   app.get('/api/v1/healthz', async () => {
-    deps.sqlite.prepare('SELECT 1').get();
+    await deps.client.execute('SELECT 1');
     return { ok: true };
   });
 }
