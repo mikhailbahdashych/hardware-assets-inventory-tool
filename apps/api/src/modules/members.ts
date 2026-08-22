@@ -29,14 +29,14 @@ export function registerMemberRoutes(app: FastifyInstance, deps: AppDeps): void 
   const typed = app.withTypeProvider<ZodTypeProvider>();
 
   typed.get('/api/v1/members', { preHandler: requireAuth }, async () => ({
-    members: listMembers(deps.db),
+    members: await listMembers(deps.db),
   }));
 
   typed.post(
     '/api/v1/members/invites',
     { schema: { body: inviteInput }, preHandler: requireAction('members.manage') },
     async (request) => {
-      const result = inviteMember(deps, request.member!, request.body);
+      const result = await inviteMember(deps, request.member!, request.body);
       // The link is in the response either way; the email is the convenience.
       if (request.body.sendEmail) {
         await sendInviteMail(deps, request.log, {
@@ -44,7 +44,7 @@ export function registerMemberRoutes(app: FastifyInstance, deps: AppDeps): void 
           inviterName: request.member!.displayName,
           // inviteMember has already checked the role exists, in the
           // transaction that stored it.
-          roleLabel: requireRole(deps.db, result.member.role).label,
+          roleLabel: (await requireRole(deps.db, result.member.role)).label,
           url: result.inviteUrl,
         });
       }
@@ -56,13 +56,13 @@ export function registerMemberRoutes(app: FastifyInstance, deps: AppDeps): void 
     '/api/v1/members/:id/resend-invite',
     { schema: { params: idParam }, preHandler: requireAction('members.manage') },
     async (request) => {
-      const result = resendInvite(deps, request.member!, request.params.id);
+      const result = await resendInvite(deps, request.member!, request.params.id);
       // resendInvite has already 404'd on an unknown id, so this one is there.
-      const member = memberById(deps.db, request.params.id);
+      const member = await memberById(deps.db, request.params.id);
       await sendInviteMail(deps, request.log, {
         to: member.email,
         inviterName: request.member!.displayName,
-        roleLabel: requireRole(deps.db, member.role).label,
+        roleLabel: (await requireRole(deps.db, member.role)).label,
         url: result.inviteUrl,
       });
       return result;
@@ -73,9 +73,12 @@ export function registerMemberRoutes(app: FastifyInstance, deps: AppDeps): void 
     '/api/v1/members/:id/reset-link',
     { schema: { params: idParam }, preHandler: requireAction('members.manage') },
     async (request) => {
-      const result = issueResetLink(deps, request.member!, request.params.id);
-      const member = memberById(deps.db, request.params.id);
-      await sendResetMail(deps, request.log, { to: member.email, url: result.resetUrl });
+      const result = await issueResetLink(deps, request.member!, request.params.id);
+      const member = await memberById(deps.db, request.params.id);
+      await sendResetMail(deps, request.log, {
+        to: member.email,
+        url: result.resetUrl,
+      });
       return result;
     },
   );
@@ -94,10 +97,10 @@ export function registerMemberRoutes(app: FastifyInstance, deps: AppDeps): void 
     { schema: { params: idParam }, preHandler: requireAction('members.manage') },
     async (request, reply) => {
       const now = deps.now();
-      const target = memberById(deps.db, request.params.id);
-      deps.db.transaction((tx) => {
-        resetMemberMfa(tx, target.id, now);
-        writeAudit(
+      const target = await memberById(deps.db, request.params.id);
+      await deps.db.transaction(async (tx) => {
+        await resetMemberMfa(tx, target.id, now);
+        await writeAudit(
           tx,
           {
             type: 'auth',
@@ -129,10 +132,10 @@ export function registerMemberRoutes(app: FastifyInstance, deps: AppDeps): void 
     { schema: { params: idParam }, preHandler: requireAction('members.manage') },
     async (request, reply) => {
       const now = deps.now();
-      const target = memberById(deps.db, request.params.id);
-      deps.db.transaction((tx) => {
-        resetMemberRecoveryCodes(tx, target.id);
-        writeAudit(
+      const target = await memberById(deps.db, request.params.id);
+      await deps.db.transaction(async (tx) => {
+        await resetMemberRecoveryCodes(tx, target.id);
+        await writeAudit(
           tx,
           {
             type: 'auth',
@@ -157,7 +160,7 @@ export function registerMemberRoutes(app: FastifyInstance, deps: AppDeps): void 
       preHandler: requireAction('members.manage'),
     },
     async (request) => ({
-      member: updateMember(deps, request.member!, request.params.id, request.body),
+      member: await updateMember(deps, request.member!, request.params.id, request.body),
     }),
   );
 
@@ -165,7 +168,7 @@ export function registerMemberRoutes(app: FastifyInstance, deps: AppDeps): void 
     '/api/v1/members/:id',
     { schema: { params: idParam }, preHandler: requireAction('members.manage') },
     async (request, reply) => {
-      removeMember(deps, request.member!, request.params.id);
+      await removeMember(deps, request.member!, request.params.id);
       return reply.status(204).send();
     },
   );

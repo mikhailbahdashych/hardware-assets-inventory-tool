@@ -41,63 +41,62 @@ const EDITABLE = [
 ] as const;
 
 /** Newest first: the asset you just registered is the one you want to see. */
-export function listAssets(db: Db) {
-  return db
-    .select({ asset: assets, holder: assignments })
-    .from(assets)
-    .leftJoin(assignments, and(eq(assignments.assetId, assets.id), isNull(assignments.returnedAt)))
-    .orderBy(desc(assets.createdAt))
-    .all()
-    .map((row) => serializeAsset(row.asset, row.holder));
+export async function listAssets(db: Db) {
+  return (
+    await db
+      .select({ asset: assets, holder: assignments })
+      .from(assets)
+      .leftJoin(
+        assignments,
+        and(eq(assignments.assetId, assets.id), isNull(assignments.returnedAt)),
+      )
+      .orderBy(desc(assets.createdAt))
+      .all()
+  ).map((row) => serializeAsset(row.asset, row.holder));
 }
 
-export function getAssetDetail(db: Db, id: string) {
-  const asset = db.select().from(assets).where(eq(assets.id, id)).get();
+export async function getAssetDetail(db: Db, id: string) {
+  const asset = await db.select().from(assets).where(eq(assets.id, id)).get();
   if (!asset) throw notFound('That asset');
 
   const values = new Map(
-    db
-      .select()
-      .from(assetCustomValues)
-      .where(eq(assetCustomValues.assetId, id))
-      .all()
-      .map((row) => [row.fieldDefId, row.value]),
+    (await db.select().from(assetCustomValues).where(eq(assetCustomValues.assetId, id)).all()).map(
+      (row) => [row.fieldDefId, row.value],
+    ),
   );
-  const customFields = db
-    .select()
-    .from(customFieldDefs)
-    .orderBy(customFieldDefs.sortOrder)
-    .all()
-    .map((def) => ({
-      key: def.key,
-      label: def.label,
-      type: def.type,
-      // Every definition is listed for every asset; no row for this pair
-      // means the field is genuinely unset on this asset.
-      value: values.get(def.id) ?? null,
-    }));
+  const customFields = (
+    await db.select().from(customFieldDefs).orderBy(customFieldDefs.sortOrder).all()
+  ).map((def) => ({
+    key: def.key,
+    label: def.label,
+    type: def.type,
+    // Every definition is listed for every asset; no row for this pair
+    // means the field is genuinely unset on this asset.
+    value: values.get(def.id) ?? null,
+  }));
 
   // The last 20 events about this asset; the full log lives under Admin.
-  const auditTrail = db
-    .select()
-    .from(auditEvents)
-    .where(eq(auditEvents.assetId, id))
-    .orderBy(desc(auditEvents.at))
-    .limit(20)
-    .all()
-    .map((event) => ({
-      id: event.id,
-      at: event.at,
-      action: event.action,
-      actorName: event.actorName,
-      params: JSON.parse(event.params) as Record<string, unknown>,
-    }));
+  const auditTrail = (
+    await db
+      .select()
+      .from(auditEvents)
+      .where(eq(auditEvents.assetId, id))
+      .orderBy(desc(auditEvents.at))
+      .limit(20)
+      .all()
+  ).map((event) => ({
+    id: event.id,
+    at: event.at,
+    action: event.action,
+    actorName: event.actorName,
+    params: JSON.parse(event.params) as Record<string, unknown>,
+  }));
 
   return {
-    asset: serializeAsset(asset, activeAssignment(db, id)),
+    asset: serializeAsset(asset, await activeAssignment(db, id)),
     customFields,
-    history: assetHistory(db, id).map(serializeAssignment),
-    attachments: listAttachments(db, id),
+    history: (await assetHistory(db, id)).map(serializeAssignment),
+    attachments: await listAttachments(db, id),
     auditTrail,
   };
 }
@@ -110,8 +109,8 @@ export function getAssetDetail(db: Db, id: string) {
  * settings row is a broken invariant — better to say so than to quietly
  * generate tags under a second, invented prefix nobody chose.
  */
-export function nextAssetTag(db: DbOrTx): string {
-  const settings = db.select().from(orgSettings).get();
+export async function nextAssetTag(db: DbOrTx): Promise<string> {
+  const settings = await db.select().from(orgSettings).get();
   if (!settings) {
     throw new AppError(
       500,
@@ -119,33 +118,31 @@ export function nextAssetTag(db: DbOrTx): string {
       'This instance has no organization settings, so asset tags cannot be numbered.',
     );
   }
-  const tags = db
-    .select({ assetTag: assets.assetTag })
-    .from(assets)
-    .all()
-    .map((row) => row.assetTag);
+  const tags = (await db.select({ assetTag: assets.assetTag }).from(assets).all()).map(
+    (row) => row.assetTag,
+  );
   return computeNextTag(settings.assetTagPrefix, tags);
 }
 
-export function createAsset(deps: AppDeps, actor: Actor, input: AssetCreateInput) {
+export async function createAsset(deps: AppDeps, actor: Actor, input: AssetCreateInput) {
   const now = deps.now();
   const at = nowIso(now);
 
-  return deps.db.transaction((tx) => {
+  return await deps.db.transaction(async (tx) => {
     // The form may leave the tag out entirely, which means "number it for me".
-    const assetTag = input.assetTag ?? nextAssetTag(tx);
-    if (tx.select().from(assets).where(eq(assets.assetTag, assetTag)).get()) {
+    const assetTag = input.assetTag ?? (await nextAssetTag(tx));
+    if (await tx.select().from(assets).where(eq(assets.assetTag, assetTag)).get()) {
       throw invalidFields({ assetTag: 'That asset tag is already in use.' });
     }
 
     // Registering an asset is not a transition — any status the workspace has
     // is a legal starting point, which is also what keeps the CSV import
     // insert-only. It just has to be a status that exists.
-    requireStatus(tx, input.status);
+    await requireStatus(tx, input.status);
 
     let holder: typeof employees.$inferSelect | null = null;
     if (input.status === ASSIGNED_STATUS) {
-      const found = tx
+      const found = await tx
         .select()
         .from(employees)
         .where(eq(employees.id, input.assignedToEmployeeId!))
@@ -157,7 +154,8 @@ export function createAsset(deps: AppDeps, actor: Actor, input: AssetCreateInput
     }
 
     const id = newId();
-    tx.insert(assets)
+    await tx
+      .insert(assets)
       .values({
         id,
         assetTag,
@@ -177,8 +175,8 @@ export function createAsset(deps: AppDeps, actor: Actor, input: AssetCreateInput
       })
       .run();
 
-    applyCustomValues(tx, id, input.customValues);
-    writeAudit(
+    await applyCustomValues(tx, id, input.customValues);
+    await writeAudit(
       tx,
       {
         type: 'assets',
@@ -193,7 +191,7 @@ export function createAsset(deps: AppDeps, actor: Actor, input: AssetCreateInput
 
     if (holder) {
       const holderName = `${holder.firstName} ${holder.lastName}`;
-      openAssignment(
+      await openAssignment(
         tx,
         {
           assetId: id,
@@ -205,7 +203,7 @@ export function createAsset(deps: AppDeps, actor: Actor, input: AssetCreateInput
         },
         now,
       );
-      writeAudit(
+      await writeAudit(
         tx,
         {
           type: 'assets',
@@ -221,17 +219,17 @@ export function createAsset(deps: AppDeps, actor: Actor, input: AssetCreateInput
     }
 
     return serializeAsset(
-      tx.select().from(assets).where(eq(assets.id, id)).get()!,
-      activeAssignment(tx, id),
+      (await tx.select().from(assets).where(eq(assets.id, id)).get())!,
+      await activeAssignment(tx, id),
     );
   });
 }
 
-export function updateAsset(deps: AppDeps, actor: Actor, id: string, patch: AssetPatchInput) {
+export async function updateAsset(deps: AppDeps, actor: Actor, id: string, patch: AssetPatchInput) {
   const now = deps.now();
 
-  return deps.db.transaction((tx) => {
-    const current = tx.select().from(assets).where(eq(assets.id, id)).get();
+  return await deps.db.transaction(async (tx) => {
+    const current = await tx.select().from(assets).where(eq(assets.id, id)).get();
     if (!current) throw notFound('That asset');
 
     const values: Record<string, unknown> = {};
@@ -248,7 +246,7 @@ export function updateAsset(deps: AppDeps, actor: Actor, id: string, patch: Asse
     }
 
     if (typeof values.assetTag === 'string') {
-      const clash = tx
+      const clash = await tx
         .select()
         .from(assets)
         .where(and(eq(assets.assetTag, values.assetTag), ne(assets.id, id)))
@@ -258,11 +256,11 @@ export function updateAsset(deps: AppDeps, actor: Actor, id: string, patch: Asse
 
     let statusMove: StatusMove | null = null;
     if (patch.status && patch.status !== current.status) {
-      const to = requireStatus(tx, patch.status);
+      const to = await requireStatus(tx, patch.status);
       // The status the asset is leaving. A slug with no row would be a broken
       // invariant — a deleted status takes its assets somewhere — so the same
       // 422 says which one, rather than letting the move proceed unchecked.
-      const from = requireStatus(tx, current.status);
+      const from = await requireStatus(tx, current.status);
 
       // Moving in or out of `assigned` is what assign and check-in are for.
       if (from.isSystem || to.isSystem) {
@@ -272,7 +270,7 @@ export function updateAsset(deps: AppDeps, actor: Actor, id: string, patch: Asse
           'Assign or check the asset in to change who holds it.',
         );
       }
-      if (!transitionAllowed(tx, from.id, to.id)) {
+      if (!(await transitionAllowed(tx, from.id, to.id))) {
         throw new AppError(
           409,
           'transition_not_allowed',
@@ -286,13 +284,13 @@ export function updateAsset(deps: AppDeps, actor: Actor, id: string, patch: Asse
       statusMove = { from: from.label, to: to.label };
     }
 
-    changedFields.push(...applyCustomValues(tx, id, patch.customValues));
+    changedFields.push(...(await applyCustomValues(tx, id, patch.customValues)));
     if (changedFields.length === 0 && !statusMove) {
-      return serializeAsset(current, activeAssignment(tx, id));
+      return serializeAsset(current, await activeAssignment(tx, id));
     }
 
     values.updatedAt = nowIso(now);
-    tx.update(assets).set(values).where(eq(assets.id, id)).run();
+    await tx.update(assets).set(values).where(eq(assets.id, id)).run();
 
     // The audit line names the asset as it is *after* the edit, so an unchanged
     // field reads from the stored row rather than from the patch.
@@ -301,7 +299,7 @@ export function updateAsset(deps: AppDeps, actor: Actor, id: string, patch: Asse
       assetTag: (values.assetTag as string | undefined) ?? current.assetTag,
     };
     if (changedFields.length > 0) {
-      writeAudit(
+      await writeAudit(
         tx,
         {
           type: 'assets',
@@ -315,7 +313,7 @@ export function updateAsset(deps: AppDeps, actor: Actor, id: string, patch: Asse
       );
     }
     if (statusMove) {
-      writeAudit(
+      await writeAudit(
         tx,
         {
           type: 'assets',
@@ -330,21 +328,21 @@ export function updateAsset(deps: AppDeps, actor: Actor, id: string, patch: Asse
     }
 
     return serializeAsset(
-      tx.select().from(assets).where(eq(assets.id, id)).get()!,
-      activeAssignment(tx, id),
+      (await tx.select().from(assets).where(eq(assets.id, id)).get())!,
+      await activeAssignment(tx, id),
     );
   });
 }
 
 /** Returns the stored file names the caller should unlink once the rows are gone. */
-export function deleteAsset(deps: AppDeps, actor: Actor, id: string): string[] {
+export async function deleteAsset(deps: AppDeps, actor: Actor, id: string): Promise<string[]> {
   const now = deps.now();
-  const storedNames = storedNamesForAsset(deps.db, id);
+  const storedNames = await storedNamesForAsset(deps.db, id);
 
-  deps.db.transaction((tx) => {
-    const asset = tx.select().from(assets).where(eq(assets.id, id)).get();
+  await deps.db.transaction(async (tx) => {
+    const asset = await tx.select().from(assets).where(eq(assets.id, id)).get();
     if (!asset) throw notFound('That asset');
-    if (activeAssignment(tx, id)) {
+    if (await activeAssignment(tx, id)) {
       throw new AppError(
         409,
         'asset_assigned',
@@ -353,8 +351,8 @@ export function deleteAsset(deps: AppDeps, actor: Actor, id: string): string[] {
     }
 
     // Custom values, attachments and past ownership records cascade away.
-    tx.delete(assets).where(eq(assets.id, id)).run();
-    writeAudit(
+    await tx.delete(assets).where(eq(assets.id, id)).run();
+    await writeAudit(
       tx,
       {
         type: 'assets',
@@ -371,19 +369,15 @@ export function deleteAsset(deps: AppDeps, actor: Actor, id: string): string[] {
 }
 
 /** Writes the custom-field values in a payload; returns the keys that moved. */
-function applyCustomValues(
+async function applyCustomValues(
   tx: DbOrTx,
   assetId: string,
   values: Record<string, string | null> | undefined,
-): string[] {
+): Promise<string[]> {
   if (!values) return [];
 
   const defs = new Map(
-    tx
-      .select()
-      .from(customFieldDefs)
-      .all()
-      .map((def) => [def.key, def]),
+    (await tx.select().from(customFieldDefs).all()).map((def) => [def.key, def]),
   );
   const changed: string[] = [];
 
@@ -397,13 +391,14 @@ function applyCustomValues(
     );
     // No row for this pair means the field is unset, which is the same state
     // an explicit null asks for — so neither is a change worth auditing.
-    const existing = tx.select().from(assetCustomValues).where(where).get();
+    const existing = await tx.select().from(assetCustomValues).where(where).get();
     if ((existing?.value ?? null) === value) continue;
 
     if (value === null) {
-      tx.delete(assetCustomValues).where(where).run();
+      await tx.delete(assetCustomValues).where(where).run();
     } else {
-      tx.insert(assetCustomValues)
+      await tx
+        .insert(assetCustomValues)
         .values({ assetId, fieldDefId: def.id, value })
         .onConflictDoUpdate({
           target: [assetCustomValues.assetId, assetCustomValues.fieldDefId],

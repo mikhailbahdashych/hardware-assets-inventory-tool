@@ -23,7 +23,7 @@ services:
       # Your checkout, live.
       - .:/app
       # …except every node_modules, which stays the container's own. The host's
-      # copies are built for the host's platform, and better-sqlite3 and
+      # copies are built for the host's platform, and libsql and
       # @node-rs/argon2 are compiled binaries — mounting macOS builds into
       # Debian is how you get "invalid ELF header" on the first query.
       - /app/node_modules

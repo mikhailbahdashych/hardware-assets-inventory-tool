@@ -138,10 +138,10 @@ describe('a reset link an admin issues', () => {
   it('goes to the member as well as back to the admin', async () => {
     ctx = await buildTestApp(SMTP);
     const admin = await setupOrg(ctx.app);
-    const me = ctx.db
+    const me = (await ctx.db
       .select()
       .from((await import('@/db/schema.js')).members)
-      .get()!;
+      .get())!;
 
     const res = await inject(ctx.app, {
       method: 'POST',

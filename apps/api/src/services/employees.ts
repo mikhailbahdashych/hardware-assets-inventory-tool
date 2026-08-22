@@ -23,8 +23,8 @@ const EDITABLE = [
 ] as const;
 
 /** How many assets each person currently holds, keyed by employee id. */
-function activeCounts(db: DbOrTx): Map<string, number> {
-  const rows = db
+async function activeCounts(db: DbOrTx): Promise<Map<string, number>> {
+  const rows = await db
     .select({ employeeId: assignments.employeeId, count: sql<number>`count(*)` })
     .from(assignments)
     .where(isNull(assignments.returnedAt))
@@ -34,16 +34,17 @@ function activeCounts(db: DbOrTx): Map<string, number> {
 }
 
 /** Alphabetical: an employee list is scanned for a person, not for recency. */
-export function listEmployees(db: Db) {
+export async function listEmployees(db: Db) {
   // activeCounts only has rows for people who hold something, so a miss below
   // is a genuine zero rather than a missing count.
-  const counts = activeCounts(db);
-  return db
-    .select()
-    .from(employees)
-    .orderBy(asc(employees.firstName), asc(employees.lastName))
-    .all()
-    .map((employee) => serializeEmployee(employee, counts.get(employee.id) ?? 0));
+  const counts = await activeCounts(db);
+  return (
+    await db
+      .select()
+      .from(employees)
+      .orderBy(asc(employees.firstName), asc(employees.lastName))
+      .all()
+  ).map((employee) => serializeEmployee(employee, counts.get(employee.id) ?? 0));
 }
 
 /**
@@ -51,27 +52,30 @@ export function listEmployees(db: Db) {
  * what they have handed back. Splitting here rather than in the browser keeps
  * the page independent of whether the asset list happens to be cached.
  */
-export function getEmployeeDetail(db: Db, id: string) {
-  const employee = db.select().from(employees).where(eq(employees.id, id)).get();
+export async function getEmployeeDetail(db: Db, id: string) {
+  const employee = await db.select().from(employees).where(eq(employees.id, id)).get();
   if (!employee) throw notFound('That employee');
 
-  const records = employeeHistory(db, id).map((row) => serializeHolding(row.assignment, row.asset));
+  const records = (await employeeHistory(db, id)).map((row) =>
+    serializeHolding(row.assignment, row.asset),
+  );
   return {
-    employee: serializeEmployee(employee, countHeldBy(db, id)),
+    employee: serializeEmployee(employee, await countHeldBy(db, id)),
     holdings: records.filter((record) => record.returnedAt === null),
     history: records.filter((record) => record.returnedAt !== null),
   };
 }
 
-export function createEmployee(deps: AppDeps, actor: Actor, input: EmployeeCreateInput) {
+export async function createEmployee(deps: AppDeps, actor: Actor, input: EmployeeCreateInput) {
   const now = deps.now();
   const at = nowIso(now);
 
-  return deps.db.transaction((tx) => {
-    requireFreeEmail(tx, input.email);
+  return await deps.db.transaction(async (tx) => {
+    await requireFreeEmail(tx, input.email);
 
     const id = newId();
-    tx.insert(employees)
+    await tx
+      .insert(employees)
       .values({
         id,
         firstName: input.firstName,
@@ -89,7 +93,7 @@ export function createEmployee(deps: AppDeps, actor: Actor, input: EmployeeCreat
       .run();
 
     const employeeName = `${input.firstName} ${input.lastName}`;
-    writeAudit(
+    await writeAudit(
       tx,
       {
         type: 'people',
@@ -102,15 +106,23 @@ export function createEmployee(deps: AppDeps, actor: Actor, input: EmployeeCreat
       now,
     );
 
-    return serializeEmployee(tx.select().from(employees).where(eq(employees.id, id)).get()!, 0);
+    return serializeEmployee(
+      (await tx.select().from(employees).where(eq(employees.id, id)).get())!,
+      0,
+    );
   });
 }
 
-export function updateEmployee(deps: AppDeps, actor: Actor, id: string, patch: EmployeePatchInput) {
+export async function updateEmployee(
+  deps: AppDeps,
+  actor: Actor,
+  id: string,
+  patch: EmployeePatchInput,
+) {
   const now = deps.now();
 
-  return deps.db.transaction((tx) => {
-    const current = tx.select().from(employees).where(eq(employees.id, id)).get();
+  return await deps.db.transaction(async (tx) => {
+    const current = await tx.select().from(employees).where(eq(employees.id, id)).get();
     if (!current) throw notFound('That employee');
 
     const values: Record<string, unknown> = {};
@@ -124,7 +136,7 @@ export function updateEmployee(deps: AppDeps, actor: Actor, id: string, patch: E
       values[field] = next;
       changedFields.push(field);
     }
-    if (typeof values.email === 'string') requireFreeEmail(tx, values.email, id);
+    if (typeof values.email === 'string') await requireFreeEmail(tx, values.email, id);
 
     const startsOffboarding = patch.status === 'offboarding' && current.status !== 'offboarding';
     if (patch.status && patch.status !== current.status) values.status = patch.status;
@@ -132,13 +144,14 @@ export function updateEmployee(deps: AppDeps, actor: Actor, id: string, patch: E
     // Offboarding optionally puts a return date on everything they still hold.
     let scheduledReturns = 0;
     if (startsOffboarding && patch.returnDueDate) {
-      const open = tx
+      const open = await tx
         .select()
         .from(assignments)
         .where(and(eq(assignments.employeeId, id), isNull(assignments.returnedAt)))
         .all();
       for (const assignment of open) {
-        tx.update(assignments)
+        await tx
+          .update(assignments)
           .set({ expectedReturnDate: patch.returnDueDate })
           .where(eq(assignments.id, assignment.id))
           .run();
@@ -147,17 +160,17 @@ export function updateEmployee(deps: AppDeps, actor: Actor, id: string, patch: E
     }
 
     if (changedFields.length === 0 && !values.status) {
-      return serializeEmployee(current, countHeldBy(tx, id));
+      return serializeEmployee(current, await countHeldBy(tx, id));
     }
 
     values.updatedAt = nowIso(now);
-    tx.update(employees).set(values).where(eq(employees.id, id)).run();
+    await tx.update(employees).set(values).where(eq(employees.id, id)).run();
 
     // The audit line names the person as they are *after* the edit, so an
     // untouched half of the name reads from the stored row.
     const employeeName = `${values.firstName ?? current.firstName} ${values.lastName ?? current.lastName}`;
     if (changedFields.length > 0) {
-      writeAudit(
+      await writeAudit(
         tx,
         {
           type: 'people',
@@ -171,7 +184,7 @@ export function updateEmployee(deps: AppDeps, actor: Actor, id: string, patch: E
       );
     }
     if (startsOffboarding) {
-      writeAudit(
+      await writeAudit(
         tx,
         {
           type: 'people',
@@ -187,19 +200,19 @@ export function updateEmployee(deps: AppDeps, actor: Actor, id: string, patch: E
     }
 
     return serializeEmployee(
-      tx.select().from(employees).where(eq(employees.id, id)).get()!,
-      countHeldBy(tx, id),
+      (await tx.select().from(employees).where(eq(employees.id, id)).get())!,
+      await countHeldBy(tx, id),
     );
   });
 }
 
-export function deleteEmployee(deps: AppDeps, actor: Actor, id: string): void {
+export async function deleteEmployee(deps: AppDeps, actor: Actor, id: string): Promise<void> {
   const now = deps.now();
 
-  deps.db.transaction((tx) => {
-    const employee = tx.select().from(employees).where(eq(employees.id, id)).get();
+  await deps.db.transaction(async (tx) => {
+    const employee = await tx.select().from(employees).where(eq(employees.id, id)).get();
     if (!employee) throw notFound('That employee');
-    if (countHeldBy(tx, id) > 0) {
+    if ((await countHeldBy(tx, id)) > 0) {
       throw new AppError(
         409,
         'employee_holds_assets',
@@ -209,8 +222,8 @@ export function deleteEmployee(deps: AppDeps, actor: Actor, id: string): void {
 
     // Past ownership records survive: employee_id goes NULL and the name
     // snapshot keeps the history readable.
-    tx.delete(employees).where(eq(employees.id, id)).run();
-    writeAudit(
+    await tx.delete(employees).where(eq(employees.id, id)).run();
+    await writeAudit(
       tx,
       {
         type: 'people',
@@ -224,19 +237,21 @@ export function deleteEmployee(deps: AppDeps, actor: Actor, id: string): void {
   });
 }
 
-function countHeldBy(db: DbOrTx, employeeId: string): number {
-  return db
-    .select()
-    .from(assignments)
-    .where(and(eq(assignments.employeeId, employeeId), isNull(assignments.returnedAt)))
-    .all().length;
+async function countHeldBy(db: DbOrTx, employeeId: string): Promise<number> {
+  return (
+    await db
+      .select()
+      .from(assignments)
+      .where(and(eq(assignments.employeeId, employeeId), isNull(assignments.returnedAt)))
+      .all()
+  ).length;
 }
 
-function requireFreeEmail(tx: DbOrTx, email: string, exceptId?: string): void {
+async function requireFreeEmail(tx: DbOrTx, email: string, exceptId?: string): Promise<void> {
   const where = exceptId
     ? and(eq(employees.email, email), ne(employees.id, exceptId))
     : eq(employees.email, email);
-  if (tx.select().from(employees).where(where).get()) {
+  if (await tx.select().from(employees).where(where).get()) {
     throw invalidFields({ email: 'Another employee already uses that email address.' });
   }
 }

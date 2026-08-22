@@ -26,8 +26,8 @@ const WARRANTY_WINDOW_DAYS = 90;
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
-export function dashboardPayload(db: Db, now: Date): DashboardPayload {
-  const rows = db
+export async function dashboardPayload(db: Db, now: Date): Promise<DashboardPayload> {
+  const rows = await db
     .select({ status: assets.status, category: assets.category, count: sql<number>`count(*)` })
     .from(assets)
     .groupBy(assets.status, assets.category)
@@ -47,7 +47,7 @@ export function dashboardPayload(db: Db, now: Date): DashboardPayload {
 
   // Every status the workspace has, in its own order, carrying what the tile
   // renders with — so the page needs no vocabulary of its own.
-  const statusCounts: StatusCount[] = getWorkflow(db).statuses.map((status) => ({
+  const statusCounts: StatusCount[] = (await getWorkflow(db)).statuses.map((status) => ({
     id: status.id,
     label: status.label,
     color: status.color,
@@ -65,15 +65,16 @@ export function dashboardPayload(db: Db, now: Date): DashboardPayload {
     assetCount,
     statusCounts,
     categoryCounts,
-    recentActivity: db
-      .select()
-      .from(auditEvents)
-      .orderBy(desc(auditEvents.at), desc(auditEvents.id))
-      .limit(RECENT_ACTIVITY)
-      .all()
-      .map(toAuditItem),
-    warrantyExpirations: warrantyExpirations(db, now),
-    pendingReturns: pendingReturns(db),
+    recentActivity: (
+      await db
+        .select()
+        .from(auditEvents)
+        .orderBy(desc(auditEvents.at), desc(auditEvents.id))
+        .limit(RECENT_ACTIVITY)
+        .all()
+    ).map(toAuditItem),
+    warrantyExpirations: await warrantyExpirations(db, now),
+    pendingReturns: await pendingReturns(db),
   };
 }
 
@@ -82,29 +83,31 @@ export function dashboardPayload(db: Db, now: Date): DashboardPayload {
  * its alert has already been and gone, and a widget full of things you can no
  * longer act on is a widget people stop reading.
  */
-function warrantyExpirations(db: Db, now: Date): WarrantyExpiry[] {
+async function warrantyExpirations(db: Db, now: Date): Promise<WarrantyExpiry[]> {
   const today = now.toISOString().slice(0, 10);
   const limit = new Date(now.getTime() + WARRANTY_WINDOW_DAYS * DAY_MS).toISOString().slice(0, 10);
 
   return (
-    db
-      .select({
-        assetId: assets.id,
-        name: assets.name,
-        assetTag: assets.assetTag,
-        warrantyUntil: assets.warrantyUntil,
-      })
-      .from(assets)
-      .where(
-        and(
-          sql`${assets.warrantyUntil} >= ${today}`,
-          sql`${assets.warrantyUntil} <= ${limit}`,
-          isNotNull(assets.warrantyUntil),
-        ),
-      )
-      .orderBy(asc(assets.warrantyUntil))
-      .limit(WARRANTY_ROWS)
-      .all()
+    (
+      await db
+        .select({
+          assetId: assets.id,
+          name: assets.name,
+          assetTag: assets.assetTag,
+          warrantyUntil: assets.warrantyUntil,
+        })
+        .from(assets)
+        .where(
+          and(
+            sql`${assets.warrantyUntil} >= ${today}`,
+            sql`${assets.warrantyUntil} <= ${limit}`,
+            isNotNull(assets.warrantyUntil),
+          ),
+        )
+        .orderBy(asc(assets.warrantyUntil))
+        .limit(WARRANTY_ROWS)
+        .all()
+    )
       // The WHERE clause is what makes the date non-null, and a nullable column
       // cannot say so — flatMap narrows it without an assertion that would also
       // hide a genuine change to the query.
@@ -125,27 +128,26 @@ function warrantyExpirations(db: Db, now: Date): WarrantyExpiry[] {
 }
 
 /** Open ownership records that carry a date — offboarding is what sets those. */
-function pendingReturns(db: Db): PendingReturn[] {
-  return db
-    .select({
-      assetId: assets.id,
-      assetName: assets.name,
-      assetTag: assets.assetTag,
-      employeeId: assignments.employeeId,
-      holderName: assignments.holderNameSnapshot,
-      expectedReturnDate: assignments.expectedReturnDate,
-    })
-    .from(assignments)
-    .innerJoin(assets, eq(assets.id, assignments.assetId))
-    .where(and(isNull(assignments.returnedAt), isNotNull(assignments.expectedReturnDate)))
-    .orderBy(asc(assignments.expectedReturnDate))
-    .limit(PENDING_RETURN_ROWS)
-    .all()
-    .flatMap((row) =>
-      row.expectedReturnDate === null
-        ? []
-        : [{ ...row, expectedReturnDate: row.expectedReturnDate }],
-    );
+async function pendingReturns(db: Db): Promise<PendingReturn[]> {
+  return (
+    await db
+      .select({
+        assetId: assets.id,
+        assetName: assets.name,
+        assetTag: assets.assetTag,
+        employeeId: assignments.employeeId,
+        holderName: assignments.holderNameSnapshot,
+        expectedReturnDate: assignments.expectedReturnDate,
+      })
+      .from(assignments)
+      .innerJoin(assets, eq(assets.id, assignments.assetId))
+      .where(and(isNull(assignments.returnedAt), isNotNull(assignments.expectedReturnDate)))
+      .orderBy(asc(assignments.expectedReturnDate))
+      .limit(PENDING_RETURN_ROWS)
+      .all()
+  ).flatMap((row) =>
+    row.expectedReturnDate === null ? [] : [{ ...row, expectedReturnDate: row.expectedReturnDate }],
+  );
 }
 
 /** Whole days between two date-only strings, both read as UTC midnight. */

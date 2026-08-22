@@ -21,9 +21,10 @@ const DEFAULT_CUSTOM_FIELDS = [
  *  that has none, the default workflow and the default roles. Org settings are
  *  created by the first-run setup flow, and nothing here invents demo data — a
  *  fresh container starts empty on purpose. */
-export function seed(db: Db): void {
-  DEFAULT_CUSTOM_FIELDS.forEach((field, index) => {
-    db.insert(customFieldDefs)
+export async function seed(db: Db): Promise<void> {
+  for (const [index, field] of DEFAULT_CUSTOM_FIELDS.entries()) {
+    await db
+      .insert(customFieldDefs)
       .values({
         id: newId(),
         key: field.key,
@@ -34,10 +35,10 @@ export function seed(db: Db): void {
       })
       .onConflictDoNothing({ target: customFieldDefs.key })
       .run();
-  });
+  }
 
-  seedWorkflow(db);
-  seedRoles(db);
+  await seedWorkflow(db);
+  await seedRoles(db);
 }
 
 /**
@@ -50,12 +51,13 @@ export function seed(db: Db): void {
  * purpose, and putting them back at every boot would be the seed undoing an
  * admin's work.
  */
-function seedWorkflow(db: Db): void {
-  if (db.select({ id: assetStatuses.id }).from(assetStatuses).limit(1).get()) return;
+async function seedWorkflow(db: Db): Promise<void> {
+  if (await db.select({ id: assetStatuses.id }).from(assetStatuses).limit(1).get()) return;
 
   const at = nowIso();
-  DEFAULT_ASSET_STATUSES.forEach((status, index) => {
-    db.insert(assetStatuses)
+  for (const [index, status] of DEFAULT_ASSET_STATUSES.entries()) {
+    await db
+      .insert(assetStatuses)
       .values({
         id: status.id,
         label: status.label,
@@ -68,13 +70,16 @@ function seedWorkflow(db: Db): void {
         updatedAt: at,
       })
       .run();
-  });
+  }
 
   const movable = DEFAULT_ASSET_STATUSES.filter((status) => status.id !== ASSIGNED_STATUS);
   for (const from of movable) {
     for (const to of movable) {
       if (from.id === to.id) continue;
-      db.insert(assetStatusTransitions).values({ fromStatus: from.id, toStatus: to.id }).run();
+      await db
+        .insert(assetStatusTransitions)
+        .values({ fromStatus: from.id, toStatus: to.id })
+        .run();
     }
   }
 }
@@ -89,12 +94,13 @@ function seedWorkflow(db: Db): void {
  * Guarded on the table being empty, for the same reason the workflow above is:
  * an admin who deleted a role deleted it on purpose.
  */
-function seedRoles(db: Db): void {
-  if (db.select({ id: roles.id }).from(roles).limit(1).get()) return;
+async function seedRoles(db: Db): Promise<void> {
+  if (await db.select({ id: roles.id }).from(roles).limit(1).get()) return;
 
   const at = nowIso();
-  DEFAULT_ROLES.forEach((role, index) => {
-    db.insert(roles)
+  for (const [index, role] of DEFAULT_ROLES.entries()) {
+    await db
+      .insert(roles)
       .values({
         id: role.id,
         label: role.label,
@@ -107,7 +113,7 @@ function seedRoles(db: Db): void {
       })
       .run();
     for (const action of role.grants) {
-      db.insert(rolePermissions).values({ roleId: role.id, action }).run();
+      await db.insert(rolePermissions).values({ roleId: role.id, action }).run();
     }
-  });
+  }
 }

@@ -29,7 +29,7 @@ export async function buildApp(opts: BuildAppOptions): Promise<FastifyInstance> 
   const deps: AppDeps = {
     config: opts.config,
     db: opts.db,
-    sqlite: opts.sqlite,
+    client: opts.client,
     // Not a fallback: `now` is an injection point tests reach for, and the
     // system clock is what the option means when nobody overrides it.
     now: opts.now ?? (() => new Date()),

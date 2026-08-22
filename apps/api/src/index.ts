@@ -31,9 +31,9 @@ try {
   process.exit(1);
 }
 
-const { db, sqlite } = createDb(join(config.dataDir, 'inventory.db'));
-runMigrations(db, fileURLToPath(new URL('./migrations', import.meta.url)));
-seed(db);
+const { db, client } = await createDb(join(config.dataDir, 'inventory.db'));
+await runMigrations(db, fileURLToPath(new URL('./migrations', import.meta.url)));
+await seed(db);
 
 // One omission, and nothing else would say so until somebody tries to use the
 // instance: with the default APP_URL the session cookie is not Secure, and the
@@ -49,11 +49,11 @@ if (config.nodeEnv === 'production' && config.appUrl === 'http://localhost:3000'
 }
 
 const mailer = createMailer(config);
-const app = await buildApp({ config, db, sqlite, mailer });
+const app = await buildApp({ config, db, client, mailer });
 
 // The same deps the app is using, for the jobs that run on a clock rather than
 // on a request.
-const scheduler = startScheduler({ config, db, sqlite, now: () => new Date(), mailer }, app.log);
+const scheduler = startScheduler({ config, db, client, now: () => new Date(), mailer }, app.log);
 
 // A container stop is a signal, and an unflushed SQLite handle is a corrupt
 // backup waiting to happen.
@@ -62,7 +62,7 @@ for (const signal of ['SIGTERM', 'SIGINT'] as const) {
     app.log.info({ signal }, 'shutting down');
     scheduler.stop();
     void app.close().then(() => {
-      sqlite.close();
+      client.close();
       process.exit(0);
     });
   });

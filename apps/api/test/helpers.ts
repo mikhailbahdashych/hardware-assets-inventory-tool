@@ -31,19 +31,25 @@ export type TestApp = {
 };
 
 /**
- * A real app on an in-memory database with the real migrations. Pass `now` to
+ * A real app on a throwaway database with the real migrations. Pass `now` to
  * pin the clock — anything that counts days from today needs a fixed one.
+ *
+ * A file rather than `:memory:`, because libsql hands each transaction its own
+ * connection and every connection to `:memory:` is its own empty database —
+ * the first commit would leave the next query looking at a schema-less one.
+ * The directory goes on close, so it is throwaway either way.
  */
 export async function buildTestApp(
   env: Record<string, string> = {},
   now?: () => Date,
   logDestination?: NodeJS.WritableStream,
 ): Promise<TestApp> {
-  const { db, sqlite } = createDb(':memory:');
-  runMigrations(db, MIGRATIONS_DIR);
-  seed(db);
-  // A throwaway data directory per test: uploads must never touch the repo.
+  // A throwaway data directory per test: the database and any uploads must
+  // never touch the repo.
   const dataDir = mkdtempSync(join(tmpdir(), 'inventory-test-'));
+  const { db, client } = await createDb(join(dataDir, 'inventory.db'));
+  await runMigrations(db, MIGRATIONS_DIR);
+  await seed(db);
   const config = loadConfig({
     NODE_ENV: 'test',
     LOG_LEVEL: 'silent',
@@ -61,16 +67,16 @@ export async function buildTestApp(
       }
     : null;
 
-  const app = await buildApp({ config, db, sqlite, now, mailer, logDestination });
+  const app = await buildApp({ config, db, client, now, mailer, logDestination });
   return {
     app,
     db,
-    deps: { config, db, sqlite, now: now ?? (() => new Date()), mailer },
+    deps: { config, db, client, now: now ?? (() => new Date()), mailer },
     sent,
     uploadsDir: join(dataDir, 'uploads'),
     close: async () => {
       await app.close();
-      sqlite.close();
+      client.close();
       rmSync(dataDir, { recursive: true, force: true });
     },
   };
@@ -96,10 +102,11 @@ export async function setupOrg(app: FastifyInstance): Promise<string> {
  * rather than a `Role`: roles are rows a workspace makes up now, and a test
  * that wants somebody holding one has to be able to say so.
  */
-export function memberCookie(db: Db, role: string): string {
+export async function memberCookie(db: Db, role: string): Promise<string> {
   const id = newId();
   const at = nowIso();
-  db.insert(members)
+  await db
+    .insert(members)
     .values({
       id,
       email: `${role}-${id.slice(0, 8)}@acme.io`,
@@ -111,7 +118,7 @@ export function memberCookie(db: Db, role: string): string {
       updatedAt: at,
     })
     .run();
-  return `inv_session=${createSession(db, id).raw}`;
+  return `inv_session=${(await createSession(db, id)).raw}`;
 }
 
 export function sessionCookie(res: { cookies: { name: string; value: string }[] }): string {

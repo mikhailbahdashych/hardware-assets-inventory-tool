@@ -14,8 +14,13 @@ import { nowIso } from '@/lib/dates.js';
  * and a member at once, an anonymous flow really is attributed to 'system',
  * and an event with nothing to add stores an empty params object.
  */
-export function writeAudit(db: DbOrTx, entry: AuditEntry, now: Date = new Date()): void {
-  db.insert(auditEvents)
+export async function writeAudit(
+  db: DbOrTx,
+  entry: AuditEntry,
+  now: Date = new Date(),
+): Promise<void> {
+  await db
+    .insert(auditEvents)
     .values({
       id: newId(),
       at: nowIso(now),

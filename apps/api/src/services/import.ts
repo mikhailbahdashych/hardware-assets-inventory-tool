@@ -23,9 +23,9 @@ import { getWorkflow } from './workflow.js';
 const IMPORT_NOTE = 'Imported via CSV';
 
 /** Reads the state a row is judged against: existing tags, people, statuses. */
-function importContext(db: DbOrTx): ImportContext {
-  const tags = db.select({ assetTag: assets.assetTag }).from(assets).all();
-  const people = db
+async function importContext(db: DbOrTx): Promise<ImportContext> {
+  const tags = await db.select({ assetTag: assets.assetTag }).from(assets).all();
+  const people = await db
     .select({ id: employees.id, email: employees.email, status: employees.status })
     .from(employees)
     .all();
@@ -36,13 +36,16 @@ function importContext(db: DbOrTx): ImportContext {
     employeeStatusById: new Map(people.map((row) => [row.id, row.status])),
     // Read inside the same transaction on commit, so a status deleted between
     // the dry run and the write cannot let a row through under an old name.
-    statuses: getWorkflow(db).statuses,
+    statuses: (await getWorkflow(db)).statuses,
   };
 }
 
 /** The dry run: the same plan commit will make, with nothing written. */
-export function validateImport(deps: AppDeps, input: ImportValidateInput): ImportReport {
-  return planImport(input, importContext(deps.db)).report;
+export async function validateImport(
+  deps: AppDeps,
+  input: ImportValidateInput,
+): Promise<ImportReport> {
+  return planImport(input, await importContext(deps.db)).report;
 }
 
 /**
@@ -50,11 +53,15 @@ export function validateImport(deps: AppDeps, input: ImportValidateInput): Impor
  * client cannot post straight here to skip the dry run, and nothing half-lands:
  * any error at all and the whole file is refused.
  */
-export function commitImport(deps: AppDeps, actor: Actor, input: ImportCommitInput): ImportResult {
+export async function commitImport(
+  deps: AppDeps,
+  actor: Actor,
+  input: ImportCommitInput,
+): Promise<ImportResult> {
   const now = deps.now();
 
-  return deps.db.transaction((tx) => {
-    const plan = planImport(input, importContext(tx));
+  return await deps.db.transaction(async (tx) => {
+    const plan = planImport(input, await importContext(tx));
     const { errors, errorsTruncated } = plan.report;
     if (errors.length > 0) {
       const count = errorsTruncated ? `${errors.length}+` : `${errors.length}`;
@@ -66,11 +73,13 @@ export function commitImport(deps: AppDeps, actor: Actor, input: ImportCommitInp
     }
 
     const result: ImportResult =
-      plan.kind === 'assets' ? writeAssets(tx, plan.rows, now) : writeEmployees(tx, plan.rows, now);
+      plan.kind === 'assets'
+        ? await writeAssets(tx, plan.rows, now)
+        : await writeEmployees(tx, plan.rows, now);
 
     // One event for the import, not one per row: a log that scrolls for pages
     // after a bulk load is a log nobody reads afterwards.
-    writeAudit(
+    await writeAudit(
       tx,
       {
         type: 'system',
@@ -85,14 +94,14 @@ export function commitImport(deps: AppDeps, actor: Actor, input: ImportCommitInp
   });
 }
 
-function writeAssets(tx: DbOrTx, rows: PlannedAsset[], now: Date): ImportResult {
+async function writeAssets(tx: DbOrTx, rows: PlannedAsset[], now: Date): Promise<ImportResult> {
   const at = nowIso(now);
 
   // Where a row that arrives Assigned is inserted before `openAssignment`
   // moves it — that function is the only code allowed to pair `assigned` with
   // an ownership row, and it runs a few lines later in the same transaction.
   // Read once rather than per row: a file may hold thousands.
-  const free = getWorkflow(tx).statuses.find((status) => !status.isSystem);
+  const free = (await getWorkflow(tx)).statuses.find((status) => !status.isSystem);
   if (!free) {
     throw new AppError(
       500,
@@ -103,7 +112,8 @@ function writeAssets(tx: DbOrTx, rows: PlannedAsset[], now: Date): ImportResult 
 
   for (const row of rows) {
     const id = newId();
-    tx.insert(assets)
+    await tx
+      .insert(assets)
       .values({
         id,
         assetTag: row.assetTag,
@@ -127,7 +137,7 @@ function writeAssets(tx: DbOrTx, rows: PlannedAsset[], now: Date): ImportResult 
       .run();
 
     if (row.status === 'assigned' && row.assignedToEmployeeId !== null) {
-      const holder = tx
+      const holder = await tx
         .select()
         .from(employees)
         .where(eq(employees.id, row.assignedToEmployeeId))
@@ -141,7 +151,7 @@ function writeAssets(tx: DbOrTx, rows: PlannedAsset[], now: Date): ImportResult 
           `Row ${row.rowNumber} names an employee that vanished mid-import.`,
         );
       }
-      openAssignment(
+      await openAssignment(
         tx,
         {
           assetId: id,
@@ -159,7 +169,11 @@ function writeAssets(tx: DbOrTx, rows: PlannedAsset[], now: Date): ImportResult 
   return { kind: 'assets', created: rows.length, updated: 0 };
 }
 
-function writeEmployees(tx: DbOrTx, rows: PlannedEmployee[], now: Date): ImportResult {
+async function writeEmployees(
+  tx: DbOrTx,
+  rows: PlannedEmployee[],
+  now: Date,
+): Promise<ImportResult> {
   const at = nowIso(now);
   let created = 0;
   let updated = 0;
@@ -177,7 +191,8 @@ function writeEmployees(tx: DbOrTx, rows: PlannedEmployee[], now: Date): ImportR
     };
 
     if (row.existingId === null) {
-      tx.insert(employees)
+      await tx
+        .insert(employees)
         .values({ id: newId(), ...values, status: 'active', createdAt: at, updatedAt: at })
         .run();
       created += 1;
@@ -187,7 +202,8 @@ function writeEmployees(tx: DbOrTx, rows: PlannedEmployee[], now: Date): ImportR
     // An update keeps the row — its id is what assignments and member links
     // hang off — and never touches `status`: an import is not a way to bring
     // somebody back from offboarding.
-    tx.update(employees)
+    await tx
+      .update(employees)
       .set({ ...values, updatedAt: at })
       .where(eq(employees.id, row.existingId))
       .run();

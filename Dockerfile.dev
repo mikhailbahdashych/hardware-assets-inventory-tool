@@ -21,7 +21,7 @@ COPY packages/shared/package.json packages/shared/
 COPY e2e/package.json e2e/
 
 # --ignore-scripts for the same reason the production image uses it:
-# better-sqlite3, @node-rs/argon2 and esbuild ship the binaries their install
+# libsql, @node-rs/argon2 and esbuild ship the binaries their install
 # scripts would otherwise rebuild, and rebuilding needs a C++ toolchain here.
 RUN npm ci --ignore-scripts
 

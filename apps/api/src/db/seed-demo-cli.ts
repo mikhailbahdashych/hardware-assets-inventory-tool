@@ -30,15 +30,15 @@ async function main(): Promise<void> {
   mkdirSync(config.dataDir, { recursive: true });
   mkdirSync(join(config.dataDir, 'uploads'), { recursive: true });
 
-  const { db, sqlite } = createDb(join(config.dataDir, 'inventory.db'));
+  const { db, client } = await createDb(join(config.dataDir, 'inventory.db'));
   try {
     // The same two steps the server takes at boot, so this works against a
     // data directory that has never had a server pointed at it.
-    runMigrations(db, fileURLToPath(new URL('../migrations', import.meta.url)));
-    seed(db);
+    await runMigrations(db, fileURLToPath(new URL('../migrations', import.meta.url)));
+    await seed(db);
 
     const result = await seedDemo(
-      { config, db, sqlite, now: () => new Date(), mailer: null },
+      { config, db, client, now: () => new Date(), mailer: null },
       { password, reset },
     );
 
@@ -59,7 +59,7 @@ async function main(): Promise<void> {
         `\n\n  Every account shares that password.\n\n`,
     );
   } finally {
-    sqlite.close();
+    client.close();
   }
 }
 

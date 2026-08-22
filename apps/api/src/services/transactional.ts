@@ -47,7 +47,7 @@ export async function sendInviteMail(
   log: FastifyBaseLogger,
   input: InviteMailRequest,
 ): Promise<void> {
-  const settings = getSettings(deps.db);
+  const settings = await getSettings(deps.db);
   if (!settings.emailInvites) return;
   await deliver(deps, log, input.to, inviteEmail({ ...input, orgName: settings.orgName }));
 }
@@ -62,7 +62,7 @@ export async function sendResetMail(
   log: FastifyBaseLogger,
   input: ResetMailRequest,
 ): Promise<void> {
-  const settings = getSettings(deps.db);
+  const settings = await getSettings(deps.db);
   await deliver(
     deps,
     log,
@@ -77,7 +77,7 @@ export async function sendAssignmentMail(
   log: FastifyBaseLogger,
   input: AssignmentMailRequest,
 ): Promise<void> {
-  const settings = getSettings(deps.db);
+  const settings = await getSettings(deps.db);
   await deliver(deps, log, input.to, assignmentEmail({ ...input, orgName: settings.orgName }));
 }
 
@@ -86,6 +86,6 @@ export async function sendCheckinMail(
   log: FastifyBaseLogger,
   input: CheckinMailRequest,
 ): Promise<void> {
-  const settings = getSettings(deps.db);
+  const settings = await getSettings(deps.db);
   await deliver(deps, log, input.to, checkinEmail({ ...input, orgName: settings.orgName }));
 }

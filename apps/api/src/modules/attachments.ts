@@ -44,7 +44,7 @@ export function registerAttachmentRoutes(app: FastifyInstance, deps: AppDeps): v
     '/api/v1/attachments/:id',
     { schema: { params: idParam }, preHandler: requireAuth },
     async (request, reply) => {
-      const row = deps.db
+      const row = await deps.db
         .select()
         .from(attachments)
         .where(eq(attachments.id, request.params.id))

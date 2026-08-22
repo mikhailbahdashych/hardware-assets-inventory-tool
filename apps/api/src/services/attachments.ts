@@ -30,8 +30,8 @@ export const uploadsDir = (deps: AppDeps) => join(deps.config.dataDir, 'uploads'
  * disk: the rows are the record of truth, and a stray file nobody references
  * is the maintenance sweep's business, not the quota's.
  */
-export function storageUsedBytes(db: DbOrTx): number {
-  const row = db
+export async function storageUsedBytes(db: DbOrTx): Promise<number> {
+  const row = await db
     .select({ total: sql<number>`coalesce(sum(${attachments.sizeBytes}), 0)` })
     .from(attachments)
     .get();
@@ -68,25 +68,27 @@ export function serializeAttachment(row: AttachmentRow, uploaderName: string | n
  * The uploader is a LEFT JOIN: the member who uploaded a file may since have
  * been removed, and "we no longer know who" is a real answer the column holds.
  */
-export function listAttachments(db: Db, assetId: string) {
-  return db
-    .select({ attachment: attachments, uploader: members })
-    .from(attachments)
-    .leftJoin(members, eq(members.id, attachments.uploadedByMemberId))
-    .where(eq(attachments.assetId, assetId))
-    .orderBy(attachments.createdAt)
-    .all()
-    .map((row) => serializeAttachment(row.attachment, row.uploader?.displayName ?? null));
+export async function listAttachments(db: Db, assetId: string) {
+  return (
+    await db
+      .select({ attachment: attachments, uploader: members })
+      .from(attachments)
+      .leftJoin(members, eq(members.id, attachments.uploadedByMemberId))
+      .where(eq(attachments.assetId, assetId))
+      .orderBy(attachments.createdAt)
+      .all()
+  ).map((row) => serializeAttachment(row.attachment, row.uploader?.displayName ?? null));
 }
 
 /** The files an asset owns, so a delete can clean them off disk afterwards. */
-export function storedNamesForAsset(db: Db, assetId: string): string[] {
-  return db
-    .select({ storedName: attachments.storedName })
-    .from(attachments)
-    .where(eq(attachments.assetId, assetId))
-    .all()
-    .map((row) => row.storedName);
+export async function storedNamesForAsset(db: Db, assetId: string): Promise<string[]> {
+  return (
+    await db
+      .select({ storedName: attachments.storedName })
+      .from(attachments)
+      .where(eq(attachments.assetId, assetId))
+      .all()
+  ).map((row) => row.storedName);
 }
 
 /**
@@ -104,7 +106,7 @@ export async function saveAttachment(
   assetId: string,
   file: UploadedFile,
 ): Promise<AttachmentRow> {
-  const asset = deps.db.select().from(assets).where(eq(assets.id, assetId)).get();
+  const asset = await deps.db.select().from(assets).where(eq(assets.id, assetId)).get();
   if (!asset) throw notFound('That asset');
 
   const id = newId();
@@ -152,9 +154,9 @@ export async function saveAttachment(
 
   const now = deps.now();
   try {
-    return deps.db.transaction((tx) => {
-      const quotaMb = getSettings(tx).uploadQuotaMb;
-      const used = storageUsedBytes(tx);
+    return await deps.db.transaction(async (tx) => {
+      const quotaMb = (await getSettings(tx)).uploadQuotaMb;
+      const used = await storageUsedBytes(tx);
       if (used + sizeBytes > quotaMb * BYTES_PER_MB) {
         throw new AppError(
           413,
@@ -164,7 +166,8 @@ export async function saveAttachment(
         );
       }
 
-      tx.insert(attachments)
+      await tx
+        .insert(attachments)
         .values({
           id,
           assetId,
@@ -177,7 +180,7 @@ export async function saveAttachment(
           createdAt: nowIso(now),
         })
         .run();
-      writeAudit(
+      await writeAudit(
         tx,
         {
           type: 'assets',
@@ -189,7 +192,7 @@ export async function saveAttachment(
         },
         now,
       );
-      return tx.select().from(attachments).where(eq(attachments.id, id)).get()!;
+      return (await tx.select().from(attachments).where(eq(attachments.id, id)).get())!;
     });
   } catch (error) {
     // The bytes are on the volume and the row that would have named them is
@@ -205,18 +208,22 @@ export async function deleteAttachment(
   actor: Actor,
   attachmentId: string,
 ): Promise<void> {
-  const row = deps.db.select().from(attachments).where(eq(attachments.id, attachmentId)).get();
+  const row = await deps.db
+    .select()
+    .from(attachments)
+    .where(eq(attachments.id, attachmentId))
+    .get();
   if (!row) throw notFound('That attachment');
   // attachments.asset_id is NOT NULL and cascades on delete, so the asset an
   // attachment names always exists. Reading it optionally would only hide the
   // day that stops being true — and write a nameless audit line.
-  const asset = deps.db.select().from(assets).where(eq(assets.id, row.assetId)).get();
+  const asset = await deps.db.select().from(assets).where(eq(assets.id, row.assetId)).get();
   if (!asset) throw notFound('That asset');
 
   const now = deps.now();
-  deps.db.transaction((tx) => {
-    tx.delete(attachments).where(eq(attachments.id, row.id)).run();
-    writeAudit(
+  await deps.db.transaction(async (tx) => {
+    await tx.delete(attachments).where(eq(attachments.id, row.id)).run();
+    await writeAudit(
       tx,
       {
         type: 'assets',

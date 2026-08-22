@@ -29,14 +29,14 @@ export function registerRoleRoutes(app: FastifyInstance, deps: AppDeps): void {
   const typed = app.withTypeProvider<ZodTypeProvider>();
 
   typed.get('/api/v1/roles', { preHandler: requireAuth }, async () => ({
-    roles: listRoles(deps.db),
+    roles: await listRoles(deps.db),
   }));
 
   typed.post(
     '/api/v1/roles',
     { schema: { body: roleCreateSchema }, preHandler: requireAction('roles.manage') },
     async (request, reply) =>
-      reply.status(201).send({ role: createRole(deps, request.member!, request.body) }),
+      reply.status(201).send({ role: await createRole(deps, request.member!, request.body) }),
   );
 
   typed.patch(
@@ -46,7 +46,7 @@ export function registerRoleRoutes(app: FastifyInstance, deps: AppDeps): void {
       preHandler: requireAction('roles.manage'),
     },
     async (request) => ({
-      role: updateRole(deps, request.member!, request.params.id, request.body),
+      role: await updateRole(deps, request.member!, request.params.id, request.body),
     }),
   );
 
@@ -69,7 +69,7 @@ export function registerRoleRoutes(app: FastifyInstance, deps: AppDeps): void {
     '/api/v1/roles/order',
     { schema: { body: roleOrderSchema }, preHandler: requireAction('roles.manage') },
     async (request, reply) => {
-      reorderRoles(deps, request.member!, request.body.order);
+      await reorderRoles(deps, request.member!, request.body.order);
       return reply.status(204).send();
     },
   );
@@ -81,7 +81,7 @@ export function registerRoleRoutes(app: FastifyInstance, deps: AppDeps): void {
       preHandler: requireAction('roles.manage'),
     },
     async (request, reply) => {
-      deleteRole(deps, request.member!, request.params.id, request.query.migrateTo);
+      await deleteRole(deps, request.member!, request.params.id, request.query.migrateTo);
       return reply.status(204).send();
     },
   );

@@ -43,14 +43,14 @@ export function registerSessionAuth(app: FastifyInstance, deps: AppDeps): void {
     request.permissions = new Set();
     const raw = request.cookies[SESSION_COOKIE];
     if (!raw) return;
-    request.member = resolveSession(deps.db, raw, deps.now());
+    request.member = await resolveSession(deps.db, raw, deps.now());
     if (!request.member) return;
-    request.permissions = resolvePermissions(deps.db, request.member.role);
+    request.permissions = await resolvePermissions(deps.db, request.member.role);
 
     // Read from the settings row rather than cached anywhere: an admin turning
     // the requirement on should reach everybody already signed in, on their
     // very next request, without waiting for a session to expire.
-    const settings = deps.db.select().from(orgSettings).get();
+    const settings = await deps.db.select().from(orgSettings).get();
     request.mustEnrolMfa = settings?.mfaRequired === true && request.member.mfaConfirmedAt === null;
   });
 }

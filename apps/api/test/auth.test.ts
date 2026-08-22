@@ -56,7 +56,7 @@ describe('meta & setup', () => {
   it('audits setup completion', async () => {
     ctx = await buildTestApp();
     await setupOrg(ctx.app);
-    const events = ctx.db.select().from(auditEvents).all();
+    const events = await ctx.db.select().from(auditEvents).all();
     expect(events.some((e) => e.action === 'system.setup_completed' && e.type === 'system')).toBe(
       true,
     );
@@ -90,7 +90,7 @@ describe('login / logout / me', () => {
     expect(me.statusCode).toBe(200);
     expect(me.json().member.email).toBe('tomasz@acme.io');
 
-    const events = ctx.db.select().from(auditEvents).all();
+    const events = await ctx.db.select().from(auditEvents).all();
     expect(events.some((e) => e.action === 'auth.login' && e.type === 'auth')).toBe(true);
   });
 
@@ -115,7 +115,7 @@ describe('login / logout / me', () => {
   it('rejects members that have not accepted their invite yet', async () => {
     ctx = await buildTestApp();
     await setupOrg(ctx.app);
-    ctx.db
+    await ctx.db
       .insert(members)
       .values({
         id: newId(),
@@ -151,7 +151,7 @@ describe('login / logout / me', () => {
     const viewer = await inject(ctx.app, {
       method: 'GET',
       url: '/api/v1/auth/me',
-      cookie: memberCookie(ctx.db, 'viewer'),
+      cookie: await memberCookie(ctx.db, 'viewer'),
     });
     // Reads are open to everybody, so the viewer's list is empty and always was.
     expect(viewer.json().permissions).toEqual([]);
@@ -173,10 +173,10 @@ describe('login / logout / me', () => {
     ctx = await buildTestApp();
     const cookie = await setupOrg(ctx.app);
     const soon = new Date(Date.now() + 5 * 24 * 60 * 60 * 1000).toISOString();
-    ctx.db.update(sessions).set({ expiresAt: soon }).run();
+    await ctx.db.update(sessions).set({ expiresAt: soon }).run();
 
     await inject(ctx.app, { method: 'GET', url: '/api/v1/auth/me', cookie });
-    const session = ctx.db.select().from(sessions).all()[0]!;
+    const session = (await ctx.db.select().from(sessions).all())[0]!;
     expect(new Date(session.expiresAt).getTime()).toBeGreaterThan(
       Date.now() + 20 * 24 * 60 * 60 * 1000,
     );
@@ -185,7 +185,7 @@ describe('login / logout / me', () => {
   it('rejects an expired session', async () => {
     ctx = await buildTestApp();
     const cookie = await setupOrg(ctx.app);
-    ctx.db
+    await ctx.db
       .update(sessions)
       .set({ expiresAt: new Date(Date.now() - 1000).toISOString() })
       .run();
@@ -217,7 +217,7 @@ describe('preferences', () => {
 describe('invites', () => {
   async function createInvitedMember(role = 'viewer') {
     const id = newId();
-    ctx.db
+    await ctx.db
       .insert(members)
       .values({
         id,
@@ -230,7 +230,7 @@ describe('invites', () => {
         updatedAt: nowIso(),
       })
       .run();
-    const raw = issueAuthToken(ctx.db, id, 'invite');
+    const raw = await issueAuthToken(ctx.db, id, 'invite');
     return { id, raw };
   }
 
@@ -258,13 +258,13 @@ describe('invites', () => {
     expect(accept.statusCode).toBe(200);
     expect(accept.json().member).toMatchObject({ displayName: 'Daniel Okafor', status: 'active' });
 
-    const member = ctx.db.select().from(members).where(eq(members.id, id)).get();
+    const member = await ctx.db.select().from(members).where(eq(members.id, id)).get();
     expect(member?.status).toBe('active');
     expect(member?.passwordHash).toBeTruthy();
 
     // The name arrives with the invitation being accepted, so the event has to
     // carry it — otherwise the activity log can only say "A member joined".
-    const joined = ctx.db
+    const joined = await ctx.db
       .select()
       .from(auditEvents)
       .where(eq(auditEvents.action, 'member.joined'))
@@ -289,7 +289,7 @@ describe('invites', () => {
     expect(reuse.statusCode).toBe(401);
     expect(reuse.json().error.code).toBe('invalid_token');
 
-    ctx.db
+    await ctx.db
       .update(authTokens)
       .set({ expiresAt: new Date(Date.now() - 1000).toISOString(), consumedAt: null })
       .run();
@@ -302,8 +302,8 @@ describe('password reset', () => {
   it('resets the password, revokes other sessions, and audits', async () => {
     ctx = await buildTestApp();
     const adminCookie = await setupOrg(ctx.app);
-    const admin = ctx.db.select().from(members).all()[0]!;
-    const raw = issueAuthToken(ctx.db, admin.id, 'password_reset');
+    const admin = (await ctx.db.select().from(members).all())[0]!;
+    const raw = await issueAuthToken(ctx.db, admin.id, 'password_reset');
 
     const res = await ctx.app.inject({
       method: 'POST',
@@ -333,7 +333,7 @@ describe('password reset', () => {
     });
     expect(newLogin.statusCode).toBe(200);
 
-    const events = ctx.db.select().from(auditEvents).all();
+    const events = await ctx.db.select().from(auditEvents).all();
     expect(events.some((e) => e.action === 'auth.password_reset')).toBe(true);
   });
 

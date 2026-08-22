@@ -24,14 +24,14 @@ import { getSettings } from './settings.js';
  */
 export const EXPORT_FORMAT_VERSION = 1;
 
-export function workspaceExport(db: Db, now: Date): WorkspaceExport {
+export async function workspaceExport(db: Db, now: Date): Promise<WorkspaceExport> {
   return {
     formatVersion: EXPORT_FORMAT_VERSION,
     exportedAt: now.toISOString(),
-    settings: getSettings(db),
+    settings: await getSettings(db),
     // Members without their password hashes: the file says who had access, and
     // gives nobody a way to use it.
-    members: db
+    members: await db
       .select({
         id: members.id,
         email: members.email,
@@ -46,17 +46,17 @@ export function workspaceExport(db: Db, now: Date): WorkspaceExport {
       .all(),
     // The roles those `role` ids name, and what each one allowed — the system
     // role has no grant rows, because its set is resolved rather than stored.
-    roles: db.select().from(roles).orderBy(roles.sortOrder).all(),
-    rolePermissions: db.select().from(rolePermissions).all(),
-    employees: db.select().from(employees).all(),
-    assets: db.select().from(assets).all(),
-    assignments: db.select().from(assignments).all(),
-    customFieldDefs: db.select().from(customFieldDefs).all(),
-    assetCustomValues: db.select().from(assetCustomValues).all(),
+    roles: await db.select().from(roles).orderBy(roles.sortOrder).all(),
+    rolePermissions: await db.select().from(rolePermissions).all(),
+    employees: await db.select().from(employees).all(),
+    assets: await db.select().from(assets).all(),
+    assignments: await db.select().from(assignments).all(),
+    customFieldDefs: await db.select().from(customFieldDefs).all(),
+    assetCustomValues: await db.select().from(assetCustomValues).all(),
     // Metadata only — the bytes live in DATA_DIR/uploads, which is what a real
     // backup copies. The checksum is what lets the two be checked against each
     // other after a restore; it is null for files older than the column.
-    attachments: db
+    attachments: await db
       .select({
         id: attachments.id,
         assetId: attachments.assetId,
@@ -69,6 +69,6 @@ export function workspaceExport(db: Db, now: Date): WorkspaceExport {
       })
       .from(attachments)
       .all(),
-    auditEvents: db.select().from(auditEvents).all(),
+    auditEvents: await db.select().from(auditEvents).all(),
   };
 }
