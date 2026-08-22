@@ -9,7 +9,7 @@ This repo is built to be customized by asking Claude Code. Every area has its ow
 ## Repo map
 
 - `apps/web` — React 19 + Vite SPA. Design system, pages, modals. See `apps/web/CLAUDE.md`.
-- `apps/api` — Fastify API + SQLite (Drizzle). REST under `/api/v1`, sessions + RBAC + audit log, serves the built SPA in production. See `apps/api/CLAUDE.md`.
+- `apps/api` — Fastify API + SQLite (Drizzle over libsql, async end to end). REST under `/api/v1`, sessions + RBAC + audit log, serves the built SPA in production. See `apps/api/CLAUDE.md`.
 - `packages/shared` — **single source of truth** for enums, label/color maps, RBAC and zod schemas. Both apps import it; change domain vocabulary here first. See `packages/shared/CLAUDE.md`.
 - `e2e` — Playwright tests against the production build. See `e2e/CLAUDE.md`.
 - `apps/web/src/features/dev/KitchenSink.tsx` → **`/kitchen-sink`** (dev-only route). The design system, rendered. **Visual source of truth**; open it beside whatever you are building.
@@ -53,6 +53,7 @@ Same two processes, same ports, your checkout bind-mounted so hot reload still w
 - **Semantic colors:** every status/role/type maps to `sv ∈ {ok, acc, warn, err, info, neut}` and renders via CSS vars `--{sv}` / `--{sv}-bg`. Never hardcode a status color.
 - **Dates**: date-only values are `YYYY-MM-DD` strings; timestamps are ISO-8601 UTC. **Money is integer cents** — `parsePriceToCents` in `packages/shared/src/money.ts` is the only place a typed decimal becomes cents. Emails are lowercased before storage.
 - **Who holds an asset lives in `assignments`, never on the asset.** `assets.status = 'assigned'` ⇔ an open ownership row exists, enforced by a partial unique index and maintained only inside the assignment service.
+- **The API is async end to end**, over libsql rather than better-sqlite3: every service returns a promise and the idiom is `await db.transaction(async (tx) => …)`. Drizzle's builders are thenables, so a forgotten `await` compiles, returns a truthy object and never runs — `apps/api` is type-checked by eslint's floating-promise rules for that reason, and `apps/api/CLAUDE.md` says what those rules still cannot see.
 - **Members sign in; employees hold assets.** Two tables, optionally linked, never fused — the same person can be both, and most people are only one. Nobody may change or remove their own account, which is also what guarantees the workspace keeps an admin.
 - **A CSV file is parsed in the browser and sent as canonical rows.** The API has no CSV parser and never learns what a particular spreadsheet called its columns; `packages/shared/src/schemas/import.ts` owns the vocabulary all three sides agree on.
 - **Two-factor is a workspace switch, not a personal setting.** `org_settings.mfa_required` turns it on for everybody; a member is enrolled or not. Only admins reset it, turning it off wipes every secret and recovery code, and `apps/api/src/db/mfa-reset-cli.ts` is the break-glass path when the last admin loses both phone and codes. TOTP is hand-written in `apps/api/src/lib/totp.ts` against RFC 6238's published test vectors — keep those tests if you ever replace it.
