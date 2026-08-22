@@ -14,6 +14,10 @@ services:
     build: .
     restart: unless-stopped
     ports:
+      # Behind a reverse proxy on the same host, make this '127.0.0.1:3000:3000'
+      # so the only way in is the proxy. A published port is DNAT'd before a
+      # host firewall ever sees it, so binding the mapping is what closes it —
+      # `ufw deny 3000` is not. docs/deployment.md has the rest of that story.
       - '3000:3000'
     volumes:
       # The SQLite database and the uploaded attachments. Nothing else is state.
