@@ -1,3 +1,5 @@
+import { readdir, stat, unlink } from 'node:fs/promises';
+import { join } from 'node:path';
 import { and, asc, desc, eq, gte, isNotNull, isNull, lt, lte, sql } from 'drizzle-orm';
 import { renderAuditEvent, type AuditParams } from '@inventory/shared';
 import type { AppDeps } from '@/types/app.js';
@@ -5,12 +7,15 @@ import type { JobResult, MaintenanceResult } from '@/types/jobs.js';
 import {
   assets,
   assignments,
+  attachments,
   auditEvents,
   authTokens,
   employees,
   members,
+  notificationLog,
   sessions,
 } from '@/db/schema.js';
+import { uploadsDir } from './attachments.js';
 import { pruneExpiredSessions } from './sessions.js';
 import { getSettings } from './settings.js';
 import { emailEnabled, sendOnce } from './notifications.js';
@@ -27,6 +32,12 @@ const RETURN_LEAD_DAYS = 3;
 
 /** How many events the weekly digest recounts. A digest is not a log. */
 const DIGEST_EVENTS = 10;
+
+/** How long a file with no row naming it is given before the sweep takes it. */
+const ORPHAN_GRACE_MS = DAY_MS;
+
+/** How much of "what was sent" is kept for reading. Dedupe needs days, not months. */
+const NOTIFICATION_RETENTION_MONTHS = 12;
 
 const dayOf = (date: Date): string => date.toISOString().slice(0, 10);
 const shiftDays = (date: Date, days: number): string =>
@@ -233,10 +244,12 @@ export async function runWeeklyDigest(deps: AppDeps, now: Date): Promise<JobResu
 
 /**
  * Nightly tidying, and the only place rows are ever removed without somebody
- * asking: expired sessions, spent or expired tokens, and audit events past the
- * workspace's retention. Retention is opt-out — `null` months means forever.
+ * asking: expired sessions, spent or expired tokens, audit events past the
+ * workspace's retention, the notification log past a year, and files on the
+ * volume that no attachment row names. Retention is opt-out — `null` months
+ * means forever — but the last two are not: neither is the workspace's data.
  */
-export function runMaintenance(deps: AppDeps, now: Date): MaintenanceResult {
+export async function runMaintenance(deps: AppDeps, now: Date): Promise<MaintenanceResult> {
   const settings = getSettings(deps.db);
   const at = now.toISOString();
   let pruned = 0;
@@ -255,7 +268,64 @@ export function runMaintenance(deps: AppDeps, now: Date): MaintenanceResult {
       .run().changes;
   }
 
-  return { pruned };
+  // Every dedupe window is measured in days at most, so a year of "what was
+  // sent" is kept for reading rather than for deciding — and not forever,
+  // because nobody debugs a message from two years ago.
+  const notificationCutoff = new Date(now);
+  notificationCutoff.setUTCMonth(notificationCutoff.getUTCMonth() - NOTIFICATION_RETENTION_MONTHS);
+  const notificationRowsPruned = deps.db
+    .delete(notificationLog)
+    .where(lt(notificationLog.sentAt, notificationCutoff.toISOString()))
+    .run().changes;
+
+  return {
+    pruned,
+    orphanUploadsRemoved: await sweepOrphanUploads(deps, now),
+    notificationRowsPruned,
+  };
+}
+
+/**
+ * Files on the volume that no attachment row names — a delete whose row landed
+ * and whose unlink did not, a restore of `/data` from a newer database, an
+ * upload refused after its bytes were written. Anything younger than a day is
+ * left alone: it may be an upload whose transaction has not landed yet, and a
+ * sweep that races a live request is worse than a stray file.
+ *
+ * The count goes back to the scheduler, which logs the whole result through
+ * pino — operations, not the activity log: nobody in the workspace did this.
+ */
+async function sweepOrphanUploads(deps: AppDeps, now: Date): Promise<number> {
+  const directory = uploadsDir(deps);
+  let names: string[];
+  try {
+    names = await readdir(directory);
+  } catch (error) {
+    // An instance where nobody has uploaded anything has no directory yet.
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return 0;
+    throw error;
+  }
+
+  const referenced = new Set(
+    deps.db
+      .select({ storedName: attachments.storedName })
+      .from(attachments)
+      .all()
+      .map((row) => row.storedName),
+  );
+
+  let removed = 0;
+  for (const name of names) {
+    if (referenced.has(name)) continue;
+    const path = join(directory, name);
+    const info = await stat(path).catch(() => null);
+    // A file that vanished between the listing and the stat is already gone.
+    if (info === null || !info.isFile()) continue;
+    if (now.getTime() - info.mtimeMs < ORPHAN_GRACE_MS) continue;
+    await unlink(path).catch(() => {});
+    removed += 1;
+  }
+  return removed;
 }
 
 /** Who a workspace-level message goes to. An invited admin cannot read it yet. */

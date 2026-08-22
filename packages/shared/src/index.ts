@@ -1,3 +1,4 @@
+export * from './attachments.js';
 export * from './audit-render.js';
 export * from './csv.js';
 export * from './enums.js';

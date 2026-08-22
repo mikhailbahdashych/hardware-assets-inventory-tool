@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { MAX_UPLOAD_QUOTA_MB, MIN_UPLOAD_QUOTA_MB } from '../attachments.js';
 import {
   LOG_RETENTION_LABELS,
   LOG_RETENTION_OPTIONS,
@@ -66,6 +67,27 @@ describe('the warranty lead time', () => {
     expect(settingsPatchInput.safeParse({ warrantyLeadDays: -30 }).success).toBe(false);
     expect(settingsPatchInput.safeParse({ warrantyLeadDays: 366 }).success).toBe(false);
     expect(settingsPatchInput.safeParse({ warrantyLeadDays: 30.5 }).success).toBe(false);
+  });
+});
+
+describe('the attachment storage quota', () => {
+  it('takes any whole number of megabytes inside the bounds', () => {
+    for (const quota of [MIN_UPLOAD_QUOTA_MB, 500, 2048, MAX_UPLOAD_QUOTA_MB]) {
+      expect(settingsPatchInput.parse({ uploadQuotaMb: quota })).toEqual({ uploadQuotaMb: quota });
+    }
+  });
+
+  it('refuses a quota that is not one', () => {
+    // Under a hundred megabytes is barely ten files at the per-file cap, and
+    // over a hundred gigabytes is a promise about somebody else's volume.
+    expect(settingsPatchInput.safeParse({ uploadQuotaMb: 0 }).success).toBe(false);
+    expect(settingsPatchInput.safeParse({ uploadQuotaMb: MIN_UPLOAD_QUOTA_MB - 1 }).success).toBe(
+      false,
+    );
+    expect(settingsPatchInput.safeParse({ uploadQuotaMb: MAX_UPLOAD_QUOTA_MB + 1 }).success).toBe(
+      false,
+    );
+    expect(settingsPatchInput.safeParse({ uploadQuotaMb: 512.5 }).success).toBe(false);
   });
 });
 

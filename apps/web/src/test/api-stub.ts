@@ -365,6 +365,7 @@ export const SETTINGS = {
   emailInvites: true,
   emailWeeklyDigest: false,
   mfaRequired: false,
+  uploadQuotaMb: 2048,
   createdAt: '2026-01-01T00:00:00.000Z',
   updatedAt: '2026-01-01T00:00:00.000Z',
 };
@@ -487,7 +488,7 @@ export const ADMIN_ROUTES: StubRoutes = {
   'GET /auth/me': session(),
   'GET /employees': { body: { employees: [MAYA] } },
   'GET /members': { body: { members: [ADMIN_SUMMARY, INVITED_SUMMARY, LINKED_SUMMARY] } },
-  'GET /settings': { body: { settings: SETTINGS } },
+  'GET /settings': { body: { settings: SETTINGS, storageUsedBytes: 188_416 } },
   'GET /audit': { body: AUDIT_PAGE },
   'GET /workflow': { body: WORKFLOW },
   'GET /roles': { body: ROLES },

@@ -31,6 +31,11 @@ export const orgSettings = sqliteTable('org_settings', {
   emailWeeklyDigest: integer('email_weekly_digest', { mode: 'boolean' }).notNull().default(false),
   /** Global: every member must hold a confirmed authenticator to use the app. */
   mfaRequired: integer('mfa_required', { mode: 'boolean' }).notNull().default(false),
+  /**
+   * How many megabytes of attachments this workspace may hold. The database
+   * shares the volume, so this is what stops uploads from taking it down.
+   */
+  uploadQuotaMb: integer('upload_quota_mb').notNull().default(2048),
   createdAt: text('created_at').notNull(),
   updatedAt: text('updated_at').notNull(),
 });
@@ -295,6 +300,12 @@ export const attachments = sqliteTable(
     filename: text('filename').notNull(),
     storedName: text('stored_name').notNull(),
     sizeBytes: integer('size_bytes').notNull(),
+    /**
+     * Hex sha256 of the stored bytes, computed as the upload streamed past.
+     * **NULL means the file was uploaded before checksums existed** — not that
+     * it has none, which is why the column is nullable and nothing backfills it.
+     */
+    sha256: text('sha256'),
     mime: text('mime'),
     uploadedByMemberId: text('uploaded_by_member_id').references(() => members.id, {
       onDelete: 'set null',

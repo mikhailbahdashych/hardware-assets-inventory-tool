@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { MAX_UPLOAD_QUOTA_MB, MIN_UPLOAD_QUOTA_MB } from '../attachments.js';
 import {
   CURRENCIES,
   LOG_RETENTION_OPTIONS,
@@ -33,6 +34,17 @@ export const settingsPatchInput = z.object({
     .max(MAX_WARRANTY_LEAD_DAYS, `At most ${MAX_WARRANTY_LEAD_DAYS} days of notice.`)
     .optional(),
   logRetentionMonths: z.union(LOG_RETENTION_OPTIONS.map((months) => z.literal(months))).optional(),
+  /**
+   * How much of the volume attachments may take, in whole megabytes. Bounded
+   * rather than free: the database sits on the same disk, so a workspace that
+   * could set this to anything could take itself down with a big upload.
+   */
+  uploadQuotaMb: z
+    .number()
+    .int('Use a whole number of megabytes.')
+    .min(MIN_UPLOAD_QUOTA_MB, `At least ${MIN_UPLOAD_QUOTA_MB} MB.`)
+    .max(MAX_UPLOAD_QUOTA_MB, `At most ${MAX_UPLOAD_QUOTA_MB} MB.`)
+    .optional(),
   emailWarrantyAlerts: z.boolean().optional(),
   emailReturnReminders: z.boolean().optional(),
   emailInvites: z.boolean().optional(),

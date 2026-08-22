@@ -22,6 +22,7 @@ const EDITABLE = [
   'emailInvites',
   'emailWeeklyDigest',
   'mfaRequired',
+  'uploadQuotaMb',
 ] as const;
 
 /**

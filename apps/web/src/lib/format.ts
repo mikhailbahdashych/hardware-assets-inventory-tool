@@ -96,10 +96,22 @@ export function initials(name: string): string {
     .toUpperCase();
 }
 
-/** "184 KB" — attachment sizes, in the units a file manager would show. */
+/**
+ * "184 KB", "1.5 MB", "1.2 GB" — attachment sizes and the workspace's storage
+ * line, in the units a file manager would show. One formatter for both: a
+ * second one would eventually round differently in the same sentence.
+ *
+ * Whole values lose their trailing zero above a megabyte ("2 GB", not "2.0
+ * GB"), because that is how a quota is written down.
+ */
 export function formatFileSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
   const kb = bytes / 1024;
   if (kb < 1024) return `${Math.round(kb)} KB`;
-  return `${(kb / 1024).toFixed(1)} MB`;
+  const mb = kb / 1024;
+  if (mb < 1024) return `${round1(mb)} MB`;
+  return `${round1(mb / 1024)} GB`;
 }
+
+/** 1.25 → 1.3, 2 → 2. `toFixed` alone would write the second one as "2.0". */
+const round1 = (value: number): number => Math.round(value * 10) / 10;

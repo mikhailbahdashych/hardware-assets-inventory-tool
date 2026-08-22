@@ -9,12 +9,19 @@ export interface JobResult {
 }
 
 /**
- * What the nightly tidy-up removed, across sessions, spent tokens and audit
- * events past the workspace's retention. One number because a self-hoster reads
- * it as "something was cleaned", not as an inventory of what.
+ * What the nightly tidy-up removed. `pruned` covers the rows a self-hoster
+ * reads as "something was cleaned" — sessions, spent tokens and audit events
+ * past the workspace's retention. The other two are counted apart because they
+ * are operational rather than the workspace's own data, and because the number
+ * that matters is what a log line says: the scheduler logs this whole object,
+ * so a volume quietly collecting stray files says so every night.
  */
 export interface MaintenanceResult {
   pruned: number;
+  /** Files on the volume that no attachment row names, older than a day. */
+  orphanUploadsRemoved: number;
+  /** `notification_log` rows past a year — long after any dedupe window. */
+  notificationRowsPruned: number;
 }
 
 /**

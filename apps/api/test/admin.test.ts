@@ -1,6 +1,8 @@
 import { eq } from 'drizzle-orm';
 import { afterEach, describe, expect, it } from 'vitest';
-import { assets, auditEvents, employees, members, orgSettings } from '@/db/schema.js';
+import { MAX_UPLOAD_QUOTA_MB } from '@inventory/shared';
+import { assets, attachments, auditEvents, employees, members, orgSettings } from '@/db/schema.js';
+import { nowIso } from '@/lib/dates.js';
 import {
   buildTestApp,
   inject,
@@ -247,6 +249,73 @@ describe('workspace settings', () => {
       'assetTagPrefix',
       'emailWeeklyDigest',
     ]);
+  });
+
+  it('carries the attachment quota and what the workspace has used of it', async () => {
+    ctx = await buildTestApp();
+    const admin = await setupOrg(ctx.app);
+
+    const before = await inject(ctx.app, {
+      method: 'GET',
+      url: '/api/v1/settings',
+      cookie: admin,
+    });
+    expect(before.json().settings.uploadQuotaMb).toBe(2048);
+    // Nothing uploaded yet, and a workspace with no files has used no bytes.
+    expect(before.json().storageUsedBytes).toBe(0);
+
+    const asset = await createAsset(admin);
+    ctx.db
+      .insert(attachments)
+      .values({
+        id: 'att-1',
+        assetId: asset.id,
+        filename: 'invoice.pdf',
+        storedName: 'invoice.pdf',
+        sizeBytes: 4096,
+        mime: 'application/pdf',
+        uploadedByMemberId: null,
+        createdAt: nowIso(),
+      })
+      .run();
+
+    const after = await inject(ctx.app, { method: 'GET', url: '/api/v1/settings', cookie: admin });
+    expect(after.json().storageUsedBytes).toBe(4096);
+  });
+
+  it('takes a quota inside its bounds and refuses one outside them', async () => {
+    ctx = await buildTestApp();
+    const admin = await setupOrg(ctx.app);
+
+    const res = await inject(ctx.app, {
+      method: 'PATCH',
+      url: '/api/v1/settings',
+      cookie: admin,
+      body: { uploadQuotaMb: 500 },
+    });
+    expect(res.statusCode).toBe(200);
+    expect(res.json().settings.uploadQuotaMb).toBe(500);
+    expect(
+      JSON.parse(
+        ctx.db
+          .select()
+          .from(auditEvents)
+          .where(eq(auditEvents.action, 'system.settings_updated'))
+          .get()!.params,
+      ).changedFields,
+    ).toEqual(['uploadQuotaMb']);
+
+    // Below a hundred megabytes is barely ten files; beyond a hundred
+    // gigabytes is a promise about somebody else's volume.
+    for (const quota of [0, 99, MAX_UPLOAD_QUOTA_MB + 1, 512.5]) {
+      const bad = await inject(ctx.app, {
+        method: 'PATCH',
+        url: '/api/v1/settings',
+        cookie: admin,
+        body: { uploadQuotaMb: quota },
+      });
+      expect(bad.statusCode, `quota ${quota}`).toBe(422);
+    }
   });
 
   it('writes nothing at all when the form is submitted unchanged', async () => {

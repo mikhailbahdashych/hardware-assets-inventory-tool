@@ -14,7 +14,7 @@ import type {
   MemberSummary,
   Meta,
   OrgMeta,
-  OrgSettings,
+  SettingsPayload,
 } from '@/types/api';
 
 /**
@@ -199,11 +199,15 @@ export function useMembers() {
   });
 }
 
-/** Admin-only, like every screen that reads it. */
+/**
+ * Admin-only, like every screen that reads it. The whole payload, not just the
+ * row: the storage usage beside it is what the Settings page's quota line
+ * reads, and a hook that dropped it would need a second request to get it back.
+ */
 export function useSettings() {
   return useQuery({
     queryKey: queryKeys.settings,
-    queryFn: async () => (await apiFetch<{ settings: OrgSettings }>('/settings')).settings,
+    queryFn: () => apiFetch<SettingsPayload>('/settings'),
   });
 }
 
