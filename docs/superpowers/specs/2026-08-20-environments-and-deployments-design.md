@@ -9,11 +9,11 @@ orchestrator opens all PRs at the end; the owner merges.
 
 ## The environment matrix (the product story everything serves)
 
-| | Engine | Attachments | TLS/domain | Ships as |
-|---|---|---|---|---|
-| Demo (local) | SQLite file | local disk | — | `npm run dev` + seed (exists) |
-| Production light | SQLite file | local disk | own reverse proxy, documented | `docker-compose.yml` + `docs/deployment.md` |
-| Full-scale | PostgreSQL on RDS | S3 | own domain via the guide | `infrastructure/` Terraform |
+|                  | Engine            | Attachments | TLS/domain                    | Ships as                                    |
+| ---------------- | ----------------- | ----------- | ----------------------------- | ------------------------------------------- |
+| Demo (local)     | SQLite file       | local disk  | —                             | `npm run dev` + seed (exists)               |
+| Production light | SQLite file       | local disk  | own reverse proxy, documented | `docker-compose.yml` + `docs/deployment.md` |
+| Full-scale       | PostgreSQL on RDS | S3          | own domain via the guide      | `infrastructure/` Terraform                 |
 
 Engine and storage are chosen by env and nothing else: `DATABASE_URL`
 present → Postgres; `S3_BUCKET` present → S3 attachments. Absent → exactly
@@ -29,7 +29,7 @@ production light.
   (zip, 7z, tar, gz). Enforced server-side on the sanitized extension →
   422 `file_type_not_allowed` naming the policy; the Dropzone's `accept`
   reads the same list. SVG deliberately absent (scriptable format; the
-  forced-download headers make it safe to *serve*, but there is no reason
+  forced-download headers make it safe to _serve_, but there is no reason
   to invite it).
 - **Per-workspace storage quota**: `org_settings.upload_quota_mb`, default
   2048, admin-edited on the Settings page (bounded ≥ 100); enforcement is
@@ -131,7 +131,7 @@ dns, outputs, user_data template):
   fmt/validate run in CI.
 - **Validation on the owner's AWS** (account 8884…3671, eu-central-1):
   build the image locally, push to a temporary ECR repo, `terraform
-  apply` with it, set up a workspace over the EIP, upload an attachment
+apply` with it, set up a workspace over the EIP, upload an attachment
   and verify the object in S3 and rows in RDS, restart the instance,
   then **`terraform destroy` plus an independent sweep proving nothing
   billable is left** (instances, RDS, EIPs, volumes, NAT — expect none —
