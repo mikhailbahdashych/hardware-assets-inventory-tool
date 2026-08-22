@@ -49,5 +49,16 @@ export interface Config {
   trustProxy: boolean | number | string[];
   /** Absolute path to the built SPA; when set (and existing) the API serves it. */
   webDist?: string;
+  /**
+   * The bucket attachments live in, or undefined for the uploads directory
+   * under `dataDir`. Named exactly like `databaseUrl`: a deployment picks where
+   * its files go by naming the thing they go into.
+   */
+  s3Bucket?: string;
+  s3Region?: string;
+  /** A MinIO-compatible store's own endpoint. AWS is addressed by region. */
+  s3Endpoint?: string;
+  /** Path-style addressing, for stores that have no virtual-host names. */
+  s3ForcePathStyle: boolean;
   smtp: SmtpConfig | null;
 }

@@ -1,5 +1,4 @@
 import { mkdirSync } from 'node:fs';
-import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { loadConfig } from '@/config.js';
 import { createDb, describeStore } from '@/db/client.js';
@@ -7,6 +6,7 @@ import { runMigrations } from '@/db/migrate.js';
 import { seed } from '@/db/seed.js';
 import { seedDemo } from '@/db/demo.js';
 import { AppError } from '@/lib/errors.js';
+import { makeStorage, uploadsDir } from '@/services/storage.js';
 
 /**
  * `npm run seed:demo` — fills this instance with a workspace worth looking at.
@@ -28,7 +28,9 @@ async function main(): Promise<void> {
   const config = loadConfig();
 
   mkdirSync(config.dataDir, { recursive: true });
-  mkdirSync(join(config.dataDir, 'uploads'), { recursive: true });
+  // Same as the server's boot: nothing to make on an instance whose uploads
+  // live in a bucket.
+  if (config.s3Bucket === undefined) mkdirSync(uploadsDir(config), { recursive: true });
 
   const { db, client } = await createDb(config);
   try {
@@ -38,7 +40,9 @@ async function main(): Promise<void> {
     await seed(db);
 
     const result = await seedDemo(
-      { config, db, client, now: () => new Date(), mailer: null },
+      // `--reset` empties the workspace, attachments included, so this needs
+      // the same storage the server would have used to write them.
+      { config, db, client, storage: makeStorage(config), now: () => new Date(), mailer: null },
       { password, reset },
     );
 

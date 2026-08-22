@@ -1,5 +1,3 @@
-import { readdir, stat, unlink } from 'node:fs/promises';
-import { join } from 'node:path';
 import { and, asc, count, desc, eq, gte, isNotNull, isNull, lt, lte } from 'drizzle-orm';
 import { renderAuditEvent, type AuditParams } from '@inventory/shared';
 import type { AppDeps } from '@/types/app.js';
@@ -15,7 +13,6 @@ import {
   notificationLog,
   sessions,
 } from '@/db/schema.js';
-import { uploadsDir } from './attachments.js';
 import { pruneExpiredSessions } from './sessions.js';
 import { getSettings } from './settings.js';
 import { emailEnabled, sendOnce } from './notifications.js';
@@ -300,26 +297,20 @@ export async function runMaintenance(deps: AppDeps, now: Date): Promise<Maintena
 }
 
 /**
- * Files on the volume that no attachment row names — a delete whose row landed
- * and whose unlink did not, a restore of `/data` from a newer database, an
- * upload refused after its bytes were written. Anything younger than a day is
- * left alone: it may be an upload whose transaction has not landed yet, and a
- * sweep that races a live request is worse than a stray file.
+ * Stored objects that no attachment row names — a delete whose row landed and
+ * whose removal did not, a restore of `/data` from a newer database, an upload
+ * refused after its bytes were written. Anything younger than a day is left
+ * alone: it may be an upload whose transaction has not landed yet, and a sweep
+ * that races a live request is worse than a stray file.
+ *
+ * It asks the storage seam rather than the filesystem, so it sweeps a bucket on
+ * an instance whose attachments live in one — same rule, same grace period.
  *
  * The count goes back to the scheduler, which logs the whole result through
  * pino — operations, not the activity log: nobody in the workspace did this.
  */
 async function sweepOrphanUploads(deps: AppDeps, now: Date): Promise<number> {
-  const directory = uploadsDir(deps);
-  let names: string[];
-  try {
-    names = await readdir(directory);
-  } catch (error) {
-    // An instance where nobody has uploaded anything has no directory yet.
-    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return 0;
-    throw error;
-  }
-
+  const stored = await deps.storage.list();
   const referenced = new Set(
     (await deps.db.select({ storedName: attachments.storedName }).from(attachments)).map(
       (row) => row.storedName,
@@ -327,14 +318,12 @@ async function sweepOrphanUploads(deps: AppDeps, now: Date): Promise<number> {
   );
 
   let removed = 0;
-  for (const name of names) {
-    if (referenced.has(name)) continue;
-    const path = join(directory, name);
-    const info = await stat(path).catch(() => null);
-    // A file that vanished between the listing and the stat is already gone.
-    if (info === null || !info.isFile()) continue;
-    if (now.getTime() - info.mtimeMs < ORPHAN_GRACE_MS) continue;
-    await unlink(path).catch(() => {});
+  for (const object of stored) {
+    if (referenced.has(object.name)) continue;
+    if (now.getTime() - object.lastModified.getTime() < ORPHAN_GRACE_MS) continue;
+    // Best effort, as it always was: something else may have taken it between
+    // the listing and here, and that is the outcome asked for anyway.
+    await deps.storage.remove(object.name).catch(() => {});
     removed += 1;
   }
   return removed;
