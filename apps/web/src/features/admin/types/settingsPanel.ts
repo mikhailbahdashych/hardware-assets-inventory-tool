@@ -6,4 +6,6 @@ export type EmailToggleKey = Extract<keyof SettingsDraft, `email${string}`>;
 
 export interface SettingsFormProps {
   settings: OrgSettings;
+  /** What the attachments already take, against the quota the form edits. */
+  storageUsedBytes: number;
 }

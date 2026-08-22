@@ -15,6 +15,7 @@ const STORED: OrgSettings = {
   emailInvites: true,
   emailWeeklyDigest: false,
   mfaRequired: false,
+  uploadQuotaMb: 2048,
   createdAt: '2026-01-01T00:00:00.000Z',
   updatedAt: '2026-01-01T00:00:00.000Z',
 };
@@ -30,6 +31,7 @@ const untouched: SettingsDraft = {
   emailInvites: true,
   emailWeeklyDigest: false,
   mfaRequired: false,
+  uploadQuotaMb: '2048',
 };
 
 const draft = (overrides: Partial<SettingsDraft> = {}): SettingsDraft => ({
@@ -83,6 +85,16 @@ describe('changedSettings', () => {
     expect(changedSettings({ ...STORED, logRetentionMonths: null }, draft())).toEqual({
       logRetentionMonths: 12,
     });
+  });
+
+  it('reads the storage quota as a number, and keeps bad text a change', () => {
+    expect(changedSettings(STORED, draft({ uploadQuotaMb: '4096' }))).toEqual({
+      uploadQuotaMb: 4096,
+    });
+    expect(changedSettings(STORED, draft({ uploadQuotaMb: ' 2048 ' }))).toEqual({});
+    // Same rule as the lead time: the schema is what says what is wrong.
+    expect(changedSettings(STORED, draft({ uploadQuotaMb: 'lots' })).uploadQuotaMb).toBe(-1);
+    expect(changedSettings(STORED, draft({ uploadQuotaMb: '' })).uploadQuotaMb).toBe(-1);
   });
 
   it('takes each switch on its own', () => {

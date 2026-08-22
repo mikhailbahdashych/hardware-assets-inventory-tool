@@ -267,8 +267,21 @@ export interface OrgSettings {
   emailWeeklyDigest: boolean;
   /** Every member must hold a confirmed authenticator to use the workspace. */
   mfaRequired: boolean;
+  /** How many megabytes of attachments this workspace may hold. */
+  uploadQuotaMb: number;
   createdAt: string;
   updatedAt: string;
+}
+
+/**
+ * What `GET /settings` sends. The usage is a sum over the attachments table
+ * rather than a column, so it rides beside the row instead of inside it —
+ * `PATCH /settings` answers with the row alone, and the two must not look
+ * like the same shape.
+ */
+export interface SettingsPayload {
+  settings: OrgSettings;
+  storageUsedBytes: number;
 }
 
 /** One activity-log row. `AuditEntry` is the same event on an asset's own trail. */

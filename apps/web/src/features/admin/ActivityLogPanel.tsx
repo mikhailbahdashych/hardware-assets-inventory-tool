@@ -102,7 +102,7 @@ export function ActivityLogPanel() {
           columns={COLUMNS}
           rows={items}
           rowKey={(item) => item.id}
-          footer={`${total} ${total === 1 ? 'event' : 'events'} · retained for ${retention(settings.data?.logRetentionMonths)}`}
+          footer={`${total} ${total === 1 ? 'event' : 'events'} · retained for ${retention(settings.data?.settings.logRetentionMonths)}`}
           empty={<EmptyState>Nothing has happened under this filter yet.</EmptyState>}
         />
       )}

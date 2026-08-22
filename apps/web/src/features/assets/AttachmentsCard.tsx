@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import { can } from '@inventory/shared';
+import { ATTACHMENT_ACCEPT, can } from '@inventory/shared';
 import { useDeleteAttachment, useUploadAttachment } from '@/api/mutations';
 import { Card, Icon, IconButton } from '@/components/ui';
 import { formatFileSize } from '@/lib/format';
@@ -44,6 +44,10 @@ export function AttachmentsCard({ assetId, attachments, permissions }: Attachmen
           type="file"
           className={styles.file}
           aria-label="Upload attachment"
+          // The server's own list, so the picker greys out what it would
+          // refuse — the refusal still exists, because an accept attribute is
+          // a suggestion a drag-and-drop can walk straight past.
+          accept={ATTACHMENT_ACCEPT}
           onChange={(event) => {
             const file = event.target.files?.[0];
             event.target.value = '';
