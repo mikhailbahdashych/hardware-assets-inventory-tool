@@ -1,6 +1,8 @@
+import { existsSync, mkdirSync, utimesSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { eq } from 'drizzle-orm';
 import { afterEach, describe, expect, it } from 'vitest';
-import { auditEvents, authTokens, notificationLog, sessions } from '@/db/schema.js';
+import { attachments, auditEvents, authTokens, notificationLog, sessions } from '@/db/schema.js';
 import {
   isoWeek,
   runMaintenance,
@@ -252,6 +254,79 @@ describe('isoWeek', () => {
   });
 });
 
+describe('the orphan upload sweep', () => {
+  /** A file on the volume with an mtime, and no row anywhere naming it. */
+  function orphan(name: string, ageHours: number) {
+    mkdirSync(ctx.uploadsDir, { recursive: true });
+    const path = join(ctx.uploadsDir, name);
+    writeFileSync(path, 'stray bytes');
+    const at = new Date(MONDAY.getTime() - ageHours * 3_600_000);
+    utimesSync(path, at, at);
+    return path;
+  }
+
+  it('removes a stray file older than a day and keeps a fresh one', async () => {
+    const admin = await withMail();
+    const asset = await createAsset(admin, { name: 'MacBook Pro 14"' });
+    await inject(ctx.app, {
+      method: 'POST',
+      url: `/api/v1/assets/${asset.id}/attachments`,
+      cookie: admin,
+      payload: Buffer.concat([
+        Buffer.from(
+          '------b\r\nContent-Disposition: form-data; name="file"; filename="invoice.pdf"\r\n' +
+            'Content-Type: application/pdf\r\n\r\n',
+        ),
+        Buffer.from('%PDF-1.7'),
+        Buffer.from('\r\n------b--\r\n'),
+      ]),
+      headers: { 'content-type': 'multipart/form-data; boundary=----b' },
+    });
+    const kept = ctx.db.select().from(attachments).all()[0]!.storedName;
+    // The real file is as old as the stray one; being referenced is what saves it.
+    const at = new Date(MONDAY.getTime() - 72 * 3_600_000);
+    utimesSync(join(ctx.uploadsDir, kept), at, at);
+
+    const old = orphan('abandoned.pdf', 72);
+    const young = orphan('in-flight.pdf', 2);
+
+    const result = await runMaintenance(ctx.deps, MONDAY);
+    expect(result.orphanUploadsRemoved).toBe(1);
+    expect(existsSync(old)).toBe(false);
+    // A file younger than a day may be an upload whose transaction has not landed.
+    expect(existsSync(young)).toBe(true);
+    expect(existsSync(join(ctx.uploadsDir, kept))).toBe(true);
+  });
+
+  it('sweeps nothing on an instance where nobody has uploaded anything', async () => {
+    await withMail();
+    expect(existsSync(ctx.uploadsDir)).toBe(false);
+    expect((await runMaintenance(ctx.deps, MONDAY)).orphanUploadsRemoved).toBe(0);
+  });
+});
+
+describe('the notification log prune', () => {
+  it('keeps a year of what was sent and drops the rest', async () => {
+    await withMail();
+    const at = (months: number) => {
+      const date = new Date(MONDAY);
+      date.setUTCMonth(date.getUTCMonth() - months);
+      return date.toISOString();
+    };
+    ctx.db
+      .insert(notificationLog)
+      .values([
+        { id: 'old', kind: 'warranty', dedupeKey: 'warranty:old', sentAt: at(13) },
+        { id: 'recent', kind: 'warranty', dedupeKey: 'warranty:recent', sentAt: at(11) },
+      ])
+      .run();
+
+    const result = await runMaintenance(ctx.deps, MONDAY);
+    expect(result.notificationRowsPruned).toBe(1);
+    expect(ctx.db.select().from(notificationLog).all().map((row) => row.id)).toEqual(['recent']); // prettier-ignore
+  });
+});
+
 describe('nightly maintenance', () => {
   it('removes what has expired and nothing that has not', async () => {
     const admin = await withMail();
@@ -267,7 +342,7 @@ describe('nightly maintenance', () => {
       })
       .run();
 
-    const result = runMaintenance(ctx.deps, MONDAY);
+    const result = await runMaintenance(ctx.deps, MONDAY);
     expect(result.pruned).toBeGreaterThanOrEqual(1);
     expect(
       ctx.db.select().from(authTokens).where(eq(authTokens.id, 'expired-token')).all(),
@@ -288,7 +363,7 @@ describe('nightly maintenance', () => {
       .where(eq(auditEvents.action, 'system.setup_completed'))
       .run();
 
-    runMaintenance(ctx.deps, MONDAY);
+    await runMaintenance(ctx.deps, MONDAY);
     const left = ctx.db.select().from(auditEvents).all();
     expect(left.map((row) => row.action)).toEqual(['asset.created']);
   });
@@ -303,7 +378,7 @@ describe('nightly maintenance', () => {
     });
     ctx.db.update(auditEvents).set({ at: '2019-01-01T00:00:00.000Z' }).run();
 
-    runMaintenance(ctx.deps, MONDAY);
+    await runMaintenance(ctx.deps, MONDAY);
     expect(ctx.db.select().from(auditEvents).all().length).toBeGreaterThan(0);
   });
 });
