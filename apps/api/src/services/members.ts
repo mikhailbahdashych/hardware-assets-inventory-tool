@@ -14,6 +14,7 @@ import type {
 import { employees, members, roles } from '@/db/schema.js';
 import { nowIso } from '@/lib/dates.js';
 import { AppError, invalidFields, notFound } from '@/lib/errors.js';
+import { DUPLICATE_MEMBER_EMAIL } from '@/lib/unique.js';
 import { newId } from '@/lib/ids.js';
 import { serializeMemberSummary } from '@/lib/serialize.js';
 import { writeAudit } from './audit.js';
@@ -385,7 +386,7 @@ async function requireEmployee(tx: DbOrTx, id: string) {
 
 async function requireFreeEmail(tx: DbOrTx, email: string): Promise<void> {
   if (await tx.select().from(members).where(eq(members.email, email)).get()) {
-    throw invalidFields({ email: 'Someone already signs in with that email address.' });
+    throw invalidFields(DUPLICATE_MEMBER_EMAIL);
   }
 }
 

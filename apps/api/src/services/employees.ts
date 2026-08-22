@@ -4,6 +4,7 @@ import type { AppDeps } from '@/types/app.js';
 import type { Db, DbOrTx } from '@/types/db.js';
 import { assignments, employees } from '@/db/schema.js';
 import { AppError, invalidFields, notFound } from '@/lib/errors.js';
+import { DUPLICATE_EMPLOYEE_EMAIL } from '@/lib/unique.js';
 import { nowIso } from '@/lib/dates.js';
 import { newId } from '@/lib/ids.js';
 import { serializeEmployee, serializeHolding } from '@/lib/serialize.js';
@@ -252,6 +253,6 @@ async function requireFreeEmail(tx: DbOrTx, email: string, exceptId?: string): P
     ? and(eq(employees.email, email), ne(employees.id, exceptId))
     : eq(employees.email, email);
   if (await tx.select().from(employees).where(where).get()) {
-    throw invalidFields({ email: 'Another employee already uses that email address.' });
+    throw invalidFields(DUPLICATE_EMPLOYEE_EMAIL);
   }
 }

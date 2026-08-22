@@ -12,6 +12,7 @@ import {
   orgSettings,
 } from '@/db/schema.js';
 import { AppError, invalidFields, notFound } from '@/lib/errors.js';
+import { DUPLICATE_ASSET_TAG } from '@/lib/unique.js';
 import { nowIso, todayDate } from '@/lib/dates.js';
 import { newId } from '@/lib/ids.js';
 import { serializeAsset, serializeAssignment } from '@/lib/serialize.js';
@@ -132,7 +133,7 @@ export async function createAsset(deps: AppDeps, actor: Actor, input: AssetCreat
     // The form may leave the tag out entirely, which means "number it for me".
     const assetTag = input.assetTag ?? (await nextAssetTag(tx));
     if (await tx.select().from(assets).where(eq(assets.assetTag, assetTag)).get()) {
-      throw invalidFields({ assetTag: 'That asset tag is already in use.' });
+      throw invalidFields(DUPLICATE_ASSET_TAG);
     }
 
     // Registering an asset is not a transition — any status the workspace has
@@ -251,7 +252,7 @@ export async function updateAsset(deps: AppDeps, actor: Actor, id: string, patch
         .from(assets)
         .where(and(eq(assets.assetTag, values.assetTag), ne(assets.id, id)))
         .get();
-      if (clash) throw invalidFields({ assetTag: 'That asset tag is already in use.' });
+      if (clash) throw invalidFields(DUPLICATE_ASSET_TAG);
     }
 
     let statusMove: StatusMove | null = null;
