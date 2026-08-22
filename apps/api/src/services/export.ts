@@ -54,13 +54,15 @@ export function workspaceExport(db: Db, now: Date): WorkspaceExport {
     customFieldDefs: db.select().from(customFieldDefs).all(),
     assetCustomValues: db.select().from(assetCustomValues).all(),
     // Metadata only — the bytes live in DATA_DIR/uploads, which is what a real
-    // backup copies.
+    // backup copies. The checksum is what lets the two be checked against each
+    // other after a restore; it is null for files older than the column.
     attachments: db
       .select({
         id: attachments.id,
         assetId: attachments.assetId,
         filename: attachments.filename,
         sizeBytes: attachments.sizeBytes,
+        sha256: attachments.sha256,
         mime: attachments.mime,
         uploadedByMemberId: attachments.uploadedByMemberId,
         createdAt: attachments.createdAt,

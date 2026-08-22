@@ -5,6 +5,7 @@ import { AUDIT_TYPES, settingsPatchInput, workspaceDeleteInput } from '@inventor
 import type { AppDeps } from '@/types/app.js';
 import { requireAction } from '@/plugins/rbac.js';
 import { clearSessionCookie } from '@/services/sessions.js';
+import { storageUsedBytes } from '@/services/attachments.js';
 import { auditCsv, auditPage, DEFAULT_AUDIT_LIMIT, MAX_AUDIT_LIMIT } from '@/services/audit-log.js';
 import { getSettings, updateSettings } from '@/services/settings.js';
 import { deleteWorkspace } from '@/services/workspace.js';
@@ -42,8 +43,11 @@ export function registerAdminRoutes(app: FastifyInstance, deps: AppDeps): void {
     },
   );
 
+  // `storageUsedBytes` rides beside the row rather than in it: it is a sum over
+  // another table, not a column, and PATCH answers with the row alone.
   typed.get('/api/v1/settings', { preHandler: requireAction('settings.manage') }, async () => ({
     settings: getSettings(deps.db),
+    storageUsedBytes: storageUsedBytes(deps.db),
   }));
 
   typed.patch(
