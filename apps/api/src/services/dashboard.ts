@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, isNotNull, isNull, sql } from 'drizzle-orm';
+import { and, asc, count, desc, eq, isNotNull, isNull, sql } from 'drizzle-orm';
 import { ASSET_CATEGORIES } from '@inventory/shared';
 import type { Db } from '@/types/db.js';
 import type {
@@ -28,10 +28,9 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 
 export async function dashboardPayload(db: Db, now: Date): Promise<DashboardPayload> {
   const rows = await db
-    .select({ status: assets.status, category: assets.category, count: sql<number>`count(*)` })
+    .select({ status: assets.status, category: assets.category, count: count() })
     .from(assets)
-    .groupBy(assets.status, assets.category)
-    .all();
+    .groupBy(assets.status, assets.category);
 
   const statusTotals = new Map<string, number>();
   const categoryTotals = zeroed(ASSET_CATEGORIES);
@@ -71,7 +70,6 @@ export async function dashboardPayload(db: Db, now: Date): Promise<DashboardPayl
         .from(auditEvents)
         .orderBy(desc(auditEvents.at), desc(auditEvents.id))
         .limit(RECENT_ACTIVITY)
-        .all()
     ).map(toAuditItem),
     warrantyExpirations: await warrantyExpirations(db, now),
     pendingReturns: await pendingReturns(db),
@@ -106,7 +104,6 @@ async function warrantyExpirations(db: Db, now: Date): Promise<WarrantyExpiry[]>
         )
         .orderBy(asc(assets.warrantyUntil))
         .limit(WARRANTY_ROWS)
-        .all()
     )
       // The WHERE clause is what makes the date non-null, and a nullable column
       // cannot say so — flatMap narrows it without an assertion that would also
@@ -144,7 +141,6 @@ async function pendingReturns(db: Db): Promise<PendingReturn[]> {
       .where(and(isNull(assignments.returnedAt), isNotNull(assignments.expectedReturnDate)))
       .orderBy(asc(assignments.expectedReturnDate))
       .limit(PENDING_RETURN_ROWS)
-      .all()
   ).flatMap((row) =>
     row.expectedReturnDate === null ? [] : [{ ...row, expectedReturnDate: row.expectedReturnDate }],
   );

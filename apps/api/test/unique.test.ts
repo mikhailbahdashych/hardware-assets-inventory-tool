@@ -49,18 +49,15 @@ describe('translateUniqueViolation', () => {
     // What the index answers, with nothing in the way of it.
     const translated = translateUniqueViolation(
       await violation(() =>
-        ctx.db
-          .insert(assets)
-          .values({
-            id: newId(),
-            assetTag: tag,
-            name: 'Another one',
-            category: 'laptops',
-            status: 'available',
-            createdAt: at,
-            updatedAt: at,
-          })
-          .run(),
+        ctx.db.insert(assets).values({
+          id: newId(),
+          assetTag: tag,
+          name: 'Another one',
+          category: 'laptops',
+          status: 'available',
+          createdAt: at,
+          updatedAt: at,
+        }),
       ),
     );
 
@@ -89,18 +86,15 @@ describe('translateUniqueViolation', () => {
 
     const translated = translateUniqueViolation(
       await violation(() =>
-        ctx.db
-          .insert(employees)
-          .values({
-            id: newId(),
-            firstName: 'Adaeze',
-            lastName: 'Okafor',
-            email: 'ada@acme.io',
-            status: 'active',
-            createdAt: at,
-            updatedAt: at,
-          })
-          .run(),
+        ctx.db.insert(employees).values({
+          id: newId(),
+          firstName: 'Adaeze',
+          lastName: 'Okafor',
+          email: 'ada@acme.io',
+          status: 'active',
+          createdAt: at,
+          updatedAt: at,
+        }),
       ),
     );
 
@@ -126,19 +120,16 @@ describe('translateUniqueViolation', () => {
 
     const translated = translateUniqueViolation(
       await violation(() =>
-        ctx.db
-          .insert(members)
-          .values({
-            id: newId(),
-            email,
-            displayName: 'Somebody Else',
-            passwordHash: null,
-            role: 'viewer',
-            status: 'invited',
-            createdAt: at,
-            updatedAt: at,
-          })
-          .run(),
+        ctx.db.insert(members).values({
+          id: newId(),
+          email,
+          displayName: 'Somebody Else',
+          passwordHash: null,
+          role: 'viewer',
+          status: 'invited',
+          createdAt: at,
+          updatedAt: at,
+        }),
       ),
     );
 
@@ -147,6 +138,38 @@ describe('translateUniqueViolation', () => {
       message: translated!.message,
       fields: translated!.fields,
     }).toEqual(preCheck.json().error);
+  });
+
+  it('answers the assign 409 when the ownership index is what refused', async () => {
+    ctx = await buildTestApp();
+    const cookie = await setupOrg(ctx.app);
+    const created = await inject(ctx.app, {
+      method: 'POST',
+      url: '/api/v1/assets',
+      cookie,
+      body: { name: 'MacBook Pro 14"', category: 'laptops', status: 'available' },
+    });
+    const assetId = created.json().asset.id as string;
+
+    // Two open ownership rows for one asset is the shape of two assign
+    // requests racing: on SQLite the write lock keeps them apart, on Postgres
+    // they both read a free asset and the partial unique index is what stops
+    // the second. Either way the caller lost a race — a conflict, not a crash.
+    const open = () =>
+      ctx.db.insert(assignments).values({
+        id: newId(),
+        assetId,
+        employeeId: null,
+        holderNameSnapshot: 'Somebody',
+        checkedOutAt: '2026-01-01',
+        createdAt: at,
+      });
+    await open();
+
+    const translated = translateUniqueViolation(await violation(open));
+    expect(translated).toBeInstanceOf(AppError);
+    expect(translated!.statusCode).toBe(409);
+    expect(translated!.code).toBe('asset_unavailable');
   });
 
   it('says nothing about a constraint it does not know, or an error that is not one', async () => {
@@ -159,17 +182,14 @@ describe('translateUniqueViolation', () => {
 
     // A foreign key is a constraint too, and not this one.
     const foreignKey = await violation(() =>
-      ctx.db
-        .insert(assignments)
-        .values({
-          id: newId(),
-          assetId: 'no-such-asset',
-          employeeId: null,
-          holderNameSnapshot: 'Nobody',
-          checkedOutAt: '2026-01-01',
-          createdAt: at,
-        })
-        .run(),
+      ctx.db.insert(assignments).values({
+        id: newId(),
+        assetId: 'no-such-asset',
+        employeeId: null,
+        holderNameSnapshot: 'Nobody',
+        checkedOutAt: '2026-01-01',
+        createdAt: at,
+      }),
     );
     expect(translateUniqueViolation(foreignKey)).toBeNull();
   });
@@ -182,18 +202,15 @@ describe('the error handler renders a translated violation', () => {
     // which is what every writing path looks like under an engine that lets
     // two transactions read the same gap.
     ctx.app.post('/api/v1/_test/duplicate-employee', async () => {
-      await ctx.db
-        .insert(employees)
-        .values({
-          id: newId(),
-          firstName: 'Ada',
-          lastName: 'Okafor',
-          email: 'ada@acme.io',
-          status: 'active',
-          createdAt: at,
-          updatedAt: at,
-        })
-        .run();
+      await ctx.db.insert(employees).values({
+        id: newId(),
+        firstName: 'Ada',
+        lastName: 'Okafor',
+        email: 'ada@acme.io',
+        status: 'active',
+        createdAt: at,
+        updatedAt: at,
+      });
       return { ok: true };
     });
 

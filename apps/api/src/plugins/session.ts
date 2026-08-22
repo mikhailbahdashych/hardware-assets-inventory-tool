@@ -50,7 +50,7 @@ export function registerSessionAuth(app: FastifyInstance, deps: AppDeps): void {
     // Read from the settings row rather than cached anywhere: an admin turning
     // the requirement on should reach everybody already signed in, on their
     // very next request, without waiting for a session to expire.
-    const settings = await deps.db.select().from(orgSettings).get();
+    const [settings] = await deps.db.select().from(orgSettings);
     request.mustEnrolMfa = settings?.mfaRequired === true && request.member.mfaConfirmedAt === null;
   });
 }

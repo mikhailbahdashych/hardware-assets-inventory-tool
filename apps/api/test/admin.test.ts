@@ -238,11 +238,10 @@ describe('workspace settings', () => {
       emailWeeklyDigest: true,
     });
 
-    const event = await ctx.db
+    const [event] = await ctx.db
       .select()
       .from(auditEvents)
-      .where(eq(auditEvents.action, 'system.settings_updated'))
-      .get();
+      .where(eq(auditEvents.action, 'system.settings_updated'));
     expect(event?.type).toBe('system');
     expect(JSON.parse(event!.params).changedFields).toEqual([
       'orgName',
@@ -265,19 +264,16 @@ describe('workspace settings', () => {
     expect(before.json().storageUsedBytes).toBe(0);
 
     const asset = await createAsset(admin);
-    await ctx.db
-      .insert(attachments)
-      .values({
-        id: 'att-1',
-        assetId: asset.id,
-        filename: 'invoice.pdf',
-        storedName: 'invoice.pdf',
-        sizeBytes: 4096,
-        mime: 'application/pdf',
-        uploadedByMemberId: null,
-        createdAt: nowIso(),
-      })
-      .run();
+    await ctx.db.insert(attachments).values({
+      id: 'att-1',
+      assetId: asset.id,
+      filename: 'invoice.pdf',
+      storedName: 'invoice.pdf',
+      sizeBytes: 4096,
+      mime: 'application/pdf',
+      uploadedByMemberId: null,
+      createdAt: nowIso(),
+    });
 
     const after = await inject(ctx.app, { method: 'GET', url: '/api/v1/settings', cookie: admin });
     expect(after.json().storageUsedBytes).toBe(4096);
@@ -297,11 +293,12 @@ describe('workspace settings', () => {
     expect(res.json().settings.uploadQuotaMb).toBe(500);
     expect(
       JSON.parse(
-        (await ctx.db
-          .select()
-          .from(auditEvents)
-          .where(eq(auditEvents.action, 'system.settings_updated'))
-          .get())!.params,
+        (
+          await ctx.db
+            .select()
+            .from(auditEvents)
+            .where(eq(auditEvents.action, 'system.settings_updated'))
+        )[0]!.params,
       ).changedFields,
     ).toEqual(['uploadQuotaMb']);
 
@@ -331,8 +328,7 @@ describe('workspace settings', () => {
       await ctx.db
         .select()
         .from(auditEvents)
-        .where(eq(auditEvents.action, 'system.settings_updated'))
-        .all(),
+        .where(eq(auditEvents.action, 'system.settings_updated')),
     ).toEqual([]);
   });
 
@@ -393,7 +389,7 @@ describe('deleting the workspace', () => {
     });
     expect(wrong.statusCode).toBe(422);
     expect(wrong.json().error.fields.confirmText).toBeTruthy();
-    expect(await ctx.db.select().from(orgSettings).get()).toBeTruthy();
+    expect(await ctx.db.select().from(orgSettings)).toHaveLength(1);
   });
 
   it('wipes every table and leaves an instance that asks to be set up again', async () => {
@@ -415,11 +411,11 @@ describe('deleting the workspace', () => {
     });
     expect(res.statusCode).toBe(204);
 
-    expect(await ctx.db.select().from(orgSettings).all()).toEqual([]);
-    expect(await ctx.db.select().from(members).all()).toEqual([]);
-    expect(await ctx.db.select().from(assets).all()).toEqual([]);
-    expect(await ctx.db.select().from(employees).all()).toEqual([]);
-    expect(await ctx.db.select().from(auditEvents).all()).toEqual([]);
+    expect(await ctx.db.select().from(orgSettings)).toEqual([]);
+    expect(await ctx.db.select().from(members)).toEqual([]);
+    expect(await ctx.db.select().from(assets)).toEqual([]);
+    expect(await ctx.db.select().from(employees)).toEqual([]);
+    expect(await ctx.db.select().from(auditEvents)).toEqual([]);
 
     expect((await ctx.app.inject({ method: 'GET', url: '/api/v1/meta' })).json().needsSetup).toBe(
       true,

@@ -133,7 +133,7 @@ describe('the warranty scan', () => {
     await createAsset(admin, { name: 'Laptop', warrantyUntil: day(MONDAY, 20) });
 
     expect(await runWarrantyScan(ctx.deps, MONDAY)).toEqual({ sent: 0, skipped: 1 });
-    expect(await ctx.db.select().from(notificationLog).all()).toEqual([]);
+    expect(await ctx.db.select().from(notificationLog)).toEqual([]);
   });
 });
 
@@ -282,7 +282,7 @@ describe('the orphan upload sweep', () => {
       ]),
       headers: { 'content-type': 'multipart/form-data; boundary=----b' },
     });
-    const kept = (await ctx.db.select().from(attachments).all())[0]!.storedName;
+    const kept = (await ctx.db.select().from(attachments))[0]!.storedName;
     // The real file is as old as the stray one; being referenced is what saves it.
     const at = new Date(MONDAY.getTime() - 72 * 3_600_000);
     utimesSync(join(ctx.uploadsDir, kept), at, at);
@@ -313,17 +313,14 @@ describe('the notification log prune', () => {
       date.setUTCMonth(date.getUTCMonth() - months);
       return date.toISOString();
     };
-    await ctx.db
-      .insert(notificationLog)
-      .values([
-        { id: 'old', kind: 'warranty', dedupeKey: 'warranty:old', sentAt: at(13) },
-        { id: 'recent', kind: 'warranty', dedupeKey: 'warranty:recent', sentAt: at(11) },
-      ])
-      .run();
+    await ctx.db.insert(notificationLog).values([
+      { id: 'old', kind: 'warranty', dedupeKey: 'warranty:old', sentAt: at(13) },
+      { id: 'recent', kind: 'warranty', dedupeKey: 'warranty:recent', sentAt: at(11) },
+    ]);
 
     const result = await runMaintenance(ctx.deps, MONDAY);
     expect(result.notificationRowsPruned).toBe(1);
-    expect((await ctx.db.select().from(notificationLog).all()).map((row) => row.id)).toEqual(['recent']); // prettier-ignore
+    expect((await ctx.db.select().from(notificationLog)).map((row) => row.id)).toEqual(['recent']); // prettier-ignore
   });
 });
 
@@ -331,24 +328,21 @@ describe('nightly maintenance', () => {
   it('removes what has expired and nothing that has not', async () => {
     const admin = await withMail();
     const at = new Date(MONDAY.getTime() - 86_400_000).toISOString();
-    await ctx.db
-      .insert(authTokens)
-      .values({
-        id: 'expired-token',
-        memberId: (await ctx.db.select().from(sessions).get())!.memberId,
-        purpose: 'invite',
-        expiresAt: at,
-        createdAt: at,
-      })
-      .run();
+    await ctx.db.insert(authTokens).values({
+      id: 'expired-token',
+      memberId: (await ctx.db.select().from(sessions))[0]!.memberId,
+      purpose: 'invite',
+      expiresAt: at,
+      createdAt: at,
+    });
 
     const result = await runMaintenance(ctx.deps, MONDAY);
     expect(result.pruned).toBeGreaterThanOrEqual(1);
     expect(
-      await ctx.db.select().from(authTokens).where(eq(authTokens.id, 'expired-token')).all(),
+      await ctx.db.select().from(authTokens).where(eq(authTokens.id, 'expired-token')),
     ).toEqual([]);
     // The admin's own session has 30 days on it and must survive.
-    expect(await ctx.db.select().from(sessions).all()).toHaveLength(1);
+    expect(await ctx.db.select().from(sessions)).toHaveLength(1);
     expect(admin).toContain('inv_session=');
   });
 
@@ -360,11 +354,10 @@ describe('nightly maintenance', () => {
     await ctx.db
       .update(auditEvents)
       .set({ at: '2024-01-01T00:00:00.000Z' })
-      .where(eq(auditEvents.action, 'system.setup_completed'))
-      .run();
+      .where(eq(auditEvents.action, 'system.setup_completed'));
 
     await runMaintenance(ctx.deps, MONDAY);
-    const left = await ctx.db.select().from(auditEvents).all();
+    const left = await ctx.db.select().from(auditEvents);
     expect(left.map((row) => row.action)).toEqual(['asset.created']);
   });
 
@@ -376,9 +369,9 @@ describe('nightly maintenance', () => {
       cookie: admin,
       body: { logRetentionMonths: null },
     });
-    await ctx.db.update(auditEvents).set({ at: '2019-01-01T00:00:00.000Z' }).run();
+    await ctx.db.update(auditEvents).set({ at: '2019-01-01T00:00:00.000Z' });
 
     await runMaintenance(ctx.deps, MONDAY);
-    expect((await ctx.db.select().from(auditEvents).all()).length).toBeGreaterThan(0);
+    expect((await ctx.db.select().from(auditEvents)).length).toBeGreaterThan(0);
   });
 });

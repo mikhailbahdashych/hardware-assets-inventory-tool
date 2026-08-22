@@ -40,6 +40,49 @@ jobs:
       - name: End-to-end tests
         run: npm run e2e
 
+  # The second engine, against a real server. Deliberately its own job rather
+  # than a matrix leg on `ci`: the SQLite path is the canonical full gate — it
+  # is what the image and the e2e journeys run on — and a failure here has to
+  # say "Postgres" in its name rather than hide in a matrix cell. The suite is
+  # the same one; `DATABASE_URL` is the whole difference, and `test/helpers.ts`
+  # gives every test a database of its own on this server.
+  api-tests-postgres:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        # Without the health check the first test races the server's own boot.
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      # The maintenance database: the helpers connect here to create and drop
+      # each test's own, so this account needs CREATEDB, which the image's
+      # superuser has.
+      DATABASE_URL: postgres://postgres:postgres@localhost:5432/postgres
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: API tests on PostgreSQL
+        run: npm test -w apps/api
+
   # The artifact people actually run. Built and started for real, because a
   # Dockerfile that only compiles is a Dockerfile nobody has tried.
   image:

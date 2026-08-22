@@ -34,18 +34,14 @@ export async function issueAuthToken(
         eq(authTokens.purpose, purpose),
         isNull(authTokens.consumedAt),
       ),
-    )
-    .run();
-  await db
-    .insert(authTokens)
-    .values({
-      id: hashToken(raw),
-      memberId,
-      purpose,
-      expiresAt: new Date(now.getTime() + TTL_MS[purpose]).toISOString(),
-      createdAt: nowIso(now),
-    })
-    .run();
+    );
+  await db.insert(authTokens).values({
+    id: hashToken(raw),
+    memberId,
+    purpose,
+    expiresAt: new Date(now.getTime() + TTL_MS[purpose]).toISOString(),
+    createdAt: nowIso(now),
+  });
   return raw;
 }
 
@@ -55,11 +51,10 @@ export async function findValidToken(
   purpose: TokenPurpose,
   now: Date = new Date(),
 ) {
-  const token = await db
+  const [token] = await db
     .select()
     .from(authTokens)
-    .where(eq(authTokens.id, hashToken(raw)))
-    .get();
+    .where(eq(authTokens.id, hashToken(raw)));
   if (!token) return null;
   if (token.purpose !== purpose) return null;
   if (token.consumedAt) return null;
@@ -75,6 +70,5 @@ export async function consumeToken(
   await db
     .update(authTokens)
     .set({ consumedAt: nowIso(now) })
-    .where(eq(authTokens.id, tokenId))
-    .run();
+    .where(eq(authTokens.id, tokenId));
 }

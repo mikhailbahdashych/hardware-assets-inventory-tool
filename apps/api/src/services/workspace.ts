@@ -52,32 +52,32 @@ export async function deleteWorkspace(deps: AppDeps, confirmText: string): Promi
 export async function emptyWorkspace(deps: AppDeps): Promise<void> {
   // Read the file names before the rows go, or nothing knows what to unlink.
   const storedNames = (
-    await deps.db.select({ storedName: attachments.storedName }).from(attachments).all()
+    await deps.db.select({ storedName: attachments.storedName }).from(attachments)
   ).map((row) => row.storedName);
 
   await deps.db.transaction(async (tx) => {
     // Children first, so the wipe never depends on which cascades are enabled.
-    await tx.delete(notificationLog).run();
-    await tx.delete(auditEvents).run();
-    await tx.delete(attachments).run();
-    await tx.delete(assetCustomValues).run();
-    await tx.delete(assignments).run();
-    await tx.delete(assets).run();
+    await tx.delete(notificationLog);
+    await tx.delete(auditEvents);
+    await tx.delete(attachments);
+    await tx.delete(assetCustomValues);
+    await tx.delete(assignments);
+    await tx.delete(assets);
     // The workflow goes too, so the seed below lays the default one back down:
     // a workspace that edited its statuses is not what a fresh container has.
-    await tx.delete(assetStatusTransitions).run();
-    await tx.delete(assetStatuses).run();
-    await tx.delete(customFieldDefs).run();
-    await tx.delete(authTokens).run();
-    await tx.delete(sessions).run();
-    await tx.delete(members).run();
+    await tx.delete(assetStatusTransitions);
+    await tx.delete(assetStatuses);
+    await tx.delete(customFieldDefs);
+    await tx.delete(authTokens);
+    await tx.delete(sessions);
+    await tx.delete(members);
     // The roles go with the members that held them, so the seed below lays the
     // default three back down — a workspace that edited its roles is not what a
     // fresh container has either.
-    await tx.delete(rolePermissions).run();
-    await tx.delete(roles).run();
-    await tx.delete(employees).run();
-    await tx.delete(orgSettings).run();
+    await tx.delete(rolePermissions);
+    await tx.delete(roles);
+    await tx.delete(employees);
+    await tx.delete(orgSettings);
   });
 
   await removeStoredFiles(deps, storedNames);

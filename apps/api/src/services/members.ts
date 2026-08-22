@@ -48,7 +48,6 @@ export async function listMembers(db: Db): Promise<MemberSummary[]> {
         .from(members)
         .leftJoin(employees, eq(members.employeeId, employees.id))
         .orderBy(asc(members.displayName))
-        .all()
     )
       // A member with no row in that map has spent every code (or never had
       // any): a Map miss that is a genuine zero, which is the one shape of `??`
@@ -75,26 +74,21 @@ export async function inviteMember(
     const employee = input.employeeId === null ? null : await requireEmployee(tx, input.employeeId);
 
     const id = newId();
-    await tx
-      .insert(members)
-      .values({
-        id,
-        email: input.email,
-        // Nobody has told us their name yet — accepting the invite does that.
-        // A linked employee record already knows it; otherwise the email's own
-        // local part stands in, so the design's two-line member cell is never
-        // blank and nothing is invented.
-        displayName: employee
-          ? `${employee.firstName} ${employee.lastName}`
-          : localPart(input.email),
-        passwordHash: null,
-        role: input.role,
-        status: 'invited',
-        employeeId: input.employeeId,
-        createdAt: at,
-        updatedAt: at,
-      })
-      .run();
+    await tx.insert(members).values({
+      id,
+      email: input.email,
+      // Nobody has told us their name yet — accepting the invite does that.
+      // A linked employee record already knows it; otherwise the email's own
+      // local part stands in, so the design's two-line member cell is never
+      // blank and nothing is invented.
+      displayName: employee ? `${employee.firstName} ${employee.lastName}` : localPart(input.email),
+      passwordHash: null,
+      role: input.role,
+      status: 'invited',
+      employeeId: input.employeeId,
+      createdAt: at,
+      updatedAt: at,
+    });
 
     const raw = await issueAuthToken(tx, id, 'invite', now);
     await writeAudit(
@@ -224,13 +218,13 @@ export async function updateMember(
     if (Object.keys(values).length === 0) return readMember(tx, id);
 
     values.updatedAt = nowIso(now);
-    await tx.update(members).set(values).where(eq(members.id, id)).run();
+    await tx.update(members).set(values).where(eq(members.id, id));
 
     if (values.role && destination) {
       // Both sides as labels. The role they came *from* may not exist by the
       // time anybody reads this line, which is exactly why it is snapshotted;
       // a row that is somehow gone already renders as the id it was.
-      const from = await tx.select().from(roles).where(eq(roles.id, current.role)).get();
+      const [from] = await tx.select().from(roles).where(eq(roles.id, current.role));
       await writeAudit(
         tx,
         {
@@ -293,7 +287,7 @@ export async function removeMember(deps: AppDeps, actor: Actor, id: string): Pro
     // sessions.member_id CASCADEs, so removing the row signs them out
     // everywhere; audit_events.actor_member_id is SET NULL, so what they did
     // stays in the log under their snapshotted name.
-    await tx.delete(members).where(eq(members.id, id)).run();
+    await tx.delete(members).where(eq(members.id, id));
     await writeAudit(
       tx,
       {
@@ -314,12 +308,11 @@ export async function memberById(db: DbOrTx, id: string): Promise<MemberSummary>
 }
 
 async function readMember(tx: DbOrTx, id: string): Promise<MemberSummary> {
-  const row = await tx
+  const [row] = await tx
     .select({ member: members, employee: employees })
     .from(members)
     .leftJoin(employees, eq(members.employeeId, employees.id))
-    .where(eq(members.id, id))
-    .get();
+    .where(eq(members.id, id));
   if (!row) throw notFound('That member');
   return serializeMemberSummary(
     row.member,
@@ -360,7 +353,6 @@ async function assertNotLastAdmin(tx: DbOrTx, target: MemberRow): Promise<void> 
       .where(
         and(eq(members.role, ADMIN_ROLE), eq(members.status, 'active'), ne(members.id, target.id)),
       )
-      .all()
   ).length;
 
   if (remaining === 0) {
@@ -373,19 +365,20 @@ async function assertNotLastAdmin(tx: DbOrTx, target: MemberRow): Promise<void> 
 }
 
 async function requireMember(tx: DbOrTx, id: string): Promise<MemberRow> {
-  const member = await tx.select().from(members).where(eq(members.id, id)).get();
+  const [member] = await tx.select().from(members).where(eq(members.id, id));
   if (!member) throw notFound('That member');
   return member;
 }
 
 async function requireEmployee(tx: DbOrTx, id: string) {
-  const employee = await tx.select().from(employees).where(eq(employees.id, id)).get();
+  const [employee] = await tx.select().from(employees).where(eq(employees.id, id));
   if (!employee) throw invalidFields({ employeeId: 'That employee record no longer exists.' });
   return employee;
 }
 
 async function requireFreeEmail(tx: DbOrTx, email: string): Promise<void> {
-  if (await tx.select().from(members).where(eq(members.email, email)).get()) {
+  const [clash] = await tx.select().from(members).where(eq(members.email, email));
+  if (clash) {
     throw invalidFields(DUPLICATE_MEMBER_EMAIL);
   }
 }

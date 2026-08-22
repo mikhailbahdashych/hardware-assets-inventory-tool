@@ -1,4 +1,4 @@
-import { asc, eq, sql } from 'drizzle-orm';
+import { asc, count, eq, sql } from 'drizzle-orm';
 import {
   ACTIONS,
   MAX_ROLES,
@@ -52,7 +52,7 @@ const serialize = (row: RoleRow, memberCount: number, permissions: Action[]): Wo
 });
 
 const roleRows = async (db: DbOrTx): Promise<RoleRow[]> =>
-  await db.select().from(roles).orderBy(asc(roles.sortOrder)).all();
+  await db.select().from(roles).orderBy(asc(roles.sortOrder));
 
 /**
  * Members per role id, invited ones included — an invitation nobody has
@@ -60,17 +60,16 @@ const roleRows = async (db: DbOrTx): Promise<RoleRow[]> =>
  */
 async function memberCounts(db: DbOrTx): Promise<Map<string, number>> {
   const rows = await db
-    .select({ role: members.role, count: sql<number>`count(*)` })
+    .select({ role: members.role, count: count() })
     .from(members)
-    .groupBy(members.role)
-    .all();
+    .groupBy(members.role);
   return new Map(rows.map((row) => [row.role, row.count]));
 }
 
 /** Stored grants per role id, with anything this build dropped filtered out. */
 async function grantsByRole(db: DbOrTx): Promise<Map<string, Action[]>> {
   const grouped = new Map<string, Action[]>();
-  for (const row of await db.select().from(rolePermissions).all()) {
+  for (const row of await db.select().from(rolePermissions)) {
     if (!isKnownAction(row.action)) continue;
     const actions = grouped.get(row.roleId);
     if (actions) actions.push(row.action);
@@ -111,11 +110,11 @@ export async function listRoles(db: DbOrTx): Promise<WorkspaceRole[]> {
  * transaction, but "the role is gone" must never read as "anything goes".
  */
 export async function resolvePermissions(db: DbOrTx, roleId: string): Promise<ReadonlySet<Action>> {
-  const row = await db.select().from(roles).where(eq(roles.id, roleId)).get();
+  const [row] = await db.select().from(roles).where(eq(roles.id, roleId));
   if (!row) return new Set();
   if (row.isSystem) return new Set(ACTIONS);
   return new Set(
-    (await db.select().from(rolePermissions).where(eq(rolePermissions.roleId, roleId)).all())
+    (await db.select().from(rolePermissions).where(eq(rolePermissions.roleId, roleId)))
       .map((grant) => grant.action)
       .filter(isKnownAction),
   );
@@ -127,7 +126,7 @@ export async function resolvePermissions(db: DbOrTx, roleId: string): Promise<Re
  * delete dialog must highlight different inputs.
  */
 export async function requireRole(db: DbOrTx, id: string, field = 'role'): Promise<RoleRow> {
-  const row = await db.select().from(roles).where(eq(roles.id, id)).get();
+  const [row] = await db.select().from(roles).where(eq(roles.id, id));
   if (!row) throw invalidFields({ [field]: `"${id}" is not a role in this workspace.` });
   return row;
 }
@@ -159,19 +158,16 @@ export async function createRole(
     // Last in the list: a role somebody just added has no claim on a place
     // among the ones they arranged.
     const sortOrder = existing.reduce((highest, row) => Math.max(highest, row.sortOrder), -1) + 1;
-    await tx
-      .insert(roles)
-      .values({
-        id,
-        label: input.label,
-        description: input.description,
-        color: input.color,
-        isSystem: false,
-        sortOrder,
-        createdAt: at,
-        updatedAt: at,
-      })
-      .run();
+    await tx.insert(roles).values({
+      id,
+      label: input.label,
+      description: input.description,
+      color: input.color,
+      isSystem: false,
+      sortOrder,
+      createdAt: at,
+      updatedAt: at,
+    });
     // No permission rows at all: the matrix is where granting happens, and a
     // new role that could already do things is a role nobody decided on.
     await writeAudit(
@@ -229,7 +225,7 @@ export async function updateRole(
     if (changedFields.length === 0) return readRole(tx, current);
 
     values.updatedAt = nowIso(now);
-    await tx.update(roles).set(values).where(eq(roles.id, id)).run();
+    await tx.update(roles).set(values).where(eq(roles.id, id));
     await writeAudit(
       tx,
       {
@@ -281,7 +277,7 @@ export async function replacePermissions(
     }
 
     const stored = new Set(
-      (await tx.select().from(rolePermissions).all()).map((row) => key(row.roleId, row.action)),
+      (await tx.select().from(rolePermissions)).map((row) => key(row.roleId, row.action)),
     );
     const added = [...wanted].filter((pair) => !stored.has(pair));
     const removed = [...stored].filter((pair) => !wanted.has(pair));
@@ -303,14 +299,15 @@ export async function replacePermissions(
 
     for (const pair of added) {
       const [roleId, action] = split(pair);
-      await tx.insert(rolePermissions).values({ roleId, action }).run();
+      await tx.insert(rolePermissions).values({ roleId, action });
     }
     for (const pair of removed) {
       const [roleId, action] = split(pair);
       await tx
         .delete(rolePermissions)
-        .where(sql`${rolePermissions.roleId} = ${roleId} and ${rolePermissions.action} = ${action}`)
-        .run();
+        .where(
+          sql`${rolePermissions.roleId} = ${roleId} and ${rolePermissions.action} = ${action}`,
+        );
     }
     await writeAudit(
       tx,
@@ -352,7 +349,7 @@ export async function reorderRoles(
     // presentation, and nothing depends on it being first.
     const at = nowIso(now);
     for (const [sortOrder, id] of order.entries()) {
-      await tx.update(roles).set({ sortOrder, updatedAt: at }).where(eq(roles.id, id)).run();
+      await tx.update(roles).set({ sortOrder, updatedAt: at }).where(eq(roles.id, id));
     }
     await writeAudit(
       tx,
@@ -382,15 +379,11 @@ export async function deleteRole(
   const now = deps.now();
 
   await deps.db.transaction(async (tx) => {
-    const current = await tx.select().from(roles).where(eq(roles.id, id)).get();
+    const [current] = await tx.select().from(roles).where(eq(roles.id, id));
     if (!current) throw notFound('That role');
     assertEditable(current, actor);
 
-    const holders = await tx
-      .select({ count: sql<number>`count(*)` })
-      .from(members)
-      .where(eq(members.role, id))
-      .get();
+    const [holders] = await tx.select({ count: count() }).from(members).where(eq(members.role, id));
     // count(*) over a table that exists always answers a row; a miss here
     // would be a broken query rather than an empty workspace.
     if (!holders) throw new AppError(500, 'count_failed', 'The member count did not answer.');
@@ -409,15 +402,14 @@ export async function deleteRole(
       await tx
         .update(members)
         .set({ role: destination.id, updatedAt: nowIso(now) })
-        .where(eq(members.role, id))
-        .run();
+        .where(eq(members.role, id));
     } else if (migrateTo !== undefined) {
       // Nobody to move, but a destination the admin cannot have meant is still
       // worth saying out loud rather than silently ignoring.
       destination = await requireMigrationTarget(tx, id, migrateTo);
     }
 
-    await tx.delete(roles).where(eq(roles.id, id)).run();
+    await tx.delete(roles).where(eq(roles.id, id));
     await writeAudit(
       tx,
       {
@@ -446,7 +438,7 @@ async function readRole(tx: DbOrTx, row: RoleRow): Promise<WorkspaceRole> {
     counts.get(row.id) ?? 0,
     row.isSystem
       ? [...ACTIONS]
-      : (await tx.select().from(rolePermissions).where(eq(rolePermissions.roleId, row.id)).all())
+      : (await tx.select().from(rolePermissions).where(eq(rolePermissions.roleId, row.id)))
           .map((grant) => grant.action)
           .filter(isKnownAction),
   );

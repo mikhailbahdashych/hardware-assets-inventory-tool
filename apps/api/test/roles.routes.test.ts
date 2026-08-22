@@ -192,7 +192,7 @@ describe('an admin editing the roles over HTTP', () => {
       cookie,
     });
     expect(migrated.statusCode).toBe(204);
-    expect((await ctx.db.select().from(members).all()).at(-1)!.role).toBe('manager');
+    expect((await ctx.db.select().from(members)).at(-1)!.role).toBe('manager');
   });
 });
 

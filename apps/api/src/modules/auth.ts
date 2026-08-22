@@ -42,11 +42,10 @@ export function registerAuthRoutes(app: FastifyInstance, deps: AppDeps): void {
     { schema: { body: loginInput }, config: { rateLimit: LOGIN_RATE } },
     async (request, reply) => {
       const now = deps.now();
-      const member = await deps.db
+      const [member] = await deps.db
         .select()
         .from(members)
-        .where(eq(members.email, request.body.email))
-        .get();
+        .where(eq(members.email, request.body.email));
 
       // Deliberate, and the reason this endpoint is safe: an unknown email
       // still pays for one argon2 verify, so timing never reveals whether an
@@ -105,11 +104,7 @@ export function registerAuthRoutes(app: FastifyInstance, deps: AppDeps): void {
       );
       if (!token) throw invalidToken();
 
-      const member = await deps.db
-        .select()
-        .from(members)
-        .where(eq(members.id, token.memberId))
-        .get();
+      const [member] = await deps.db.select().from(members).where(eq(members.id, token.memberId));
       if (!member || member.status !== 'active') throw invalidCredentials();
 
       // One transaction for everything the code buys: the recovery code it
@@ -195,14 +190,9 @@ export function registerAuthRoutes(app: FastifyInstance, deps: AppDeps): void {
         await tx
           .update(members)
           .set({ passwordHash, updatedAt: nowIso(now) })
-          .where(eq(members.id, token.memberId))
-          .run();
+          .where(eq(members.id, token.memberId));
         await consumeToken(tx, token.id, now);
-        const updated = (await tx
-          .select()
-          .from(members)
-          .where(eq(members.id, token.memberId))
-          .get())!;
+        const updated = (await tx.select().from(members).where(eq(members.id, token.memberId)))[0]!;
         await writeAudit(
           tx,
           {
@@ -214,7 +204,7 @@ export function registerAuthRoutes(app: FastifyInstance, deps: AppDeps): void {
           },
           now,
         );
-        await tx.delete(sessions).where(eq(sessions.memberId, updated.id)).run();
+        await tx.delete(sessions).where(eq(sessions.memberId, updated.id));
         return updated;
       });
 
@@ -230,15 +220,11 @@ export function registerAuthRoutes(app: FastifyInstance, deps: AppDeps): void {
     async (request) => {
       const token = await findValidToken(deps.db, request.params.token, 'invite', deps.now());
       if (!token) throw invalidToken();
-      const member = await deps.db
-        .select()
-        .from(members)
-        .where(eq(members.id, token.memberId))
-        .get();
+      const [member] = await deps.db.select().from(members).where(eq(members.id, token.memberId));
       if (!member || member.status !== 'invited') throw invalidToken();
       // An invite can only exist once setup has run, so the settings row is
       // always there. Naming an unnamed organization would be the bug.
-      const settings = await deps.db.select().from(orgSettings).get();
+      const [settings] = await deps.db.select().from(orgSettings);
       if (!settings) {
         throw new AppError(
           500,
@@ -265,11 +251,7 @@ export function registerAuthRoutes(app: FastifyInstance, deps: AppDeps): void {
       const now = deps.now();
       const token = await findValidToken(deps.db, request.body.token, 'invite', now);
       if (!token) throw invalidToken();
-      const invited = await deps.db
-        .select()
-        .from(members)
-        .where(eq(members.id, token.memberId))
-        .get();
+      const [invited] = await deps.db.select().from(members).where(eq(members.id, token.memberId));
       if (!invited || invited.status !== 'invited') throw invalidToken();
 
       const passwordHash = await hashPassword(request.body.password);
@@ -282,10 +264,9 @@ export function registerAuthRoutes(app: FastifyInstance, deps: AppDeps): void {
             status: 'active',
             updatedAt: nowIso(now),
           })
-          .where(eq(members.id, invited.id))
-          .run();
+          .where(eq(members.id, invited.id));
         await consumeToken(tx, token.id, now);
-        const updated = (await tx.select().from(members).where(eq(members.id, invited.id)).get())!;
+        const updated = (await tx.select().from(members).where(eq(members.id, invited.id)))[0]!;
         await writeAudit(
           tx,
           {

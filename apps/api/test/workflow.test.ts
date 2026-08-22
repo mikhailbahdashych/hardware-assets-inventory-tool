@@ -54,24 +54,22 @@ async function fieldErrors(run: () => unknown): Promise<Record<string, string>> 
 }
 
 const events = async (action: string) =>
-  (await ctx.db.select().from(auditEvents).where(eq(auditEvents.action, action)).all()).map(
-    (row) => ({ ...row, params: JSON.parse(row.params) as Record<string, unknown> }),
-  );
+  (await ctx.db.select().from(auditEvents).where(eq(auditEvents.action, action))).map((row) => ({
+    ...row,
+    params: JSON.parse(row.params) as Record<string, unknown>,
+  }));
 
 async function addAsset(status: string, tag = 'AST-0001'): Promise<string> {
   const at = '2026-08-17T09:00:00.000Z';
-  await ctx.db
-    .insert(assets)
-    .values({
-      id: `asset-${tag}`,
-      assetTag: tag,
-      name: 'MacBook Pro 14"',
-      category: 'laptops',
-      status,
-      createdAt: at,
-      updatedAt: at,
-    })
-    .run();
+  await ctx.db.insert(assets).values({
+    id: `asset-${tag}`,
+    assetTag: tag,
+    name: 'MacBook Pro 14"',
+    category: 'laptops',
+    status,
+    createdAt: at,
+    updatedAt: at,
+  });
   return `asset-${tag}`;
 }
 
@@ -236,7 +234,7 @@ describe('an admin editing the workflow over HTTP', () => {
       cookie,
     });
     expect(migrated.statusCode).toBe(204);
-    expect((await ctx.db.select().from(assets).all())[0]!.status).toBe('retired');
+    expect((await ctx.db.select().from(assets))[0]!.status).toBe('retired');
     expect((await getWorkflow(ctx.db)).statuses.map((status) => status.id)).not.toContain(
       'lost_stolen',
     );
@@ -364,7 +362,7 @@ describe('editing a status', () => {
       label: 'At the repair shop',
       color: 'err',
     });
-    expect((await ctx.db.select().from(assets).all())[0]!.status).toBe('in_repair');
+    expect((await ctx.db.select().from(assets))[0]!.status).toBe('in_repair');
     expect(await events('workflow.status_updated')).toMatchObject([
       { params: { label: 'At the repair shop', changedFields: ['label', 'color'] } },
     ]);
@@ -480,7 +478,7 @@ describe('deleting a status', () => {
 
     await deleteStatus(ctx.deps, actor, 'lost_stolen', 'retired');
 
-    expect((await ctx.db.select().from(assets).all()).map((row) => row.status)).toEqual([
+    expect((await ctx.db.select().from(assets)).map((row) => row.status)).toEqual([
       // prettier-ignore
       'retired',
       'retired',
@@ -505,7 +503,7 @@ describe('deleting a status', () => {
     expect(await attempt('assigned')).toMatch(/assigning/i);
     expect(await attempt('lost_stolen')).toMatch(/different status/i);
 
-    expect((await ctx.db.select().from(assets).all())[0]!.status).toBe('lost_stolen');
+    expect((await ctx.db.select().from(assets))[0]!.status).toBe('lost_stolen');
     expect((await getWorkflow(ctx.db)).statuses).toHaveLength(6);
   });
 });
@@ -538,7 +536,7 @@ describe('replacing the transition graph', () => {
     const { actor } = await admin();
 
     expect(await replaceTransitions(ctx.deps, actor, { transitions: [] })).toEqual([]);
-    expect(await ctx.db.select().from(assetStatusTransitions).all()).toEqual([]);
+    expect(await ctx.db.select().from(assetStatusTransitions)).toEqual([]);
   });
 
   it('writes nothing when the graph is resubmitted unchanged', async () => {
@@ -639,8 +637,7 @@ describe('what the other services ask the workflow', () => {
 
     await ctx.db
       .delete(assetStatusTransitions)
-      .where(eq(assetStatusTransitions.fromStatus, 'available'))
-      .run();
+      .where(eq(assetStatusTransitions.fromStatus, 'available'));
     expect(await transitionAllowed(ctx.db, 'available', 'retired')).toBe(false);
   });
 
@@ -655,8 +652,7 @@ describe('what the other services ask the workflow', () => {
     await ctx.db
       .update(assetStatuses)
       .set({ assignableFrom: true })
-      .where(eq(assetStatuses.id, 'in_repair'))
-      .run();
+      .where(eq(assetStatuses.id, 'in_repair'));
     expect((await assignableStatuses(ctx.db)).map((row) => row.label)).toEqual([
       'Available',
       'In repair',

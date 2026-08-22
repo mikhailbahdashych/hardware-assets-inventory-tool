@@ -1,4 +1,4 @@
-import { resolve } from 'node:path';
+import { join, resolve } from 'node:path';
 import {
   createClient,
   type Client,
@@ -7,8 +7,15 @@ import {
   type TransactionMode,
 } from '@libsql/client';
 import { drizzle } from 'drizzle-orm/libsql';
-import type { DbHandle } from '@/types/db.js';
+import { drizzle as drizzlePg } from 'drizzle-orm/node-postgres';
+import pg from 'pg';
+import type { Config } from '@/types/config.js';
+import type { Db, DbHandle } from '@/types/db.js';
 import * as schema from './schema.js';
+
+// `pg` is CommonJS with no named exports through Node's ESM interop, so the
+// class comes off the default export rather than out of the import list.
+const { Pool } = pg;
 
 /**
  * How long a statement waits for a **different process** to let go of the write
@@ -135,6 +142,29 @@ function serialize(client: Client, gate: WriteGate): Client {
 }
 
 /**
+ * The database this configuration names: the SQLite file under `DATA_DIR`, or
+ * the Postgres server `DATABASE_URL` points at. The two branches below are the
+ * only place in the codebase that knows there is a choice — everything else is
+ * handed a `Db` and queries the tables `db/schema.ts` selected.
+ */
+export async function createDb(config: Config): Promise<DbHandle> {
+  return config.databaseUrl === undefined
+    ? await createSqliteDb(join(config.dataDir, 'inventory.db'))
+    : createPostgresDb(config.databaseUrl);
+}
+
+/**
+ * Where this configuration's rows live, for the CLIs that have to say so. The
+ * Postgres form is the host and the database and nothing else: a terminal is a
+ * place output gets pasted, and a connection string carries a password.
+ */
+export function describeStore(config: Config): string {
+  if (config.databaseUrl === undefined) return resolve(config.dataDir);
+  const url = new URL(config.databaseUrl);
+  return `${url.host}${url.pathname}`;
+}
+
+/**
  * The database handle for one SQLite file. `path` is a filesystem path — the
  * `file:` URL libsql wants is this function's business, and an absolute one
  * because a relative URL would be resolved against whatever the process
@@ -151,11 +181,55 @@ function serialize(client: Client, gate: WriteGate): Client {
  * FULL rather than the NORMAL it used to ask for — stricter about durability
  * than before, which is the safe direction to lose a tuning knob in.
  */
-export async function createDb(path: string): Promise<DbHandle> {
+async function createSqliteDb(path: string): Promise<DbHandle> {
   const client = serialize(
     createClient({ url: `file:${resolve(path)}`, timeout: BUSY_TIMEOUT_MS }),
     new WriteGate(),
   );
   await client.execute('PRAGMA journal_mode = WAL');
-  return { db: drizzle(client, { schema }), client };
+  return {
+    db: drizzle(client, { schema }),
+    client: {
+      ping: async () => {
+        await client.execute('SELECT 1');
+      },
+      close: async () => {
+        client.close();
+      },
+    },
+  };
+}
+
+/**
+ * The handle for a Postgres server. A pool rather than a connection, because
+ * that is what a server with a connection limit expects and what lets two
+ * transactions actually overlap.
+ *
+ * **No `WriteGate` here, deliberately.** The gate upstairs exists because one
+ * SQLite file has one writer and libsql opens a fresh connection per
+ * transaction, so two overlapping transactions are two connections racing for
+ * the same lock. Postgres has a real lock manager and MVCC: concurrent writers
+ * are the normal case, a conflict waits on the row rather than the database,
+ * and serializing every statement in the process would throw away the engine's
+ * whole point. What the gate was quietly also doing — closing the gap between a
+ * uniqueness pre-check and its insert — is done here by the unique index and
+ * `lib/unique.ts`, which is why that translation exists.
+ *
+ * The cast is the one `db/schema.ts` describes: these tables really are
+ * `pgTable`s and this really is node-postgres, and the parity test is what says
+ * the SQLite-shaped types over them are honest.
+ */
+function createPostgresDb(connectionString: string): DbHandle {
+  const pool = new Pool({ connectionString });
+  return {
+    db: drizzlePg(pool, { schema }) as unknown as Db,
+    client: {
+      ping: async () => {
+        await pool.query('SELECT 1');
+      },
+      close: async () => {
+        await pool.end();
+      },
+    },
+  };
 }

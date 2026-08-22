@@ -19,7 +19,6 @@ async function activeAdmins(): Promise<number> {
       .select({ id: members.id })
       .from(members)
       .where(and(eq(members.role, 'admin'), eq(members.status, 'active')))
-      .all()
   ).length;
 }
 
@@ -152,9 +151,7 @@ describe('a workspace always keeps an admin', () => {
     });
 
     // Two admin rows, one usable account.
-    expect(await ctx.db.select().from(members).where(eq(members.role, 'admin')).all()).toHaveLength(
-      2,
-    );
+    expect(await ctx.db.select().from(members).where(eq(members.role, 'admin'))).toHaveLength(2);
     expect(await activeAdmins()).toBe(1);
   });
 });

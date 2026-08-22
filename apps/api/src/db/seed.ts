@@ -33,8 +33,7 @@ export async function seed(db: Db): Promise<void> {
         sortOrder: index,
         createdAt: nowIso(),
       })
-      .onConflictDoNothing({ target: customFieldDefs.key })
-      .run();
+      .onConflictDoNothing({ target: customFieldDefs.key });
   }
 
   await seedWorkflow(db);
@@ -52,34 +51,29 @@ export async function seed(db: Db): Promise<void> {
  * admin's work.
  */
 async function seedWorkflow(db: Db): Promise<void> {
-  if (await db.select({ id: assetStatuses.id }).from(assetStatuses).limit(1).get()) return;
+  const [seeded] = await db.select({ id: assetStatuses.id }).from(assetStatuses).limit(1);
+  if (seeded) return;
 
   const at = nowIso();
   for (const [index, status] of DEFAULT_ASSET_STATUSES.entries()) {
-    await db
-      .insert(assetStatuses)
-      .values({
-        id: status.id,
-        label: status.label,
-        color: status.color,
-        isSystem: status.isSystem,
-        assignableFrom: status.assignableFrom,
-        checkinTarget: status.checkinTarget,
-        sortOrder: index,
-        createdAt: at,
-        updatedAt: at,
-      })
-      .run();
+    await db.insert(assetStatuses).values({
+      id: status.id,
+      label: status.label,
+      color: status.color,
+      isSystem: status.isSystem,
+      assignableFrom: status.assignableFrom,
+      checkinTarget: status.checkinTarget,
+      sortOrder: index,
+      createdAt: at,
+      updatedAt: at,
+    });
   }
 
   const movable = DEFAULT_ASSET_STATUSES.filter((status) => status.id !== ASSIGNED_STATUS);
   for (const from of movable) {
     for (const to of movable) {
       if (from.id === to.id) continue;
-      await db
-        .insert(assetStatusTransitions)
-        .values({ fromStatus: from.id, toStatus: to.id })
-        .run();
+      await db.insert(assetStatusTransitions).values({ fromStatus: from.id, toStatus: to.id });
     }
   }
 }
@@ -95,25 +89,23 @@ async function seedWorkflow(db: Db): Promise<void> {
  * an admin who deleted a role deleted it on purpose.
  */
 async function seedRoles(db: Db): Promise<void> {
-  if (await db.select({ id: roles.id }).from(roles).limit(1).get()) return;
+  const [seeded] = await db.select({ id: roles.id }).from(roles).limit(1);
+  if (seeded) return;
 
   const at = nowIso();
   for (const [index, role] of DEFAULT_ROLES.entries()) {
-    await db
-      .insert(roles)
-      .values({
-        id: role.id,
-        label: role.label,
-        description: role.description,
-        color: role.color,
-        isSystem: role.isSystem,
-        sortOrder: index,
-        createdAt: at,
-        updatedAt: at,
-      })
-      .run();
+    await db.insert(roles).values({
+      id: role.id,
+      label: role.label,
+      description: role.description,
+      color: role.color,
+      isSystem: role.isSystem,
+      sortOrder: index,
+      createdAt: at,
+      updatedAt: at,
+    });
     for (const action of role.grants) {
-      await db.insert(rolePermissions).values({ roleId: role.id, action }).run();
+      await db.insert(rolePermissions).values({ roleId: role.id, action });
     }
   }
 }

@@ -44,11 +44,10 @@ export function registerAttachmentRoutes(app: FastifyInstance, deps: AppDeps): v
     '/api/v1/attachments/:id',
     { schema: { params: idParam }, preHandler: requireAuth },
     async (request, reply) => {
-      const row = await deps.db
+      const [row] = await deps.db
         .select()
         .from(attachments)
-        .where(eq(attachments.id, request.params.id))
-        .get();
+        .where(eq(attachments.id, request.params.id));
       if (!row) throw notFound('That attachment');
 
       // Confirm the bytes are there before a single header is set. Setting

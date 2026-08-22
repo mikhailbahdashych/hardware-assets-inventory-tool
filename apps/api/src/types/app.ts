@@ -1,6 +1,5 @@
-import type { Client } from '@libsql/client';
 import type { Config } from '@/types/config.js';
-import type { Db } from '@/types/db.js';
+import type { Db, DbClient } from '@/types/db.js';
 import type { Mailer } from '@/types/mail.js';
 
 /**
@@ -11,10 +10,10 @@ export interface AppDeps {
   config: Config;
   db: Db;
   /**
-   * The libsql client behind `db`, for the health check that pings it and the
-   * shutdown that closes it. Every query goes through `db`.
+   * The driver behind `db`, for the health check that pings it and the shutdown
+   * that closes it. Every query goes through `db`.
    */
-  client: Client;
+  client: DbClient;
   /** Injectable clock — tests control time through it. */
   now: () => Date;
   /**
@@ -29,7 +28,7 @@ export interface AppDeps {
 export interface BuildAppOptions {
   config: Config;
   db: Db;
-  client: Client;
+  client: DbClient;
   now?: () => Date;
   /** Omitted means "build one from the config", which may still be null. */
   mailer?: Mailer | null;

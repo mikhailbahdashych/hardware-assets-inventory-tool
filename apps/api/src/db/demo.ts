@@ -59,7 +59,7 @@ import { emptyWorkspace } from '@/services/workspace.js';
  * same workspace, so `--reset` genuinely restores rather than reshuffles.
  */
 export async function seedDemo(deps: AppDeps, options: DemoSeedOptions): Promise<DemoSeedResult> {
-  const existing = await deps.db.select().from(orgSettings).get();
+  const [existing] = await deps.db.select().from(orgSettings);
   if (existing && !options.reset) {
     throw new AppError(
       409,
@@ -262,19 +262,16 @@ async function curateRoles(deps: AppDeps, actor: Actor, ctx: RoleCurationContext
 
 /** The workspace itself, on the design's defaults. */
 async function seedSettings(tx: DbOrTx, now: Date): Promise<void> {
-  await tx
-    .insert(orgSettings)
-    .values({
-      id: 1,
-      orgName: ORG_NAME,
-      defaultCurrency: 'EUR',
-      assetTagPrefix: 'AST',
-      warrantyLeadDays: 45,
-      logRetentionMonths: 12,
-      createdAt: nowIso(now),
-      updatedAt: nowIso(now),
-    })
-    .run();
+  await tx.insert(orgSettings).values({
+    id: 1,
+    orgName: ORG_NAME,
+    defaultCurrency: 'EUR',
+    assetTagPrefix: 'AST',
+    warrantyLeadDays: 45,
+    logRetentionMonths: 12,
+    createdAt: nowIso(now),
+    updatedAt: nowIso(now),
+  });
 }
 
 type Clock = (daysAgo: number, hour?: number, minute?: number) => Date;
@@ -293,24 +290,21 @@ async function seedPeople(tx: DbOrTx, at: Clock): Promise<Map<string, string>> {
     ids.set(person.key, id);
     const added = at(person.addedDaysAgo, 10, index);
 
-    await tx
-      .insert(employees)
-      .values({
-        id,
-        firstName: person.firstName,
-        lastName: person.lastName,
-        email: employeeEmail(person.firstName, person.lastName),
-        jobTitle: person.jobTitle,
-        department: person.department,
-        location: person.location,
-        employeeCode: `EMP-${String(index + 1).padStart(4, '0')}`,
-        startDate: todayDate(at(person.startYearsAgo * 365 + 14)),
-        // Offboarding is a later event, audited in its own right below.
-        status: 'active',
-        createdAt: nowIso(added),
-        updatedAt: nowIso(added),
-      })
-      .run();
+    await tx.insert(employees).values({
+      id,
+      firstName: person.firstName,
+      lastName: person.lastName,
+      email: employeeEmail(person.firstName, person.lastName),
+      jobTitle: person.jobTitle,
+      department: person.department,
+      location: person.location,
+      employeeCode: `EMP-${String(index + 1).padStart(4, '0')}`,
+      startDate: todayDate(at(person.startYearsAgo * 365 + 14)),
+      // Offboarding is a later event, audited in its own right below.
+      status: 'active',
+      createdAt: nowIso(added),
+      updatedAt: nowIso(added),
+    });
   }
 
   return ids;
@@ -370,23 +364,20 @@ async function seedMembers(
     const invitedAt = at(person.addedDaysAgo, 9, 30 + index);
     const active = account.status === 'active';
 
-    await tx
-      .insert(members)
-      .values({
-        id,
-        email,
-        displayName,
-        // An invited member has not chosen a password yet — the column is
-        // nullable precisely for this state, and the UI reads it as "Invited".
-        passwordHash: active ? ctx.passwordHash : null,
-        role: account.role,
-        status: account.status,
-        employeeId: ctx.employeeIds.get(person.key) ?? null,
-        lastActiveAt: active ? nowIso(at(index, 8, 15)) : null,
-        createdAt: nowIso(invitedAt),
-        updatedAt: nowIso(invitedAt),
-      })
-      .run();
+    await tx.insert(members).values({
+      id,
+      email,
+      displayName,
+      // An invited member has not chosen a password yet — the column is
+      // nullable precisely for this state, and the UI reads it as "Invited".
+      passwordHash: active ? ctx.passwordHash : null,
+      role: account.role,
+      status: account.status,
+      employeeId: ctx.employeeIds.get(person.key) ?? null,
+      lastActiveAt: active ? nowIso(at(index, 8, 15)) : null,
+      createdAt: nowIso(invitedAt),
+      updatedAt: nowIso(invitedAt),
+    });
 
     if (active) {
       ctx.signIn.push({ email, password: ctx.password, role: account.role, displayName });
@@ -446,27 +437,24 @@ async function seedAssets(
     const added = at(asset.addedDaysAgo, 11, index % 50);
     const assetTag = `AST-${String(index + 1).padStart(4, '0')}`;
 
-    await tx
-      .insert(assets)
-      .values({
-        id,
-        assetTag,
-        name: asset.name,
-        category: asset.category,
-        model: asset.model,
-        serialNumber: asset.serialNumber,
-        status: asset.status,
-        purchaseDate: todayDate(at(asset.purchasedDaysAgo)),
-        // Money is integer cents everywhere; the dataset speaks whole euros.
-        purchasePriceCents: asset.priceEuros * 100,
-        // Null means "the organization default", which is what the UI renders.
-        currency: null,
-        supplier: asset.supplier,
-        warrantyUntil: asset.warrantyInDays === null ? null : todayDate(at(-asset.warrantyInDays)),
-        createdAt: nowIso(added),
-        updatedAt: nowIso(added),
-      })
-      .run();
+    await tx.insert(assets).values({
+      id,
+      assetTag,
+      name: asset.name,
+      category: asset.category,
+      model: asset.model,
+      serialNumber: asset.serialNumber,
+      status: asset.status,
+      purchaseDate: todayDate(at(asset.purchasedDaysAgo)),
+      // Money is integer cents everywhere; the dataset speaks whole euros.
+      purchasePriceCents: asset.priceEuros * 100,
+      // Null means "the organization default", which is what the UI renders.
+      currency: null,
+      supplier: asset.supplier,
+      warrantyUntil: asset.warrantyInDays === null ? null : todayDate(at(-asset.warrantyInDays)),
+      createdAt: nowIso(added),
+      updatedAt: nowIso(added),
+    });
 
     await writeAudit(
       tx,
@@ -489,10 +477,7 @@ async function seedAssets(
 async function seedCustomValues(tx: DbOrTx, assetIds: Map<string, string>): Promise<void> {
   const defs = new Map(
     (
-      await tx
-        .select({ id: customFieldDefs.id, key: customFieldDefs.key })
-        .from(customFieldDefs)
-        .all()
+      await tx.select({ id: customFieldDefs.id, key: customFieldDefs.key }).from(customFieldDefs)
     ).map((row) => [row.key, row.id]),
   );
 
@@ -513,7 +498,7 @@ async function seedCustomValues(tx: DbOrTx, assetIds: Map<string, string>): Prom
     for (const [key, value] of values) {
       const fieldDefId = defs.get(key);
       if (value === undefined || !fieldDefId) continue;
-      await tx.insert(assetCustomValues).values({ assetId, fieldDefId, value }).run();
+      await tx.insert(assetCustomValues).values({ assetId, fieldDefId, value });
     }
   }
 }
@@ -641,8 +626,7 @@ async function seedOffboarding(
     await tx
       .update(employees)
       .set({ status: 'offboarding', updatedAt: nowIso(when) })
-      .where(eq(employees.id, id))
-      .run();
+      .where(eq(employees.id, id));
 
     const scheduledReturns = HOLDINGS.filter(
       (holding) => holding.personKey === person.key && holding.untilDaysAgo === undefined,
@@ -675,7 +659,7 @@ function employeeEmail(firstName: string, lastName: string): string {
 }
 
 async function countRows(db: AppDeps['db']): Promise<DemoSeedResult['counts']> {
-  const rows = async (table: SQLiteTable) => (await db.select().from(table).all()).length;
+  const rows = async (table: SQLiteTable) => (await db.select().from(table)).length;
   return {
     members: await rows(members),
     employees: await rows(employees),

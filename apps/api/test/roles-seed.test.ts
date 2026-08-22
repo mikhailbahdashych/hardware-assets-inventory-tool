@@ -10,8 +10,8 @@ afterEach(async () => {
   await ctx?.close();
 });
 
-const roleRows = async () => await ctx.db.select().from(roles).orderBy(roles.sortOrder).all();
-const grantRows = async () => await ctx.db.select().from(rolePermissions).all();
+const roleRows = async () => await ctx.db.select().from(roles).orderBy(roles.sortOrder);
+const grantRows = async () => await ctx.db.select().from(rolePermissions);
 
 /**
  * An upgraded instance must behave exactly as it did before roles were
@@ -60,21 +60,18 @@ describe('the boot seed lays down today’s roles', () => {
 
   it('leaves an edited set alone rather than putting a deleted role back', async () => {
     ctx = await buildTestApp();
-    await ctx.db.delete(rolePermissions).run();
-    await ctx.db.delete(roles).run();
-    await ctx.db
-      .insert(roles)
-      .values({
-        id: 'auditor',
-        label: 'Auditor',
-        description: 'Reads the books',
-        color: 'warn',
-        isSystem: false,
-        sortOrder: 0,
-        createdAt: '2026-08-18T09:00:00.000Z',
-        updatedAt: '2026-08-18T09:00:00.000Z',
-      })
-      .run();
+    await ctx.db.delete(rolePermissions);
+    await ctx.db.delete(roles);
+    await ctx.db.insert(roles).values({
+      id: 'auditor',
+      label: 'Auditor',
+      description: 'Reads the books',
+      color: 'warn',
+      isSystem: false,
+      sortOrder: 0,
+      createdAt: '2026-08-18T09:00:00.000Z',
+      updatedAt: '2026-08-18T09:00:00.000Z',
+    });
 
     await seed(ctx.db);
 
@@ -90,8 +87,8 @@ describe('the boot seed lays down today’s roles', () => {
    */
   it('comes back to the default after the workspace is emptied', async () => {
     ctx = await buildTestApp();
-    await ctx.db.delete(rolePermissions).run();
-    await ctx.db.delete(roles).run();
+    await ctx.db.delete(rolePermissions);
+    await ctx.db.delete(roles);
 
     await emptyWorkspace(ctx.deps);
 

@@ -1,6 +1,6 @@
 import { readdir, stat, unlink } from 'node:fs/promises';
 import { join } from 'node:path';
-import { and, asc, desc, eq, gte, isNotNull, isNull, lt, lte, sql } from 'drizzle-orm';
+import { and, asc, count, desc, eq, gte, isNotNull, isNull, lt, lte } from 'drizzle-orm';
 import { renderAuditEvent, type AuditParams } from '@inventory/shared';
 import type { AppDeps } from '@/types/app.js';
 import type { JobResult, MaintenanceResult } from '@/types/jobs.js';
@@ -71,7 +71,6 @@ export async function runWarrantyScan(deps: AppDeps, now: Date): Promise<JobResu
         ),
       )
       .orderBy(asc(assets.warrantyUntil))
-      .all()
   ).flatMap((row) =>
     row.warrantyUntil === null ? [] : [{ ...row, warrantyUntil: row.warrantyUntil }],
   );
@@ -139,8 +138,7 @@ export async function runReturnReminders(deps: AppDeps, now: Date): Promise<JobR
         lte(assignments.expectedReturnDate, shiftDays(now, RETURN_LEAD_DAYS)),
       ),
     )
-    .orderBy(asc(assignments.expectedReturnDate))
-    .all();
+    .orderBy(asc(assignments.expectedReturnDate));
 
   // One message per person, however many things they are holding. The value is
   // a non-empty tuple because it is only ever created with a row in it — which
@@ -200,10 +198,9 @@ export async function runWeeklyDigest(deps: AppDeps, now: Date): Promise<JobResu
   if (!deps.mailer || !emailEnabled(settings, 'emailWeeklyDigest')) return skipped();
 
   const counts = await deps.db
-    .select({ status: assets.status, count: sql<number>`count(*)` })
+    .select({ status: assets.status, count: count() })
     .from(assets)
-    .groupBy(assets.status)
-    .all();
+    .groupBy(assets.status);
   const total = counts.reduce((sum, row) => sum + row.count, 0);
   const countFor = (status: string) => counts.find((row) => row.status === status)?.count ?? 0;
 
@@ -220,7 +217,6 @@ export async function runWeeklyDigest(deps: AppDeps, now: Date): Promise<JobResu
         .where(gte(auditEvents.at, new Date(now.getTime() - 7 * DAY_MS).toISOString()))
         .orderBy(desc(auditEvents.at))
         .limit(DIGEST_EVENTS)
-        .all()
     )
       // params is NOT NULL DEFAULT '{}' and only ever written by JSON.stringify.
       .map((row) =>
@@ -258,17 +254,30 @@ export async function runMaintenance(deps: AppDeps, now: Date): Promise<Maintena
   let pruned = 0;
 
   await pruneExpiredSessions(deps.db, now);
-  pruned += (await deps.db.delete(authTokens).where(lt(authTokens.expiresAt, at)).run())
-    .rowsAffected;
-  pruned += (await deps.db.delete(sessions).where(lt(sessions.expiresAt, at)).run()).rowsAffected;
+  // How many rows a delete took is the one result shape the two drivers do not
+  // agree on — libsql answers `rowsAffected`, node-postgres `rowCount`. Both
+  // dialects support RETURNING, so the deleted ids are the count, said in a way
+  // neither driver gets to name.
+  pruned += (
+    await deps.db
+      .delete(authTokens)
+      .where(lt(authTokens.expiresAt, at))
+      .returning({ id: authTokens.id })
+  ).length;
+  pruned += (
+    await deps.db.delete(sessions).where(lt(sessions.expiresAt, at)).returning({ id: sessions.id })
+  ).length;
 
   if (settings.logRetentionMonths !== null) {
     const cutoff = new Date(now);
     cutoff.setUTCMonth(cutoff.getUTCMonth() - settings.logRetentionMonths);
     // This trims per-asset trails too, which the Settings page says out loud.
     pruned += (
-      await deps.db.delete(auditEvents).where(lt(auditEvents.at, cutoff.toISOString())).run()
-    ).rowsAffected;
+      await deps.db
+        .delete(auditEvents)
+        .where(lt(auditEvents.at, cutoff.toISOString()))
+        .returning({ id: auditEvents.id })
+    ).length;
   }
 
   // Every dedupe window is measured in days at most, so a year of "what was
@@ -280,8 +289,8 @@ export async function runMaintenance(deps: AppDeps, now: Date): Promise<Maintena
     await deps.db
       .delete(notificationLog)
       .where(lt(notificationLog.sentAt, notificationCutoff.toISOString()))
-      .run()
-  ).rowsAffected;
+      .returning({ id: notificationLog.id })
+  ).length;
 
   return {
     pruned,
@@ -312,7 +321,7 @@ async function sweepOrphanUploads(deps: AppDeps, now: Date): Promise<number> {
   }
 
   const referenced = new Set(
-    (await deps.db.select({ storedName: attachments.storedName }).from(attachments).all()).map(
+    (await deps.db.select({ storedName: attachments.storedName }).from(attachments)).map(
       (row) => row.storedName,
     ),
   );
@@ -336,8 +345,7 @@ async function activeAdmins(deps: AppDeps) {
   return await deps.db
     .select({ id: members.id, email: members.email })
     .from(members)
-    .where(and(eq(members.role, 'admin'), eq(members.status, 'active')))
-    .all();
+    .where(and(eq(members.role, 'admin'), eq(members.status, 'active')));
 }
 
 /**

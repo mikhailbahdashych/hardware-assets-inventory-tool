@@ -52,21 +52,20 @@ export async function listAssets(db: Db) {
         and(eq(assignments.assetId, assets.id), isNull(assignments.returnedAt)),
       )
       .orderBy(desc(assets.createdAt))
-      .all()
   ).map((row) => serializeAsset(row.asset, row.holder));
 }
 
 export async function getAssetDetail(db: Db, id: string) {
-  const asset = await db.select().from(assets).where(eq(assets.id, id)).get();
+  const [asset] = await db.select().from(assets).where(eq(assets.id, id));
   if (!asset) throw notFound('That asset');
 
   const values = new Map(
-    (await db.select().from(assetCustomValues).where(eq(assetCustomValues.assetId, id)).all()).map(
+    (await db.select().from(assetCustomValues).where(eq(assetCustomValues.assetId, id))).map(
       (row) => [row.fieldDefId, row.value],
     ),
   );
   const customFields = (
-    await db.select().from(customFieldDefs).orderBy(customFieldDefs.sortOrder).all()
+    await db.select().from(customFieldDefs).orderBy(customFieldDefs.sortOrder)
   ).map((def) => ({
     key: def.key,
     label: def.label,
@@ -84,7 +83,6 @@ export async function getAssetDetail(db: Db, id: string) {
       .where(eq(auditEvents.assetId, id))
       .orderBy(desc(auditEvents.at))
       .limit(20)
-      .all()
   ).map((event) => ({
     id: event.id,
     at: event.at,
@@ -111,7 +109,7 @@ export async function getAssetDetail(db: Db, id: string) {
  * generate tags under a second, invented prefix nobody chose.
  */
 export async function nextAssetTag(db: DbOrTx): Promise<string> {
-  const settings = await db.select().from(orgSettings).get();
+  const [settings] = await db.select().from(orgSettings);
   if (!settings) {
     throw new AppError(
       500,
@@ -119,7 +117,7 @@ export async function nextAssetTag(db: DbOrTx): Promise<string> {
       'This instance has no organization settings, so asset tags cannot be numbered.',
     );
   }
-  const tags = (await db.select({ assetTag: assets.assetTag }).from(assets).all()).map(
+  const tags = (await db.select({ assetTag: assets.assetTag }).from(assets)).map(
     (row) => row.assetTag,
   );
   return computeNextTag(settings.assetTagPrefix, tags);
@@ -132,7 +130,8 @@ export async function createAsset(deps: AppDeps, actor: Actor, input: AssetCreat
   return await deps.db.transaction(async (tx) => {
     // The form may leave the tag out entirely, which means "number it for me".
     const assetTag = input.assetTag ?? (await nextAssetTag(tx));
-    if (await tx.select().from(assets).where(eq(assets.assetTag, assetTag)).get()) {
+    const [clash] = await tx.select().from(assets).where(eq(assets.assetTag, assetTag));
+    if (clash) {
       throw invalidFields(DUPLICATE_ASSET_TAG);
     }
 
@@ -143,11 +142,10 @@ export async function createAsset(deps: AppDeps, actor: Actor, input: AssetCreat
 
     let holder: typeof employees.$inferSelect | null = null;
     if (input.status === ASSIGNED_STATUS) {
-      const found = await tx
+      const [found] = await tx
         .select()
         .from(employees)
-        .where(eq(employees.id, input.assignedToEmployeeId!))
-        .get();
+        .where(eq(employees.id, input.assignedToEmployeeId!));
       if (!found) {
         throw invalidFields({ assignedToEmployeeId: 'That employee could not be found.' });
       }
@@ -155,26 +153,23 @@ export async function createAsset(deps: AppDeps, actor: Actor, input: AssetCreat
     }
 
     const id = newId();
-    await tx
-      .insert(assets)
-      .values({
-        id,
-        assetTag,
-        name: input.name,
-        category: input.category,
-        status: input.status,
-        model: input.model,
-        serialNumber: input.serialNumber,
-        purchaseDate: input.purchaseDate,
-        purchasePriceCents: input.purchasePriceCents,
-        currency: input.currency,
-        supplier: input.supplier,
-        warrantyUntil: input.warrantyUntil,
-        notes: input.notes,
-        createdAt: at,
-        updatedAt: at,
-      })
-      .run();
+    await tx.insert(assets).values({
+      id,
+      assetTag,
+      name: input.name,
+      category: input.category,
+      status: input.status,
+      model: input.model,
+      serialNumber: input.serialNumber,
+      purchaseDate: input.purchaseDate,
+      purchasePriceCents: input.purchasePriceCents,
+      currency: input.currency,
+      supplier: input.supplier,
+      warrantyUntil: input.warrantyUntil,
+      notes: input.notes,
+      createdAt: at,
+      updatedAt: at,
+    });
 
     await applyCustomValues(tx, id, input.customValues);
     await writeAudit(
@@ -220,7 +215,7 @@ export async function createAsset(deps: AppDeps, actor: Actor, input: AssetCreat
     }
 
     return serializeAsset(
-      (await tx.select().from(assets).where(eq(assets.id, id)).get())!,
+      (await tx.select().from(assets).where(eq(assets.id, id)))[0]!,
       await activeAssignment(tx, id),
     );
   });
@@ -230,7 +225,7 @@ export async function updateAsset(deps: AppDeps, actor: Actor, id: string, patch
   const now = deps.now();
 
   return await deps.db.transaction(async (tx) => {
-    const current = await tx.select().from(assets).where(eq(assets.id, id)).get();
+    const [current] = await tx.select().from(assets).where(eq(assets.id, id));
     if (!current) throw notFound('That asset');
 
     const values: Record<string, unknown> = {};
@@ -247,11 +242,10 @@ export async function updateAsset(deps: AppDeps, actor: Actor, id: string, patch
     }
 
     if (typeof values.assetTag === 'string') {
-      const clash = await tx
+      const [clash] = await tx
         .select()
         .from(assets)
-        .where(and(eq(assets.assetTag, values.assetTag), ne(assets.id, id)))
-        .get();
+        .where(and(eq(assets.assetTag, values.assetTag), ne(assets.id, id)));
       if (clash) throw invalidFields(DUPLICATE_ASSET_TAG);
     }
 
@@ -291,7 +285,7 @@ export async function updateAsset(deps: AppDeps, actor: Actor, id: string, patch
     }
 
     values.updatedAt = nowIso(now);
-    await tx.update(assets).set(values).where(eq(assets.id, id)).run();
+    await tx.update(assets).set(values).where(eq(assets.id, id));
 
     // The audit line names the asset as it is *after* the edit, so an unchanged
     // field reads from the stored row rather than from the patch.
@@ -329,7 +323,7 @@ export async function updateAsset(deps: AppDeps, actor: Actor, id: string, patch
     }
 
     return serializeAsset(
-      (await tx.select().from(assets).where(eq(assets.id, id)).get())!,
+      (await tx.select().from(assets).where(eq(assets.id, id)))[0]!,
       await activeAssignment(tx, id),
     );
   });
@@ -341,7 +335,7 @@ export async function deleteAsset(deps: AppDeps, actor: Actor, id: string): Prom
   const storedNames = await storedNamesForAsset(deps.db, id);
 
   await deps.db.transaction(async (tx) => {
-    const asset = await tx.select().from(assets).where(eq(assets.id, id)).get();
+    const [asset] = await tx.select().from(assets).where(eq(assets.id, id));
     if (!asset) throw notFound('That asset');
     if (await activeAssignment(tx, id)) {
       throw new AppError(
@@ -352,7 +346,7 @@ export async function deleteAsset(deps: AppDeps, actor: Actor, id: string): Prom
     }
 
     // Custom values, attachments and past ownership records cascade away.
-    await tx.delete(assets).where(eq(assets.id, id)).run();
+    await tx.delete(assets).where(eq(assets.id, id));
     await writeAudit(
       tx,
       {
@@ -377,9 +371,7 @@ async function applyCustomValues(
 ): Promise<string[]> {
   if (!values) return [];
 
-  const defs = new Map(
-    (await tx.select().from(customFieldDefs).all()).map((def) => [def.key, def]),
-  );
+  const defs = new Map((await tx.select().from(customFieldDefs)).map((def) => [def.key, def]));
   const changed: string[] = [];
 
   for (const [key, value] of Object.entries(values)) {
@@ -392,11 +384,11 @@ async function applyCustomValues(
     );
     // No row for this pair means the field is unset, which is the same state
     // an explicit null asks for — so neither is a change worth auditing.
-    const existing = await tx.select().from(assetCustomValues).where(where).get();
+    const [existing] = await tx.select().from(assetCustomValues).where(where);
     if ((existing?.value ?? null) === value) continue;
 
     if (value === null) {
-      await tx.delete(assetCustomValues).where(where).run();
+      await tx.delete(assetCustomValues).where(where);
     } else {
       await tx
         .insert(assetCustomValues)
@@ -404,8 +396,7 @@ async function applyCustomValues(
         .onConflictDoUpdate({
           target: [assetCustomValues.assetId, assetCustomValues.fieldDefId],
           set: { value },
-        })
-        .run();
+        });
     }
     changed.push(`custom.${key}`);
   }

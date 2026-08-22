@@ -43,11 +43,12 @@ async function assignableList(tx: DbOrTx): Promise<string> {
  */
 export async function activeAssignment(db: DbOrTx, assetId: string): Promise<AssignmentRow | null> {
   return (
-    (await db
-      .select()
-      .from(assignments)
-      .where(and(eq(assignments.assetId, assetId), isNull(assignments.returnedAt)))
-      .get()) ?? null
+    (
+      await db
+        .select()
+        .from(assignments)
+        .where(and(eq(assignments.assetId, assetId), isNull(assignments.returnedAt)))
+    )[0] ?? null
   );
 }
 
@@ -67,24 +68,20 @@ export async function openAssignment(
   now: Date,
 ): Promise<string> {
   const id = newId();
-  await tx
-    .insert(assignments)
-    .values({
-      id,
-      assetId: params.assetId,
-      employeeId: params.employeeId,
-      holderNameSnapshot: params.holderName,
-      checkedOutAt: params.checkedOutAt,
-      expectedReturnDate: params.expectedReturnDate ?? null,
-      checkoutNotes: params.notes ?? null,
-      createdAt: nowIso(now),
-    })
-    .run();
+  await tx.insert(assignments).values({
+    id,
+    assetId: params.assetId,
+    employeeId: params.employeeId,
+    holderNameSnapshot: params.holderName,
+    checkedOutAt: params.checkedOutAt,
+    expectedReturnDate: params.expectedReturnDate ?? null,
+    checkoutNotes: params.notes ?? null,
+    createdAt: nowIso(now),
+  });
   await tx
     .update(assets)
     .set({ status: 'assigned', updatedAt: nowIso(now) })
-    .where(eq(assets.id, params.assetId))
-    .run();
+    .where(eq(assets.id, params.assetId));
   return id;
 }
 
@@ -110,13 +107,11 @@ export async function closeAssignment(
       checkinNotes: params.notes ?? null,
       outcome: params.outcome,
     })
-    .where(eq(assignments.id, params.assignment.id))
-    .run();
+    .where(eq(assignments.id, params.assignment.id));
   await tx
     .update(assets)
     .set({ status: params.newStatus, updatedAt: nowIso(now) })
-    .where(eq(assets.id, params.assignment.assetId))
-    .run();
+    .where(eq(assets.id, params.assignment.assetId));
 }
 
 /** Every ownership record for an asset, newest checkout first. */
@@ -125,8 +120,7 @@ export async function assetHistory(db: DbOrTx, assetId: string): Promise<Assignm
     .select()
     .from(assignments)
     .where(eq(assignments.assetId, assetId))
-    .orderBy(desc(assignments.checkedOutAt), desc(assignments.createdAt))
-    .all();
+    .orderBy(desc(assignments.checkedOutAt), desc(assignments.createdAt));
 }
 
 /** Everything a person has ever held, newest first. */
@@ -136,8 +130,7 @@ export async function employeeHistory(db: DbOrTx, employeeId: string) {
     .from(assignments)
     .innerJoin(assets, eq(assets.id, assignments.assetId))
     .where(eq(assignments.employeeId, employeeId))
-    .orderBy(desc(assignments.checkedOutAt), desc(assignments.createdAt))
-    .all();
+    .orderBy(desc(assignments.checkedOutAt), desc(assignments.createdAt));
 }
 
 /**
@@ -151,7 +144,7 @@ export async function currentHolderContact(
 ): Promise<HolderContact | null> {
   const open = await activeAssignment(db, assetId);
   if (!open?.employeeId) return null;
-  const holder = await db.select().from(employees).where(eq(employees.id, open.employeeId)).get();
+  const [holder] = await db.select().from(employees).where(eq(employees.id, open.employeeId));
   if (!holder) return null;
   return { email: holder.email, name: `${holder.firstName} ${holder.lastName}` };
 }
@@ -165,7 +158,7 @@ export async function assignAsset(
   const now = deps.now();
 
   return await deps.db.transaction(async (tx) => {
-    const asset = await tx.select().from(assets).where(eq(assets.id, assetId)).get();
+    const [asset] = await tx.select().from(assets).where(eq(assets.id, assetId));
     if (!asset) throw notFound('That asset');
 
     // Both halves of the invariant are checked, not just the status column:
@@ -183,11 +176,7 @@ export async function assignAsset(
       );
     }
 
-    const holder = await tx
-      .select()
-      .from(employees)
-      .where(eq(employees.id, input.employeeId))
-      .get();
+    const [holder] = await tx.select().from(employees).where(eq(employees.id, input.employeeId));
     if (!holder) throw invalidFields({ employeeId: 'That employee could not be found.' });
     if (holder.status !== 'active') {
       throw invalidFields({ employeeId: 'That person is offboarding and cannot take on assets.' });
@@ -226,7 +215,7 @@ export async function assignAsset(
     );
 
     return serializeAsset(
-      (await tx.select().from(assets).where(eq(assets.id, assetId)).get())!,
+      (await tx.select().from(assets).where(eq(assets.id, assetId)))[0]!,
       await activeAssignment(tx, assetId),
     );
   });
@@ -241,7 +230,7 @@ export async function checkinAsset(
   const now = deps.now();
 
   return await deps.db.transaction(async (tx) => {
-    const asset = await tx.select().from(assets).where(eq(assets.id, assetId)).get();
+    const [asset] = await tx.select().from(assets).where(eq(assets.id, assetId));
     if (!asset) throw notFound('That asset');
 
     const open = await activeAssignment(tx, assetId);
@@ -265,9 +254,9 @@ export async function checkinAsset(
     }
 
     // The holder's own status is what makes a return an offboarding return.
-    const holder = open.employeeId
-      ? await tx.select().from(employees).where(eq(employees.id, open.employeeId)).get()
-      : undefined;
+    const [holder] = open.employeeId
+      ? await tx.select().from(employees).where(eq(employees.id, open.employeeId))
+      : [];
     // A deleted holder leaves employee_id NULL, and "no holder to offboard" is
     // exactly what deriveOutcome's null arm means.
     const outcome = deriveOutcome({
@@ -310,9 +299,6 @@ export async function checkinAsset(
       now,
     );
 
-    return serializeAsset(
-      (await tx.select().from(assets).where(eq(assets.id, assetId)).get())!,
-      null,
-    );
+    return serializeAsset((await tx.select().from(assets).where(eq(assets.id, assetId)))[0]!, null);
   });
 }

@@ -1,7 +1,6 @@
-import { join } from 'node:path';
 import { eq } from 'drizzle-orm';
 import { loadConfig } from '@/config.js';
-import { createDb } from '@/db/client.js';
+import { createDb, describeStore } from '@/db/client.js';
 import { members } from '@/db/schema.js';
 import { resetMemberMfa } from '@/services/mfa.js';
 import { writeAudit } from '@/services/audit.js';
@@ -33,11 +32,13 @@ async function main(): Promise<void> {
   }
 
   const config = loadConfig();
-  const { db, client } = await createDb(join(config.dataDir, 'inventory.db'));
+  const { db, client } = await createDb(config);
   try {
-    const member = await db.select().from(members).where(eq(members.email, email)).get();
+    const [member] = await db.select().from(members).where(eq(members.email, email));
     if (!member) {
-      process.stderr.write(`\n  No member with the email ${email} in ${config.dataDir}.\n\n`);
+      process.stderr.write(
+        `\n  No member with the email ${email} in ${describeStore(config)}.\n\n`,
+      );
       process.exit(1);
     }
 
@@ -72,7 +73,7 @@ async function main(): Promise<void> {
         `  on the next request if this workspace still requires one.\n\n`,
     );
   } finally {
-    client.close();
+    await client.close();
   }
 }
 

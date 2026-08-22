@@ -1,4 +1,4 @@
-import { and, asc, eq, sql } from 'drizzle-orm';
+import { and, asc, count, eq } from 'drizzle-orm';
 import {
   ASSIGNED_STATUS,
   MAX_ASSET_STATUSES,
@@ -48,7 +48,7 @@ const serialize = (row: AssetStatusRow): WorkflowStatus => ({
 });
 
 const statusRows = async (db: DbOrTx): Promise<AssetStatusRow[]> =>
-  await db.select().from(assetStatuses).orderBy(asc(assetStatuses.sortOrder)).all();
+  await db.select().from(assetStatuses).orderBy(asc(assetStatuses.sortOrder));
 
 const edgeRows = async (db: DbOrTx): Promise<WorkflowTransition[]> =>
   (
@@ -56,7 +56,6 @@ const edgeRows = async (db: DbOrTx): Promise<WorkflowTransition[]> =>
       .select()
       .from(assetStatusTransitions)
       .orderBy(asc(assetStatusTransitions.fromStatus), asc(assetStatusTransitions.toStatus))
-      .all()
   ).map((row) => ({ from: row.fromStatus, to: row.toStatus }));
 
 /** The whole workflow, as `GET /api/v1/workflow` and the services read it. */
@@ -74,22 +73,20 @@ export async function requireStatus(
   id: string,
   field = 'status',
 ): Promise<AssetStatusRow> {
-  const row = await db.select().from(assetStatuses).where(eq(assetStatuses.id, id)).get();
+  const [row] = await db.select().from(assetStatuses).where(eq(assetStatuses.id, id));
   if (!row) throw invalidFields({ [field]: `"${id}" is not a status in this workspace.` });
   return row;
 }
 
 /** Whether the graph has this edge. Nothing else decides a direct move. */
 export async function transitionAllowed(db: DbOrTx, from: string, to: string): Promise<boolean> {
-  return Boolean(
-    await db
-      .select()
-      .from(assetStatusTransitions)
-      .where(
-        and(eq(assetStatusTransitions.fromStatus, from), eq(assetStatusTransitions.toStatus, to)),
-      )
-      .get(),
-  );
+  const edges = await db
+    .select()
+    .from(assetStatusTransitions)
+    .where(
+      and(eq(assetStatusTransitions.fromStatus, from), eq(assetStatusTransitions.toStatus, to)),
+    );
+  return edges.length > 0;
 }
 
 /** The statuses an asset may be handed out from, in the workspace's order. */
@@ -98,8 +95,7 @@ export async function assignableStatuses(db: DbOrTx): Promise<AssetStatusRow[]> 
     .select()
     .from(assetStatuses)
     .where(eq(assetStatuses.assignableFrom, true))
-    .orderBy(asc(assetStatuses.sortOrder))
-    .all();
+    .orderBy(asc(assetStatuses.sortOrder));
 }
 
 export async function createStatus(
@@ -129,20 +125,17 @@ export async function createStatus(
     // Last in the list, like a new custom field: a status the admin just added
     // has no claim on a place among the ones they arranged.
     const sortOrder = existing.reduce((highest, row) => Math.max(highest, row.sortOrder), -1) + 1;
-    await tx
-      .insert(assetStatuses)
-      .values({
-        id,
-        label: input.label,
-        color: input.color,
-        isSystem: false,
-        assignableFrom: input.assignableFrom,
-        checkinTarget: input.checkinTarget,
-        sortOrder,
-        createdAt: at,
-        updatedAt: at,
-      })
-      .run();
+    await tx.insert(assetStatuses).values({
+      id,
+      label: input.label,
+      color: input.color,
+      isSystem: false,
+      assignableFrom: input.assignableFrom,
+      checkinTarget: input.checkinTarget,
+      sortOrder,
+      createdAt: at,
+      updatedAt: at,
+    });
     await writeAudit(
       tx,
       {
@@ -215,7 +208,7 @@ export async function updateStatus(
     if (changedFields.length === 0) return serialize(current);
 
     values.updatedAt = nowIso(now);
-    await tx.update(assetStatuses).set(values).where(eq(assetStatuses.id, id)).run();
+    await tx.update(assetStatuses).set(values).where(eq(assetStatuses.id, id));
     await writeAudit(
       tx,
       {
@@ -261,11 +254,7 @@ export async function deleteStatus(
     if (current.assignableFrom) assertNotLastAssignable(rows, id);
     if (current.checkinTarget) assertNotLastCheckinTarget(rows, id);
 
-    const holders = await tx
-      .select({ count: sql<number>`count(*)` })
-      .from(assets)
-      .where(eq(assets.status, id))
-      .get();
+    const [holders] = await tx.select({ count: count() }).from(assets).where(eq(assets.status, id));
     // count(*) over a table that exists always answers a row; a miss here
     // would be a broken query rather than an empty inventory.
     if (!holders) throw new AppError(500, 'count_failed', 'The status count did not answer.');
@@ -284,15 +273,14 @@ export async function deleteStatus(
       await tx
         .update(assets)
         .set({ status: destination.id, updatedAt: nowIso(now) })
-        .where(eq(assets.status, id))
-        .run();
+        .where(eq(assets.status, id));
     } else if (migrateTo !== undefined) {
       // Nothing to move, but a destination the admin cannot have meant is
       // still worth saying out loud rather than silently ignoring.
       destination = await requireMigrationTarget(tx, id, migrateTo);
     }
 
-    await tx.delete(assetStatuses).where(eq(assetStatuses.id, id)).run();
+    await tx.delete(assetStatuses).where(eq(assetStatuses.id, id));
     await writeAudit(
       tx,
       {
@@ -357,12 +345,9 @@ export async function replaceTransitions(
 
     if (added === 0 && removed === 0) return edgeRows(tx);
 
-    await tx.delete(assetStatusTransitions).run();
+    await tx.delete(assetStatusTransitions);
     for (const edge of wanted.values()) {
-      await tx
-        .insert(assetStatusTransitions)
-        .values({ fromStatus: edge.from, toStatus: edge.to })
-        .run();
+      await tx.insert(assetStatusTransitions).values({ fromStatus: edge.from, toStatus: edge.to });
     }
     await writeAudit(
       tx,
@@ -403,7 +388,7 @@ export async function reorderStatuses(
 
     const at = nowIso(now);
     for (const [sortOrder, id] of ids.entries()) {
-      await tx.update(assetStatuses).set({ sortOrder, updatedAt: at }).where(eq(assetStatuses.id, id)).run(); // prettier-ignore
+      await tx.update(assetStatuses).set({ sortOrder, updatedAt: at }).where(eq(assetStatuses.id, id)); // prettier-ignore
     }
     await writeAudit(
       tx,
@@ -443,7 +428,7 @@ async function requireMigrationTarget(
   if (migrateTo === ASSIGNED_STATUS) {
     throw invalidFields({ migrateTo: 'Assets are moved into Assigned by assigning them.' });
   }
-  const row = await tx.select().from(assetStatuses).where(eq(assetStatuses.id, migrateTo)).get();
+  const [row] = await tx.select().from(assetStatuses).where(eq(assetStatuses.id, migrateTo));
   if (!row) throw invalidFields({ migrateTo: 'That status could not be found.' });
   return row;
 }
