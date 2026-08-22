@@ -38,19 +38,16 @@ async function admin(): Promise<{ cookie: string; actor: RoleActor }> {
 /** A member holding whatever role, so member counts and migration have subjects. */
 async function addMember(role: string, status: 'active' | 'invited' = 'active'): Promise<string> {
   const id = `member-${role}-${status}-${Math.random().toString(16).slice(2, 8)}`;
-  await ctx.db
-    .insert(members)
-    .values({
-      id,
-      email: `${id}@acme.io`,
-      displayName: `${role} person`,
-      passwordHash: status === 'active' ? 'not-used' : null,
-      role,
-      status,
-      createdAt: '2026-08-18T09:00:00.000Z',
-      updatedAt: '2026-08-18T09:00:00.000Z',
-    })
-    .run();
+  await ctx.db.insert(members).values({
+    id,
+    email: `${id}@acme.io`,
+    displayName: `${role} person`,
+    passwordHash: status === 'active' ? 'not-used' : null,
+    role,
+    status,
+    createdAt: '2026-08-18T09:00:00.000Z',
+    updatedAt: '2026-08-18T09:00:00.000Z',
+  });
   return id;
 }
 
@@ -82,9 +79,10 @@ async function errorCode(run: () => unknown): Promise<string> {
 }
 
 const events = async (action: string) =>
-  (await ctx.db.select().from(auditEvents).where(eq(auditEvents.action, action)).all()).map(
-    (row) => ({ ...row, params: JSON.parse(row.params) as Record<string, unknown> }),
-  );
+  (await ctx.db.select().from(auditEvents).where(eq(auditEvents.action, action))).map((row) => ({
+    ...row,
+    params: JSON.parse(row.params) as Record<string, unknown>,
+  }));
 
 const auditor = (actor: RoleActor) =>
   createRole(ctx.deps, actor, {
@@ -144,10 +142,7 @@ describe('reading the roles', () => {
 
   it('ignores a stored grant naming an action this build no longer declares', async () => {
     ctx = await buildTestApp();
-    await ctx.db
-      .insert(rolePermissions)
-      .values({ roleId: 'viewer', action: 'assets.teleport' })
-      .run();
+    await ctx.db.insert(rolePermissions).values({ roleId: 'viewer', action: 'assets.teleport' });
 
     expect((await resolvePermissions(ctx.db, 'viewer')).size).toBe(0);
     expect((await listRoles(ctx.db)).find((role) => role.id === 'viewer')!.permissions).toEqual([]);
@@ -242,7 +237,7 @@ describe('editing a role', () => {
 
     expect(updated).toMatchObject({ id: 'viewer', label: 'Read only', color: 'info' });
     expect(updated.description).toBeNull();
-    expect((await ctx.db.select().from(members).all()).at(-1)!.role).toBe('viewer');
+    expect((await ctx.db.select().from(members)).at(-1)!.role).toBe('viewer');
     expect(await events('role.updated')).toMatchObject([
       { params: { label: 'Read only', changedFields: ['label', 'description', 'color'] } },
     ]);
@@ -416,7 +411,7 @@ describe('deleting a role', () => {
     await deleteRole(ctx.deps, actor, 'auditor');
 
     expect((await listRoles(ctx.db)).map((role) => role.id)).not.toContain('auditor');
-    expect(await ctx.db.select().from(rolePermissions).where(eq(rolePermissions.roleId, 'auditor')).all()).toEqual([]); // prettier-ignore
+    expect(await ctx.db.select().from(rolePermissions).where(eq(rolePermissions.roleId, 'auditor'))).toEqual([]); // prettier-ignore
     expect(await events('role.deleted')).toMatchObject([
       { type: 'auth', params: { label: 'Auditor', migratedToLabel: null, memberCount: 0 } },
     ]);
@@ -446,7 +441,7 @@ describe('deleting a role', () => {
 
     await deleteRole(ctx.deps, actor, 'auditor', 'viewer');
 
-    const moved = await ctx.db.select().from(members).all();
+    const moved = await ctx.db.select().from(members);
     // An invitation nobody accepted moves with everybody else — it is a member
     // row, and leaving it pointing at a role that is gone is how a workspace
     // ends up with somebody who can do nothing.
@@ -470,7 +465,7 @@ describe('deleting a role', () => {
     expect(await attempt('nowhere')).toMatch(/nowhere/);
     expect(await attempt('auditor')).toMatch(/different role/i);
 
-    expect((await ctx.db.select().from(members).all()).at(-1)!.role).toBe('auditor');
+    expect((await ctx.db.select().from(members)).at(-1)!.role).toBe('auditor');
     expect(await listRoles(ctx.db)).toHaveLength(4);
   });
 
@@ -482,7 +477,7 @@ describe('deleting a role', () => {
 
     await deleteRole(ctx.deps, actor, 'auditor', 'admin');
 
-    expect((await ctx.db.select().from(members).all()).find((row) => row.id === member)!.role).toBe('admin'); // prettier-ignore
+    expect((await ctx.db.select().from(members)).find((row) => row.id === member)!.role).toBe('admin'); // prettier-ignore
     expect(await events('role.deleted')).toMatchObject([
       { params: { migratedToLabel: 'Admin', memberCount: 1 } },
     ]);

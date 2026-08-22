@@ -31,7 +31,7 @@ const EDITABLE = [
  * to paper over with defaults nobody chose.
  */
 export async function getSettings(db: DbOrTx): Promise<OrgSettingsRow> {
-  const settings = await db.select().from(orgSettings).get();
+  const [settings] = await db.select().from(orgSettings);
   if (!settings) {
     throw new AppError(
       500,
@@ -65,7 +65,7 @@ export async function updateSettings(
     if (changedFields.length === 0) return current;
 
     values.updatedAt = nowIso(now);
-    await tx.update(orgSettings).set(values).where(eq(orgSettings.id, current.id)).run();
+    await tx.update(orgSettings).set(values).where(eq(orgSettings.id, current.id));
 
     // Switching the requirement off takes every secret and recovery code with
     // it, in the same transaction as the setting that stopped needing them.

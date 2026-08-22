@@ -79,7 +79,7 @@ describe('creating an employee', () => {
       activeAssetCount: 0,
     });
 
-    const event = (await ctx.db.select().from(auditEvents).all()).find(
+    const event = (await ctx.db.select().from(auditEvents)).find(
       (e) => e.action === 'employee.created',
     );
     expect(event).toMatchObject({ type: 'people' });
@@ -94,7 +94,7 @@ describe('creating an employee', () => {
     const clash = await createEmployee(admin, { email: 'MAYA.LINDQVIST@acme.io' });
     expect(clash.statusCode).toBe(422);
     expect(clash.json().error.fields).toMatchObject({ email: expect.any(String) });
-    expect(await ctx.db.select().from(employees).all()).toHaveLength(1);
+    expect(await ctx.db.select().from(employees)).toHaveLength(1);
   });
 
   it('is closed to viewers and open to managers', async () => {
@@ -120,7 +120,7 @@ describe('editing an employee', () => {
     expect(res.statusCode).toBe(200);
     expect(res.json().employee).toMatchObject({ location: 'Stockholm' });
 
-    const event = (await ctx.db.select().from(auditEvents).all()).find(
+    const event = (await ctx.db.select().from(auditEvents)).find(
       (e) => e.action === 'employee.updated',
     );
     expect(JSON.parse(event!.params).changedFields.sort()).toEqual(['jobTitle', 'location']);
@@ -142,14 +142,10 @@ describe('editing an employee', () => {
     expect(res.statusCode).toBe(200);
     expect(res.json().employee.status).toBe('offboarding');
 
-    const open = await ctx.db
-      .select()
-      .from(assignments)
-      .where(eq(assignments.employeeId, id))
-      .all();
+    const open = await ctx.db.select().from(assignments).where(eq(assignments.employeeId, id));
     expect(open.map((a) => a.expectedReturnDate)).toEqual(['2026-08-23', '2026-08-23']);
 
-    const event = (await ctx.db.select().from(auditEvents).all()).find(
+    const event = (await ctx.db.select().from(auditEvents)).find(
       (e) => e.action === 'employee.offboarding_started',
     );
     expect(JSON.parse(event!.params)).toMatchObject({
@@ -171,11 +167,7 @@ describe('editing an employee', () => {
       cookie: admin,
       body: { status: 'offboarding' },
     });
-    const open = await ctx.db
-      .select()
-      .from(assignments)
-      .where(eq(assignments.employeeId, id))
-      .all();
+    const open = await ctx.db.select().from(assignments).where(eq(assignments.employeeId, id));
     expect(open[0]!.expectedReturnDate).toBeNull();
   });
 
@@ -217,9 +209,9 @@ describe('deleting an employee', () => {
       cookie: admin,
     });
     expect(res.statusCode).toBe(204);
-    expect(await ctx.db.select().from(employees).all()).toHaveLength(0);
+    expect(await ctx.db.select().from(employees)).toHaveLength(0);
     expect(
-      (await ctx.db.select().from(auditEvents).all()).some((e) => e.action === 'employee.deleted'),
+      (await ctx.db.select().from(auditEvents)).some((e) => e.action === 'employee.deleted'),
     ).toBe(true);
   });
 
@@ -248,8 +240,7 @@ describe('deleting an employee', () => {
     await ctx.db
       .update(assignments)
       .set({ returnedAt: '2026-02-01' })
-      .where(eq(assignments.assetId, asset.id))
-      .run();
+      .where(eq(assignments.assetId, asset.id));
 
     const res = await inject(ctx.app, {
       method: 'DELETE',
@@ -258,7 +249,7 @@ describe('deleting an employee', () => {
     });
     expect(res.statusCode).toBe(204);
 
-    const history = await ctx.db.select().from(assignments).all();
+    const history = await ctx.db.select().from(assignments);
     expect(history).toHaveLength(1);
     expect(history[0]).toMatchObject({ employeeId: null, holderNameSnapshot: 'Maya Lindqvist' });
   });

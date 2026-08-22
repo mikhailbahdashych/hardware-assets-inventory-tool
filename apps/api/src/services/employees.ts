@@ -1,4 +1,4 @@
-import { and, asc, eq, isNull, ne, sql } from 'drizzle-orm';
+import { and, asc, count, eq, isNull, ne } from 'drizzle-orm';
 import type { EmployeeCreateInput, EmployeePatchInput } from '@inventory/shared';
 import type { AppDeps } from '@/types/app.js';
 import type { Db, DbOrTx } from '@/types/db.js';
@@ -26,11 +26,10 @@ const EDITABLE = [
 /** How many assets each person currently holds, keyed by employee id. */
 async function activeCounts(db: DbOrTx): Promise<Map<string, number>> {
   const rows = await db
-    .select({ employeeId: assignments.employeeId, count: sql<number>`count(*)` })
+    .select({ employeeId: assignments.employeeId, count: count() })
     .from(assignments)
     .where(isNull(assignments.returnedAt))
-    .groupBy(assignments.employeeId)
-    .all();
+    .groupBy(assignments.employeeId);
   return new Map(rows.filter((row) => row.employeeId).map((row) => [row.employeeId!, row.count]));
 }
 
@@ -40,11 +39,7 @@ export async function listEmployees(db: Db) {
   // is a genuine zero rather than a missing count.
   const counts = await activeCounts(db);
   return (
-    await db
-      .select()
-      .from(employees)
-      .orderBy(asc(employees.firstName), asc(employees.lastName))
-      .all()
+    await db.select().from(employees).orderBy(asc(employees.firstName), asc(employees.lastName))
   ).map((employee) => serializeEmployee(employee, counts.get(employee.id) ?? 0));
 }
 
@@ -54,7 +49,7 @@ export async function listEmployees(db: Db) {
  * the page independent of whether the asset list happens to be cached.
  */
 export async function getEmployeeDetail(db: Db, id: string) {
-  const employee = await db.select().from(employees).where(eq(employees.id, id)).get();
+  const [employee] = await db.select().from(employees).where(eq(employees.id, id));
   if (!employee) throw notFound('That employee');
 
   const records = (await employeeHistory(db, id)).map((row) =>
@@ -75,23 +70,20 @@ export async function createEmployee(deps: AppDeps, actor: Actor, input: Employe
     await requireFreeEmail(tx, input.email);
 
     const id = newId();
-    await tx
-      .insert(employees)
-      .values({
-        id,
-        firstName: input.firstName,
-        lastName: input.lastName,
-        email: input.email,
-        jobTitle: input.jobTitle,
-        department: input.department,
-        location: input.location,
-        employeeCode: input.employeeCode,
-        startDate: input.startDate,
-        status: 'active',
-        createdAt: at,
-        updatedAt: at,
-      })
-      .run();
+    await tx.insert(employees).values({
+      id,
+      firstName: input.firstName,
+      lastName: input.lastName,
+      email: input.email,
+      jobTitle: input.jobTitle,
+      department: input.department,
+      location: input.location,
+      employeeCode: input.employeeCode,
+      startDate: input.startDate,
+      status: 'active',
+      createdAt: at,
+      updatedAt: at,
+    });
 
     const employeeName = `${input.firstName} ${input.lastName}`;
     await writeAudit(
@@ -108,7 +100,7 @@ export async function createEmployee(deps: AppDeps, actor: Actor, input: Employe
     );
 
     return serializeEmployee(
-      (await tx.select().from(employees).where(eq(employees.id, id)).get())!,
+      (await tx.select().from(employees).where(eq(employees.id, id)))[0]!,
       0,
     );
   });
@@ -123,7 +115,7 @@ export async function updateEmployee(
   const now = deps.now();
 
   return await deps.db.transaction(async (tx) => {
-    const current = await tx.select().from(employees).where(eq(employees.id, id)).get();
+    const [current] = await tx.select().from(employees).where(eq(employees.id, id));
     if (!current) throw notFound('That employee');
 
     const values: Record<string, unknown> = {};
@@ -148,14 +140,12 @@ export async function updateEmployee(
       const open = await tx
         .select()
         .from(assignments)
-        .where(and(eq(assignments.employeeId, id), isNull(assignments.returnedAt)))
-        .all();
+        .where(and(eq(assignments.employeeId, id), isNull(assignments.returnedAt)));
       for (const assignment of open) {
         await tx
           .update(assignments)
           .set({ expectedReturnDate: patch.returnDueDate })
-          .where(eq(assignments.id, assignment.id))
-          .run();
+          .where(eq(assignments.id, assignment.id));
       }
       scheduledReturns = open.length;
     }
@@ -165,7 +155,7 @@ export async function updateEmployee(
     }
 
     values.updatedAt = nowIso(now);
-    await tx.update(employees).set(values).where(eq(employees.id, id)).run();
+    await tx.update(employees).set(values).where(eq(employees.id, id));
 
     // The audit line names the person as they are *after* the edit, so an
     // untouched half of the name reads from the stored row.
@@ -201,7 +191,7 @@ export async function updateEmployee(
     }
 
     return serializeEmployee(
-      (await tx.select().from(employees).where(eq(employees.id, id)).get())!,
+      (await tx.select().from(employees).where(eq(employees.id, id)))[0]!,
       await countHeldBy(tx, id),
     );
   });
@@ -211,7 +201,7 @@ export async function deleteEmployee(deps: AppDeps, actor: Actor, id: string): P
   const now = deps.now();
 
   await deps.db.transaction(async (tx) => {
-    const employee = await tx.select().from(employees).where(eq(employees.id, id)).get();
+    const [employee] = await tx.select().from(employees).where(eq(employees.id, id));
     if (!employee) throw notFound('That employee');
     if ((await countHeldBy(tx, id)) > 0) {
       throw new AppError(
@@ -223,7 +213,7 @@ export async function deleteEmployee(deps: AppDeps, actor: Actor, id: string): P
 
     // Past ownership records survive: employee_id goes NULL and the name
     // snapshot keeps the history readable.
-    await tx.delete(employees).where(eq(employees.id, id)).run();
+    await tx.delete(employees).where(eq(employees.id, id));
     await writeAudit(
       tx,
       {
@@ -244,7 +234,6 @@ async function countHeldBy(db: DbOrTx, employeeId: string): Promise<number> {
       .select()
       .from(assignments)
       .where(and(eq(assignments.employeeId, employeeId), isNull(assignments.returnedAt)))
-      .all()
   ).length;
 }
 
@@ -252,7 +241,8 @@ async function requireFreeEmail(tx: DbOrTx, email: string, exceptId?: string): P
   const where = exceptId
     ? and(eq(employees.email, email), ne(employees.id, exceptId))
     : eq(employees.email, email);
-  if (await tx.select().from(employees).where(where).get()) {
+  const [clash] = await tx.select().from(employees).where(where);
+  if (clash) {
     throw invalidFields(DUPLICATE_EMPLOYEE_EMAIL);
   }
 }

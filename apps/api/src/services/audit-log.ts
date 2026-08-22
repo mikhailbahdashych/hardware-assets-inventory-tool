@@ -1,4 +1,4 @@
-import { desc, eq, sql } from 'drizzle-orm';
+import { count, desc, eq } from 'drizzle-orm';
 import {
   AUDIT_TYPE_LABELS,
   AUDIT_TYPES,
@@ -30,8 +30,7 @@ export async function auditPage(db: Db, query: AuditQuery): Promise<AuditPage> {
     .where(query.type ? eq(auditEvents.type, query.type) : undefined)
     .orderBy(desc(auditEvents.at), desc(auditEvents.id))
     .limit(query.limit)
-    .offset(query.offset)
-    .all();
+    .offset(query.offset);
 
   const counts = await typeCounts(db);
   return {
@@ -49,7 +48,6 @@ export async function auditCsv(db: Db, type?: AuditType): Promise<string> {
       .from(auditEvents)
       .where(type ? eq(auditEvents.type, type) : undefined)
       .orderBy(desc(auditEvents.at), desc(auditEvents.id))
-      .all()
   ).map(toAuditItem);
 
   return toCsv(
@@ -65,10 +63,9 @@ export async function auditCsv(db: Db, type?: AuditType): Promise<string> {
 
 async function typeCounts(db: Db): Promise<AuditTypeCounts> {
   const rows = await db
-    .select({ type: auditEvents.type, count: sql<number>`count(*)` })
+    .select({ type: auditEvents.type, count: count() })
     .from(auditEvents)
-    .groupBy(auditEvents.type)
-    .all();
+    .groupBy(auditEvents.type);
 
   // Every pill needs a number even when nothing of that kind has happened, so
   // the counts start at zero rather than being absent from the map.

@@ -42,17 +42,16 @@ export async function workspaceExport(db: Db, now: Date): Promise<WorkspaceExpor
         lastActiveAt: members.lastActiveAt,
         createdAt: members.createdAt,
       })
-      .from(members)
-      .all(),
+      .from(members),
     // The roles those `role` ids name, and what each one allowed — the system
     // role has no grant rows, because its set is resolved rather than stored.
-    roles: await db.select().from(roles).orderBy(roles.sortOrder).all(),
-    rolePermissions: await db.select().from(rolePermissions).all(),
-    employees: await db.select().from(employees).all(),
-    assets: await db.select().from(assets).all(),
-    assignments: await db.select().from(assignments).all(),
-    customFieldDefs: await db.select().from(customFieldDefs).all(),
-    assetCustomValues: await db.select().from(assetCustomValues).all(),
+    roles: await db.select().from(roles).orderBy(roles.sortOrder),
+    rolePermissions: await db.select().from(rolePermissions),
+    employees: await db.select().from(employees),
+    assets: await db.select().from(assets),
+    assignments: await db.select().from(assignments),
+    customFieldDefs: await db.select().from(customFieldDefs),
+    assetCustomValues: await db.select().from(assetCustomValues),
     // Metadata only — the bytes live in DATA_DIR/uploads, which is what a real
     // backup copies. The checksum is what lets the two be checked against each
     // other after a restore; it is null for files older than the column.
@@ -67,8 +66,7 @@ export async function workspaceExport(db: Db, now: Date): Promise<WorkspaceExpor
         uploadedByMemberId: attachments.uploadedByMemberId,
         createdAt: attachments.createdAt,
       })
-      .from(attachments)
-      .all(),
-    auditEvents: await db.select().from(auditEvents).all(),
+      .from(attachments),
+    auditEvents: await db.select().from(auditEvents),
   };
 }

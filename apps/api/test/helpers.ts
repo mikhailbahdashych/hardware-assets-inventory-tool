@@ -105,19 +105,16 @@ export async function setupOrg(app: FastifyInstance): Promise<string> {
 export async function memberCookie(db: Db, role: string): Promise<string> {
   const id = newId();
   const at = nowIso();
-  await db
-    .insert(members)
-    .values({
-      id,
-      email: `${role}-${id.slice(0, 8)}@acme.io`,
-      displayName: `${role[0]!.toUpperCase()}${role.slice(1)} Person`,
-      passwordHash: 'not-used',
-      role,
-      status: 'active',
-      createdAt: at,
-      updatedAt: at,
-    })
-    .run();
+  await db.insert(members).values({
+    id,
+    email: `${role}-${id.slice(0, 8)}@acme.io`,
+    displayName: `${role[0]!.toUpperCase()}${role.slice(1)} Person`,
+    passwordHash: 'not-used',
+    role,
+    status: 'active',
+    createdAt: at,
+    updatedAt: at,
+  });
   return `inv_session=${(await createSession(db, id)).raw}`;
 }
 

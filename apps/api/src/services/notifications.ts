@@ -41,19 +41,16 @@ export async function sendOnce(deps: AppDeps, notification: Notification): Promi
     })
     // Single process on one connection, so this cannot race — the constraint is
     // the backstop for a restart mid-flight, not for concurrency.
-    .onConflictDoNothing({ target: notificationLog.dedupeKey })
-    .run();
+    .onConflictDoNothing({ target: notificationLog.dedupeKey });
 
   return true;
 }
 
 async function alreadySent(deps: AppDeps, dedupeKey: string): Promise<boolean> {
   return (
-    (await deps.db
-      .select()
-      .from(notificationLog)
-      .where(eq(notificationLog.dedupeKey, dedupeKey))
-      .get()) !== undefined
+    (
+      await deps.db.select().from(notificationLog).where(eq(notificationLog.dedupeKey, dedupeKey))
+    )[0] !== undefined
   );
 }
 

@@ -16,8 +16,7 @@ export async function createSession(db: Db, memberId: string, now: Date = new Da
   const expiresAt = new Date(now.getTime() + SESSION_TTL_MS).toISOString();
   await db
     .insert(sessions)
-    .values({ id: hashToken(raw), memberId, expiresAt, createdAt: nowIso(now) })
-    .run();
+    .values({ id: hashToken(raw), memberId, expiresAt, createdAt: nowIso(now) });
   return { raw, expiresAt };
 }
 
@@ -41,18 +40,15 @@ export function clearSessionCookie(reply: FastifyReply, config: Config): void {
 }
 
 export async function deleteSession(db: Db, rawToken: string): Promise<void> {
-  await db
-    .delete(sessions)
-    .where(eq(sessions.id, hashToken(rawToken)))
-    .run();
+  await db.delete(sessions).where(eq(sessions.id, hashToken(rawToken)));
 }
 
 export async function revokeMemberSessions(db: Db, memberId: string): Promise<void> {
-  await db.delete(sessions).where(eq(sessions.memberId, memberId)).run();
+  await db.delete(sessions).where(eq(sessions.memberId, memberId));
 }
 
 export async function pruneExpiredSessions(db: Db, now: Date = new Date()): Promise<void> {
-  await db.delete(sessions).where(lt(sessions.expiresAt, now.toISOString())).run();
+  await db.delete(sessions).where(lt(sessions.expiresAt, now.toISOString()));
 }
 
 /**
@@ -62,10 +58,10 @@ export async function pruneExpiredSessions(db: Db, now: Date = new Date()): Prom
  */
 export async function resolveSession(db: Db, rawToken: string, now: Date = new Date()) {
   const id = hashToken(rawToken);
-  const session = await db.select().from(sessions).where(eq(sessions.id, id)).get();
+  const [session] = await db.select().from(sessions).where(eq(sessions.id, id));
   if (!session) return null;
   if (new Date(session.expiresAt).getTime() <= now.getTime()) {
-    await db.delete(sessions).where(eq(sessions.id, id)).run();
+    await db.delete(sessions).where(eq(sessions.id, id));
     return null;
   }
 
@@ -73,11 +69,10 @@ export async function resolveSession(db: Db, rawToken: string, now: Date = new D
     await db
       .update(sessions)
       .set({ expiresAt: new Date(now.getTime() + SESSION_TTL_MS).toISOString() })
-      .where(eq(sessions.id, id))
-      .run();
+      .where(eq(sessions.id, id));
   }
 
-  const member = await db.select().from(members).where(eq(members.id, session.memberId)).get();
+  const [member] = await db.select().from(members).where(eq(members.id, session.memberId));
   if (!member) return null;
 
   if (
@@ -87,8 +82,7 @@ export async function resolveSession(db: Db, rawToken: string, now: Date = new D
     await db
       .update(members)
       .set({ lastActiveAt: nowIso(now) })
-      .where(eq(members.id, member.id))
-      .run();
+      .where(eq(members.id, member.id));
   }
 
   return member;

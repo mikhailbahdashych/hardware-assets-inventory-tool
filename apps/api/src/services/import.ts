@@ -24,11 +24,10 @@ const IMPORT_NOTE = 'Imported via CSV';
 
 /** Reads the state a row is judged against: existing tags, people, statuses. */
 async function importContext(db: DbOrTx): Promise<ImportContext> {
-  const tags = await db.select({ assetTag: assets.assetTag }).from(assets).all();
+  const tags = await db.select({ assetTag: assets.assetTag }).from(assets);
   const people = await db
     .select({ id: employees.id, email: employees.email, status: employees.status })
-    .from(employees)
-    .all();
+    .from(employees);
 
   return {
     existingAssetTags: new Set(tags.map((row) => row.assetTag)),
@@ -112,36 +111,32 @@ async function writeAssets(tx: DbOrTx, rows: PlannedAsset[], now: Date): Promise
 
   for (const row of rows) {
     const id = newId();
-    await tx
-      .insert(assets)
-      .values({
-        id,
-        assetTag: row.assetTag,
-        name: row.name,
-        category: row.category,
-        model: null,
-        serialNumber: row.serialNumber,
-        // openAssignment below is what actually sets `assigned`, so the row
-        // never exists in that state without its ownership record. The planner
-        // only leaves `assigned` standing when it found an active holder.
-        status: row.status === ASSIGNED_STATUS ? free.id : row.status,
-        purchaseDate: row.purchaseDate,
-        purchasePriceCents: row.purchasePriceCents,
-        currency: row.currency,
-        supplier: row.supplier,
-        warrantyUntil: row.warrantyUntil,
-        notes: row.notes,
-        createdAt: at,
-        updatedAt: at,
-      })
-      .run();
+    await tx.insert(assets).values({
+      id,
+      assetTag: row.assetTag,
+      name: row.name,
+      category: row.category,
+      model: null,
+      serialNumber: row.serialNumber,
+      // openAssignment below is what actually sets `assigned`, so the row
+      // never exists in that state without its ownership record. The planner
+      // only leaves `assigned` standing when it found an active holder.
+      status: row.status === ASSIGNED_STATUS ? free.id : row.status,
+      purchaseDate: row.purchaseDate,
+      purchasePriceCents: row.purchasePriceCents,
+      currency: row.currency,
+      supplier: row.supplier,
+      warrantyUntil: row.warrantyUntil,
+      notes: row.notes,
+      createdAt: at,
+      updatedAt: at,
+    });
 
     if (row.status === 'assigned' && row.assignedToEmployeeId !== null) {
-      const holder = await tx
+      const [holder] = await tx
         .select()
         .from(employees)
-        .where(eq(employees.id, row.assignedToEmployeeId))
-        .get();
+        .where(eq(employees.id, row.assignedToEmployeeId));
       // The planner only sets this id from the employee table inside the same
       // transaction, so a miss here is a broken invariant, not a missing row.
       if (!holder) {
@@ -193,8 +188,7 @@ async function writeEmployees(
     if (row.existingId === null) {
       await tx
         .insert(employees)
-        .values({ id: newId(), ...values, status: 'active', createdAt: at, updatedAt: at })
-        .run();
+        .values({ id: newId(), ...values, status: 'active', createdAt: at, updatedAt: at });
       created += 1;
       continue;
     }
@@ -205,8 +199,7 @@ async function writeEmployees(
     await tx
       .update(employees)
       .set({ ...values, updatedAt: at })
-      .where(eq(employees.id, row.existingId))
-      .run();
+      .where(eq(employees.id, row.existingId));
     updated += 1;
   }
 

@@ -12,8 +12,8 @@ afterEach(async () => {
 });
 
 const statusRows = async () =>
-  await ctx.db.select().from(assetStatuses).orderBy(assetStatuses.sortOrder).all();
-const edgeRows = async () => await ctx.db.select().from(assetStatusTransitions).all();
+  await ctx.db.select().from(assetStatuses).orderBy(assetStatuses.sortOrder);
+const edgeRows = async () => await ctx.db.select().from(assetStatusTransitions);
 
 /**
  * An upgraded instance must behave exactly as it did before the workflow was
@@ -67,22 +67,19 @@ describe('the boot seed lays down today’s workflow', () => {
 
   it('leaves an edited workflow alone rather than putting a deleted status back', async () => {
     ctx = await buildTestApp();
-    await ctx.db.delete(assetStatusTransitions).run();
-    await ctx.db.delete(assetStatuses).run();
-    await ctx.db
-      .insert(assetStatuses)
-      .values({
-        id: 'on_loan',
-        label: 'On loan',
-        color: 'info',
-        isSystem: false,
-        assignableFrom: true,
-        checkinTarget: true,
-        sortOrder: 0,
-        createdAt: '2026-08-17T09:00:00.000Z',
-        updatedAt: '2026-08-17T09:00:00.000Z',
-      })
-      .run();
+    await ctx.db.delete(assetStatusTransitions);
+    await ctx.db.delete(assetStatuses);
+    await ctx.db.insert(assetStatuses).values({
+      id: 'on_loan',
+      label: 'On loan',
+      color: 'info',
+      isSystem: false,
+      assignableFrom: true,
+      checkinTarget: true,
+      sortOrder: 0,
+      createdAt: '2026-08-17T09:00:00.000Z',
+      updatedAt: '2026-08-17T09:00:00.000Z',
+    });
 
     await seed(ctx.db);
 
@@ -98,8 +95,8 @@ describe('the boot seed lays down today’s workflow', () => {
    */
   it('comes back to the default after the workspace is emptied', async () => {
     ctx = await buildTestApp();
-    await ctx.db.delete(assetStatusTransitions).run();
-    await ctx.db.update(assetStatuses).set({ label: 'In stock' }).where(eq(assetStatuses.id, 'available')).run(); // prettier-ignore
+    await ctx.db.delete(assetStatusTransitions);
+    await ctx.db.update(assetStatuses).set({ label: 'In stock' }).where(eq(assetStatuses.id, 'available')); // prettier-ignore
 
     await emptyWorkspace(ctx.deps);
 

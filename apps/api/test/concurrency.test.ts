@@ -27,25 +27,22 @@ describe('transactions started together', () => {
     const results = await Promise.all(
       Array.from({ length: 8 }, (_, i) =>
         ctx.db.transaction(async (tx) => {
-          await tx
-            .insert(employees)
-            .values({
-              id: newId(),
-              firstName: `Person${i}`,
-              lastName: 'Okafor',
-              email: `person${i}@acme.io`,
-              status: 'active',
-              createdAt: at,
-              updatedAt: at,
-            })
-            .run();
+          await tx.insert(employees).values({
+            id: newId(),
+            firstName: `Person${i}`,
+            lastName: 'Okafor',
+            email: `person${i}@acme.io`,
+            status: 'active',
+            createdAt: at,
+            updatedAt: at,
+          });
           return i;
         }),
       ),
     );
 
     expect(results).toEqual([0, 1, 2, 3, 4, 5, 6, 7]);
-    expect(await ctx.db.select().from(employees).all()).toHaveLength(8);
+    expect(await ctx.db.select().from(employees)).toHaveLength(8);
   });
 
   it('a failing one rolls back alone and lets the queue behind it through', async () => {
@@ -62,15 +59,15 @@ describe('transactions started together', () => {
     });
 
     const results = await Promise.allSettled([
-      ctx.db.transaction(async (tx) => tx.insert(employees).values(row(1)).run()),
+      ctx.db.transaction(async (tx) => tx.insert(employees).values(row(1))),
       ctx.db.transaction(async () => {
         throw new Error('this one changes its mind');
       }),
-      ctx.db.transaction(async (tx) => tx.insert(employees).values(row(2)).run()),
+      ctx.db.transaction(async (tx) => tx.insert(employees).values(row(2))),
     ]);
 
     expect(results.map((result) => result.status)).toEqual(['fulfilled', 'rejected', 'fulfilled']);
-    expect(await ctx.db.select().from(employees).all()).toHaveLength(2);
+    expect(await ctx.db.select().from(employees)).toHaveLength(2);
   });
 
   it('and the same over HTTP, where the two requests really are in flight at once', async () => {
@@ -89,6 +86,6 @@ describe('transactions started together', () => {
     );
 
     expect(responses.map((res) => res.statusCode)).toEqual([200, 200, 200, 200]);
-    expect(await ctx.db.select().from(employees).all()).toHaveLength(4);
+    expect(await ctx.db.select().from(employees)).toHaveLength(4);
   });
 });

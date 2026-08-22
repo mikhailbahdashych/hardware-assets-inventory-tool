@@ -35,7 +35,7 @@ async function main(): Promise<void> {
   const config = loadConfig();
   const { db, client } = await createDb(join(config.dataDir, 'inventory.db'));
   try {
-    const member = await db.select().from(members).where(eq(members.email, email)).get();
+    const [member] = await db.select().from(members).where(eq(members.email, email));
     if (!member) {
       process.stderr.write(`\n  No member with the email ${email} in ${config.dataDir}.\n\n`);
       process.exit(1);

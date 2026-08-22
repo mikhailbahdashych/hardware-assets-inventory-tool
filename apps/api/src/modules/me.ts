@@ -24,12 +24,10 @@ export function registerMeRoutes(app: FastifyInstance, deps: AppDeps): void {
       if (request.body.widgets) patch.widgetsJson = JSON.stringify(request.body.widgets);
       patch.updatedAt = nowIso(deps.now());
 
-      await deps.db.update(members).set(patch).where(eq(members.id, request.member!.id)).run();
-      const updated = (await deps.db
-        .select()
-        .from(members)
-        .where(eq(members.id, request.member!.id))
-        .get())!;
+      await deps.db.update(members).set(patch).where(eq(members.id, request.member!.id));
+      const updated = (
+        await deps.db.select().from(members).where(eq(members.id, request.member!.id))
+      )[0]!;
       return { member: serializeMember(updated) };
     },
   );

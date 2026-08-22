@@ -31,10 +31,12 @@ export const uploadsDir = (deps: AppDeps) => join(deps.config.dataDir, 'uploads'
  * is the maintenance sweep's business, not the quota's.
  */
 export async function storageUsedBytes(db: DbOrTx): Promise<number> {
-  const row = await db
-    .select({ total: sql<number>`coalesce(sum(${attachments.sizeBytes}), 0)` })
-    .from(attachments)
-    .get();
+  const [row] = await db
+    // `.mapWith(Number)` is not decoration: Postgres sums integers into a
+    // bigint and node-postgres hands a bigint over as a string, so without it
+    // the quota would compare a number against `"2147483"` and always fit.
+    .select({ total: sql<number>`coalesce(sum(${attachments.sizeBytes}), 0)`.mapWith(Number) })
+    .from(attachments);
   // A single aggregate over a table always returns a row, even an empty table
   // — coalesce is what makes that row a zero rather than a NULL.
   if (!row) throw new Error('A sum over the attachments table returned no row.');
@@ -76,7 +78,6 @@ export async function listAttachments(db: Db, assetId: string) {
       .leftJoin(members, eq(members.id, attachments.uploadedByMemberId))
       .where(eq(attachments.assetId, assetId))
       .orderBy(attachments.createdAt)
-      .all()
   ).map((row) => serializeAttachment(row.attachment, row.uploader?.displayName ?? null));
 }
 
@@ -87,7 +88,6 @@ export async function storedNamesForAsset(db: Db, assetId: string): Promise<stri
       .select({ storedName: attachments.storedName })
       .from(attachments)
       .where(eq(attachments.assetId, assetId))
-      .all()
   ).map((row) => row.storedName);
 }
 
@@ -106,7 +106,7 @@ export async function saveAttachment(
   assetId: string,
   file: UploadedFile,
 ): Promise<AttachmentRow> {
-  const asset = await deps.db.select().from(assets).where(eq(assets.id, assetId)).get();
+  const [asset] = await deps.db.select().from(assets).where(eq(assets.id, assetId));
   if (!asset) throw notFound('That asset');
 
   const id = newId();
@@ -166,20 +166,17 @@ export async function saveAttachment(
         );
       }
 
-      await tx
-        .insert(attachments)
-        .values({
-          id,
-          assetId,
-          filename: file.filename,
-          storedName,
-          sizeBytes,
-          sha256: digest.digest('hex'),
-          mime: file.mimetype,
-          uploadedByMemberId: actor.id,
-          createdAt: nowIso(now),
-        })
-        .run();
+      await tx.insert(attachments).values({
+        id,
+        assetId,
+        filename: file.filename,
+        storedName,
+        sizeBytes,
+        sha256: digest.digest('hex'),
+        mime: file.mimetype,
+        uploadedByMemberId: actor.id,
+        createdAt: nowIso(now),
+      });
       await writeAudit(
         tx,
         {
@@ -192,7 +189,7 @@ export async function saveAttachment(
         },
         now,
       );
-      return (await tx.select().from(attachments).where(eq(attachments.id, id)).get())!;
+      return (await tx.select().from(attachments).where(eq(attachments.id, id)))[0]!;
     });
   } catch (error) {
     // The bytes are on the volume and the row that would have named them is
@@ -208,21 +205,17 @@ export async function deleteAttachment(
   actor: Actor,
   attachmentId: string,
 ): Promise<void> {
-  const row = await deps.db
-    .select()
-    .from(attachments)
-    .where(eq(attachments.id, attachmentId))
-    .get();
+  const [row] = await deps.db.select().from(attachments).where(eq(attachments.id, attachmentId));
   if (!row) throw notFound('That attachment');
   // attachments.asset_id is NOT NULL and cascades on delete, so the asset an
   // attachment names always exists. Reading it optionally would only hide the
   // day that stops being true — and write a nameless audit line.
-  const asset = await deps.db.select().from(assets).where(eq(assets.id, row.assetId)).get();
+  const [asset] = await deps.db.select().from(assets).where(eq(assets.id, row.assetId));
   if (!asset) throw notFound('That asset');
 
   const now = deps.now();
   await deps.db.transaction(async (tx) => {
-    await tx.delete(attachments).where(eq(attachments.id, row.id)).run();
+    await tx.delete(attachments).where(eq(attachments.id, row.id));
     await writeAudit(
       tx,
       {

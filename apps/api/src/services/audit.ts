@@ -20,19 +20,16 @@ export async function writeAudit(
   entry: AuditEntry,
   now: Date = new Date(),
 ): Promise<void> {
-  await db
-    .insert(auditEvents)
-    .values({
-      id: newId(),
-      at: nowIso(now),
-      type: entry.type,
-      action: entry.action,
-      actorMemberId: entry.actorMemberId ?? null,
-      actorName: entry.actorName ?? 'system',
-      assetId: entry.assetId ?? null,
-      employeeId: entry.employeeId ?? null,
-      memberId: entry.memberId ?? null,
-      params: JSON.stringify(entry.params ?? {}),
-    })
-    .run();
+  await db.insert(auditEvents).values({
+    id: newId(),
+    at: nowIso(now),
+    type: entry.type,
+    action: entry.action,
+    actorMemberId: entry.actorMemberId ?? null,
+    actorName: entry.actorName ?? 'system',
+    assetId: entry.assetId ?? null,
+    employeeId: entry.employeeId ?? null,
+    memberId: entry.memberId ?? null,
+    params: JSON.stringify(entry.params ?? {}),
+  });
 }

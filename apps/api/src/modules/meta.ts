@@ -6,7 +6,7 @@ import pkg from '../../package.json';
 /** Public instance metadata: drives the web app's /setup redirect and the login footer. */
 export function registerMetaRoutes(app: FastifyInstance, deps: AppDeps): void {
   app.get('/api/v1/meta', async () => {
-    const settings = await deps.db.select().from(orgSettings).get();
+    const [settings] = await deps.db.select().from(orgSettings);
     return {
       needsSetup: !settings,
       version: pkg.version,

@@ -76,13 +76,12 @@ describe('the dry run', () => {
     });
     expect(res.json().report.errors[0]).toMatchObject({ row: 3, column: 'category' });
 
-    expect(await ctx.db.select().from(assets).all()).toEqual([]);
+    expect(await ctx.db.select().from(assets)).toEqual([]);
     expect(
       await ctx.db
         .select()
         .from(auditEvents)
-        .where(eq(auditEvents.action, 'system.import_completed'))
-        .all(),
+        .where(eq(auditEvents.action, 'system.import_completed')),
     ).toEqual([]);
   });
 
@@ -116,7 +115,7 @@ describe('committing an asset import', () => {
     expect(res.statusCode).toBe(200);
     expect(res.json()).toEqual({ kind: 'assets', created: 2, updated: 0 });
 
-    const rows = await ctx.db.select().from(assets).all();
+    const rows = await ctx.db.select().from(assets);
     expect(rows).toHaveLength(2);
     expect(rows.find((row) => row.assetTag === 'AST-1000')).toMatchObject({
       name: 'MacBook Pro 14"',
@@ -130,8 +129,7 @@ describe('committing an asset import', () => {
     const events = await ctx.db
       .select()
       .from(auditEvents)
-      .where(eq(auditEvents.action, 'system.import_completed'))
-      .all();
+      .where(eq(auditEvents.action, 'system.import_completed'));
     expect(events).toHaveLength(1);
     expect(JSON.parse(events[0]!.params)).toEqual({ kind: 'assets', created: 2, updated: 0 });
   });
@@ -159,11 +157,11 @@ describe('committing an asset import', () => {
       ],
     });
 
-    const asset = (await ctx.db.select().from(assets).get())!;
+    const asset = (await ctx.db.select().from(assets))[0]!;
     expect(asset.status).toBe('assigned');
 
     // The invariant holds: assigned ⇔ exactly one open ownership row.
-    const open = await ctx.db.select().from(assignments).all();
+    const open = await ctx.db.select().from(assignments);
     expect(open).toHaveLength(1);
     expect(open[0]).toMatchObject({
       assetId: asset.id,
@@ -186,7 +184,7 @@ describe('committing an asset import', () => {
     expect(res.json().error.code).toBe('import_invalid');
     expect(res.json().error.message).toMatch(/1 row/);
     // Nothing at all: a half-imported file is worse than a rejected one.
-    expect(await ctx.db.select().from(assets).all()).toEqual([]);
+    expect(await ctx.db.select().from(assets)).toEqual([]);
   });
 
   it('cannot be used to skip the dry run', async () => {
@@ -228,7 +226,7 @@ describe('committing an employee import', () => {
     expect(res.statusCode).toBe(200);
     expect(res.json()).toEqual({ kind: 'employees', created: 1, updated: 1 });
 
-    const rows = await ctx.db.select().from(employees).all();
+    const rows = await ctx.db.select().from(employees);
     expect(rows).toHaveLength(2);
     const maya = rows.find((row) => row.email === 'maya.lindqvist@acme.io')!;
     expect(maya.department).toBe('Engineering');
@@ -253,7 +251,7 @@ describe('committing an employee import', () => {
       rows: [{ first_name: 'Maja', last_name: 'Lindqvist', email: 'maya.lindqvist@acme.io' }],
     });
 
-    const rows = await ctx.db.select().from(employees).all();
+    const rows = await ctx.db.select().from(employees);
     expect(rows).toHaveLength(1);
     expect(rows[0]!.id).toBe(maya.id);
     expect(rows[0]!.firstName).toBe('Maja');

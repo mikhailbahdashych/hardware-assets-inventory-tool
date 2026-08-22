@@ -101,7 +101,7 @@ describe('creating an asset', () => {
   it('follows a changed tag prefix', async () => {
     ctx = await buildTestApp();
     const admin = await setupOrg(ctx.app);
-    await ctx.db.update(orgSettings).set({ assetTagPrefix: 'HW' }).run();
+    await ctx.db.update(orgSettings).set({ assetTagPrefix: 'HW' });
 
     const created = await createAsset(admin);
     expect(created.json().asset.assetTag).toBe('HW-0001');
@@ -136,7 +136,7 @@ describe('creating an asset', () => {
       currency: 'EUR',
     });
 
-    const event = (await ctx.db.select().from(auditEvents).all()).find(
+    const event = (await ctx.db.select().from(auditEvents)).find(
       (e) => e.action === 'asset.created',
     );
     expect(event).toMatchObject({ type: 'assets', actorName: 'Tomasz Kowalski' });
@@ -158,7 +158,7 @@ describe('creating an asset', () => {
     });
     expect(res.statusCode).toBe(200);
 
-    const open = await ctx.db.select().from(assignments).all();
+    const open = await ctx.db.select().from(assignments);
     expect(open).toHaveLength(1);
     expect(open[0]).toMatchObject({
       employeeId: employee.id,
@@ -183,7 +183,7 @@ describe('creating an asset', () => {
     });
     expect(ghost.statusCode).toBe(422);
     expect(ghost.json().error.fields).toMatchObject({ assignedToEmployeeId: expect.any(String) });
-    expect(await ctx.db.select().from(assets).all()).toHaveLength(0);
+    expect(await ctx.db.select().from(assets)).toHaveLength(0);
   });
 
   it('stores custom field values against their definitions', async () => {
@@ -238,7 +238,7 @@ describe('editing an asset', () => {
     expect(res.statusCode).toBe(200);
     expect(res.json().asset).toMatchObject({ name: 'MacBook Pro 16"', supplier: null });
 
-    const event = (await ctx.db.select().from(auditEvents).all()).find(
+    const event = (await ctx.db.select().from(auditEvents)).find(
       (e) => e.action === 'asset.updated',
     );
     expect(JSON.parse(event!.params).changedFields.sort()).toEqual(['name', 'notes', 'supplier']);
@@ -256,7 +256,7 @@ describe('editing an asset', () => {
       body: { name: LAPTOP.name },
     });
     expect(
-      (await ctx.db.select().from(auditEvents).all()).filter((e) => e.action === 'asset.updated'),
+      (await ctx.db.select().from(auditEvents)).filter((e) => e.action === 'asset.updated'),
     ).toHaveLength(0);
   });
 
@@ -281,7 +281,7 @@ describe('editing an asset', () => {
       body: { status: 'in_repair' },
     });
     expect(repair.statusCode).toBe(200);
-    const event = (await ctx.db.select().from(auditEvents).all()).find(
+    const event = (await ctx.db.select().from(auditEvents)).find(
       (e) => e.action === 'asset.status_changed',
     );
     // Labels, snapshotted at write time — the same rule as holder_name_snapshot.
@@ -323,8 +323,7 @@ describe('editing an asset', () => {
           eq(assetStatusTransitions.fromStatus, 'available'),
           eq(assetStatusTransitions.toStatus, 'retired'),
         ),
-      )
-      .run();
+      );
 
     const refused = await move('retired');
     expect(refused.statusCode).toBe(409);
@@ -419,10 +418,10 @@ describe('deleting an asset', () => {
       cookie: admin,
     });
     expect(res.statusCode).toBe(204);
-    expect(await ctx.db.select().from(assets).where(eq(assets.id, id)).all()).toHaveLength(0);
-    expect(await ctx.db.select().from(assetCustomValues).all()).toHaveLength(0);
+    expect(await ctx.db.select().from(assets).where(eq(assets.id, id))).toHaveLength(0);
+    expect(await ctx.db.select().from(assetCustomValues)).toHaveLength(0);
     expect(
-      (await ctx.db.select().from(auditEvents).all()).some((e) => e.action === 'asset.deleted'),
+      (await ctx.db.select().from(auditEvents)).some((e) => e.action === 'asset.deleted'),
     ).toBe(true);
   });
 
