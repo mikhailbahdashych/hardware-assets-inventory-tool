@@ -37,6 +37,11 @@ const BUSY_TIMEOUT_MS = 5000;
  * the outer handle**, or it would queue behind the transaction it is part of.
  * Everything inside takes `tx`, which is the rule the audit-in-the-same-
  * transaction convention already enforces everywhere.
+ *
+ * `test/concurrency.test.ts` is what fails if this goes. Nothing else does:
+ * driven through `app.inject` the requests happen to take the write lock one
+ * at a time, and it is the scheduler and the CLIs that have nothing arranging
+ * that for them.
  */
 class WriteGate {
   /** Resolves when the operation currently holding the gate has released it. */
