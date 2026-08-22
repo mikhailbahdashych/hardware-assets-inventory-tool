@@ -5,12 +5,13 @@
   "type": "module",
   "scripts": {
     "dev": "DATA_DIR=${DATA_DIR:-../../data} APP_URL=${APP_URL:-http://localhost:5173} HOST=${HOST:-127.0.0.1} tsx watch src/index.ts",
-    "build": "tsup && node -e \"fs.cpSync('src/migrations','dist/migrations',{recursive:true})\"",
+    "build": "tsup && node -e \"for (const d of ['migrations','migrations-pg']) fs.cpSync(`src/${d}`,`dist/${d}`,{recursive:true})\"",
     "start": "node dist/index.js",
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc",
     "db:generate": "drizzle-kit generate",
+    "db:generate:pg": "drizzle-kit generate --config drizzle.pg.config.ts",
     "seed:demo": "DATA_DIR=${DATA_DIR:-../../data} tsx src/db/seed-demo-cli.ts",
     "seed:demo:dist": "node dist/db/seed-demo-cli.js",
     "mfa:reset": "DATA_DIR=${DATA_DIR:-../../data} tsx src/db/mfa-reset-cli.ts"
@@ -28,10 +29,12 @@
     "fastify-type-provider-zod": "^7.0.0",
     "node-cron": "^4.6.0",
     "nodemailer": "^9.0.5",
+    "pg": "^8.23.0",
     "zod": "^4.4.3"
   },
   "devDependencies": {
     "@types/nodemailer": "^8.0.1",
+    "@types/pg": "^8.23.1",
     "drizzle-kit": "^0.31.10",
     "pino-pretty": "^13.1.2",
     "tsup": "^8.5.1",
