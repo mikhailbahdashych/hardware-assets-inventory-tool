@@ -153,7 +153,7 @@ Copy `DATA_DIR`. See [`docs/backup-restore.md`](docs/backup-restore.md), which a
 - **Single replica.** The scheduler runs in-process and SQLite is one file; two containers on one volume would both fire the nightly jobs. Scale the machine, not the count.
 - **Nothing in the container runs as root, `docker compose exec` sessions included** — every process, and every shell you open into a running instance, is uid 1000. The price is that the mounted data directory has to be writable by uid 1000 before the first start, because the container has no privilege left to fix it: create `./data` yourself, or `chown -R 1000:1000 ./data`. A container that finds it unwritable says so and stops, printing both remedies.
 - **`--user root` is the escape hatch, and it heals a mount in one run.** Started that way the entrypoint does what it always did — take ownership of the data directory, drop back to uid 1000 with `setpriv`, run the app — so `docker compose run --rm --user root inventory node -e ''` is enough to hand a stray directory over, after which normal starts work again.
-- Put it behind a reverse proxy for TLS and set `APP_URL` to the public address.
+- Put it behind a reverse proxy for TLS and set `APP_URL` to the public address. [`docs/deployment.md`](docs/deployment.md) is the whole procedure — DNS, the proxy contract, copy-paste Caddy and nginx blocks, firewall, backup cron, upgrades and health checks.
 - Roughly 10,000 assets is the point where the unpaginated list endpoints stop being comfortable. Past that, open an issue — the schema is ready for Postgres, the code is not yet.
 
 ## Running it locally
