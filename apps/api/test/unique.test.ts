@@ -140,6 +140,38 @@ describe('translateUniqueViolation', () => {
     }).toEqual(preCheck.json().error);
   });
 
+  it('answers the assign 409 when the ownership index is what refused', async () => {
+    ctx = await buildTestApp();
+    const cookie = await setupOrg(ctx.app);
+    const created = await inject(ctx.app, {
+      method: 'POST',
+      url: '/api/v1/assets',
+      cookie,
+      body: { name: 'MacBook Pro 14"', category: 'laptops', status: 'available' },
+    });
+    const assetId = created.json().asset.id as string;
+
+    // Two open ownership rows for one asset is the shape of two assign
+    // requests racing: on SQLite the write lock keeps them apart, on Postgres
+    // they both read a free asset and the partial unique index is what stops
+    // the second. Either way the caller lost a race — a conflict, not a crash.
+    const open = () =>
+      ctx.db.insert(assignments).values({
+        id: newId(),
+        assetId,
+        employeeId: null,
+        holderNameSnapshot: 'Somebody',
+        checkedOutAt: '2026-01-01',
+        createdAt: at,
+      });
+    await open();
+
+    const translated = translateUniqueViolation(await violation(open));
+    expect(translated).toBeInstanceOf(AppError);
+    expect(translated!.statusCode).toBe(409);
+    expect(translated!.code).toBe('asset_unavailable');
+  });
+
   it('says nothing about a constraint it does not know, or an error that is not one', async () => {
     ctx = await buildTestApp();
     await setupOrg(ctx.app);

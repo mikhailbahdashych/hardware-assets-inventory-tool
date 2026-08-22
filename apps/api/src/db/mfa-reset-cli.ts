@@ -1,4 +1,3 @@
-import { join } from 'node:path';
 import { eq } from 'drizzle-orm';
 import { loadConfig } from '@/config.js';
 import { createDb } from '@/db/client.js';
@@ -33,7 +32,7 @@ async function main(): Promise<void> {
   }
 
   const config = loadConfig();
-  const { db, client } = await createDb(join(config.dataDir, 'inventory.db'));
+  const { db, client } = await createDb(config);
   try {
     const [member] = await db.select().from(members).where(eq(members.email, email));
     if (!member) {
@@ -72,7 +71,7 @@ async function main(): Promise<void> {
         `  on the next request if this workspace still requires one.\n\n`,
     );
   } finally {
-    client.close();
+    await client.close();
   }
 }
 

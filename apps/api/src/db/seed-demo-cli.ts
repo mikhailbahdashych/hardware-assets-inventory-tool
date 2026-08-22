@@ -30,11 +30,11 @@ async function main(): Promise<void> {
   mkdirSync(config.dataDir, { recursive: true });
   mkdirSync(join(config.dataDir, 'uploads'), { recursive: true });
 
-  const { db, client } = await createDb(join(config.dataDir, 'inventory.db'));
+  const { db, client } = await createDb(config);
   try {
     // The same two steps the server takes at boot, so this works against a
     // data directory that has never had a server pointed at it.
-    await runMigrations(db, fileURLToPath(new URL('../migrations', import.meta.url)));
+    await runMigrations(db, fileURLToPath(new URL('..', import.meta.url)));
     await seed(db);
 
     const result = await seedDemo(
@@ -59,7 +59,7 @@ async function main(): Promise<void> {
         `\n\n  Every account shares that password.\n\n`,
     );
   } finally {
-    client.close();
+    await client.close();
   }
 }
 

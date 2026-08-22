@@ -21,7 +21,7 @@ export function registerMetaRoutes(app: FastifyInstance, deps: AppDeps): void {
   });
 
   app.get('/api/v1/healthz', async () => {
-    await deps.client.execute('SELECT 1');
+    await deps.client.ping();
     return { ok: true };
   });
 }

@@ -1,8 +1,10 @@
+import { randomBytes } from 'node:crypto';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { FastifyInstance, InjectOptions } from 'fastify';
+import pg from 'pg';
 import { buildApp } from '@/app.js';
 import type { AppDeps } from '@/types/app.js';
 import type { MailMessage, Mailer } from '@/types/mail.js';
@@ -16,7 +18,56 @@ import { nowIso } from '@/lib/dates.js';
 import { newId } from '@/lib/ids.js';
 import { createSession } from '@/services/sessions.js';
 
-export const MIGRATIONS_DIR = fileURLToPath(new URL('../src/migrations', import.meta.url));
+/** Where both migration folders sit; `runMigrations` picks the one for the engine. */
+export const MIGRATIONS_ROOT = fileURLToPath(new URL('../src', import.meta.url));
+
+/**
+ * The Postgres server the suite runs against, or undefined for SQLite. Read
+ * from the environment at launch because `db/schema.ts` reads the same variable
+ * to choose its tables — running one test file on the other engine is not a
+ * thing, and this is the same switch as `npm run test:pg`.
+ */
+const PG_SERVER_URL = process.env.DATABASE_URL;
+
+/**
+ * A database of this test's own on the server `DATABASE_URL` names, migrated
+ * from empty. Vitest runs files in parallel and several tests inside one file
+ * build several workspaces, so sharing one database would have them deleting
+ * each other's rows — where SQLite gets isolation for free from a throwaway
+ * file, Postgres needs a throwaway database.
+ */
+async function createTestDatabase(serverUrl: string): Promise<string> {
+  const name = `inv_test_${randomBytes(8).toString('hex')}`;
+  const admin = new pg.Client({ connectionString: serverUrl });
+  await admin.connect();
+  try {
+    // An identifier cannot be a bound parameter, which is why the name is
+    // generated here rather than taken from anywhere.
+    await admin.query(`CREATE DATABASE "${name}"`);
+  } finally {
+    await admin.end();
+  }
+  const url = new URL(serverUrl);
+  url.pathname = `/${name}`;
+  return url.toString();
+}
+
+/** Gives the database back. The pool is closed by then; other sessions are not. */
+async function dropTestDatabase(serverUrl: string, databaseUrl: string): Promise<void> {
+  const name = new URL(databaseUrl).pathname.slice(1);
+  const admin = new pg.Client({ connectionString: serverUrl });
+  await admin.connect();
+  try {
+    // DROP DATABASE refuses while anything is connected, and a pool that has
+    // just been ended can still be releasing sockets.
+    await admin.query('SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = $1', [
+      name,
+    ]);
+    await admin.query(`DROP DATABASE IF EXISTS "${name}"`);
+  } finally {
+    await admin.end();
+  }
+}
 
 export type TestApp = {
   app: FastifyInstance;
@@ -34,28 +85,31 @@ export type TestApp = {
  * A real app on a throwaway database with the real migrations. Pass `now` to
  * pin the clock — anything that counts days from today needs a fixed one.
  *
- * A file rather than `:memory:`, because libsql hands each transaction its own
- * connection and every connection to `:memory:` is its own empty database —
- * the first commit would leave the next query looking at a schema-less one.
- * The directory goes on close, so it is throwaway either way.
+ * On SQLite that is a file rather than `:memory:`, because libsql hands each
+ * transaction its own connection and every connection to `:memory:` is its own
+ * empty database — the first commit would leave the next query looking at a
+ * schema-less one. On Postgres it is a database of this test's own, created and
+ * dropped around it. Both go on close.
  */
 export async function buildTestApp(
   env: Record<string, string> = {},
   now?: () => Date,
   logDestination?: NodeJS.WritableStream,
 ): Promise<TestApp> {
-  // A throwaway data directory per test: the database and any uploads must
-  // never touch the repo.
+  // A throwaway data directory per test: the SQLite file and any uploads must
+  // never touch the repo. Uploads land here on either engine.
   const dataDir = mkdtempSync(join(tmpdir(), 'inventory-test-'));
-  const { db, client } = await createDb(join(dataDir, 'inventory.db'));
-  await runMigrations(db, MIGRATIONS_DIR);
-  await seed(db);
+  const databaseUrl = PG_SERVER_URL ? await createTestDatabase(PG_SERVER_URL) : undefined;
   const config = loadConfig({
     NODE_ENV: 'test',
     LOG_LEVEL: 'silent',
     DATA_DIR: dataDir,
+    ...(databaseUrl ? { DATABASE_URL: databaseUrl } : {}),
     ...env,
   });
+  const { db, client } = await createDb(config);
+  await runMigrations(db, MIGRATIONS_ROOT);
+  await seed(db);
   // A recording mailer exactly when the config says this instance can send,
   // so "no SMTP" is a state the tests exercise rather than a branch they mock.
   const sent: MailMessage[] = [];
@@ -68,6 +122,11 @@ export async function buildTestApp(
     : null;
 
   const app = await buildApp({ config, db, client, now, mailer, logDestination });
+  // Every suite closes in `afterEach`, which also runs after the pure unit
+  // tests that never built an app and are looking at the previous one. Closing
+  // twice was free on libsql and throws on a pg pool, so the second call does
+  // nothing rather than every one of those files learning to reset a variable.
+  let closed = false;
   return {
     app,
     db,
@@ -75,8 +134,11 @@ export async function buildTestApp(
     sent,
     uploadsDir: join(dataDir, 'uploads'),
     close: async () => {
+      if (closed) return;
+      closed = true;
       await app.close();
-      client.close();
+      await client.close();
+      if (PG_SERVER_URL && databaseUrl) await dropTestDatabase(PG_SERVER_URL, databaseUrl);
       rmSync(dataDir, { recursive: true, force: true });
     },
   };

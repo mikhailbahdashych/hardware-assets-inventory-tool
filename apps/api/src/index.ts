@@ -17,6 +17,11 @@ const config = loadConfig();
 // directory this process may not write to. The container entrypoint takes
 // ownership of it, so reaching here means somebody ran with an explicit
 // --user or mounted something read-only — and a sentence beats a stack trace.
+//
+// The directory is needed on either engine: uploaded attachments always live
+// in it, and on SQLite the database file does too. Pointing DATABASE_URL at a
+// Postgres server moves the rows out and leaves the files behind, so `/data` is
+// still the thing to back up — alongside the server's own backups.
 try {
   mkdirSync(config.dataDir, { recursive: true });
   mkdirSync(join(config.dataDir, 'uploads'), { recursive: true });
@@ -24,15 +29,16 @@ try {
   const reason = error instanceof Error ? error.message : String(error);
   process.stderr.write(
     `Inventory cannot write to its data directory (${config.dataDir}): ${reason}\n` +
-      `It holds the database and the uploaded files, so there is nothing to do without it.\n` +
+      `It holds the uploaded files, and the database too unless DATABASE_URL is set,\n` +
+      `so there is nothing to do without it.\n` +
       `In Docker, make sure the mounted directory is writable by uid 1000, or let the\n` +
       `image start as root so its entrypoint can take ownership.\n`,
   );
   process.exit(1);
 }
 
-const { db, client } = await createDb(join(config.dataDir, 'inventory.db'));
-await runMigrations(db, fileURLToPath(new URL('./migrations', import.meta.url)));
+const { db, client } = await createDb(config);
+await runMigrations(db, fileURLToPath(new URL('.', import.meta.url)));
 await seed(db);
 
 // One omission, and nothing else would say so until somebody tries to use the
@@ -55,16 +61,19 @@ const app = await buildApp({ config, db, client, mailer });
 // on a request.
 const scheduler = startScheduler({ config, db, client, now: () => new Date(), mailer }, app.log);
 
-// A container stop is a signal, and an unflushed SQLite handle is a corrupt
-// backup waiting to happen.
+// A container stop is a signal, and what is behind `db` has to be told: an
+// unflushed SQLite handle is a corrupt backup waiting to happen, and a
+// connection pool left open is a server counting connections nobody will use.
 for (const signal of ['SIGTERM', 'SIGINT'] as const) {
   process.once(signal, () => {
     app.log.info({ signal }, 'shutting down');
     scheduler.stop();
-    void app.close().then(() => {
-      client.close();
-      process.exit(0);
-    });
+    void app
+      .close()
+      .then(() => client.close())
+      .then(() => {
+        process.exit(0);
+      });
   });
 }
 
