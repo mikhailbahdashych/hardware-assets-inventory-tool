@@ -1,5 +1,4 @@
 import { mkdirSync } from 'node:fs';
-import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { buildApp } from './app.js';
 import { loadConfig } from './config.js';
@@ -7,6 +6,7 @@ import { createDb } from './db/client.js';
 import { runMigrations } from './db/migrate.js';
 import { seed } from './db/seed.js';
 import { createMailer } from './services/mailer.js';
+import { makeStorage, uploadsDir } from './services/storage.js';
 import { startScheduler } from './services/scheduler.js';
 
 // Boot = migrate → seed → listen. Pulling a newer image and restarting IS the
@@ -18,13 +18,16 @@ const config = loadConfig();
 // ownership of it, so reaching here means somebody ran with an explicit
 // --user or mounted something read-only — and a sentence beats a stack trace.
 //
-// The directory is needed on either engine: uploaded attachments always live
-// in it, and on SQLite the database file does too. Pointing DATABASE_URL at a
-// Postgres server moves the rows out and leaves the files behind, so `/data` is
-// still the thing to back up — alongside the server's own backups.
+// The directory is needed unless both of the things it holds have been pointed
+// elsewhere: on SQLite the database file lives in it, and uploaded attachments
+// do unless S3_BUCKET names a bucket. Pointing DATABASE_URL at a Postgres
+// server moves the rows out and leaves the files behind, so `/data` is still
+// the thing to back up — alongside the server's own backups.
 try {
   mkdirSync(config.dataDir, { recursive: true });
-  mkdirSync(join(config.dataDir, 'uploads'), { recursive: true });
+  // No uploads directory on an instance whose uploads live in a bucket: there
+  // would be nothing to put in it.
+  if (config.s3Bucket === undefined) mkdirSync(uploadsDir(config), { recursive: true });
 } catch (error) {
   const reason = error instanceof Error ? error.message : String(error);
   process.stderr.write(
@@ -55,11 +58,16 @@ if (config.nodeEnv === 'production' && config.appUrl === 'http://localhost:3000'
 }
 
 const mailer = createMailer(config);
-const app = await buildApp({ config, db, client, mailer });
+const storage = makeStorage(config);
+const app = await buildApp({ config, db, client, storage, mailer });
 
 // The same deps the app is using, for the jobs that run on a clock rather than
-// on a request.
-const scheduler = startScheduler({ config, db, client, now: () => new Date(), mailer }, app.log);
+// on a request — the same storage included, or the nightly sweep would be
+// looking somewhere the uploads are not.
+const scheduler = startScheduler(
+  { config, db, client, storage, now: () => new Date(), mailer },
+  app.log,
+);
 
 // A container stop is a signal, and what is behind `db` has to be told: an
 // unflushed SQLite handle is a corrupt backup waiting to happen, and a

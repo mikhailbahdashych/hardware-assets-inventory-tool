@@ -3,6 +3,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import type { S3Client } from '@aws-sdk/client-s3';
 import type { FastifyInstance, InjectOptions } from 'fastify';
 import pg from 'pg';
 import { buildApp } from '@/app.js';
@@ -17,6 +18,7 @@ import { members } from '@/db/schema.js';
 import { nowIso } from '@/lib/dates.js';
 import { newId } from '@/lib/ids.js';
 import { createSession } from '@/services/sessions.js';
+import { makeStorage } from '@/services/storage.js';
 
 /** Where both migration folders sit; `runMigrations` picks the one for the engine. */
 export const MIGRATIONS_ROOT = fileURLToPath(new URL('../src', import.meta.url));
@@ -95,6 +97,7 @@ export async function buildTestApp(
   env: Record<string, string> = {},
   now?: () => Date,
   logDestination?: NodeJS.WritableStream,
+  s3?: S3Client,
 ): Promise<TestApp> {
   // A throwaway data directory per test: the SQLite file and any uploads must
   // never touch the repo. Uploads land here on either engine.
@@ -121,7 +124,12 @@ export async function buildTestApp(
       }
     : null;
 
-  const app = await buildApp({ config, db, client, now, mailer, logDestination });
+  // Built here rather than inside the app, because the scheduled jobs below
+  // take the same deps and the sweep has to look where the uploads went. `s3`
+  // is only consulted when the env named a bucket — that choice is the seam's,
+  // not the test's.
+  const storage = makeStorage(config, s3);
+  const app = await buildApp({ config, db, client, now, storage, mailer, logDestination });
   // Every suite closes in `afterEach`, which also runs after the pure unit
   // tests that never built an app and are looking at the previous one. Closing
   // twice was free on libsql and throws on a pg pool, so the second call does
@@ -130,7 +138,7 @@ export async function buildTestApp(
   return {
     app,
     db,
-    deps: { config, db, client, now: now ?? (() => new Date()), mailer },
+    deps: { config, db, client, storage, now: now ?? (() => new Date()), mailer },
     sent,
     uploadsDir: join(dataDir, 'uploads'),
     close: async () => {

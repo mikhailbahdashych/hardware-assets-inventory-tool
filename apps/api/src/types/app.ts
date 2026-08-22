@@ -1,6 +1,7 @@
 import type { Config } from '@/types/config.js';
 import type { Db, DbClient } from '@/types/db.js';
 import type { Mailer } from '@/types/mail.js';
+import type { AttachmentStorage } from '@/types/storage.js';
 
 /**
  * Everything a route or a service is handed. Nothing here is looked up from
@@ -14,6 +15,11 @@ export interface AppDeps {
    * that closes it. Every query goes through `db`.
    */
   client: DbClient;
+  /**
+   * Where attachment bytes go: the volume, or a bucket when one is named. The
+   * services never learn which — see `src/services/storage.ts`.
+   */
+  storage: AttachmentStorage;
   /** Injectable clock — tests control time through it. */
   now: () => Date;
   /**
@@ -30,6 +36,8 @@ export interface BuildAppOptions {
   db: Db;
   client: DbClient;
   now?: () => Date;
+  /** Omitted means "build one from the config" — the volume, or the bucket. */
+  storage?: AttachmentStorage;
   /** Omitted means "build one from the config", which may still be null. */
   mailer?: Mailer | null;
   /**

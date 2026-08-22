@@ -1,8 +1,5 @@
 import { createHash } from 'node:crypto';
-import { createWriteStream } from 'node:fs';
-import { mkdir, unlink } from 'node:fs/promises';
-import { extname, join } from 'node:path';
-import { pipeline } from 'node:stream/promises';
+import { extname } from 'node:path';
 import { eq, sql } from 'drizzle-orm';
 import { isAllowedAttachment } from '@inventory/shared';
 import type { AppDeps } from '@/types/app.js';
@@ -21,9 +18,6 @@ export type AttachmentRow = typeof attachments.$inferSelect;
 export const MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024;
 
 const BYTES_PER_MB = 1024 * 1024;
-
-/** Files live beside the database on the one volume a self-host has to back up. */
-export const uploadsDir = (deps: AppDeps) => join(deps.config.dataDir, 'uploads');
 
 /**
  * What the workspace's attachments add up to, from the rows rather than the
@@ -92,13 +86,17 @@ export async function storedNamesForAsset(db: Db, assetId: string): Promise<stri
 }
 
 /**
- * Streams an upload to disk under a name we generate. The caller's filename is
- * kept only as a label — it is never used as a path, and never trusted.
+ * Stores an upload under a name we generate. The caller's filename is kept only
+ * as a label — it is never used as a path or a key, and never trusted.
  *
  * Two policies stand in front of it: the type allowlist, checked on the
- * sanitized extension before a single byte is written, and the workspace's
- * storage quota, checked inside the transaction that would record the file —
- * so two uploads racing each other cannot both find room in the same gap.
+ * sanitized extension before a single byte is read, and the workspace's storage
+ * quota, checked inside the transaction that would record the file — so two
+ * uploads racing each other cannot both find room in the same gap.
+ *
+ * The part is buffered rather than piped, because a bucket takes a body rather
+ * than a stream of one. @fastify/multipart stops at 10 MB, so that is the whole
+ * of what can be held — the same limit that was already the file's ceiling.
  */
 export async function saveAttachment(
   deps: AppDeps,
@@ -125,31 +123,30 @@ export async function saveAttachment(
     );
   }
 
-  const directory = uploadsDir(deps);
-  await mkdir(directory, { recursive: true });
-
   const storedName = `${id}${extension}`;
-  const target = join(directory, storedName);
 
   const digest = createHash('sha256');
+  const chunks: Buffer[] = [];
   let sizeBytes = 0;
-  file.stream.on('data', (chunk: Buffer) => {
-    sizeBytes += chunk.length;
-    digest.update(chunk);
-  });
-
-  try {
-    await pipeline(file.stream, createWriteStream(target));
-  } catch (error) {
-    await unlink(target).catch(() => {});
-    throw error;
+  for await (const chunk of file.stream) {
+    const bytes = Buffer.from(chunk);
+    chunks.push(bytes);
+    sizeBytes += bytes.length;
+    digest.update(bytes);
   }
 
-  // @fastify/multipart truncates past the limit rather than throwing, so the
-  // half-written file has to be cleaned up here.
+  // @fastify/multipart truncates past the limit rather than throwing, so what
+  // arrived is the front of a file and nothing may be stored under its name.
   if (file.stream.truncated) {
-    await unlink(target).catch(() => {});
     throw new AppError(413, 'file_too_large', 'Attachments are limited to 10 MB.');
+  }
+
+  try {
+    await deps.storage.put(storedName, Buffer.concat(chunks), file.mimetype);
+  } catch (error) {
+    // A put that failed partway may still have left something under the name.
+    await deps.storage.remove(storedName).catch(() => {});
+    throw error;
   }
 
   const now = deps.now();
@@ -192,10 +189,10 @@ export async function saveAttachment(
       return (await tx.select().from(attachments).where(eq(attachments.id, id)))[0]!;
     });
   } catch (error) {
-    // The bytes are on the volume and the row that would have named them is
-    // not, which is exactly what the orphan sweep exists to catch — but a file
-    // refused for filling the disk must not be the thing that fills it.
-    await unlink(target).catch(() => {});
+    // The bytes are stored and the row that would have named them is not, which
+    // is exactly what the orphan sweep exists to catch — but a file refused for
+    // filling the disk must not be the thing that fills it.
+    await deps.storage.remove(storedName).catch(() => {});
     throw error;
   }
 }
@@ -231,12 +228,10 @@ export async function deleteAttachment(
   });
 
   // Best effort: the row is the record of truth, and a stray file is harmless.
-  await unlink(join(uploadsDir(deps), row.storedName)).catch(() => {});
+  await deps.storage.remove(row.storedName).catch(() => {});
 }
 
 /** Removes the files an asset owned; call after the rows have cascaded away. */
 export async function removeStoredFiles(deps: AppDeps, storedNames: string[]): Promise<void> {
-  await Promise.all(
-    storedNames.map((name) => unlink(join(uploadsDir(deps), name)).catch(() => {})),
-  );
+  await Promise.all(storedNames.map((name) => deps.storage.remove(name).catch(() => {})));
 }
