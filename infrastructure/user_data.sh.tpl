@@ -15,8 +15,13 @@ set -euxo pipefail
 # middle of this script. Until then the instance is on a different auto-assigned
 # address, and every connection open across the swap dies — a `dnf install`
 # among them. So the first thing to do here is nothing, until the swap lands.
+#
+# The token has to outlive the loop that uses it. At 300 seconds it expires on
+# the last iteration of a 60 × 5 s wait, and the `|| true` below would swallow
+# the 401 — turning "the address never arrived" into "the token died", which
+# reads identically in the log and is not the same problem.
 imds_token="$(curl -fsS -X PUT http://169.254.169.254/latest/api/token \
-  -H 'X-aws-ec2-metadata-token-ttl-seconds: 300')"
+  -H 'X-aws-ec2-metadata-token-ttl-seconds: 21600')"
 for _ in $(seq 1 60); do
   current_ip="$(curl -fsS -H "X-aws-ec2-metadata-token: $${imds_token}" \
     http://169.254.169.254/latest/meta-data/public-ipv4 || true)"

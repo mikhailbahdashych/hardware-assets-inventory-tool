@@ -40,7 +40,7 @@ instance_type = "t4g.medium"
 
 Terraform stops the instance, resizes it, and starts it again. The instance id survives, the Elastic IP stays put, and the container comes back on its own because it runs with `--restart=always`. A minute or two of downtime.
 
-**Across architectures it is a replacement instead**, and that is correct rather than a mistake: `data.aws_ami.al2023` derives its architecture from `instance_type` (`ec2.tf`), so `t4g.small` → `t3.small` swaps the AMI to x86_64 in the same plan, and a different AMI is a different machine. You will see `# aws_instance.app must be replaced` and `~ ami = "ami-…" -> (known after apply)`. Nothing else has to change: there is no `architecture` variable to keep in step, deliberately.
+**Across architectures it is a replacement instead**, and that is correct rather than a mistake: `data.aws_ami.al2023` derives its architecture from `instance_type` (`ec2.tf`), so `t4g.small` → `t3.small` swaps the AMI to x86_64 in the same plan, and a different AMI is a different machine. You will see `# aws_instance.app must be replaced` and both AMI ids spelled out — `~ ami = "ami-043e4…" -> "ami-02d33…"` — because `data.aws_ami.al2023` is resolved during the plan, not deferred to the apply: the only thing it depends on is the architecture, and the architecture comes from `instance_type`, which you just typed. So the plan tells you exactly which image the new machine will boot, and it is worth reading rather than skimming. Nothing else has to change: there is no `architecture` variable to keep in step, deliberately.
 
 **The step people forget:** t-family instances are burstable, and `t4g` launches in **unlimited** mode by default — so an instance that has been over its CPU baseline for weeks does not throttle, it quietly bills surplus credits. If you are resizing because of cost rather than speed, `CPUSurplusCreditsCharged` in CloudWatch is the metric that says whether a bigger instance is the fix or whether you have been paying for one all along.
 
@@ -69,7 +69,7 @@ domain          = "inventory.example.com"
 route53_zone_id = "Z0123456789ABCDEFGHIJ"
 ```
 
-Both or neither — `variables.tf` has a validation that refuses half, because a certificate with nowhere to prove itself hangs for forty-five minutes before failing.
+Both or neither — `variables.tf` has a validation that refuses half, because a certificate with nowhere to prove itself hangs for the whole of `aws_acm_certificate_validation`'s default create timeout (**75 minutes**) before failing.
 
 **What gets created** (everything in `infrastructure/dns.tf`, all of it `count = local.domain_enabled ? 1 : 0`): an ACM certificate validated over DNS, the Route53 record that validates it, an Application Load Balancer across both public subnets, a target group on the instance's port 80, a listener on 443 with a 301 from 80, and the A alias. Plus one rule on the instance's own security group that lets the balancer in.
 

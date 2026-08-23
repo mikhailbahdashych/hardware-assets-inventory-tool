@@ -69,6 +69,8 @@ terraform output app_url
 
 If the address answers nothing for the first minute or two, that is `user_data` still working: it waits for the Elastic IP to be attached, installs Docker, downloads the RDS certificate bundle, reads the connection string out of SSM and starts the container. [When it does not work](#when-it-does-not-work) is at the bottom.
 
+**One thing to know before the first apply: until this project publishes a release, the default `app_image` tag does not exist.** Terraform does not pull the image — `user_data` does, on the instance, after Terraform has finished — so an apply against a tag that is not there **succeeds**, prints an `app_url`, and leaves you with an address that answers nothing and a stack that looks fine in every `terraform` command you can type. The evidence is on the instance, in `/var/log/cloud-init-output.log`, where the `docker pull` says `manifest unknown`. Point `app_image` at a tag that exists: a published release once there is one, or your own build in ECR (`aws ecr create-repository`, `docker build --platform linux/arm64`, push, and set `app_image` to the resulting URI — the instance role grows the pull grants on its own when the string names an ECR registry).
+
 ## Tearing it down
 
 ```bash
@@ -97,6 +99,19 @@ terraform destroy
 ```
 
 Both `delete-objects` calls fail with a malformed-XML error when there is nothing left to delete, which means they worked. `terraform destroy` is the thing to believe.
+
+Two things about that snippet. `list-object-versions` returns at most 1000 versions per call and `delete-objects` accepts at most 1000 keys per call, so on a bucket with more than that it deletes the first page and then `destroy` fails again — on a bucket that is emptier but still not empty. Run the pair in a loop until the listing comes back empty:
+
+```bash
+while true; do
+  VERSIONS="$(aws s3api list-object-versions --bucket "$BUCKET" --max-items 1000 \
+    --query '{Objects: [Versions, DeleteMarkers][][].{Key:Key,VersionId:VersionId}}' --output json)"
+  echo "$VERSIONS" | grep -q '"Key"' || break
+  aws s3api delete-objects --bucket "$BUCKET" --delete "$VERSIONS" > /dev/null
+done
+```
+
+And the honest answer is that `bucket_force_destroy = true` does all of this for you, correctly and in one pass. The manual route is for when you want to look at what you are deleting first.
 
 **Nothing else survives a destroy.** The RDS instance is created with `skip_final_snapshot = true` and `deletion_protection = false`, so it leaves no snapshot behind and nothing refuses. That is the right default for a starter and the wrong one for production — see [Before you call it production](#before-you-call-it-production).
 
@@ -202,16 +217,17 @@ You get an ACM certificate validated over DNS, an Application Load Balancer acro
 
 Because `APP_URL` changes, **turning this on replaces the instance** — same three minutes as an upgrade.
 
-**This half has never been applied.** The default path — no domain, the app on its Elastic IP — is the one that gets stood up and torn down for real; the domain module was written and reviewed against the provider's documentation and not run. It is straightforward Terraform and there is nothing exotic in it, but treat the first `apply` with a domain as something to watch rather than something to trust, and expect to fix a detail or two. The certificate validation in particular waits on ACM seeing a DNS record, which is where a wrong zone id costs you forty-five minutes before it says so.
+**This half has never been applied.** The default path — no domain, the app on its Elastic IP — is the one that gets stood up and torn down for real; the domain module was written and reviewed against the provider's documentation and not run. It is straightforward Terraform and there is nothing exotic in it, but treat the first `apply` with a domain as something to watch rather than something to trust, and expect to fix a detail or two. The certificate validation in particular waits on ACM seeing a DNS record, which is where a wrong zone id costs you the full `aws_acm_certificate_validation` create timeout — **75 minutes** by default — before it says so.
 
 ## Before you call it production
 
-The defaults here are a starter's defaults: everything is arranged so that the stack goes up in fifteen minutes and comes down in two. Four lines is the difference.
+The defaults here are a starter's defaults: everything is arranged so that the stack goes up in fifteen minutes and comes down in two. One of the differences is a decision; the rest are four lines.
 
-1. **`deletion_protection = true`** in `rds.tf`. Off, today, so `destroy` works.
-2. **`skip_final_snapshot = false`** in `rds.tf`, with a `final_snapshot_identifier`. Off, today, for the same reason.
-3. **`multi_az = true`** in `rds.tf`, if an availability zone going away should not be an outage. It roughly doubles the database cost.
-4. **Move the state.** It is local and git-ignored, which is right for one operator and wrong for two. Add a backend block to `providers.tf` and re-init:
+1. **Put TLS in front of it.** This is the one that is not a line, and it is first because the default is worse than it looks: with no `domain`, the app answers on a public IP over **plain HTTP** — and that is the transport for `/setup`, for every sign-in, and for the session cookie that comes back. Anyone on the path reads the admin password. Set `domain` and `route53_zone_id` for the load balancer and its certificate ([The domain module](#the-domain-module)), or terminate TLS on the instance yourself ([`docs/deployment.md`](../docs/deployment.md) has the Caddy block, and port 443 is already open for it). Until you do, treat the address as something to finish setup on and not something to hand around.
+2. **`deletion_protection = true`** in `rds.tf`. Off, today, so `destroy` works.
+3. **`skip_final_snapshot = false`** in `rds.tf`, with a `final_snapshot_identifier`. Off, today, for the same reason.
+4. **`multi_az = true`** in `rds.tf`, if an availability zone going away should not be an outage. It roughly doubles the database cost.
+5. **Move the state.** It is local and git-ignored, which is right for one operator and wrong for two. Add a backend block to `providers.tf` and re-init:
 
    ```hcl
    terraform {

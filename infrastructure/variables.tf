@@ -82,7 +82,8 @@ variable "route53_zone_id" {
   validation {
     # Half the domain module is not a state anything can be applied from: a
     # certificate with nowhere to prove itself never validates, and an apply
-    # would hang for the full 45 minutes before saying so.
+    # would hang for the whole of aws_acm_certificate_validation's default
+    # create timeout — 75 minutes — before saying so.
     condition     = (var.domain == null) == (var.route53_zone_id == null)
     error_message = "Set both domain and route53_zone_id, or neither."
   }

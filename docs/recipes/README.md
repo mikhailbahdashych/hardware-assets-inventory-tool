@@ -22,6 +22,6 @@ Two things hold across every recipe:
 - **Write the failing test first.** Not a ritual: the repo's tests are how you find the six places a field has to appear, because five of them already have one.
 - **Domain vocabulary starts in `packages/shared`.** If a change means a new word — a status, a label, a permission — it begins there and ripples outward. Starting anywhere else means two places will disagree.
 
-[`change-infrastructure.md`](change-infrastructure.md) is the exception to both, and says so: Terraform is configuration, there is no failing test to write, and the guard rail is the plan you read before you apply.
+[`change-infrastructure.md`](change-infrastructure.md) is the exception to the first, and says so: Terraform is configuration, there is no failing test to write, and the guard rail is the plan you read before you apply. The second still holds there as everywhere else.
 
 Read [`/CLAUDE.md`](../../CLAUDE.md) once, and the `CLAUDE.md` next to whatever you are editing every time.
