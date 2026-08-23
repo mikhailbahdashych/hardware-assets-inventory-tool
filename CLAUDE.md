@@ -12,6 +12,7 @@ This repo is built to be customized by asking Claude Code. Every area has its ow
 - `apps/api` — Fastify API + SQLite or PostgreSQL (Drizzle over libsql / node-postgres, async end to end). REST under `/api/v1`, sessions + RBAC + audit log, serves the built SPA in production. See `apps/api/CLAUDE.md`.
 - `packages/shared` — **single source of truth** for enums, label/color maps, RBAC and zod schemas. Both apps import it; change domain vocabulary here first. See `packages/shared/CLAUDE.md`.
 - `e2e` — Playwright tests against the production build. See `e2e/CLAUDE.md`.
+- `infrastructure` — flat Terraform for the full-scale AWS deployment: VPC, EC2 running the published image, RDS PostgreSQL, a private S3 bucket. It knows nothing about the domain — it produces `DATABASE_URL`, `S3_BUCKET`, `APP_URL` and hands them to a container. One responsibility per `.tf` file; `terraform fmt` and `validate` are a CI job. See `infrastructure/README.md` and the recipe `docs/recipes/change-infrastructure.md`.
 - `apps/web/src/features/dev/KitchenSink.tsx` → **`/kitchen-sink`** (dev-only route). The design system, rendered. **Visual source of truth**; open it beside whatever you are building.
 
 ## Commands

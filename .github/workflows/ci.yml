@@ -140,3 +140,34 @@ jobs:
       - name: Container logs
         if: always()
         run: docker logs inventory
+
+  # The infrastructure, checked the only way configuration can be checked
+  # without an account to apply it against: it parses, it is formatted, and
+  # every resource, attribute and provider name in it is one that exists.
+  # `init -backend=false` is what makes that possible: it downloads the
+  # providers whose schemas `validate` checks the configuration against, and
+  # touches no state, no credentials and nothing in AWS.
+  terraform:
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: infrastructure
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          # Pinned to the line the committed .terraform.lock.hcl was written
+          # by, so CI resolves the same providers a laptop does.
+          terraform_version: '~1.14.0'
+
+      - name: Format check
+        run: terraform fmt -check -recursive
+
+      - name: Init
+        run: terraform init -backend=false
+
+      - name: Validate
+        run: terraform validate
