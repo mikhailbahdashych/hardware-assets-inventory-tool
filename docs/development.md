@@ -69,7 +69,7 @@ It also means every screen is empty, and this app is largely about history — w
 
 Sign in as any of the four to see what that role can do — the viewer has no mutation affordances anywhere, the manager has no Admin section, and Auditor is the role the demo workspace invented for itself on the Roles page: two ticks, so the activity log and the export open and nothing else does.
 
-Every date is relative to the moment you ran it, so warranties are always about to lapse and returns are always about to fall due. It refuses to touch a workspace that already has data; add `-- --reset` (native) or `--reset` (Docker) to replace one.
+Every date is relative to the moment you ran it, so warranties are always about to lapse and returns are always about to fall due. It refuses to touch a workspace that already has data; `npm run seed:demo -- --reset` replaces one. The `--` is not decoration: without it npm reads `--reset` as a flag of its own and the seeder never sees it, which looks exactly like the refusal you were trying to answer. That holds in Docker too, where the whole command is `docker compose -f docker-compose.dev.yml run --rm app npm run seed:demo -- --reset`.
 
 **Starting over completely:** delete `./data` natively, or `docker compose -f docker-compose.dev.yml down -v` in Docker. Both leave you at `/setup` again.
 
