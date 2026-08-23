@@ -27,6 +27,13 @@ e2e/blob-report/
 e2e/.data/
 e2e/.auth/
 
+# Terraform's working directory. infrastructure/.gitignore says this too, for
+# whoever reads that directory on its own — but it has to be here as well:
+# prettier takes its ignore list from the root .gitignore only, and `npm run
+# format:check` walks into an un-ignored .terraform/ and chokes on a 700 MB
+# provider binary.
+.terraform/
+
 # Working notes for whoever is actively building the thing — a scratchpad for
 # one person's session, not a description of the product. What an adopting
 # team needs is in the CLAUDE.md files and docs/, which are checked in.
