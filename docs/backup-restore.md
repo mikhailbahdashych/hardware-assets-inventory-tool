@@ -12,7 +12,7 @@ Everything this app keeps lives in one directory — `DATA_DIR`, which is `/data
 
 Back up that directory and you have backed up the product. There is nothing else — no external cache, no queue, no secret at rest.
 
-That is the default instance, and everything up to [Restore](#restore) describes it. An instance with `DATABASE_URL` or `S3_BUCKET` set has moved part of its state out of the directory, and backs it up somewhere else — [PostgreSQL and S3](#postgresql-and-s3).
+That is the default instance, and everything above [PostgreSQL and S3](#postgresql-and-s3) describes it. Setting `DATABASE_URL` or `S3_BUCKET` moves part of the state out of the directory, and that section is where it is backed up instead.
 
 ## Cold backup: stop, copy, start
 
@@ -91,6 +91,6 @@ Then you know.
 
 ## Notes
 
-- **Single replica.** The nightly jobs run in-process and SQLite is one file; two containers on one volume would both fire. This matters for backups too: one writer means one consistent thing to copy.
+- **Single replica.** The nightly jobs run in-process, so two containers would both fire them — on either engine. It matters here because it is also what makes a backup simple: one writer means one consistent thing to copy.
 - **Snapshot the volume if your host can.** A filesystem or block-level snapshot of a stopped container is equivalent to the cold copy and usually faster.
 - The database is small. A workspace with 10,000 assets and their full history is a few tens of megabytes; the attachments are what take space.
