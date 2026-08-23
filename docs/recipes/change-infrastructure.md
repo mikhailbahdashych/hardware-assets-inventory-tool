@@ -20,7 +20,7 @@ terraform plan               # and then actually read it
 Two things to know about the plan before you trust one:
 
 - **The instance is disposable and the plan will happily say so.** `aws_instance.app` carries `user_data_replace_on_change = true`, so anything that changes the boot script — a new image tag, a new `APP_URL`, a new bucket name — replaces the machine. That is two or three minutes of downtime and no data loss, because the rows are in RDS and the attachments are in S3.
-- **`aws_db_instance.main` being replaced is a different sentence entirely.** It means the live database is destroyed and a new empty one is created. Nothing in this recipe should ever produce that except [restoring from a snapshot](#5-restore-the-database-from-a-snapshot), and there it is the point. If you see it anywhere else, stop.
+- **`aws_db_instance.main` being replaced is a different sentence entirely.** It means the live database is destroyed and a new empty one is created. Nothing in this recipe should ever produce that except [restoring from a snapshot](#5-restore-the-database-from-a-snapshot--infrastructurerdstf), and there it is the point. If you see it anywhere else, stop.
 
 ---
 

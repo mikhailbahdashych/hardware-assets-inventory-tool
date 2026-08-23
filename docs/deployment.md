@@ -49,7 +49,7 @@ services:
       - ./data:/data
     environment:
       APP_URL: https://inventory.example.com
-      TRUST_PROXY: 'true'
+      TRUST_PROXY: '1'
       # The nightly jobs run on wall-clock time, so this decides when 08:00 is.
       TZ: Europe/Berlin
 ```
@@ -77,11 +77,11 @@ Four rules, and the app asks for nothing else.
 
 The default is `http://localhost:3000`, which is right for a laptop and wrong for everything else. A production instance still carrying it prints a warning to stderr on boot naming this variable.
 
-**4. `TRUST_PROXY=true` behind a proxy — and never without one.** It decides what the app believes the client's address is, and the rate limits are keyed on that: ten sign-in attempts per 15 minutes, five password-reset requests an hour, ten invite or reset token uses an hour, each per address.
+**4. `TRUST_PROXY=1` behind a proxy — and never without one.** It decides what the app believes the client's address is, and the rate limits are keyed on that: ten sign-in attempts per 15 minutes, five password-reset requests an hour, ten invite or reset token uses an hour, each per address.
 
 Behind a proxy without it, every request in the world arrives as the proxy's own address and shares one bucket — ten bad passwords from one stranger lock the whole workspace out for fifteen minutes. Set on an instance with nothing in front of it, it is worse: `X-Forwarded-For` is then a header any client writes for itself, so an attacker takes a fresh address per attempt and the limits stop existing. That is why it is off by default and per deployment.
 
-It also accepts a hop count or a comma-separated list of proxy addresses, if `true` is more trust than your topology deserves. And it decides what the `ip` field in every request log line says, which is the other reason to want it right.
+**A hop count, and not `true`, which is the value most guides print.** `true` means "trust every entry in `X-Forwarded-For`", and the app then reads the left-most one as the client — correct only for a proxy that _replaces_ the header. The nginx block below appends instead: `$proxy_add_x_forwarded_for` is "whatever arrived, plus the address I saw", so under `true` a caller who sends their own `X-Forwarded-For` names their own address, takes a fresh rate-limit bucket per request, and writes your log for you. `1` is one proxy directly in front — the address the app believes is then the one your proxy actually saw. Two proxies in a chain is `2`, and a comma-separated list of your proxies' own addresses is the precise version if you know them. This is also what decides the `ip` field in every request log line, which is the other reason to want it right.
 
 ## The proxy itself
 
@@ -251,7 +251,7 @@ Moving an existing workspace across is an export and an import, not a migration:
 
 **Every save 403s in the browser, but curl works.** `APP_URL` is wrong. The origin guard compares the browser's `Origin` against `APP_URL`'s origin exactly; curl sends no `Origin` at all, so it sails past the same check. The 403 names the origin this instance expects — compare it with the address bar, character for character.
 
-**Ten bad logins locked everybody out.** `TRUST_PROXY` is unset behind a proxy, so every request shares the proxy's address and its bucket. Set it to `true` and restart.
+**Ten bad logins locked everybody out.** `TRUST_PROXY` is unset behind a proxy, so every request shares the proxy's address and its bucket. Set it to `1` — one proxy in front — and restart.
 
 **The container prints "The data directory … is not writable" and stops.** The mounted directory is not writable by uid 1000. `chown -R 1000:1000 /srv/inventory/data`, or take the one-run root heal the message itself prints.
 
