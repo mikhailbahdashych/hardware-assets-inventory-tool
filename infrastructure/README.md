@@ -48,7 +48,7 @@ No file here is a module and no file here has a `count` on it for cleverness's s
 - Terraform ≥ 1.9 (CI pins 1.14.x).
 - AWS credentials with enough rights to create everything above. This is not a least-privilege deployment role; it is an operator running `apply` from a laptop.
 - The [Session Manager plugin](https://docs.aws.amazon.com/systems-manager/latest/userguide/session-manager-working-with-install-plugin.html) for the AWS CLI, if you want a shell on the instance. There is no SSH key in this stack and no port 22 in any security group.
-- A published image tag. The default is `ghcr.io/mikhailbahdashych/hardware-assets-inventory-tool:latest`; pin a real release in your `terraform.tfvars` so an upgrade is a decision rather than a reboot.
+- An image tag that exists — and **the default is not one yet**. `ghcr.io/mikhailbahdashych/hardware-assets-inventory-tool:latest` is unpublished until this project cuts a release, and an apply against it _succeeds_ while leaving you nothing to open; [Applying it](#applying-it) has the symptom and the two ways out. Whichever you point `app_image` at, pin a release rather than tracking a moving tag, so an upgrade is a decision rather than a reboot.
 
 ## Applying it
 
@@ -69,7 +69,7 @@ terraform output app_url
 
 If the address answers nothing for the first minute or two, that is `user_data` still working: it waits for the Elastic IP to be attached, installs Docker, downloads the RDS certificate bundle, reads the connection string out of SSM and starts the container. [When it does not work](#when-it-does-not-work) is at the bottom.
 
-**One thing to know before the first apply: until this project publishes a release, the default `app_image` tag does not exist.** Terraform does not pull the image — `user_data` does, on the instance, after Terraform has finished — so an apply against a tag that is not there **succeeds**, prints an `app_url`, and leaves you with an address that answers nothing and a stack that looks fine in every `terraform` command you can type. The evidence is on the instance, in `/var/log/cloud-init-output.log`, where the `docker pull` says `manifest unknown`. Point `app_image` at a tag that exists: a published release once there is one, or your own build in ECR (`aws ecr create-repository`, `docker build --platform linux/arm64`, push, and set `app_image` to the resulting URI — the instance role grows the pull grants on its own when the string names an ECR registry).
+**The first apply's likeliest surprise, in full: until this project publishes a release, the default `app_image` tag does not exist.** Terraform does not pull the image — `user_data` does, on the instance, after Terraform has finished — so an apply against a tag that is not there **succeeds**, prints an `app_url`, and leaves you with an address that answers nothing and a stack that looks fine in every `terraform` command you can type. The evidence is on the instance, in `/var/log/cloud-init-output.log`, where the `docker pull` says `manifest unknown`. Point `app_image` at a tag that exists: a published release once there is one, or your own build in ECR (`aws ecr create-repository`, `docker build --platform linux/arm64`, push, and set `app_image` to the resulting URI — the instance role grows the pull grants on its own when the string names an ECR registry).
 
 ## Tearing it down
 
@@ -100,14 +100,14 @@ terraform destroy
 
 Both `delete-objects` calls fail with a malformed-XML error when there is nothing left to delete, which means they worked. `terraform destroy` is the thing to believe.
 
-Two things about that snippet. `list-object-versions` returns at most 1000 versions per call and `delete-objects` accepts at most 1000 keys per call, so on a bucket with more than that it deletes the first page and then `destroy` fails again — on a bucket that is emptier but still not empty. Run the pair in a loop until the listing comes back empty:
+Two things about that snippet, and the first is a trap. It passes no `--max-items`, and the CLI auto-paginates `list-object-versions` — so `--query` assembles _every_ version into a single `delete-objects` payload, and that call caps at 1000 keys. Past a thousand it does not delete a first page and stop: it deletes **nothing**, and it fails with the same malformed-XML error the line above just told you to read as success. A bucket with 1500 objects hands you the documented all-clear over an untouched bucket, and the confusion arrives a minute later, when `destroy` fails anyway. Run it as a loop instead, which pages through and stops when the listing is empty:
 
 ```bash
 while true; do
   VERSIONS="$(aws s3api list-object-versions --bucket "$BUCKET" --max-items 1000 \
     --query '{Objects: [Versions, DeleteMarkers][][].{Key:Key,VersionId:VersionId}}' --output json)"
   echo "$VERSIONS" | grep -q '"Key"' || break
-  aws s3api delete-objects --bucket "$BUCKET" --delete "$VERSIONS" > /dev/null
+  aws s3api delete-objects --bucket "$BUCKET" --delete "$VERSIONS" > /dev/null || break
 done
 ```
 
