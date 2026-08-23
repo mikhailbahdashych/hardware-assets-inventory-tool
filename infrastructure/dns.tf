@@ -117,6 +117,11 @@ resource "aws_lb" "app" {
   # Both public subnets, which is the reason there are two of them.
   subnets = aws_subnet.public[*].id
 
+  # Nothing above references the gateway, so Terraform would be free to create
+  # the balancer first — and creating an internet-facing balancer in a VPC whose
+  # gateway is not attached yet fails with "VPC has no internet gateway".
+  depends_on = [aws_internet_gateway.main]
+
   tags = {
     Name = "${var.name_prefix}-alb"
   }

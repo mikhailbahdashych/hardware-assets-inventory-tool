@@ -15,8 +15,14 @@ variable "name_prefix" {
     # characters — 24 here leaves room for the longest suffix in the stack and
     # then some. Failing on the variable beats failing on the twentieth
     # resource of an apply.
-    condition     = can(regex("^[a-z][a-z0-9-]{0,23}$", var.name_prefix))
-    error_message = "name_prefix must start with a lower-case letter and hold only lower-case letters, digits and hyphens, at most 24 characters."
+    #
+    # The hyphen separates rather than trails: every name in the stack appends
+    # a "-suffix", so a prefix ending in one produces `inv--db`, and RDS refuses
+    # a doubled hyphen in an identifier. Writing that into the pattern costs it
+    # the length it used to carry, so the cap is the second half of the
+    # condition — same 24 characters, said where it can still be read.
+    condition     = can(regex("^[a-z][a-z0-9]*(-[a-z0-9]+)*$", var.name_prefix)) && length(var.name_prefix) <= 24
+    error_message = "name_prefix must start with a lower-case letter, hold only lower-case letters, digits and single separating hyphens, and be at most 24 characters."
   }
 }
 

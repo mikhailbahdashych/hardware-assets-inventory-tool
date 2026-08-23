@@ -7,9 +7,10 @@
 *.tfstate
 *.tfstate.*
 
-# Real values, including whatever a private deployment calls itself.
+# Real values, including whatever a private deployment calls itself. There is no
+# negation here for the committed example, and none is needed: `*.tfvars` matches
+# whole names, and terraform.tfvars.example is not one of them.
 *.tfvars
-!terraform.tfvars.example
 
 # Saved plans, which hold the same secrets state does.
 *.tfplan

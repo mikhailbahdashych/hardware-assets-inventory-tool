@@ -117,7 +117,7 @@ And the honest answer is that `bucket_force_destroy = true` does all of this for
 
 ## Reaching the instance
 
-There is no SSH. Session Manager is the door, and the instance role carries exactly the five actions that open it:
+There is no SSH. Session Manager is the door, and the instance role carries exactly the five actions that open it — though **nobody has yet opened one against this stack**: the validation run read the boot log with `ssm send-command`, which goes through the same five instance-side grants but not through a session.
 
 ```bash
 aws ssm start-session --target "$(terraform output -raw instance_id)"
@@ -148,20 +148,20 @@ aws ssm get-parameter --with-decryption --output text --query Parameter.Value \
 
 ## Variables
 
-| Variable               | Default            | What it is                                                                                                              |
-| ---------------------- | ------------------ | ----------------------------------------------------------------------------------------------------------------------- |
-| `region`               | `eu-central-1`     | Everything lives here. The AMI is looked up in it, so changing it needs no second edit.                                 |
-| `name_prefix`          | `inventory`        | On every resource name and the `Project` tag. A second value gives you a second stack in one account.                   |
-| `tags`                 | `{}`               | Merged into the provider's `default_tags`, on top of `Project` and `ManagedBy`.                                         |
-| `vpc_cidr`             | `10.0.0.0/16`      | The four /24s are carved out of it.                                                                                     |
-| `app_image`            | `ghcr.io/…:latest` | The container to run. An ECR hostname here grows the login and the four `ecr:` grants; a public registry needs neither. |
-| `instance_type`        | `t4g.small`        | The AMI architecture follows it — `t3.small` picks the x86_64 AL2023 by itself.                                         |
-| `db_instance_class`    | `db.t4g.micro`     | RDS class.                                                                                                              |
-| `db_allocated_storage` | `20`               | GB. Raising it applies in place; lowering it is not a thing RDS can do.                                                 |
-| `timezone`             | `UTC`              | `TZ` for the container. The nightly jobs run on wall-clock time.                                                        |
-| `bucket_force_destroy` | `false`            | Whether `destroy` may delete a bucket with objects in it. See [Tearing it down](#tearing-it-down).                      |
-| `domain`               | `null`             | A hostname here creates the certificate, the load balancer and the DNS record.                                          |
-| `route53_zone_id`      | `null`             | The zone `domain` lives in. Both or neither — the stack refuses half.                                                   |
+| Variable               | Default            | What it is                                                                                                                                                     |
+| ---------------------- | ------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `region`               | `eu-central-1`     | Everything lives here. The AMI is looked up in it, so changing it needs no second edit.                                                                        |
+| `name_prefix`          | `inventory`        | On every resource name and the `Project` tag. A second value gives you a second stack in one account.                                                          |
+| `tags`                 | `{}`               | Merged into the provider's `default_tags`, on top of `Project` and `ManagedBy`.                                                                                |
+| `vpc_cidr`             | `10.0.0.0/16`      | The four /24s are carved out of it.                                                                                                                            |
+| `app_image`            | `ghcr.io/…:latest` | The container to run. An ECR hostname here grows the login and the four `ecr:` grants; a public registry needs neither.                                        |
+| `instance_type`        | `t4g.small`        | The AMI architecture follows it — `t3.small` picks the x86_64 AL2023 by itself.                                                                                |
+| `db_instance_class`    | `db.t4g.micro`     | RDS class.                                                                                                                                                     |
+| `db_allocated_storage` | `20`               | GB, and a floor: `rds.tf` autoscales it to 100 rather than let a full volume stop the app. Raising it applies in place; lowering it is not a thing RDS can do. |
+| `timezone`             | `UTC`              | `TZ` for the container. The nightly jobs run on wall-clock time.                                                                                               |
+| `bucket_force_destroy` | `false`            | Whether `destroy` may delete a bucket with objects in it. See [Tearing it down](#tearing-it-down).                                                             |
+| `domain`               | `null`             | A hostname here creates the certificate, the load balancer and the DNS record.                                                                                 |
+| `route53_zone_id`      | `null`             | The zone `domain` lives in. Both or neither — the stack refuses half.                                                                                          |
 
 ## Outputs
 
@@ -178,7 +178,7 @@ None of them is sensitive, deliberately. The one credential this stack generates
 ## Upgrading
 
 ```bash
-terraform apply -var 'app_image=ghcr.io/mikhailbahdashych/hardware-assets-inventory-tool:0.2.0'
+terraform apply -var 'app_image=ghcr.io/mikhailbahdashych/hardware-assets-inventory-tool:0.1.0'
 ```
 
 And now the honest part: **this replaces the instance.** The image tag is read by `user_data` at boot, `user_data` is part of what defines the instance, and `user_data_replace_on_change = true` means Terraform builds a new one rather than leaving a machine whose script no longer describes it. Two or three minutes of downtime, and the Elastic IP moves across, so the address does not change.
@@ -198,7 +198,7 @@ If you would rather not replace the machine for a patch release, do it by hand o
 
 Every one of these is a variable and a `terraform apply`:
 
-- **A bigger instance**: `instance_type`. Within one architecture (`t4g.small` → `t4g.medium`) this is an in-place change — Terraform stops the instance, resizes it and starts it again, so the instance id and the Elastic IP both survive. Across architectures (`t4g` → `t3`) the AMI lookup follows the instance type, and a different AMI means a **replacement**. Read the plan: `~ instance_type` is the first case, `must be replaced` is the second.
+- **A bigger instance**: `instance_type`. Within one architecture (`t4g.small` → `t4g.medium`) this is an in-place change — Terraform stops the instance, resizes it and starts it again, so the instance id and the Elastic IP both survive. Across architectures (`t4g` → `t3`) the AMI lookup follows the instance type, and a different AMI means a **replacement**. Read the plan: `~ instance_type` is the first case, `must be replaced` is the second — unless a newer AL2023 has shipped since your last apply, in which case `most_recent = true` moves the AMI under any plan at all and this one says `must be replaced` too. That is normal rather than wrong: the moving AMI is also how this stack gets OS patches. It costs the same three minutes as an upgrade, and nothing in RDS or S3 notices.
 - **A bigger database**: `db_instance_class`, and `db_allocated_storage` for the disk. Both apply immediately rather than waiting for a maintenance window — `apply_immediately = true` in `rds.tf` — which means both cause a short outage when you run them.
 - **A real front door**: `domain` and `route53_zone_id`. See below.
 
@@ -213,7 +213,9 @@ domain          = "inventory.example.com"
 route53_zone_id = "Z0123456789ABCDEFGHIJ"
 ```
 
-You get an ACM certificate validated over DNS, an Application Load Balancer across both public subnets, a target group pointing at the instance's port 80, a listener on 443 with a 301 from 80, and an A alias in the zone. Three things change on the instance at the same time: it stops accepting traffic from the world (only the load balancer's security group reaches its port 80), `APP_URL` becomes `https://<domain>`, and `TRUST_PROXY=true` is written into its environment so the sign-in rate limits see the client's address rather than the balancer's.
+You get an ACM certificate validated over DNS, an Application Load Balancer across both public subnets, a target group pointing at the instance's port 80, a listener on 443 with a 301 from 80, and an A alias in the zone. Three things change on the instance at the same time: it stops accepting traffic from the world (only the load balancer's security group reaches its port 80), `APP_URL` becomes `https://<domain>`, and `TRUST_PROXY=1` is written into its environment so the sign-in rate limits see the client's address rather than the balancer's.
+
+That value is a hop count, and `true` would be the wrong answer to the same question. The balancer **appends** the address it saw to `X-Forwarded-For` rather than replacing the header, and `TRUST_PROXY=true` makes the app believe the left-most entry — which is whatever the caller wrote there before the balancer ever saw it. A fresh forged address per request is a fresh rate-limit bucket per request, and a log full of addresses somebody chose. `1` means one hop of trust, which is exactly the topology: the balancer, and nothing in front of it.
 
 Because `APP_URL` changes, **turning this on replaces the instance** — same three minutes as an upgrade.
 
@@ -221,7 +223,7 @@ Because `APP_URL` changes, **turning this on replaces the instance** — same th
 
 ## Before you call it production
 
-The defaults here are a starter's defaults: everything is arranged so that the stack goes up in fifteen minutes and comes down in two. One of the differences is a decision; the rest are four lines.
+The defaults here are a starter's defaults: everything is arranged so that the stack goes up in ten to fifteen minutes and comes down in about five. One of the differences is a decision; the rest are four lines.
 
 1. **Put TLS in front of it.** This is the one that is not a line, and it is first because the default is worse than it looks: with no `domain`, the app answers on a public IP over **plain HTTP** — and that is the transport for `/setup`, for every sign-in, and for the session cookie that comes back. Anyone on the path reads the admin password. Set `domain` and `route53_zone_id` for the load balancer and its certificate ([The domain module](#the-domain-module)), or terminate TLS on the instance yourself ([`docs/deployment.md`](../docs/deployment.md) has the Caddy block, and port 443 is already open for it). Until you do, treat the address as something to finish setup on and not something to hand around.
 2. **`deletion_protection = true`** in `rds.tf`. Off, today, so `destroy` works.
@@ -264,7 +266,7 @@ On-demand list prices in `eu-central-1`, at 730 hours a month, **checked 23 Augu
 | S3 storage and requests, VPC endpoint       | pennies         | ~$0       |
 | **Total**                                   |                 | **~$37**  |
 
-Call it **$40 a month** with a little data transfer, which is the number to quote. Two things move it materially: the domain module adds an Application Load Balancer at roughly $20 a month before LCUs, and `multi_az = true` roughly doubles the database lines. Reserved instances or a Savings Plan take about a third off the two compute lines if this is going to run for a year.
+Both t-family lines are burstable and launch in **unlimited** mode, so sustained load past the CPU baseline does not throttle — it bills surplus credits on top of the hourly rate above. Call it **$40 a month** with a little data transfer, which is the number to quote. Two things move it materially: the domain module adds an Application Load Balancer at roughly $20 a month before LCUs, and `multi_az = true` roughly doubles the database lines. Reserved instances or a Savings Plan take about a third off the two compute lines if this is going to run for a year.
 
 ## When it does not work
 

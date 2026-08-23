@@ -60,6 +60,15 @@ resource "aws_db_instance" "main" {
   storage_type      = "gp3"
   storage_encrypted = true
 
+  # Storage autoscaling, capped at 100 GB. A volume that fills does not
+  # degrade: RDS parks the instance in `storage-full` and the app stops being
+  # able to write — on a stack with no monitoring, that is a failure a user
+  # finds first. Five times the default disk is room to notice in, and the cap
+  # is what stops a runaway table from also being a runaway bill. Raise it
+  # alongside `db_allocated_storage` if that ever goes above it: RDS refuses a
+  # ceiling below the floor.
+  max_allocated_storage = 100
+
   db_name  = "inventory"
   username = "inventory"
   password = random_password.db.result
