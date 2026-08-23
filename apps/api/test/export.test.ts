@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { afterEach, describe, expect, it } from 'vitest';
 import { buildTestApp, inject, memberCookie, setupOrg, type TestApp } from './helpers.js';
 
@@ -14,7 +15,7 @@ describe('the export-all endpoint', () => {
       const res = await inject(ctx.app, {
         method: 'GET',
         url: '/api/v1/export',
-        cookie: memberCookie(ctx.db, role),
+        cookie: await memberCookie(ctx.db, role),
       });
       expect(res.statusCode).toBe(403);
     }
@@ -82,6 +83,50 @@ describe('the export-all endpoint', () => {
     // Manager's nine, and nothing for the system role — its set is resolved.
     expect(body.rolePermissions).toHaveLength(9);
     expect(body.rolePermissions.every((grant: { roleId: string }) => grant.roleId === 'manager')).toBe(true); // prettier-ignore
+  });
+
+  /**
+   * The bytes are not in the file, so the checksum is what makes the metadata
+   * worth having: a restored `uploads/` directory can be checked against it.
+   */
+  it('lists each attachment with the checksum of its bytes', async () => {
+    ctx = await buildTestApp();
+    const admin = await setupOrg(ctx.app);
+    const asset = (
+      await inject(ctx.app, {
+        method: 'POST',
+        url: '/api/v1/assets',
+        cookie: admin,
+        body: { name: 'MacBook Pro 14"', category: 'laptops', status: 'available' },
+      })
+    ).json().asset;
+
+    const boundary = '----inventory-export-boundary';
+    await inject(ctx.app, {
+      method: 'POST',
+      url: `/api/v1/assets/${asset.id}/attachments`,
+      cookie: admin,
+      payload: Buffer.concat([
+        Buffer.from(
+          `--${boundary}\r\nContent-Disposition: form-data; name="file"; filename="invoice.pdf"\r\n` +
+            'Content-Type: application/pdf\r\n\r\n',
+        ),
+        Buffer.from('%PDF-1.7 fake invoice'),
+        Buffer.from(`\r\n--${boundary}--\r\n`),
+      ]),
+      headers: { 'content-type': `multipart/form-data; boundary=${boundary}` },
+    });
+
+    const body = (
+      await inject(ctx.app, { method: 'GET', url: '/api/v1/export', cookie: admin })
+    ).json();
+    expect(body.attachments[0]).toMatchObject({
+      filename: 'invoice.pdf',
+      sizeBytes: 21,
+      sha256: createHash('sha256').update('%PDF-1.7 fake invoice').digest('hex'),
+    });
+    // Still metadata only: the bytes live in DATA_DIR/uploads.
+    expect(body.attachments[0].storedName).toBeUndefined();
   });
 
   it('carries no password hashes and no session or token rows', async () => {

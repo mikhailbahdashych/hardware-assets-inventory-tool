@@ -1,7 +1,6 @@
-import { join } from 'node:path';
 import { eq } from 'drizzle-orm';
 import { loadConfig } from '@/config.js';
-import { createDb } from '@/db/client.js';
+import { createDb, describeStore } from '@/db/client.js';
 import { members } from '@/db/schema.js';
 import { resetMemberMfa } from '@/services/mfa.js';
 import { writeAudit } from '@/services/audit.js';
@@ -22,7 +21,7 @@ import { writeAudit } from '@/services/audit.js';
  * root-equivalent over a SQLite file — this grants nothing that was not
  * already available with a hex editor, it just makes it survivable.
  */
-function main(): void {
+async function main(): Promise<void> {
   const email = process.argv[2]?.trim().toLowerCase();
   if (!email) {
     process.stderr.write(
@@ -33,11 +32,13 @@ function main(): void {
   }
 
   const config = loadConfig();
-  const { db, sqlite } = createDb(join(config.dataDir, 'inventory.db'));
+  const { db, client } = await createDb(config);
   try {
-    const member = db.select().from(members).where(eq(members.email, email)).get();
+    const [member] = await db.select().from(members).where(eq(members.email, email));
     if (!member) {
-      process.stderr.write(`\n  No member with the email ${email} in ${config.dataDir}.\n\n`);
+      process.stderr.write(
+        `\n  No member with the email ${email} in ${describeStore(config)}.\n\n`,
+      );
       process.exit(1);
     }
 
@@ -47,12 +48,12 @@ function main(): void {
     }
 
     const now = new Date();
-    db.transaction((tx) => {
-      resetMemberMfa(tx, member.id, now);
+    await db.transaction(async (tx) => {
+      await resetMemberMfa(tx, member.id, now);
       // Attributed to the account it happened to, because the operator at a
       // shell has no member id — and an unexplained reset in the log is worse
       // than one that names the account and says where it came from.
-      writeAudit(
+      await writeAudit(
         tx,
         {
           type: 'auth',
@@ -72,8 +73,8 @@ function main(): void {
         `  on the next request if this workspace still requires one.\n\n`,
     );
   } finally {
-    sqlite.close();
+    await client.close();
   }
 }
 
-main();
+await main();

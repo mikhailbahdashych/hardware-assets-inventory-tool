@@ -4,7 +4,9 @@ import {
   CURRENCY_LABELS,
   LOG_RETENTION_LABELS,
   LOG_RETENTION_OPTIONS,
+  MAX_UPLOAD_QUOTA_MB,
   MAX_WARRANTY_LEAD_DAYS,
+  MIN_UPLOAD_QUOTA_MB,
   MIN_WARRANTY_LEAD_DAYS,
   type Currency,
   type LogRetention,
@@ -13,6 +15,7 @@ import { fieldErrors } from '@/api/formErrors';
 import { useUpdateSettings } from '@/api/mutations';
 import { useMeta, useSettings } from '@/api/queries';
 import { Button, Dropdown, Field, Input, Spinner, ToggleSwitch } from '@/components/ui';
+import { formatFileSize } from '@/lib/format';
 import { useToast } from '@/providers/ToastProvider';
 import type { OrgSettings } from '@/types/api';
 import { DeleteWorkspaceModal } from './DeleteWorkspaceModal';
@@ -20,6 +23,9 @@ import { changedSettings } from './settingsDraft';
 import type { SettingsDraft } from './types/settingsDraft';
 import type { EmailToggleKey, SettingsFormProps } from './types/settingsPanel';
 import styles from './Admin.module.css';
+
+/** The quota is stored in megabytes; the line beside it is written in bytes. */
+const BYTES_PER_MB = 1024 * 1024;
 
 /** The design's four switches, in its order and its words. */
 const EMAIL_TOGGLES = [
@@ -56,7 +62,13 @@ export function SettingsPanel() {
     );
   }
   // Keyed on the row so a save from elsewhere re-seeds the whole form.
-  return <SettingsForm key={settings.data.updatedAt} settings={settings.data} />;
+  return (
+    <SettingsForm
+      key={settings.data.settings.updatedAt}
+      settings={settings.data.settings}
+      storageUsedBytes={settings.data.storageUsedBytes}
+    />
+  );
 }
 
 /**
@@ -69,7 +81,7 @@ export function SettingsPanel() {
  * meant a stray keystroke in "Company name" renamed the workspace for
  * everybody, with no way back.
  */
-function SettingsForm({ settings }: SettingsFormProps) {
+function SettingsForm({ settings, storageUsedBytes }: SettingsFormProps) {
   const [draft, setDraft] = useState<SettingsDraft>(() => toDraft(settings));
   const [deleting, setDeleting] = useState(false);
 
@@ -220,6 +232,36 @@ function SettingsForm({ settings }: SettingsFormProps) {
         </div>
         <div className={styles.row}>
           <div className={styles.rowText}>
+            <div className={styles.rowLabel}>Attachment storage</div>
+            {/* The usage line reads the *stored* limit, not the draft: it says
+                what is in force, and a number being typed is not yet policy.
+                A server complaint takes its place — this row has no Field
+                around it to put one under, and it is the same sentence's job
+                either way: to say why an upload would be refused. */}
+            <div className={styles.rowHint}>
+              {errors.uploadQuotaMb ??
+                `${formatFileSize(storageUsedBytes)} of ${formatFileSize(
+                  settings.uploadQuotaMb * BYTES_PER_MB,
+                )} used · uploads are refused past the limit`}
+            </div>
+          </div>
+          <div className={styles.rowControl}>
+            <div className={styles.suffixed}>
+              <Input
+                aria-label="Attachment storage"
+                type="number"
+                inputMode="numeric"
+                min={MIN_UPLOAD_QUOTA_MB}
+                max={MAX_UPLOAD_QUOTA_MB}
+                value={draft.uploadQuotaMb}
+                onChange={(event) => set('uploadQuotaMb', event.target.value)}
+              />
+              <span className={styles.suffix}>MB</span>
+            </div>
+          </div>
+        </div>
+        <div className={styles.row}>
+          <div className={styles.rowText}>
             <div className={styles.rowLabel}>Activity log retention</div>
             <div className={styles.rowHint}>Older events are pruned automatically</div>
           </div>
@@ -286,6 +328,7 @@ function toDraft(settings: OrgSettings): SettingsDraft {
     defaultCurrency: settings.defaultCurrency,
     assetTagPrefix: settings.assetTagPrefix,
     warrantyLeadDays: String(settings.warrantyLeadDays),
+    uploadQuotaMb: String(settings.uploadQuotaMb),
     logRetentionMonths: settings.logRetentionMonths,
     emailWarrantyAlerts: settings.emailWarrantyAlerts,
     emailReturnReminders: settings.emailReturnReminders,

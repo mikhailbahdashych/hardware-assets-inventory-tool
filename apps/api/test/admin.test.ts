@@ -1,6 +1,8 @@
 import { eq } from 'drizzle-orm';
 import { afterEach, describe, expect, it } from 'vitest';
-import { assets, auditEvents, employees, members, orgSettings } from '@/db/schema.js';
+import { MAX_UPLOAD_QUOTA_MB } from '@inventory/shared';
+import { assets, attachments, auditEvents, employees, members, orgSettings } from '@/db/schema.js';
+import { nowIso } from '@/lib/dates.js';
 import {
   buildTestApp,
   inject,
@@ -34,7 +36,7 @@ describe('the activity log', () => {
       const res = await inject(ctx.app, {
         method: 'GET',
         url: '/api/v1/audit',
-        cookie: memberCookie(ctx.db, role),
+        cookie: await memberCookie(ctx.db, role),
       });
       expect(res.statusCode).toBe(403);
     }
@@ -161,7 +163,7 @@ describe('workspace settings', () => {
   it('are admin-only to read and to change', async () => {
     ctx = await buildTestApp();
     await setupOrg(ctx.app);
-    const manager = memberCookie(ctx.db, 'manager');
+    const manager = await memberCookie(ctx.db, 'manager');
     expect(
       (await inject(ctx.app, { method: 'GET', url: '/api/v1/settings', cookie: manager }))
         .statusCode,
@@ -236,17 +238,81 @@ describe('workspace settings', () => {
       emailWeeklyDigest: true,
     });
 
-    const event = ctx.db
+    const [event] = await ctx.db
       .select()
       .from(auditEvents)
-      .where(eq(auditEvents.action, 'system.settings_updated'))
-      .get();
+      .where(eq(auditEvents.action, 'system.settings_updated'));
     expect(event?.type).toBe('system');
     expect(JSON.parse(event!.params).changedFields).toEqual([
       'orgName',
       'assetTagPrefix',
       'emailWeeklyDigest',
     ]);
+  });
+
+  it('carries the attachment quota and what the workspace has used of it', async () => {
+    ctx = await buildTestApp();
+    const admin = await setupOrg(ctx.app);
+
+    const before = await inject(ctx.app, {
+      method: 'GET',
+      url: '/api/v1/settings',
+      cookie: admin,
+    });
+    expect(before.json().settings.uploadQuotaMb).toBe(2048);
+    // Nothing uploaded yet, and a workspace with no files has used no bytes.
+    expect(before.json().storageUsedBytes).toBe(0);
+
+    const asset = await createAsset(admin);
+    await ctx.db.insert(attachments).values({
+      id: 'att-1',
+      assetId: asset.id,
+      filename: 'invoice.pdf',
+      storedName: 'invoice.pdf',
+      sizeBytes: 4096,
+      mime: 'application/pdf',
+      uploadedByMemberId: null,
+      createdAt: nowIso(),
+    });
+
+    const after = await inject(ctx.app, { method: 'GET', url: '/api/v1/settings', cookie: admin });
+    expect(after.json().storageUsedBytes).toBe(4096);
+  });
+
+  it('takes a quota inside its bounds and refuses one outside them', async () => {
+    ctx = await buildTestApp();
+    const admin = await setupOrg(ctx.app);
+
+    const res = await inject(ctx.app, {
+      method: 'PATCH',
+      url: '/api/v1/settings',
+      cookie: admin,
+      body: { uploadQuotaMb: 500 },
+    });
+    expect(res.statusCode).toBe(200);
+    expect(res.json().settings.uploadQuotaMb).toBe(500);
+    expect(
+      JSON.parse(
+        (
+          await ctx.db
+            .select()
+            .from(auditEvents)
+            .where(eq(auditEvents.action, 'system.settings_updated'))
+        )[0]!.params,
+      ).changedFields,
+    ).toEqual(['uploadQuotaMb']);
+
+    // Below a hundred megabytes is barely ten files; beyond a hundred
+    // gigabytes is a promise about somebody else's volume.
+    for (const quota of [0, 99, MAX_UPLOAD_QUOTA_MB + 1, 512.5]) {
+      const bad = await inject(ctx.app, {
+        method: 'PATCH',
+        url: '/api/v1/settings',
+        cookie: admin,
+        body: { uploadQuotaMb: quota },
+      });
+      expect(bad.statusCode, `quota ${quota}`).toBe(422);
+    }
   });
 
   it('writes nothing at all when the form is submitted unchanged', async () => {
@@ -259,11 +325,10 @@ describe('workspace settings', () => {
       body: { orgName: 'Acme Corp' },
     });
     expect(
-      ctx.db
+      await ctx.db
         .select()
         .from(auditEvents)
-        .where(eq(auditEvents.action, 'system.settings_updated'))
-        .all(),
+        .where(eq(auditEvents.action, 'system.settings_updated')),
     ).toEqual([]);
   });
 
@@ -310,7 +375,7 @@ describe('deleting the workspace', () => {
         await inject(ctx.app, {
           method: 'POST',
           url: '/api/v1/workspace/delete',
-          cookie: memberCookie(ctx.db, 'manager'),
+          cookie: await memberCookie(ctx.db, 'manager'),
           body: { confirmText: 'Acme Corp' },
         })
       ).statusCode,
@@ -324,7 +389,7 @@ describe('deleting the workspace', () => {
     });
     expect(wrong.statusCode).toBe(422);
     expect(wrong.json().error.fields.confirmText).toBeTruthy();
-    expect(ctx.db.select().from(orgSettings).get()).toBeTruthy();
+    expect(await ctx.db.select().from(orgSettings)).toHaveLength(1);
   });
 
   it('wipes every table and leaves an instance that asks to be set up again', async () => {
@@ -346,11 +411,11 @@ describe('deleting the workspace', () => {
     });
     expect(res.statusCode).toBe(204);
 
-    expect(ctx.db.select().from(orgSettings).all()).toEqual([]);
-    expect(ctx.db.select().from(members).all()).toEqual([]);
-    expect(ctx.db.select().from(assets).all()).toEqual([]);
-    expect(ctx.db.select().from(employees).all()).toEqual([]);
-    expect(ctx.db.select().from(auditEvents).all()).toEqual([]);
+    expect(await ctx.db.select().from(orgSettings)).toEqual([]);
+    expect(await ctx.db.select().from(members)).toEqual([]);
+    expect(await ctx.db.select().from(assets)).toEqual([]);
+    expect(await ctx.db.select().from(employees)).toEqual([]);
+    expect(await ctx.db.select().from(auditEvents)).toEqual([]);
 
     expect((await ctx.app.inject({ method: 'GET', url: '/api/v1/meta' })).json().needsSetup).toBe(
       true,

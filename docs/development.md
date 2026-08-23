@@ -69,7 +69,7 @@ It also means every screen is empty, and this app is largely about history — w
 
 Sign in as any of the four to see what that role can do — the viewer has no mutation affordances anywhere, the manager has no Admin section, and Auditor is the role the demo workspace invented for itself on the Roles page: two ticks, so the activity log and the export open and nothing else does.
 
-Every date is relative to the moment you ran it, so warranties are always about to lapse and returns are always about to fall due. It refuses to touch a workspace that already has data; add `-- --reset` (native) or `--reset` (Docker) to replace one.
+Every date is relative to the moment you ran it, so warranties are always about to lapse and returns are always about to fall due. It refuses to touch a workspace that already has data; `npm run seed:demo -- --reset` replaces one. The `--` is not decoration: without it npm reads `--reset` as a flag of its own and the seeder never sees it, which looks exactly like the refusal you were trying to answer. That holds in Docker too, where the whole command is `docker compose -f docker-compose.dev.yml run --rm app npm run seed:demo -- --reset`.
 
 **Starting over completely:** delete `./data` natively, or `docker compose -f docker-compose.dev.yml down -v` in Docker. Both leave you at `/setup` again.
 
@@ -96,11 +96,11 @@ In Docker, put `docker compose -f docker-compose.dev.yml run --rm app` in front 
 
 **Something else is on port 3000 or 5173.** The API fails with `EADDRINUSE`. Find it with `lsof -i :5173`, or run the other setup — Docker publishes the same two ports, so the native and Docker stacks cannot both be up at once.
 
-**`npm install` printed "packages have install scripts not yet covered by allowScripts".** npm 11 and newer block install scripts by default. That is fine here: `better-sqlite3`, `@node-rs/argon2` and `esbuild` all ship the binaries their scripts would otherwise build. If your platform has no prebuilt binary you will see it fail at first use rather than at install, and the fix is `npm install --foreground-scripts` plus a C++ toolchain.
+**`npm install` printed "packages have install scripts not yet covered by allowScripts".** npm 11 and newer block install scripts by default. That is fine here: `libsql` (the driver under `@libsql/client`), `@node-rs/argon2` and `esbuild` all ship prebuilt binaries in platform packages npm picks for you. If your platform has no prebuilt binary you will see it fail at first use rather than at install, and the fix is `npm install --foreground-scripts` plus a C++ toolchain.
 
 **`invalid ELF header`, or a native module that will not load, in Docker.** Something mounted the host's `node_modules` into the container. The compose file shadows every one of them with a volume for exactly this reason; if you have edited it, put those lines back. `docker compose -f docker-compose.dev.yml build --no-cache` to start clean.
 
-**Node is older than 22.** `better-sqlite3` and the API's ESM entry both assume it. `nvm use` reads the `.nvmrc`.
+**Node is older than 22.** `libsql` and the API's ESM entry both assume it. `nvm use` reads the `.nvmrc`.
 
 **Windows.** The npm scripts set environment variables inline (`HOST=… tsx watch`), which is POSIX shell syntax that `cmd.exe` does not understand. Use WSL, or use the Docker setup — that is one of the reasons it exists.
 

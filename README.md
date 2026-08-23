@@ -1,18 +1,77 @@
 # Inventory — hardware asset tracking for IT teams
 
-Self-hosted, single container, SQLite. Track devices, who holds them, and the full ownership history of every one.
+Self-hosted, MIT licensed, and small enough that the whole install is one container over one directory: track devices, who holds them, and the full ownership history of every one. Every setting has a default, so an instance with no configuration at all runs and its first screen creates your organization — and when one machine stops being enough, `DATABASE_URL` moves the rows to PostgreSQL and `S3_BUCKET` moves the attachments to a bucket, without changing anything else about the app.
 
-Built to be **customized by asking Claude Code**: every area of the repo carries a `CLAUDE.md` explaining its patterns, and [`docs/recipes/`](docs/recipes/) has step-by-step checklists for the changes teams actually make — a new field, a new page, a new permission, a new email.
+## Table of contents
 
-MIT licensed.
+- [What it is](#what-it-is)
+- [Three ways to run it](#three-ways-to-run-it)
+  - [Demo](#demo)
+  - [Production light](#production-light)
+  - [Full scale](#full-scale)
+- [Configuration](#configuration)
+  - [Running without email](#running-without-email)
+  - [Backup and restore](#backup-and-restore)
+- [Security](#security)
+  - [Two-factor authentication](#two-factor-authentication)
+- [Development](#development)
+- [Not in this version](#not-in-this-version)
+- [Screenshots](#screenshots)
+- [License](#license)
 
-![The Inventory dashboard: a tile per asset status, assets broken down by category, recent activity, warranties running out and returns due back](media/dashboard.png)
+## What it is
 
-_The demo workspace, as `npm run seed:demo` leaves it._
+- **Assets** — tag, name, category, serial, status, purchase, warranty, supplier, notes, attachments and any custom fields you define. Filters live in the URL, so a filtered view is a link you can send someone.
+- **Employees** — the people who hold devices. Separate from the accounts that sign in, optionally linked to them, because most staff never need a login.
+- **Ownership history** — who had what, when, and how it came back. Held in one table that is the only truth about it; an asset's status and its open ownership record cannot disagree.
+- **Custom statuses and workflow** — the statuses an asset can be in are yours, not ours: an admin adds, renames, recolours and reorders them, and draws the moves between them as a checkbox matrix with a live diagram beside it. The API enforces the graph, so taking an edge off it stops that move being offered _and_ stops it being accepted.
+- **Custom roles and permissions** — who may do what is yours as well: an admin invents a role, colours it, writes the line that appears under its name on the invite card, and ticks what it may do in a matrix of every action the product has. Admin is the one locked row — it holds every permission, including the ones a later version adds — and nobody may edit the role they hold themselves. Permissions resolve per request, so a grant lands on that member's very next click, and the set the sidebar reads is the same one the API guard checks.
+- **Members and invitations** — the accounts that sign in, each holding one of those roles, invited by email or by a copyable link.
+- **Attachments** — the paperwork an inventory collects: invoices, photos, repair reports. Twenty-four file types are allowed and SVG is not one of them, 10 MB is the per-file cap, and the workspace's total is a quota an admin sets on the Settings page with the current usage beside it.
+- **Activity log** — every mutation, rendered as a sentence, filterable and exportable as CSV.
+- **Dashboard** — status counts that click through to a filtered list, fleet composition, recent activity, warranties running out, and what is due back.
+- **⌘K** — search assets and people or run a command, entirely from the keyboard.
+- **CSV import** — a mapping step, a dry run that names the row and column of every problem, then one transaction.
+- **Email, optionally** — warranty alerts, return reminders, invitations, a weekly digest. All of it works without SMTP too; see [Running without email](#running-without-email).
+- **Two-factor authentication** — TOTP, off by default, switched on for the whole workspace by an admin. Recovery codes included, and a break-glass command for the day somebody loses both. See [Two-factor authentication](#two-factor-authentication).
 
----
+## Three ways to run it
 
-## Quick start
+One image, the same features in all three. What differs is where the rows and the files end up.
+
+**Demo** is a checkout on your laptop. **Production light** is what this product is actually for: one container, one volume, a reverse proxy in front, on a small VM. **Full scale** is the same container with its rows in RDS and its attachments in S3, stood up by Terraform. Nothing in the application changes between the second and the third — two environment variables do.
+
+### Demo
+
+```bash
+git clone https://github.com/mikhailbahdashych/hardware-assets-inventory-tool.git
+cd hardware-assets-inventory-tool
+
+npm install
+npm run seed:demo     # optional: fill it with a demo workspace
+npm run dev           # → http://localhost:5173
+```
+
+Node 22+. Two processes start — the API on `:3000` and Vite on `:5173`, which proxies to it — so **open `:5173`**. If you would rather install nothing but Docker, [`docs/development.md`](docs/development.md) has a route that needs exactly that.
+
+A fresh instance is empty and lands on `/setup`, which is the real first-run experience but leaves every screen blank — and this app is largely about history. `npm run seed:demo` gives you a fictional company: twelve people, twenty-six devices, four months of assignments, returns and audit history. It prints one login per role — including the fourth one the workspace invented for itself — so you can see what each of them gets:
+
+```
+  Northwind Robotics is ready in /path/to/repo/data
+
+  26 assets · 12 employees · 19 ownership records · 79 logged events
+
+  ada.okafor@northwind.example    demo-password  (admin)
+  marco.rossi@northwind.example   demo-password  (manager)
+  lena.fischer@northwind.example  demo-password  (viewer)
+  grace.chen@northwind.example    demo-password  (auditor)
+```
+
+Every date is relative to the moment you run it, so warranties are always about to lapse and returns are always about to fall due — the dashboard is never a museum. It refuses to touch a workspace that already has data; `npm run seed:demo -- --reset` replaces one. The seeder ships in the production image too (`node apps/api/dist/db/seed-demo-cli.js --reset`, honouring `DEMO_PASSWORD`), so a public demo instance can restore itself on a schedule.
+
+**This repo is built to be customized by asking Claude Code.** Every area carries a `CLAUDE.md` explaining its patterns, and [`docs/recipes/`](docs/recipes/) has step-by-step checklists for the changes teams actually make — a new field, a new page, a new permission, a new email. Describe the change and let the session follow what is already written down.
+
+### Production light
 
 ```bash
 mkdir -p data
@@ -23,10 +82,6 @@ docker run -d --name inventory \
   ghcr.io/mikhailbahdashych/hardware-assets-inventory-tool:latest
 ```
 
-Open <http://localhost:3000> and the first screen creates your organization and its first admin. That is the whole install.
-
-`mkdir -p data` first because the container runs unprivileged as uid 1000 and may not take ownership of anything: a data directory the Docker daemon creates for you arrives owned by root, and then nothing inside the container can write it. Making it yourself makes it yours — which on a normal single-user Linux host is uid 1000 already. If it is not, `chown -R 1000:1000 data` once and it is settled; the container prints that line itself rather than dying on an unreadable permission error.
-
 With compose, which is the same thing written down:
 
 ```bash
@@ -35,22 +90,147 @@ mkdir -p data
 docker compose up -d
 ```
 
+**Both of those wait on a release this project has not cut yet.** Nothing has been pushed to `ghcr.io/mikhailbahdashych/hardware-assets-inventory-tool`, so the pull is refused and neither block has an image to start. The compose file carries `build: .` beside the image name, but a directory holding only the compose file has no build context for it to read — so today's path is a checkout, and it is four lines instead of three:
+
+```bash
+git clone https://github.com/mikhailbahdashych/hardware-assets-inventory-tool.git
+cd hardware-assets-inventory-tool
+mkdir -p data
+docker compose up -d
+```
+
+Finding nothing to pull, that builds the image from the source beside it and runs it. Tagging a release publishes the exact version, its `major.minor`, and `:latest`, for amd64 and arm64 — and from that day the two blocks above are literal, and pinning a version becomes a decision you can make.
+
+Whichever of them you ran, open <http://localhost:3000>: the first screen creates your organization and its first admin. That is the whole install.
+
+`mkdir -p data` first because the container runs unprivileged as uid 1000 and may not take ownership of anything: a data directory the Docker daemon creates for you arrives owned by root, and then nothing inside the container can write it. Making it yourself makes it yours — which on a normal single-user Linux host is uid 1000 already. If it is not, `chown -R 1000:1000 data` once and it is settled; the container prints that line itself rather than dying on an unreadable permission error.
+
 **Upgrading is `docker compose pull && docker compose up -d`.** Migrations run at every boot and are idempotent; there is no separate step and no maintenance mode.
 
-## What it does
+Four things worth knowing before this is on the internet:
 
-- **Assets** — tag, name, category, serial, status, purchase, warranty, supplier, notes, attachments, and any custom fields you define. Filters live in the URL, so a filtered view is a link you can send someone.
-- **Employees** — the people who hold devices. Separate from the accounts that sign in, optionally linked to them, because most staff never need a login.
-- **Ownership history** — who had what, when, and how it came back. Held in one table that is the only truth about it; an asset's status and its open ownership record cannot disagree.
-- **Custom statuses & workflow** — the statuses an asset can be in are yours, not ours: an admin adds, renames, recolours and reorders them, and draws the moves between them as a checkbox matrix with a live diagram beside it. The API enforces the graph, so taking an edge off it stops that move being offered _and_ stops it being accepted.
-- **Custom roles & permissions** — who may do what is yours as well: an admin invents a role, colours it, writes the line that appears under its name on the invite card, and ticks what it may do in a matrix of every action the product has. Admin is the one locked row — it holds every permission including the ones a later version adds — and nobody may edit the role they hold themselves. Permissions resolve per request, so a grant lands on that member's very next click, and the set the sidebar reads is the same one the API guard checks.
-- **Members and invitations** — the accounts that sign in, each holding one of those roles, invited by email or by a copyable link.
-- **Activity log** — every mutation, rendered as a sentence, filterable and exportable as CSV.
-- **Dashboard** — status counts that click through to a filtered list, fleet composition, recent activity, warranties running out, and what is due back.
-- **⌘K** — search assets and people or run a command, entirely from the keyboard.
-- **CSV import** — a mapping step, a dry run that names the row and column of every problem, then one transaction.
-- **Email, optionally** — warranty alerts, return reminders, invitations, a weekly digest. All of it works without SMTP too; see below.
-- **Two-factor authentication** — TOTP, off by default, switched on for the whole workspace by an admin. Recovery codes included, and a break-glass command for the day somebody loses both.
+- **Put it behind a reverse proxy for TLS and set `APP_URL` to the public address.** [`docs/deployment.md`](docs/deployment.md) is the whole procedure — DNS, the four rules of the proxy contract, copy-paste Caddy and nginx blocks, firewall, backup cron, upgrades and health checks.
+- **Single replica.** The scheduler runs in-process, so two containers on one database would both fire the nightly jobs. That holds on either engine: scale the machine, not the count.
+- **Nothing in the container runs as root, `docker compose exec` sessions included** — every process, and every shell you open into a running instance, is uid 1000. The price is that the mounted data directory has to be writable by uid 1000 before the first start, because the container has no privilege left to fix it: create `./data` yourself, or `chown -R 1000:1000 ./data`. A container that finds it unwritable says so and stops, printing the fix.
+- **`--user root` is the escape hatch, and it heals a mount in one run.** Started that way the entrypoint does what it always did — take ownership of the data directory, drop back to uid 1000 with `setpriv`, run the app — so `docker compose run --rm --user root inventory node -e ''` is enough to hand a stray directory over, after which normal starts work again.
+
+### Full scale
+
+When one machine stops being the answer — more people than one process should serve, attachments outgrowing a disk, or a compliance line that says the database cannot live on the same box as the app — [`infrastructure/`](infrastructure/README.md) is the other one. Flat Terraform for the AWS build: a VPC with no NAT gateway, an EC2 instance running this same image on an Elastic IP, RDS PostgreSQL 17 for the rows, and a private versioned S3 bucket for the attachments. Thirty-three resources, roughly $40 a month, and ten minutes or so to stand up — most of that is RDS, which is also what makes the number move; the apply that proved this stack took 6m22s up and 4m34s down. Its README carries the variables, the cost arithmetic, how to reach the instance without SSH, and the teardown — read [Tearing it down](infrastructure/README.md#tearing-it-down) before the first apply, because a versioned bucket refuses to be deleted while a single object version is left in it, and that flag is read from state rather than from the command line.
+
+**Nothing in the app changes; two environment variables do**, and the stack exists to produce them correctly. `DATABASE_URL` is the whole engine choice — absent, the rows are in the SQLite file under `DATA_DIR`; a `postgres://` URL puts them in PostgreSQL, and the schema, the API and every screen are the same either way, migrations included. `S3_BUCKET` is the same switch for the files — absent, uploads are files under `DATA_DIR`; naming a bucket sends them there instead, while downloads still stream through the app under a session, because no presigned URL ever reaches a browser. Credentials come from the standard AWS chain, which in that stack is the instance's own role.
+
+**There is no automated SQLite→PostgreSQL data path before 1.0.** Moving an existing workspace across is an export and a CSV import — and ownership history, attachment bytes and passwords do not travel that way. [Moving up](docs/deployment.md#moving-up) in the deployment guide is honest about what that costs. Choose the engine when you stand the instance up, and if that is more than you are willing to lose, stay on production light until the path exists.
+
+**Two things to settle before the first apply.** By default the app answers on that Elastic IP over **plain HTTP** — which is the transport for `/setup`, for every sign-in and for the session cookie that comes back — so the default address is one to finish setup on and not one to hand around. Set `domain` and `route53_zone_id` and the stack grows an Application Load Balancer with an ACM certificate, `APP_URL` becomes `https://<domain>`, and the instance stops answering the world directly; [Before you call it production](infrastructure/README.md#before-you-call-it-production) is the short list that starts there. And `app_image` defaults to the same unpublished `:latest` as the blocks above — the difference is that a Terraform apply against a tag that does not exist _succeeds_, prints an address, and leaves it answering nothing.
+
+[`docs/recipes/change-infrastructure.md`](docs/recipes/change-infrastructure.md) is the checklist for changing the stack afterwards — resize, re-region, rotate, restore.
+
+## Configuration
+
+Every value has a default. An instance with no configuration at all runs; this table is for the day it has to be reachable from somewhere else, keep its rows in a database server, or send email.
+
+| Variable                  | Default                           | What it does                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| ------------------------- | --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `PORT`                    | `3000`                            | Port the server listens on.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| `HOST`                    | `0.0.0.0`                         | Interface to bind.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| `DATA_DIR`                | `./data`; the image sets `/data`  | What it holds depends on the two switches below. By default, the SQLite file **and** the attachments — the one directory to back up. With `DATABASE_URL`, the attachments alone; with `S3_BUCKET`, the SQLite file alone — and the bucket is the other half of the backup. With both, nothing that matters — but it must exist and be writable even then, because the entrypoint probes it at boot.                                                                                                                             |
+| `DATABASE_URL`            | —                                 | Absent, the rows live in the SQLite file under `DATA_DIR`. A `postgres://` or `postgresql://` URL puts them in PostgreSQL instead. The scheme is checked at boot rather than at the first query, so a URL this app cannot talk to fails immediately.                                                                                                                                                                                                                                                                            |
+| `APP_URL`                 | `http://localhost:3000`           | Where a browser reaches this instance. Invitation and reset links are built from it, the origin guard compares every mutation against it, and an `https://` value switches session cookies to `Secure` on its own.                                                                                                                                                                                                                                                                                                              |
+| `COOKIE_SECURE`           | derived from `APP_URL`            | Override, for a proxy that terminates TLS in a way the URL does not describe.                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| `LOG_LEVEL`               | `info`                            | pino level.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| `TRUST_PROXY`             | `false`                           | A hop count when something terminates TLS in front: `1` for one proxy directly ahead of the app. Rate limits are keyed on the client address, and without this every request behind a proxy shares one bucket. `true` trusts the whole `X-Forwarded-For` chain and believes its left-most entry, which is right only for a proxy that _replaces_ the header — nginx and an AWS load balancer append to it, and then the client picks its own address. A comma-separated list of your proxies' addresses is the precise version. |
+| `TZ`                      | container default                 | The scheduled jobs run on wall-clock time, so this decides when 08:00 is.                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| `S3_BUCKET`               | —                                 | Absent, attachments are files under `DATA_DIR`. Naming a bucket is the whole switch; downloads still come through the app under a session.                                                                                                                                                                                                                                                                                                                                                                                      |
+| `S3_REGION`               | —                                 | The bucket's region. How AWS is addressed.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| `S3_ENDPOINT`             | —                                 | An http(s) URL, for MinIO and the other S3-compatible stores. AWS needs neither this nor the next one.                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| `S3_FORCE_PATH_STYLE`     | `false`                           | Path-style addressing, which those stores usually want as well.                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| `SMTP_HOST`               | —                                 | Set it and the instance can send email. Leave it and it cannot; nothing else changes.                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| `SMTP_PORT`               | `587`                             | `465` implies TLS on its own.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| `SMTP_SECURE`             | derived from the port             | Force implicit TLS on or off.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| `SMTP_USER` / `SMTP_PASS` | —                                 | Both or neither; a relay on a private network usually wants neither.                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `SMTP_FROM`               | `Inventory <inventory@localhost>` | The From header, as written.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+
+There are deliberately no S3 key variables: credentials come from the standard AWS chain — an instance role, a profile, or the usual `AWS_*` environment — so the deployment that has a role never has to write a secret down. [`.env.example`](.env.example) is the same list with the reasoning in comments.
+
+### Running without email
+
+This is a first-class way to run it, not a degraded one.
+
+- **Invitations** come back as a link the admin copies and hands over.
+- **Password resets** are the same: an admin issues a link from the Members page. `/auth/forgot-password` always answers 204 and issues nothing, because a reset link must never be handed to whoever asked for it.
+- **Everything that would email** — the invite checkbox, the assign and check-in notifications, the four notification switches — shows disabled with the reason where the control is.
+
+### Backup and restore
+
+**On the default single container, back up `DATA_DIR`.** The SQLite file and the attachments are both in it and there is nothing else — no external cache, no queue, no secret at rest. [`docs/backup-restore.md`](docs/backup-restore.md) has the cold copy, the hot `.backup` variant that needs no downtime, the restore, and why the JSON export is **not** a backup.
+
+**With `DATABASE_URL` and `S3_BUCKET`, the two halves are backed up where they live** — for the Terraform stack that means RDS automated backups with point-in-time recovery inside their window, and the bucket's own versioning. The catch is that nothing snapshots the two together; [`docs/backup-restore.md`](docs/backup-restore.md#postgresql-and-s3) says what that means for a restore, and [`infrastructure/README.md`](infrastructure/README.md#backups) has the AWS specifics.
+
+## Security
+
+- Sessions and invite/reset tokens are stored as `sha256(raw)`. The database holds no password hashes it did not make, no signing secret, and no raw token.
+- Passwords are argon2id.
+- Same-origin only. No CORS anywhere, `SameSite=Lax` cookies, and an origin guard that rejects a mutation carrying a foreign `Origin` or `Referer`. That is the CSRF stance; there are no CSRF tokens because there is nothing cross-origin to defend.
+- Login answers identically for a wrong password, an unknown email and an inactive account, and pays for one argon2 verify either way so timing says nothing.
+- Rate limits on login, password reset and invite acceptance.
+- **Uploads answer to a policy.** An extension allowlist — twenty-four types, and SVG deliberately not among them, because a scriptable format has no business on the volume in the first place. A 10 MB cap per file and a workspace-wide quota an admin sets, 2 GB by default. Every file is stored under a name the server generates, its sha256 recorded as the bytes stream past, and served as `content-disposition: attachment` with `nosniff`, so an upload can never run as a page in the app's origin. The same list drives the file picker, so the browser greys out what the server would refuse.
+- Nightly maintenance is the only thing that removes rows nobody asked it to: expired sessions, spent tokens, audit events past the workspace's retention setting, notification-log rows past a year, and stored files that no attachment row names.
+- Logs are pino JSON and hold no secrets — the one route with a raw token in its path is redacted before a line is written.
+
+### Two-factor authentication
+
+Off by default. An admin turns it on for the whole workspace in **Admin → Settings → Security**, and from that moment every member — existing sessions included, on their next request — has to set up an authenticator before they can do anything else.
+
+- **TOTP**, so any authenticator works: 1Password, Bitwarden, Aegis, Google Authenticator. Enrolment shows a QR and the key in text for entering by hand.
+- **Ten recovery codes**, shown once and stored only as hashes. Each works once, in place of a code from the app.
+- **A spent set replaces itself at the next sign-in.** Sign in with your last recovery code and ten fresh ones arrive with it, on that screen, once. An admin can arm the same thing from the Members page — "Reset recovery codes" empties the set without touching the authenticator, so nobody is signed out and the new set is handed to the member themselves.
+- **The Members page says where everybody stands**: who is enrolled, and how many codes they have left.
+- **Only admins reset it**, from the Members page. There is no self-service reset, because a second factor you can clear with a stolen password is not a second factor.
+- **Turning the requirement off deletes every stored secret and recovery code.** A disabled second factor that quietly kept its secrets would come back on with authenticators nobody remembers adding.
+
+If the last admin loses both their phone and their recovery codes, break glass from the host:
+
+```bash
+docker compose exec inventory node apps/api/dist/db/mfa-reset-cli.js admin@example.com
+```
+
+That needs shell access to the instance, which already carries whatever the app runs with — the SQLite file, or the database credential. It grants nothing that was not already possible, it just makes it survivable.
+
+## Development
+
+Two ways to run it locally, and they do the same thing. The Node one is the commands under [Demo](#demo); the other needs nothing but Docker, which is also the answer on Windows, where `cmd.exe` cannot parse the env vars the npm scripts set inline. Full instructions in [`docs/development.md`](docs/development.md).
+
+**With only Docker:**
+
+```bash
+docker compose -f docker-compose.dev.yml run --rm app npm run seed:demo
+docker compose -f docker-compose.dev.yml up     # → http://localhost:5173
+```
+
+Either way the API runs on `:3000` and Vite on `:5173` and proxies to it — **open `:5173`**. Both give you hot reload; the Docker one mounts your checkout, so editing a file on the host still restarts the API and refreshes the browser.
+
+```bash
+npm test           # unit and integration, all workspaces
+npm run e2e        # Playwright against a production build
+npm run lint && npm run typecheck && npm run format
+```
+
+The API's suite runs against either engine, which is what keeps the two schema materializations honest. `npm test` uses SQLite; `npm run test:pg` runs the same tests against PostgreSQL, on `postgres://postgres:test@localhost:5433/postgres` unless `DATABASE_URL` says otherwise — one `docker run -d -e POSTGRES_PASSWORD=test -p 5433:5432 postgres:17` away. CI runs both, as two jobs, so a failure names its engine.
+
+**`http://localhost:5173/kitchen-sink` is the design system.** Colour tokens with their resolved values, the type scale, the whole icon inventory, and every primitive in every state it ships with — in both themes and both densities. Open it beside whatever you are changing. It is a dev-only route, excluded from production builds, and it cannot drift from the app because it renders the same components.
+
+Read [`CLAUDE.md`](CLAUDE.md) first, then the one next to the code you are changing — each area has its own, and together they are what a Claude Code session follows. [`docs/recipes/`](docs/recipes/) has an end-to-end checklist for the changes teams make most.
+
+## Not in this version
+
+Documented so nobody goes looking: OIDC/SSO, API tokens, pagination past ~10k assets, and a category-management UI. That ceiling is about the unpaginated list endpoints and is the same on either engine — past it, open an issue. The category list is a code-only change today; see [`docs/recipes/add-enum-value.md`](docs/recipes/add-enum-value.md). Two entries have left this list already: statuses, which an admin now edits in the app, and PostgreSQL, which is now one environment variable.
+
+## Screenshots
+
+![The Inventory dashboard: a tile per asset status, assets broken down by category, recent activity, warranties running out and returns due back](media/dashboard.png)
+
+_The demo workspace, as `npm run seed:demo` leaves it._
 
 ![The asset list: a filter pill per status carrying its own count, and a column naming who currently holds each device](media/assets.png)
 
@@ -88,126 +268,6 @@ _⌘K from anywhere. Results group by what they are, and the same list runs comm
 
 _Both themes ship. Signed in, it follows the preference stored with your account and travels between browsers with you; before that, it takes whatever your system asks for._
 
-## Configuration
+## License
 
-Every value has a default. An instance with no configuration at all runs.
-
-| Variable                  | Default                           | What it does                                                                                                                                                                                                                   |
-| ------------------------- | --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `PORT`                    | `3000`                            | Port the server listens on.                                                                                                                                                                                                    |
-| `HOST`                    | `0.0.0.0`                         | Interface to bind.                                                                                                                                                                                                             |
-| `DATA_DIR`                | `/data`                           | SQLite file and uploaded attachments. **The one directory to back up.**                                                                                                                                                        |
-| `APP_URL`                 | `http://localhost:3000`           | Where a browser reaches this instance. Invitation and reset links are built from it; an `https://` value switches session cookies to `Secure` on its own.                                                                      |
-| `COOKIE_SECURE`           | derived from `APP_URL`            | Override, for a proxy that terminates TLS in a way the URL does not describe.                                                                                                                                                  |
-| `LOG_LEVEL`               | `info`                            | pino level.                                                                                                                                                                                                                    |
-| `TRUST_PROXY`             | `false`                           | Set to `true`, a hop count, or a comma-separated list of proxy addresses when something terminates TLS in front. Rate limits are keyed on the client address, and without this every request behind a proxy shares one bucket. |
-| `TZ`                      | container default                 | The scheduled jobs run on wall-clock time, so this decides when 08:00 is.                                                                                                                                                      |
-| `SMTP_HOST`               | —                                 | Set it and the instance can send email. Leave it and it cannot; nothing else changes.                                                                                                                                          |
-| `SMTP_PORT`               | `587`                             | `465` implies TLS on its own.                                                                                                                                                                                                  |
-| `SMTP_SECURE`             | derived from the port             | Force implicit TLS on or off.                                                                                                                                                                                                  |
-| `SMTP_USER` / `SMTP_PASS` | —                                 | Both or neither; a relay on a private network usually wants neither.                                                                                                                                                           |
-| `SMTP_FROM`               | `Inventory <inventory@localhost>` | The From header, as written.                                                                                                                                                                                                   |
-
-### Running without email
-
-This is a first-class way to run it, not a degraded one.
-
-- **Invitations** come back as a link the admin copies and hands over.
-- **Password resets** are the same: an admin issues a link from the Members page. `/auth/forgot-password` always answers 204 and issues nothing, because a reset link must never be handed to whoever asked for it.
-- **Everything that would email** — the invite checkbox, the assign and check-in notifications, the four notification switches — shows disabled with the reason where the control is.
-
-## Two-factor authentication
-
-Off by default. An admin turns it on for the whole workspace in **Admin → Settings → Security**, and from that moment every member — existing sessions included, on their next request — has to set up an authenticator before they can do anything else.
-
-- **TOTP**, so any authenticator works: 1Password, Bitwarden, Aegis, Google Authenticator. Enrolment shows a QR and the key in text for entering by hand.
-- **Ten recovery codes**, shown once and stored only as hashes. Each works once, in place of a code from the app.
-- **A spent set replaces itself at the next sign-in.** Sign in with your last recovery code and ten fresh ones arrive with it, on that screen, once. An admin can arm the same thing from the Members page — "Reset recovery codes" empties the set without touching the authenticator, so nobody is signed out and the new set is handed to the member themselves.
-- **The Members page says where everybody stands**: who is enrolled, and how many codes they have left.
-- **Only admins reset it**, from the Members page. There is no self-service reset, because a second factor you can clear with a stolen password is not a second factor.
-- **Turning the requirement off deletes every stored secret and recovery code.** A disabled second factor that quietly kept its secrets would come back on with authenticators nobody remembers adding.
-
-If the last admin loses both their phone and their recovery codes, break glass from the host:
-
-```bash
-docker compose exec inventory node apps/api/dist/db/mfa-reset-cli.js admin@example.com
-```
-
-That needs shell access to the instance, which is already root-equivalent over a SQLite file — it grants nothing that was not already possible, it just makes it survivable.
-
-## Security
-
-- Sessions and invite/reset tokens are stored as `sha256(raw)`. The database holds no password hashes it did not make, no signing secret, and no raw token.
-- Passwords are argon2id.
-- Same-origin only. No CORS anywhere, `SameSite=Lax` cookies, and an origin guard that rejects a mutation carrying a foreign `Origin` or `Referer`. That is the CSRF stance; there are no CSRF tokens because there is nothing cross-origin to defend.
-- Login answers identically for a wrong password, an unknown email and an inactive account, and pays for one argon2 verify either way so timing says nothing.
-- Rate limits on login, password reset and invite acceptance.
-- Uploaded files are stored under a name the server generates and always served as `content-disposition: attachment` with `nosniff`, so an upload can never run as a page in the app's origin.
-
-## Backup and restore
-
-Copy `DATA_DIR`. See [`docs/backup-restore.md`](docs/backup-restore.md), which also covers doing it without stopping the container and why the JSON export is **not** a backup.
-
-## Deployment notes
-
-- **Single replica.** The scheduler runs in-process and SQLite is one file; two containers on one volume would both fire the nightly jobs. Scale the machine, not the count.
-- **Nothing in the container runs as root, `docker compose exec` sessions included** — every process, and every shell you open into a running instance, is uid 1000. The price is that the mounted data directory has to be writable by uid 1000 before the first start, because the container has no privilege left to fix it: create `./data` yourself, or `chown -R 1000:1000 ./data`. A container that finds it unwritable says so and stops, printing both remedies.
-- **`--user root` is the escape hatch, and it heals a mount in one run.** Started that way the entrypoint does what it always did — take ownership of the data directory, drop back to uid 1000 with `setpriv`, run the app — so `docker compose run --rm --user root inventory node -e ''` is enough to hand a stray directory over, after which normal starts work again.
-- Put it behind a reverse proxy for TLS and set `APP_URL` to the public address.
-- Roughly 10,000 assets is the point where the unpaginated list endpoints stop being comfortable. Past that, open an issue — the schema is ready for Postgres, the code is not yet.
-
-## Running it locally
-
-Two ways, and they do the same thing. Full instructions in [`docs/development.md`](docs/development.md).
-
-**With Node 22+:**
-
-```bash
-npm install
-npm run seed:demo     # optional: fill it with a demo workspace
-npm run dev           # → http://localhost:5173
-```
-
-**With only Docker:**
-
-```bash
-docker compose -f docker-compose.dev.yml run --rm app npm run seed:demo
-docker compose -f docker-compose.dev.yml up     # → http://localhost:5173
-```
-
-Either way the API runs on `:3000` and Vite on `:5173` and proxies to it — **open `:5173`**. Both give you hot reload; the Docker one mounts your checkout, so editing a file on the host still restarts the API and refreshes the browser.
-
-### Seeing it with data in it
-
-A fresh instance is empty and lands on `/setup`, which is the real first-run experience but leaves every screen blank — and this app is largely about history. `npm run seed:demo` gives you a fictional company: twelve people, twenty-six devices, four months of assignments, returns and audit history. It prints one login per role — including the fourth one the workspace invented for itself — so you can see what each of them gets:
-
-```
-  Northwind Robotics is ready in /path/to/repo/data
-
-  26 assets · 12 employees · 19 ownership records · 79 logged events
-
-  ada.okafor@northwind.example    demo-password  (admin)
-  marco.rossi@northwind.example   demo-password  (manager)
-  lena.fischer@northwind.example  demo-password  (viewer)
-  grace.chen@northwind.example    demo-password  (auditor)
-```
-
-Every date is relative to the moment you run it, so warranties are always about to lapse and returns are always about to fall due — the dashboard is never a museum. It refuses to touch a workspace that already has data; add `--reset` to replace one.
-
-The seeder ships in the production image too (`node dist/db/seed-demo-cli.js --reset`, honouring `DEMO_PASSWORD`), so a public demo instance can restore itself on a schedule.
-
-### Other commands
-
-```bash
-npm test           # unit and integration, all workspaces
-npm run e2e        # Playwright against a production build
-npm run lint && npm run typecheck && npm run format
-```
-
-**`http://localhost:5173/kitchen-sink` is the design system.** Colour tokens with their resolved values, the type scale, the whole icon inventory, and every primitive in every state it ships with — in both themes and both densities. Open it beside whatever you are changing. It is a dev-only route, excluded from production builds, and it cannot drift from the app because it renders the same components.
-
-Read [`CLAUDE.md`](CLAUDE.md) first, then the one next to the code you are changing — each area has its own, and together they are how this project is meant to be customized: describe the change to Claude Code and let it follow the patterns already written down. [`docs/recipes/`](docs/recipes/) has an end-to-end checklist for the changes teams make most.
-
-## Not in this version
-
-Documented so nobody goes looking: OIDC/SSO, a Postgres option, API tokens, pagination past ~10k assets, and a category-management UI. The category list is a code-only change today — see [`docs/recipes/add-enum-value.md`](docs/recipes/add-enum-value.md). (Statuses used to be on that list; they are edited in the app now.)
+MIT — see [`LICENSE`](LICENSE).

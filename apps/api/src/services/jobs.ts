@@ -1,14 +1,16 @@
-import { and, asc, desc, eq, gte, isNotNull, isNull, lt, lte, sql } from 'drizzle-orm';
+import { and, asc, count, desc, eq, gte, isNotNull, isNull, lt, lte } from 'drizzle-orm';
 import { renderAuditEvent, type AuditParams } from '@inventory/shared';
 import type { AppDeps } from '@/types/app.js';
 import type { JobResult, MaintenanceResult } from '@/types/jobs.js';
 import {
   assets,
   assignments,
+  attachments,
   auditEvents,
   authTokens,
   employees,
   members,
+  notificationLog,
   sessions,
 } from '@/db/schema.js';
 import { pruneExpiredSessions } from './sessions.js';
@@ -28,6 +30,12 @@ const RETURN_LEAD_DAYS = 3;
 /** How many events the weekly digest recounts. A digest is not a log. */
 const DIGEST_EVENTS = 10;
 
+/** How long a file with no row naming it is given before the sweep takes it. */
+const ORPHAN_GRACE_MS = DAY_MS;
+
+/** How much of "what was sent" is kept for reading. Dedupe needs days, not months. */
+const NOTIFICATION_RETENTION_MONTHS = 12;
+
 const dayOf = (date: Date): string => date.toISOString().slice(0, 10);
 const shiftDays = (date: Date, days: number): string =>
   dayOf(new Date(date.getTime() + days * DAY_MS));
@@ -38,31 +46,31 @@ const shiftDays = (date: Date, days: number): string =>
  * correcting the date re-arms the alert rather than swallowing it.
  */
 export async function runWarrantyScan(deps: AppDeps, now: Date): Promise<JobResult> {
-  const settings = getSettings(deps.db);
+  const settings = await getSettings(deps.db);
   if (!deps.mailer || !emailEnabled(settings, 'emailWarrantyAlerts')) return skipped();
 
   const today = dayOf(now);
   const horizon = shiftDays(now, settings.warrantyLeadDays);
-  const expiring = deps.db
-    .select({
-      id: assets.id,
-      name: assets.name,
-      assetTag: assets.assetTag,
-      warrantyUntil: assets.warrantyUntil,
-    })
-    .from(assets)
-    .where(
-      and(
-        isNotNull(assets.warrantyUntil),
-        gte(assets.warrantyUntil, today),
-        lte(assets.warrantyUntil, horizon),
-      ),
-    )
-    .orderBy(asc(assets.warrantyUntil))
-    .all()
-    .flatMap((row) =>
-      row.warrantyUntil === null ? [] : [{ ...row, warrantyUntil: row.warrantyUntil }],
-    );
+  const expiring = (
+    await deps.db
+      .select({
+        id: assets.id,
+        name: assets.name,
+        assetTag: assets.assetTag,
+        warrantyUntil: assets.warrantyUntil,
+      })
+      .from(assets)
+      .where(
+        and(
+          isNotNull(assets.warrantyUntil),
+          gte(assets.warrantyUntil, today),
+          lte(assets.warrantyUntil, horizon),
+        ),
+      )
+      .orderBy(asc(assets.warrantyUntil))
+  ).flatMap((row) =>
+    row.warrantyUntil === null ? [] : [{ ...row, warrantyUntil: row.warrantyUntil }],
+  );
 
   if (expiring.length === 0) return { sent: 0, skipped: 0 };
 
@@ -82,7 +90,7 @@ export async function runWarrantyScan(deps: AppDeps, now: Date): Promise<JobResu
   });
 
   let sent = 0;
-  for (const admin of activeAdmins(deps)) {
+  for (const admin of await activeAdmins(deps)) {
     if (
       await sendOnce(deps, {
         kind: 'warranty',
@@ -103,10 +111,10 @@ export async function runWarrantyScan(deps: AppDeps, now: Date): Promise<JobResu
  * daily while the item stays out rather than going quiet after the first.
  */
 export async function runReturnReminders(deps: AppDeps, now: Date): Promise<JobResult> {
-  const settings = getSettings(deps.db);
+  const settings = await getSettings(deps.db);
   if (!deps.mailer || !emailEnabled(settings, 'emailReturnReminders')) return skipped();
 
-  const due = deps.db
+  const due = await deps.db
     .select({
       assignmentId: assignments.id,
       expectedReturnDate: assignments.expectedReturnDate,
@@ -127,8 +135,7 @@ export async function runReturnReminders(deps: AppDeps, now: Date): Promise<JobR
         lte(assignments.expectedReturnDate, shiftDays(now, RETURN_LEAD_DAYS)),
       ),
     )
-    .orderBy(asc(assignments.expectedReturnDate))
-    .all();
+    .orderBy(asc(assignments.expectedReturnDate));
 
   // One message per person, however many things they are holding. The value is
   // a non-empty tuple because it is only ever created with a row in it — which
@@ -184,14 +191,13 @@ export async function runReturnReminders(deps: AppDeps, now: Date): Promise<JobR
  * afternoon does not send it twice, and a missed Monday is simply missed.
  */
 export async function runWeeklyDigest(deps: AppDeps, now: Date): Promise<JobResult> {
-  const settings = getSettings(deps.db);
+  const settings = await getSettings(deps.db);
   if (!deps.mailer || !emailEnabled(settings, 'emailWeeklyDigest')) return skipped();
 
-  const counts = deps.db
-    .select({ status: assets.status, count: sql<number>`count(*)` })
+  const counts = await deps.db
+    .select({ status: assets.status, count: count() })
     .from(assets)
-    .groupBy(assets.status)
-    .all();
+    .groupBy(assets.status);
   const total = counts.reduce((sum, row) => sum + row.count, 0);
   const countFor = (status: string) => counts.find((row) => row.status === status)?.count ?? 0;
 
@@ -201,13 +207,14 @@ export async function runWeeklyDigest(deps: AppDeps, now: Date): Promise<JobResu
     assetCount: total,
     assignedCount: countFor('assigned'),
     availableCount: countFor('available'),
-    recentActivity: deps.db
-      .select()
-      .from(auditEvents)
-      .where(gte(auditEvents.at, new Date(now.getTime() - 7 * DAY_MS).toISOString()))
-      .orderBy(desc(auditEvents.at))
-      .limit(DIGEST_EVENTS)
-      .all()
+    recentActivity: (
+      await deps.db
+        .select()
+        .from(auditEvents)
+        .where(gte(auditEvents.at, new Date(now.getTime() - 7 * DAY_MS).toISOString()))
+        .orderBy(desc(auditEvents.at))
+        .limit(DIGEST_EVENTS)
+    )
       // params is NOT NULL DEFAULT '{}' and only ever written by JSON.stringify.
       .map((row) =>
         renderAuditEvent({ action: row.action, params: JSON.parse(row.params) as AuditParams }),
@@ -216,7 +223,7 @@ export async function runWeeklyDigest(deps: AppDeps, now: Date): Promise<JobResu
   });
 
   let sent = 0;
-  for (const admin of activeAdmins(deps)) {
+  for (const admin of await activeAdmins(deps)) {
     if (
       await sendOnce(deps, {
         kind: 'weekly_digest',
@@ -233,38 +240,101 @@ export async function runWeeklyDigest(deps: AppDeps, now: Date): Promise<JobResu
 
 /**
  * Nightly tidying, and the only place rows are ever removed without somebody
- * asking: expired sessions, spent or expired tokens, and audit events past the
- * workspace's retention. Retention is opt-out — `null` months means forever.
+ * asking: expired sessions, spent or expired tokens, audit events past the
+ * workspace's retention, the notification log past a year, and files on the
+ * volume that no attachment row names. Retention is opt-out — `null` months
+ * means forever — but the last two are not: neither is the workspace's data.
  */
-export function runMaintenance(deps: AppDeps, now: Date): MaintenanceResult {
-  const settings = getSettings(deps.db);
+export async function runMaintenance(deps: AppDeps, now: Date): Promise<MaintenanceResult> {
+  const settings = await getSettings(deps.db);
   const at = now.toISOString();
   let pruned = 0;
 
-  pruneExpiredSessions(deps.db, now);
-  pruned += deps.db.delete(authTokens).where(lt(authTokens.expiresAt, at)).run().changes;
-  pruned += deps.db.delete(sessions).where(lt(sessions.expiresAt, at)).run().changes;
+  await pruneExpiredSessions(deps.db, now);
+  // How many rows a delete took is the one result shape the two drivers do not
+  // agree on — libsql answers `rowsAffected`, node-postgres `rowCount`. Both
+  // dialects support RETURNING, so the deleted ids are the count, said in a way
+  // neither driver gets to name.
+  pruned += (
+    await deps.db
+      .delete(authTokens)
+      .where(lt(authTokens.expiresAt, at))
+      .returning({ id: authTokens.id })
+  ).length;
+  pruned += (
+    await deps.db.delete(sessions).where(lt(sessions.expiresAt, at)).returning({ id: sessions.id })
+  ).length;
 
   if (settings.logRetentionMonths !== null) {
     const cutoff = new Date(now);
     cutoff.setUTCMonth(cutoff.getUTCMonth() - settings.logRetentionMonths);
     // This trims per-asset trails too, which the Settings page says out loud.
-    pruned += deps.db
-      .delete(auditEvents)
-      .where(lt(auditEvents.at, cutoff.toISOString()))
-      .run().changes;
+    pruned += (
+      await deps.db
+        .delete(auditEvents)
+        .where(lt(auditEvents.at, cutoff.toISOString()))
+        .returning({ id: auditEvents.id })
+    ).length;
   }
 
-  return { pruned };
+  // Every dedupe window is measured in days at most, so a year of "what was
+  // sent" is kept for reading rather than for deciding — and not forever,
+  // because nobody debugs a message from two years ago.
+  const notificationCutoff = new Date(now);
+  notificationCutoff.setUTCMonth(notificationCutoff.getUTCMonth() - NOTIFICATION_RETENTION_MONTHS);
+  const notificationRowsPruned = (
+    await deps.db
+      .delete(notificationLog)
+      .where(lt(notificationLog.sentAt, notificationCutoff.toISOString()))
+      .returning({ id: notificationLog.id })
+  ).length;
+
+  return {
+    pruned,
+    orphanUploadsRemoved: await sweepOrphanUploads(deps, now),
+    notificationRowsPruned,
+  };
+}
+
+/**
+ * Stored objects that no attachment row names — a delete whose row landed and
+ * whose removal did not, a restore of `/data` from a newer database, an upload
+ * refused after its bytes were written. Anything younger than a day is left
+ * alone: it may be an upload whose transaction has not landed yet, and a sweep
+ * that races a live request is worse than a stray file.
+ *
+ * It asks the storage seam rather than the filesystem, so it sweeps a bucket on
+ * an instance whose attachments live in one — same rule, same grace period.
+ *
+ * The count goes back to the scheduler, which logs the whole result through
+ * pino — operations, not the activity log: nobody in the workspace did this.
+ */
+async function sweepOrphanUploads(deps: AppDeps, now: Date): Promise<number> {
+  const stored = await deps.storage.list();
+  const referenced = new Set(
+    (await deps.db.select({ storedName: attachments.storedName }).from(attachments)).map(
+      (row) => row.storedName,
+    ),
+  );
+
+  let removed = 0;
+  for (const object of stored) {
+    if (referenced.has(object.name)) continue;
+    if (now.getTime() - object.lastModified.getTime() < ORPHAN_GRACE_MS) continue;
+    // Best effort, as it always was: something else may have taken it between
+    // the listing and here, and that is the outcome asked for anyway.
+    await deps.storage.remove(object.name).catch(() => {});
+    removed += 1;
+  }
+  return removed;
 }
 
 /** Who a workspace-level message goes to. An invited admin cannot read it yet. */
-function activeAdmins(deps: AppDeps) {
-  return deps.db
+async function activeAdmins(deps: AppDeps) {
+  return await deps.db
     .select({ id: members.id, email: members.email })
     .from(members)
-    .where(and(eq(members.role, 'admin'), eq(members.status, 'active')))
-    .all();
+    .where(and(eq(members.role, 'admin'), eq(members.status, 'active')));
 }
 
 /**

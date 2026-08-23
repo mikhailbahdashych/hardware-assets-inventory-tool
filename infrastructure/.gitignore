@@ -1,0 +1,23 @@
+# Provider binaries and the working directory.
+.terraform/
+
+# State, and the backups Terraform writes beside it. It holds the database
+# password in the clear — that is what state is, not a bug — so it never goes
+# near the repository.
+*.tfstate
+*.tfstate.*
+
+# Real values, including whatever a private deployment calls itself. There is no
+# negation here for the committed example, and none is needed: `*.tfvars` matches
+# whole names, and terraform.tfvars.example is not one of them.
+*.tfvars
+
+# Saved plans, which hold the same secrets state does.
+*.tfplan
+
+crash.log
+crash.*.log
+
+# Note what is NOT here: .terraform.lock.hcl is committed. It pins the provider
+# versions and their checksums, which is the difference between CI validating
+# what you validated and CI validating something else.

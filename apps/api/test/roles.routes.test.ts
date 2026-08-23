@@ -19,7 +19,7 @@ describe('GET /api/v1/roles', () => {
     const viewer = await inject(ctx.app, {
       method: 'GET',
       url: '/api/v1/roles',
-      cookie: memberCookie(ctx.db, 'viewer'),
+      cookie: await memberCookie(ctx.db, 'viewer'),
     });
     expect(viewer.statusCode).toBe(200);
     expect(viewer.json().roles.map((role: { id: string }) => role.id)).toEqual([
@@ -35,29 +35,33 @@ describe('the roles endpoints are behind roles.manage', () => {
   it('turns a manager away from every one of them', async () => {
     ctx = await buildTestApp();
     await setupOrg(ctx.app);
-    const manager = memberCookie(ctx.db, 'manager');
+    const manager = await memberCookie(ctx.db, 'manager');
 
     const attempts = [
-      inject(ctx.app, {
+      await inject(ctx.app, {
         method: 'POST',
         url: '/api/v1/roles',
         cookie: manager,
         body: { label: 'Auditor', color: 'warn' },
       }),
-      inject(ctx.app, {
+      await inject(ctx.app, {
         method: 'PATCH',
         url: '/api/v1/roles/viewer',
         cookie: manager,
         body: { label: 'Read only' },
       }),
-      inject(ctx.app, { method: 'DELETE', url: '/api/v1/roles/viewer', cookie: manager }),
-      inject(ctx.app, {
+      await inject(ctx.app, {
+        method: 'DELETE',
+        url: '/api/v1/roles/viewer',
+        cookie: manager,
+      }),
+      await inject(ctx.app, {
         method: 'PUT',
         url: '/api/v1/roles/permissions',
         cookie: manager,
         body: { grants: [] },
       }),
-      inject(ctx.app, {
+      await inject(ctx.app, {
         method: 'POST',
         url: '/api/v1/roles/order',
         cookie: manager,
@@ -65,8 +69,8 @@ describe('the roles endpoints are behind roles.manage', () => {
       }),
     ];
 
-    for (const res of await Promise.all(attempts)) expect(res.statusCode).toBe(403);
-    expect(listRoles(ctx.db)).toHaveLength(3);
+    for (const res of attempts) expect(res.statusCode).toBe(403);
+    expect(await listRoles(ctx.db)).toHaveLength(3);
   });
 });
 
@@ -108,7 +112,7 @@ describe('an admin editing the roles over HTTP', () => {
       body: { order: ['auditor', 'admin', 'manager', 'viewer'] },
     });
     expect(reordered.statusCode).toBe(204);
-    expect(listRoles(ctx.db)[0]!.id).toBe('auditor');
+    expect((await listRoles(ctx.db))[0]!.id).toBe('auditor');
 
     const granted = await inject(ctx.app, {
       method: 'PUT',
@@ -131,7 +135,7 @@ describe('an admin editing the roles over HTTP', () => {
       cookie,
     });
     expect(removed.statusCode).toBe(204);
-    expect(listRoles(ctx.db).map((role) => role.id)).not.toContain('auditor');
+    expect((await listRoles(ctx.db)).map((role) => role.id)).not.toContain('auditor');
   });
 
   it('404s an unknown role and 422s a payload the contract refuses', async () => {
@@ -166,7 +170,7 @@ describe('an admin editing the roles over HTTP', () => {
   it('answers 409 with the code for the system role and for a role in use', async () => {
     ctx = await buildTestApp();
     const cookie = await setupOrg(ctx.app);
-    memberCookie(ctx.db, 'viewer');
+    await memberCookie(ctx.db, 'viewer');
 
     const system = await inject(ctx.app, {
       method: 'PATCH',
@@ -188,7 +192,7 @@ describe('an admin editing the roles over HTTP', () => {
       cookie,
     });
     expect(migrated.statusCode).toBe(204);
-    expect(ctx.db.select().from(members).all().at(-1)!.role).toBe('manager');
+    expect((await ctx.db.select().from(members)).at(-1)!.role).toBe('manager');
   });
 });
 
@@ -213,7 +217,7 @@ describe('what a member may do is resolved per request', () => {
       cookie,
       body: { grants: grants.map((action) => ({ role: 'floor_staff', action })) },
     });
-    return { cookie, staff: memberCookie(ctx.db, 'floor_staff') };
+    return { cookie, staff: await memberCookie(ctx.db, 'floor_staff') };
   }
 
   it('lets a custom role do exactly what it is granted, and nothing else', async () => {
@@ -269,7 +273,7 @@ describe('what a member may do is resolved per request', () => {
   it('closes the door on a member whose role row is gone', async () => {
     ctx = await buildTestApp();
     await setupOrg(ctx.app);
-    const orphan = memberCookie(ctx.db, 'nowhere');
+    const orphan = await memberCookie(ctx.db, 'nowhere');
 
     // Unreachable in practice — deleting a role moves every member holding it
     // — but "the role is gone" must never read as "anything goes".

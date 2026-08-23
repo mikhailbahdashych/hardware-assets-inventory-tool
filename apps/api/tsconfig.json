@@ -7,5 +7,12 @@
       "@/*": ["./src/*"]
     }
   },
-  "include": ["src", "test", "drizzle.config.ts", "tsup.config.ts", "vitest.config.ts"]
+  "include": [
+    "src",
+    "test",
+    "drizzle.config.ts",
+    "drizzle.pg.config.ts",
+    "tsup.config.ts",
+    "vitest.config.ts"
+  ]
 }

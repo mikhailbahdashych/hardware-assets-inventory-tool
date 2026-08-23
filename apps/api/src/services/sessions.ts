@@ -11,12 +11,12 @@ const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 const SLIDING_THRESHOLD_MS = 15 * 24 * 60 * 60 * 1000;
 const LAST_ACTIVE_THROTTLE_MS = 5 * 60 * 1000;
 
-export function createSession(db: Db, memberId: string, now: Date = new Date()) {
+export async function createSession(db: Db, memberId: string, now: Date = new Date()) {
   const raw = createRawToken();
   const expiresAt = new Date(now.getTime() + SESSION_TTL_MS).toISOString();
-  db.insert(sessions)
-    .values({ id: hashToken(raw), memberId, expiresAt, createdAt: nowIso(now) })
-    .run();
+  await db
+    .insert(sessions)
+    .values({ id: hashToken(raw), memberId, expiresAt, createdAt: nowIso(now) });
   return { raw, expiresAt };
 }
 
@@ -39,18 +39,16 @@ export function clearSessionCookie(reply: FastifyReply, config: Config): void {
   reply.clearCookie(SESSION_COOKIE, { path: '/', secure: config.cookieSecure });
 }
 
-export function deleteSession(db: Db, rawToken: string): void {
-  db.delete(sessions)
-    .where(eq(sessions.id, hashToken(rawToken)))
-    .run();
+export async function deleteSession(db: Db, rawToken: string): Promise<void> {
+  await db.delete(sessions).where(eq(sessions.id, hashToken(rawToken)));
 }
 
-export function revokeMemberSessions(db: Db, memberId: string): void {
-  db.delete(sessions).where(eq(sessions.memberId, memberId)).run();
+export async function revokeMemberSessions(db: Db, memberId: string): Promise<void> {
+  await db.delete(sessions).where(eq(sessions.memberId, memberId));
 }
 
-export function pruneExpiredSessions(db: Db, now: Date = new Date()): void {
-  db.delete(sessions).where(lt(sessions.expiresAt, now.toISOString())).run();
+export async function pruneExpiredSessions(db: Db, now: Date = new Date()): Promise<void> {
+  await db.delete(sessions).where(lt(sessions.expiresAt, now.toISOString()));
 }
 
 /**
@@ -58,33 +56,33 @@ export function pruneExpiredSessions(db: Db, now: Date = new Date()): void {
  * sight, slides the expiry when under 15 days remain, and bumps the member's
  * last_active_at at most every 5 minutes.
  */
-export function resolveSession(db: Db, rawToken: string, now: Date = new Date()) {
+export async function resolveSession(db: Db, rawToken: string, now: Date = new Date()) {
   const id = hashToken(rawToken);
-  const session = db.select().from(sessions).where(eq(sessions.id, id)).get();
+  const [session] = await db.select().from(sessions).where(eq(sessions.id, id));
   if (!session) return null;
   if (new Date(session.expiresAt).getTime() <= now.getTime()) {
-    db.delete(sessions).where(eq(sessions.id, id)).run();
+    await db.delete(sessions).where(eq(sessions.id, id));
     return null;
   }
 
   if (new Date(session.expiresAt).getTime() - now.getTime() < SLIDING_THRESHOLD_MS) {
-    db.update(sessions)
+    await db
+      .update(sessions)
       .set({ expiresAt: new Date(now.getTime() + SESSION_TTL_MS).toISOString() })
-      .where(eq(sessions.id, id))
-      .run();
+      .where(eq(sessions.id, id));
   }
 
-  const member = db.select().from(members).where(eq(members.id, session.memberId)).get();
+  const [member] = await db.select().from(members).where(eq(members.id, session.memberId));
   if (!member) return null;
 
   if (
     !member.lastActiveAt ||
     now.getTime() - new Date(member.lastActiveAt).getTime() > LAST_ACTIVE_THROTTLE_MS
   ) {
-    db.update(members)
+    await db
+      .update(members)
       .set({ lastActiveAt: nowIso(now) })
-      .where(eq(members.id, member.id))
-      .run();
+      .where(eq(members.id, member.id));
   }
 
   return member;

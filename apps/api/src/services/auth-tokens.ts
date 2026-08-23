@@ -19,40 +19,42 @@ const TTL_MS: Record<TokenPurpose, number> = {
  * Issues a fresh token (raw value returned once, only the hash is stored) and
  * invalidates any earlier unconsumed token of the same purpose for the member.
  */
-export function issueAuthToken(
+export async function issueAuthToken(
   db: DbOrTx,
   memberId: string,
   purpose: TokenPurpose,
   now: Date = new Date(),
-): string {
+): Promise<string> {
   const raw = createRawToken();
-  db.delete(authTokens)
+  await db
+    .delete(authTokens)
     .where(
       and(
         eq(authTokens.memberId, memberId),
         eq(authTokens.purpose, purpose),
         isNull(authTokens.consumedAt),
       ),
-    )
-    .run();
-  db.insert(authTokens)
-    .values({
-      id: hashToken(raw),
-      memberId,
-      purpose,
-      expiresAt: new Date(now.getTime() + TTL_MS[purpose]).toISOString(),
-      createdAt: nowIso(now),
-    })
-    .run();
+    );
+  await db.insert(authTokens).values({
+    id: hashToken(raw),
+    memberId,
+    purpose,
+    expiresAt: new Date(now.getTime() + TTL_MS[purpose]).toISOString(),
+    createdAt: nowIso(now),
+  });
   return raw;
 }
 
-export function findValidToken(db: Db, raw: string, purpose: TokenPurpose, now: Date = new Date()) {
-  const token = db
+export async function findValidToken(
+  db: Db,
+  raw: string,
+  purpose: TokenPurpose,
+  now: Date = new Date(),
+) {
+  const [token] = await db
     .select()
     .from(authTokens)
-    .where(eq(authTokens.id, hashToken(raw)))
-    .get();
+    .where(eq(authTokens.id, hashToken(raw)));
   if (!token) return null;
   if (token.purpose !== purpose) return null;
   if (token.consumedAt) return null;
@@ -60,9 +62,13 @@ export function findValidToken(db: Db, raw: string, purpose: TokenPurpose, now: 
   return token;
 }
 
-export function consumeToken(db: DbOrTx, tokenId: string, now: Date = new Date()): void {
-  db.update(authTokens)
+export async function consumeToken(
+  db: DbOrTx,
+  tokenId: string,
+  now: Date = new Date(),
+): Promise<void> {
+  await db
+    .update(authTokens)
     .set({ consumedAt: nowIso(now) })
-    .where(eq(authTokens.id, tokenId))
-    .run();
+    .where(eq(authTokens.id, tokenId));
 }

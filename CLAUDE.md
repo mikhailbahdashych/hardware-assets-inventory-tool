@@ -1,6 +1,6 @@
 # Hardware Assets Inventory Tool
 
-Self-hosted hardware asset inventory for IT teams ("Inventory" in the UI): assets, employees who hold them, members who sign in, and the full ownership history. Ships as one Docker container with SQLite on a single `/data` volume.
+Self-hosted hardware asset inventory for IT teams ("Inventory" in the UI): assets, employees who hold them, members who sign in, and the full ownership history. Ships as one Docker container with SQLite on a single `/data` volume — or, with `DATABASE_URL` set, the same container against a PostgreSQL server.
 
 This repo is built to be customized by asking Claude Code. Every area has its own CLAUDE.md with patterns and recipes — read the one closest to the code you're changing.
 
@@ -9,9 +9,10 @@ This repo is built to be customized by asking Claude Code. Every area has its ow
 ## Repo map
 
 - `apps/web` — React 19 + Vite SPA. Design system, pages, modals. See `apps/web/CLAUDE.md`.
-- `apps/api` — Fastify API + SQLite (Drizzle). REST under `/api/v1`, sessions + RBAC + audit log, serves the built SPA in production. See `apps/api/CLAUDE.md`.
+- `apps/api` — Fastify API + SQLite or PostgreSQL (Drizzle over libsql / node-postgres, async end to end). REST under `/api/v1`, sessions + RBAC + audit log, serves the built SPA in production. See `apps/api/CLAUDE.md`.
 - `packages/shared` — **single source of truth** for enums, label/color maps, RBAC and zod schemas. Both apps import it; change domain vocabulary here first. See `packages/shared/CLAUDE.md`.
 - `e2e` — Playwright tests against the production build. See `e2e/CLAUDE.md`.
+- `infrastructure` — flat Terraform for the full-scale AWS deployment: VPC, EC2 running the published image, RDS PostgreSQL, a private S3 bucket. It knows nothing about the domain — it produces `DATABASE_URL`, `S3_BUCKET`, `S3_REGION`, `APP_URL` and `TRUST_PROXY`, and hands them to a container. One responsibility per `.tf` file; `terraform fmt` and `validate` are a CI job. See `infrastructure/README.md` and the recipe `docs/recipes/change-infrastructure.md`.
 - `apps/web/src/features/dev/KitchenSink.tsx` → **`/kitchen-sink`** (dev-only route). The design system, rendered. **Visual source of truth**; open it beside whatever you are building.
 
 ## Commands
@@ -53,6 +54,8 @@ Same two processes, same ports, your checkout bind-mounted so hot reload still w
 - **Semantic colors:** every status/role/type maps to `sv ∈ {ok, acc, warn, err, info, neut}` and renders via CSS vars `--{sv}` / `--{sv}-bg`. Never hardcode a status color.
 - **Dates**: date-only values are `YYYY-MM-DD` strings; timestamps are ISO-8601 UTC. **Money is integer cents** — `parsePriceToCents` in `packages/shared/src/money.ts` is the only place a typed decimal becomes cents. Emails are lowercased before storage.
 - **Who holds an asset lives in `assignments`, never on the asset.** `assets.status = 'assigned'` ⇔ an open ownership row exists, enforced by a partial unique index and maintained only inside the assignment service.
+- **The API is async end to end**, over libsql rather than better-sqlite3: every service returns a promise and the idiom is `await db.transaction(async (tx) => …)`. Drizzle's builders are thenables, so a forgotten `await` compiles, returns a truthy object and never runs — `apps/api` is type-checked by eslint's floating-promise rules for that reason, and `apps/api/CLAUDE.md` says what those rules still cannot see.
+- **`DATABASE_URL` chooses the engine, and that is the only choice there is.** Absent, the rows live in the SQLite file under `DATA_DIR`; present (a `postgres://` URL), they live in PostgreSQL and `/data` holds only the attachments — or, with `S3_BUCKET` set as well, nothing that matters, though it stays writable because the entrypoint probes it. One logical schema, materialized per dialect in `apps/api/src/db/schema.sqlite.ts` and `schema.pg.ts`, kept identical by a parity test, with two checked-in migration folders — so **a schema change means generating both**. `db/` is the only directory that knows there are two engines; write queries that are true of both, and read "Two engines, one boundary" in `apps/api/CLAUDE.md` before adding one.
 - **Members sign in; employees hold assets.** Two tables, optionally linked, never fused — the same person can be both, and most people are only one. Nobody may change or remove their own account, which is also what guarantees the workspace keeps an admin.
 - **A CSV file is parsed in the browser and sent as canonical rows.** The API has no CSV parser and never learns what a particular spreadsheet called its columns; `packages/shared/src/schemas/import.ts` owns the vocabulary all three sides agree on.
 - **Two-factor is a workspace switch, not a personal setting.** `org_settings.mfa_required` turns it on for everybody; a member is enrolled or not. Only admins reset it, turning it off wipes every secret and recovery code, and `apps/api/src/db/mfa-reset-cli.ts` is the break-glass path when the last admin loses both phone and codes. TOTP is hand-written in `apps/api/src/lib/totp.ts` against RFC 6238's published test vectors — keep those tests if you ever replace it.

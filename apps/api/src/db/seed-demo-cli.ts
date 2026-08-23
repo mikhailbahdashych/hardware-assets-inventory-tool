@@ -1,12 +1,12 @@
 import { mkdirSync } from 'node:fs';
-import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { loadConfig } from '@/config.js';
-import { createDb } from '@/db/client.js';
+import { createDb, describeStore } from '@/db/client.js';
 import { runMigrations } from '@/db/migrate.js';
 import { seed } from '@/db/seed.js';
 import { seedDemo } from '@/db/demo.js';
 import { AppError } from '@/lib/errors.js';
+import { makeStorage, uploadsDir } from '@/services/storage.js';
 
 /**
  * `npm run seed:demo` — fills this instance with a workspace worth looking at.
@@ -28,17 +28,21 @@ async function main(): Promise<void> {
   const config = loadConfig();
 
   mkdirSync(config.dataDir, { recursive: true });
-  mkdirSync(join(config.dataDir, 'uploads'), { recursive: true });
+  // Same as the server's boot: nothing to make on an instance whose uploads
+  // live in a bucket.
+  if (config.s3Bucket === undefined) mkdirSync(uploadsDir(config), { recursive: true });
 
-  const { db, sqlite } = createDb(join(config.dataDir, 'inventory.db'));
+  const { db, client } = await createDb(config);
   try {
     // The same two steps the server takes at boot, so this works against a
     // data directory that has never had a server pointed at it.
-    runMigrations(db, fileURLToPath(new URL('../migrations', import.meta.url)));
-    seed(db);
+    await runMigrations(db, fileURLToPath(new URL('..', import.meta.url)));
+    await seed(db);
 
     const result = await seedDemo(
-      { config, db, sqlite, now: () => new Date(), mailer: null },
+      // `--reset` empties the workspace, attachments included, so this needs
+      // the same storage the server would have used to write them.
+      { config, db, client, storage: makeStorage(config), now: () => new Date(), mailer: null },
       { password, reset },
     );
 
@@ -46,7 +50,7 @@ async function main(): Promise<void> {
     process.stdout.write(
       // Absolute, because `./data` is relative to whichever workspace npm
       // ran this in — which is not where somebody at the repo root looks.
-      `\n  ${result.orgName} is ready in ${resolve(config.dataDir)}\n\n` +
+      `\n  ${result.orgName} is ready in ${describeStore(config)}\n\n` +
         `  ${result.counts.assets} assets · ${result.counts.employees} employees · ` +
         `${result.counts.assignments} ownership records · ${result.counts.auditEvents} logged events\n\n` +
         result.signIn
@@ -59,7 +63,7 @@ async function main(): Promise<void> {
         `\n\n  Every account shares that password.\n\n`,
     );
   } finally {
-    sqlite.close();
+    await client.close();
   }
 }
 

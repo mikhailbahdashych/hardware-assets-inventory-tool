@@ -83,7 +83,9 @@ A deliberate departure from the original design, which draws none. Saving each c
 
 `settingsDraft.ts` is the shape of it: the whole form is one `SettingsDraft` in local state, and `changedSettings(stored, draft)` returns only the fields that differ. **That diff is also the dirty check** — `Object.keys(patch).length > 0` is what enables Save — so the button and the payload can never disagree about whether there is anything to save. `SettingsForm` is keyed on `settings.updatedAt`, so a successful save (or anyone else's) re-seeds every field from the row rather than leaving stale text on screen.
 
-The lead-time field holds _text_, because `""` and `"4x"` are things a person can type; unparseable text is still counted as a change and sent as `-1` so the schema names what is wrong under the field, instead of Save going quiet and leaving somebody clicking a dead button.
+The lead-time field and the storage quota hold _text_, because `""` and `"4x"` are things a person can type; unparseable text is still counted as a change and sent as `-1` (`readNumber` in `settingsDraft.ts`) so the schema names what is wrong under the field, instead of Save going quiet and leaving somebody clicking a dead button.
+
+`useSettings()` returns the whole `GET /settings` payload rather than the row, because the Data card's storage line reads `storageUsedBytes` — a sum over the attachments table, which is not a column and does not come back from PATCH. That line quotes the **stored** quota, not the draft: it says what is in force, and a number being typed is not yet policy. `formatFileSize` in `lib/format.ts` writes both it and every attachment row, so the two cannot round differently in the same screen.
 
 ## Roles come from the server, and `/roles` is where they are edited
 

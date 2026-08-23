@@ -30,12 +30,9 @@ export function registerCustomFieldRoutes(app: FastifyInstance, deps: AppDeps): 
   const typed = app.withTypeProvider<ZodTypeProvider>();
 
   typed.get('/api/v1/custom-fields', { preHandler: requireAuth }, async () => ({
-    customFields: deps.db
-      .select()
-      .from(customFieldDefs)
-      .orderBy(customFieldDefs.sortOrder)
-      .all()
-      .map(serialize),
+    customFields: (
+      await deps.db.select().from(customFieldDefs).orderBy(customFieldDefs.sortOrder)
+    ).map(serialize),
   }));
 
   typed.post(
@@ -51,24 +48,23 @@ export function registerCustomFieldRoutes(app: FastifyInstance, deps: AppDeps): 
         throw invalidFields({ label: 'Give the field a name with letters or numbers in it.' });
       }
 
-      return deps.db.transaction((tx) => {
-        if (tx.select().from(customFieldDefs).where(eq(customFieldDefs.key, key)).get()) {
+      return await deps.db.transaction(async (tx) => {
+        const [clash] = await tx.select().from(customFieldDefs).where(eq(customFieldDefs.key, key));
+        if (clash) {
           throw invalidFields({ label: 'A field with that name already exists.' });
         }
 
         const id = newId();
-        const sortOrder = tx.select().from(customFieldDefs).all().length;
-        tx.insert(customFieldDefs)
-          .values({
-            id,
-            key,
-            label: request.body.label,
-            type: request.body.type,
-            sortOrder,
-            createdAt: nowIso(now),
-          })
-          .run();
-        writeAudit(
+        const sortOrder = (await tx.select().from(customFieldDefs)).length;
+        await tx.insert(customFieldDefs).values({
+          id,
+          key,
+          label: request.body.label,
+          type: request.body.type,
+          sortOrder,
+          createdAt: nowIso(now),
+        });
+        await writeAudit(
           tx,
           {
             type: 'system',
@@ -82,7 +78,7 @@ export function registerCustomFieldRoutes(app: FastifyInstance, deps: AppDeps): 
 
         return {
           customField: serialize(
-            tx.select().from(customFieldDefs).where(eq(customFieldDefs.id, id)).get()!,
+            (await tx.select().from(customFieldDefs).where(eq(customFieldDefs.id, id)))[0]!,
           ),
         };
       });
@@ -98,12 +94,11 @@ export function registerCustomFieldRoutes(app: FastifyInstance, deps: AppDeps): 
     async (request) => {
       const now = deps.now();
 
-      return deps.db.transaction((tx) => {
-        const current = tx
+      return await deps.db.transaction(async (tx) => {
+        const [current] = await tx
           .select()
           .from(customFieldDefs)
-          .where(eq(customFieldDefs.id, request.params.id))
-          .get();
+          .where(eq(customFieldDefs.id, request.params.id));
         if (!current) throw notFound('That field');
 
         // The key deliberately does not follow the label: stored values, CSV
@@ -113,8 +108,8 @@ export function registerCustomFieldRoutes(app: FastifyInstance, deps: AppDeps): 
         if (request.body.sortOrder !== undefined) patch.sortOrder = request.body.sortOrder;
         if (Object.keys(patch).length === 0) return { customField: serialize(current) };
 
-        tx.update(customFieldDefs).set(patch).where(eq(customFieldDefs.id, current.id)).run();
-        writeAudit(
+        await tx.update(customFieldDefs).set(patch).where(eq(customFieldDefs.id, current.id));
+        await writeAudit(
           tx,
           {
             type: 'system',
@@ -129,7 +124,7 @@ export function registerCustomFieldRoutes(app: FastifyInstance, deps: AppDeps): 
 
         return {
           customField: serialize(
-            tx.select().from(customFieldDefs).where(eq(customFieldDefs.id, current.id)).get()!,
+            (await tx.select().from(customFieldDefs).where(eq(customFieldDefs.id, current.id)))[0]!,
           ),
         };
       });
@@ -142,18 +137,17 @@ export function registerCustomFieldRoutes(app: FastifyInstance, deps: AppDeps): 
     async (request, reply) => {
       const now = deps.now();
 
-      deps.db.transaction((tx) => {
-        const current = tx
+      await deps.db.transaction(async (tx) => {
+        const [current] = await tx
           .select()
           .from(customFieldDefs)
-          .where(eq(customFieldDefs.id, request.params.id))
-          .get();
+          .where(eq(customFieldDefs.id, request.params.id));
         if (!current) throw notFound('That field');
 
         // Values cascade away with the definition — there is nowhere to keep
         // them once the column they described is gone.
-        tx.delete(customFieldDefs).where(eq(customFieldDefs.id, current.id)).run();
-        writeAudit(
+        await tx.delete(customFieldDefs).where(eq(customFieldDefs.id, current.id));
+        await writeAudit(
           tx,
           {
             type: 'system',

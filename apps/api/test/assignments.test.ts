@@ -46,12 +46,12 @@ const checkin = (cookie: string, assetId: string, body: Record<string, unknown>)
  * The invariant this whole PR exists to protect: an asset reads `assigned` if
  * and only if it has an open ownership record, and never has two.
  */
-function expectInvariant(db: Db): void {
-  const open = db.select().from(assignments).where(isNull(assignments.returnedAt)).all();
+async function expectInvariant(db: Db): Promise<void> {
+  const open = await db.select().from(assignments).where(isNull(assignments.returnedAt));
   const held = new Set(open.map((row) => row.assetId));
   expect(held.size).toBe(open.length);
 
-  for (const asset of db.select().from(assets).all()) {
+  for (const asset of await db.select().from(assets)) {
     expect({ tag: asset.assetTag, assigned: asset.status === 'assigned' }).toEqual({
       tag: asset.assetTag,
       assigned: held.has(asset.id),
@@ -82,7 +82,7 @@ describe('assigning an asset', () => {
       },
     });
 
-    const open = ctx.db.select().from(assignments).all();
+    const open = await ctx.db.select().from(assignments);
     expect(open).toHaveLength(1);
     expect(open[0]).toMatchObject({
       holderNameSnapshot: 'Maya Lindqvist',
@@ -92,14 +92,12 @@ describe('assigning an asset', () => {
       outcome: null,
     });
 
-    const event = ctx.db
-      .select()
-      .from(auditEvents)
-      .all()
-      .find((e) => e.action === 'asset.assigned');
+    const event = (await ctx.db.select().from(auditEvents)).find(
+      (e) => e.action === 'asset.assigned',
+    );
     expect(event).toMatchObject({ type: 'assets', assetId: asset.id, employeeId: employee.id });
     expect(JSON.parse(event!.params)).toMatchObject({ holderName: 'Maya Lindqvist' });
-    expectInvariant(ctx.db);
+    await expectInvariant(ctx.db);
   });
 
   it('accepts an ordered asset — kit is often assigned before it lands', async () => {
@@ -113,7 +111,7 @@ describe('assigning an asset', () => {
       checkoutDate: '2026-03-14',
     });
     expect(res.statusCode).toBe(200);
-    expectInvariant(ctx.db);
+    await expectInvariant(ctx.db);
   });
 
   it('refuses an asset that is not free', async () => {
@@ -142,7 +140,7 @@ describe('assigning an asset', () => {
       checkoutDate: '2026-03-15',
     });
     expect(twice.statusCode).toBe(409);
-    expectInvariant(ctx.db);
+    await expectInvariant(ctx.db);
   });
 
   it('refuses a holder who is unknown or on their way out', async () => {
@@ -169,7 +167,7 @@ describe('assigning an asset', () => {
       checkoutDate: '2026-03-14',
     });
     expect(offboarding.statusCode).toBe(422);
-    expectInvariant(ctx.db);
+    await expectInvariant(ctx.db);
   });
 
   it('is closed to viewers', async () => {
@@ -178,7 +176,7 @@ describe('assigning an asset', () => {
     const employee = await createEmployee(admin);
     const asset = await createAsset(admin);
 
-    const res = await assign(memberCookie(ctx.db, 'viewer'), asset.id, {
+    const res = await assign(await memberCookie(ctx.db, 'viewer'), asset.id, {
       employeeId: employee.id,
       checkoutDate: '2026-03-14',
     });
@@ -208,7 +206,7 @@ describe('checking an asset in', () => {
     expect(res.statusCode).toBe(200);
     expect(res.json().asset).toMatchObject({ status: 'available', currentHolder: null });
 
-    const record = ctx.db.select().from(assignments).all()[0];
+    const record = (await ctx.db.select().from(assignments))[0];
     expect(record).toMatchObject({
       returnedAt: '2026-08-16',
       checkinCondition: 'good',
@@ -217,11 +215,9 @@ describe('checking an asset in', () => {
       outcome: 'returned',
     });
 
-    const event = ctx.db
-      .select()
-      .from(auditEvents)
-      .all()
-      .find((e) => e.action === 'asset.checked_in');
+    const event = (await ctx.db.select().from(auditEvents)).find(
+      (e) => e.action === 'asset.checked_in',
+    );
     // The label at write time, not the slug: renaming or deleting a status
     // afterwards must not rewrite what the log already said.
     expect(JSON.parse(event!.params)).toMatchObject({
@@ -229,7 +225,7 @@ describe('checking an asset in', () => {
       outcome: 'returned',
       to: 'Available',
     });
-    expectInvariant(ctx.db);
+    await expectInvariant(ctx.db);
   });
 
   it('only offers the statuses the workflow marks as check-in destinations', async () => {
@@ -251,19 +247,18 @@ describe('checking an asset in', () => {
     expect(nowhere.statusCode).toBe(422);
 
     // Turning the flag off takes the destination away, live.
-    ctx.db
+    await ctx.db
       .update(assetStatuses)
       .set({ checkinTarget: false })
-      .where(eq(assetStatuses.id, 'in_repair'))
-      .run();
+      .where(eq(assetStatuses.id, 'in_repair'));
     const repair = await checkin(admin, asset.id, {
       returnDate: '2026-08-16',
       newStatus: 'in_repair',
     });
     expect(repair.statusCode).toBe(422);
 
-    expect(ctx.db.select().from(assets).all()[0]!.status).toBe('assigned');
-    expectInvariant(ctx.db);
+    expect((await ctx.db.select().from(assets))[0]!.status).toBe('assigned');
+    await expectInvariant(ctx.db);
   });
 
   it('follows the assignable flag rather than a hard-coded pair', async () => {
@@ -272,18 +267,17 @@ describe('checking an asset in', () => {
     const employee = await createEmployee(admin);
     const asset = await createAsset(admin, { status: 'in_repair' });
 
-    ctx.db
+    await ctx.db
       .update(assetStatuses)
       .set({ assignableFrom: true })
-      .where(eq(assetStatuses.id, 'in_repair'))
-      .run();
+      .where(eq(assetStatuses.id, 'in_repair'));
 
     const res = await assign(admin, asset.id, {
       employeeId: employee.id,
       checkoutDate: '2026-03-14',
     });
     expect(res.statusCode).toBe(200);
-    expectInvariant(ctx.db);
+    await expectInvariant(ctx.db);
   });
 
   it('lands in repair when that is where it goes', async () => {
@@ -296,8 +290,8 @@ describe('checking an asset in', () => {
       condition: 'damaged',
     });
     expect(res.json().asset.status).toBe('in_repair');
-    expect(ctx.db.select().from(assignments).all()[0]!.outcome).toBe('in_repair');
-    expectInvariant(ctx.db);
+    expect((await ctx.db.select().from(assignments))[0]!.outcome).toBe('in_repair');
+    await expectInvariant(ctx.db);
   });
 
   it('records an offboarding return as offboarded', async () => {
@@ -311,7 +305,7 @@ describe('checking an asset in', () => {
     });
 
     await checkin(admin, asset.id, { returnDate: '2026-08-16', newStatus: 'available' });
-    expect(ctx.db.select().from(assignments).all()[0]!.outcome).toBe('offboarded');
+    expect((await ctx.db.select().from(assignments))[0]!.outcome).toBe('offboarded');
   });
 
   it('refuses an asset nobody is holding', async () => {
@@ -337,7 +331,7 @@ describe('checking an asset in', () => {
     });
     expect(res.statusCode).toBe(422);
     expect(res.json().error.fields).toMatchObject({ returnDate: expect.any(String) });
-    expectInvariant(ctx.db);
+    await expectInvariant(ctx.db);
   });
 
   it('frees the asset to be assigned again, keeping both records', async () => {
@@ -351,8 +345,8 @@ describe('checking an asset in', () => {
       checkoutDate: '2026-08-20',
     });
     expect(again.statusCode).toBe(200);
-    expect(ctx.db.select().from(assignments).all()).toHaveLength(2);
-    expectInvariant(ctx.db);
+    expect(await ctx.db.select().from(assignments)).toHaveLength(2);
+    await expectInvariant(ctx.db);
   });
 });
 
@@ -437,7 +431,7 @@ describe('the status ⇔ ownership invariant', () => {
       }
 
       // Checked after every single step: a violation names the step that caused it.
-      expectInvariant(ctx.db);
+      await expectInvariant(ctx.db);
     }
   });
 
@@ -455,9 +449,9 @@ describe('the status ⇔ ownership invariant', () => {
 
     expect([a.statusCode, b.statusCode].sort()).toEqual([200, 409]);
     expect(
-      ctx.db.select().from(assignments).where(isNull(assignments.returnedAt)).all(),
+      await ctx.db.select().from(assignments).where(isNull(assignments.returnedAt)),
     ).toHaveLength(1);
-    expectInvariant(ctx.db);
+    await expectInvariant(ctx.db);
   });
 
   it('leaves nothing behind when a freed asset is deleted', async () => {
@@ -475,9 +469,9 @@ describe('the status ⇔ ownership invariant', () => {
     });
     expect(res.statusCode).toBe(204);
     expect(
-      ctx.db.select().from(assignments).where(eq(assignments.assetId, asset.id)).all(),
+      await ctx.db.select().from(assignments).where(eq(assignments.assetId, asset.id)),
     ).toEqual([]);
-    expectInvariant(ctx.db);
+    await expectInvariant(ctx.db);
   });
 });
 

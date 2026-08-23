@@ -253,6 +253,28 @@ describe('workspace settings', () => {
     expect(api.called('PATCH /settings')!.body).toEqual({ warrantyLeadDays: 900 });
   });
 
+  it('says how much of the attachment storage is gone, and takes a new limit', async () => {
+    const api = renderApp(
+      {
+        ...ADMIN_ROUTES,
+        'GET /settings': { body: { settings: SETTINGS, storageUsedBytes: 1_288_490_188 } },
+        'PATCH /settings': { body: { settings: { ...SETTINGS, uploadQuotaMb: 4096 } } },
+      },
+      '/admin',
+    );
+
+    expect(await screen.findByText(/1\.2 GB of 2 GB used/)).toBeInTheDocument();
+
+    const quota = screen.getByLabelText(/attachment storage/i);
+    expect(quota).toHaveValue(2048);
+    await userEvent.clear(quota);
+    await userEvent.type(quota, '4096');
+    await userEvent.click(screen.getByRole('button', { name: /save changes/i }));
+
+    await waitFor(() => expect(api.called('PATCH /settings')).toBeDefined());
+    expect(api.called('PATCH /settings')!.body).toEqual({ uploadQuotaMb: 4096 });
+  });
+
   it('keeps "Forever" a value rather than a missing retention', async () => {
     const api = renderApp(
       {

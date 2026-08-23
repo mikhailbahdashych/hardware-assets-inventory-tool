@@ -1,4 +1,4 @@
-import { asc, eq, sql } from 'drizzle-orm';
+import { asc, count, eq, sql } from 'drizzle-orm';
 import {
   ACTIONS,
   MAX_ROLES,
@@ -51,26 +51,25 @@ const serialize = (row: RoleRow, memberCount: number, permissions: Action[]): Wo
   permissions,
 });
 
-const roleRows = (db: DbOrTx): RoleRow[] =>
-  db.select().from(roles).orderBy(asc(roles.sortOrder)).all();
+const roleRows = async (db: DbOrTx): Promise<RoleRow[]> =>
+  await db.select().from(roles).orderBy(asc(roles.sortOrder));
 
 /**
  * Members per role id, invited ones included — an invitation nobody has
  * accepted is still somebody a delete has to move.
  */
-function memberCounts(db: DbOrTx): Map<string, number> {
-  const rows = db
-    .select({ role: members.role, count: sql<number>`count(*)` })
+async function memberCounts(db: DbOrTx): Promise<Map<string, number>> {
+  const rows = await db
+    .select({ role: members.role, count: count() })
     .from(members)
-    .groupBy(members.role)
-    .all();
+    .groupBy(members.role);
   return new Map(rows.map((row) => [row.role, row.count]));
 }
 
 /** Stored grants per role id, with anything this build dropped filtered out. */
-function grantsByRole(db: DbOrTx): Map<string, Action[]> {
+async function grantsByRole(db: DbOrTx): Promise<Map<string, Action[]>> {
   const grouped = new Map<string, Action[]>();
-  for (const row of db.select().from(rolePermissions).all()) {
+  for (const row of await db.select().from(rolePermissions)) {
     if (!isKnownAction(row.action)) continue;
     const actions = grouped.get(row.roleId);
     if (actions) actions.push(row.action);
@@ -84,10 +83,10 @@ function isKnownAction(action: string): action is Action {
 }
 
 /** Every role, as `GET /api/v1/roles` and the Roles page read them. */
-export function listRoles(db: DbOrTx): WorkspaceRole[] {
-  const counts = memberCounts(db);
-  const grants = grantsByRole(db);
-  return roleRows(db).map((row) =>
+export async function listRoles(db: DbOrTx): Promise<WorkspaceRole[]> {
+  const counts = await memberCounts(db);
+  const grants = await grantsByRole(db);
+  return (await roleRows(db)).map((row) =>
     serialize(
       row,
       // A role nobody holds is absent from the grouped count, and absent
@@ -110,16 +109,12 @@ export function listRoles(db: DbOrTx): WorkspaceRole[] {
  * practice, because deleting a role moves every member holding it in the same
  * transaction, but "the role is gone" must never read as "anything goes".
  */
-export function resolvePermissions(db: DbOrTx, roleId: string): ReadonlySet<Action> {
-  const row = db.select().from(roles).where(eq(roles.id, roleId)).get();
+export async function resolvePermissions(db: DbOrTx, roleId: string): Promise<ReadonlySet<Action>> {
+  const [row] = await db.select().from(roles).where(eq(roles.id, roleId));
   if (!row) return new Set();
   if (row.isSystem) return new Set(ACTIONS);
   return new Set(
-    db
-      .select()
-      .from(rolePermissions)
-      .where(eq(rolePermissions.roleId, roleId))
-      .all()
+    (await db.select().from(rolePermissions).where(eq(rolePermissions.roleId, roleId)))
       .map((grant) => grant.action)
       .filter(isKnownAction),
   );
@@ -130,18 +125,22 @@ export function resolvePermissions(db: DbOrTx, roleId: string): ReadonlySet<Acti
  * field matters: a bad `role` on the invite form and a bad `migrateTo` in the
  * delete dialog must highlight different inputs.
  */
-export function requireRole(db: DbOrTx, id: string, field = 'role'): RoleRow {
-  const row = db.select().from(roles).where(eq(roles.id, id)).get();
+export async function requireRole(db: DbOrTx, id: string, field = 'role'): Promise<RoleRow> {
+  const [row] = await db.select().from(roles).where(eq(roles.id, id));
   if (!row) throw invalidFields({ [field]: `"${id}" is not a role in this workspace.` });
   return row;
 }
 
-export function createRole(deps: AppDeps, actor: RoleActor, input: RoleCreateInput): WorkspaceRole {
+export async function createRole(
+  deps: AppDeps,
+  actor: RoleActor,
+  input: RoleCreateInput,
+): Promise<WorkspaceRole> {
   const now = deps.now();
   const at = nowIso(now);
 
-  return deps.db.transaction((tx) => {
-    const existing = roleRows(tx);
+  return await deps.db.transaction(async (tx) => {
+    const existing = await roleRows(tx);
     if (existing.length >= MAX_ROLES) {
       throw new AppError(
         409,
@@ -159,21 +158,19 @@ export function createRole(deps: AppDeps, actor: RoleActor, input: RoleCreateInp
     // Last in the list: a role somebody just added has no claim on a place
     // among the ones they arranged.
     const sortOrder = existing.reduce((highest, row) => Math.max(highest, row.sortOrder), -1) + 1;
-    tx.insert(roles)
-      .values({
-        id,
-        label: input.label,
-        description: input.description,
-        color: input.color,
-        isSystem: false,
-        sortOrder,
-        createdAt: at,
-        updatedAt: at,
-      })
-      .run();
+    await tx.insert(roles).values({
+      id,
+      label: input.label,
+      description: input.description,
+      color: input.color,
+      isSystem: false,
+      sortOrder,
+      createdAt: at,
+      updatedAt: at,
+    });
     // No permission rows at all: the matrix is where granting happens, and a
     // new role that could already do things is a role nobody decided on.
-    writeAudit(
+    await writeAudit(
       tx,
       {
         type: 'auth',
@@ -185,20 +182,20 @@ export function createRole(deps: AppDeps, actor: RoleActor, input: RoleCreateInp
       now,
     );
 
-    return serialize(requireRole(tx, id), 0, []);
+    return serialize(await requireRole(tx, id), 0, []);
   });
 }
 
-export function updateRole(
+export async function updateRole(
   deps: AppDeps,
   actor: RoleActor,
   id: string,
   patch: RolePatchInput,
-): WorkspaceRole {
+): Promise<WorkspaceRole> {
   const now = deps.now();
 
-  return deps.db.transaction((tx) => {
-    const rows = roleRows(tx);
+  return await deps.db.transaction(async (tx) => {
+    const rows = await roleRows(tx);
     const current = rows.find((row) => row.id === id);
     if (!current) throw notFound('That role');
     assertEditable(current, actor);
@@ -228,8 +225,8 @@ export function updateRole(
     if (changedFields.length === 0) return readRole(tx, current);
 
     values.updatedAt = nowIso(now);
-    tx.update(roles).set(values).where(eq(roles.id, id)).run();
-    writeAudit(
+    await tx.update(roles).set(values).where(eq(roles.id, id));
+    await writeAudit(
       tx,
       {
         type: 'auth',
@@ -242,7 +239,7 @@ export function updateRole(
       now,
     );
 
-    return readRole(tx, requireRole(tx, id));
+    return await readRole(tx, await requireRole(tx, id));
   });
 }
 
@@ -253,15 +250,15 @@ export function updateRole(
  * permissions. Only the difference is written, so a save that changes one box
  * touches one row.
  */
-export function replacePermissions(
+export async function replacePermissions(
   deps: AppDeps,
   actor: RoleActor,
   input: PermissionsPutInput,
-): { added: number; removed: number } {
+): Promise<{ added: number; removed: number }> {
   const now = deps.now();
 
-  return deps.db.transaction((tx) => {
-    const known = new Map(roleRows(tx).map((row) => [row.id, row]));
+  return await deps.db.transaction(async (tx) => {
+    const known = new Map((await roleRows(tx)).map((row) => [row.id, row]));
 
     // Deduped silently: a matrix cannot check a box twice, and a client that
     // repeats a grant is asking for the same permissions either way.
@@ -280,11 +277,7 @@ export function replacePermissions(
     }
 
     const stored = new Set(
-      tx
-        .select()
-        .from(rolePermissions)
-        .all()
-        .map((row) => key(row.roleId, row.action)),
+      (await tx.select().from(rolePermissions)).map((row) => key(row.roleId, row.action)),
     );
     const added = [...wanted].filter((pair) => !stored.has(pair));
     const removed = [...stored].filter((pair) => !wanted.has(pair));
@@ -306,15 +299,17 @@ export function replacePermissions(
 
     for (const pair of added) {
       const [roleId, action] = split(pair);
-      tx.insert(rolePermissions).values({ roleId, action }).run();
+      await tx.insert(rolePermissions).values({ roleId, action });
     }
     for (const pair of removed) {
       const [roleId, action] = split(pair);
-      tx.delete(rolePermissions)
-        .where(sql`${rolePermissions.roleId} = ${roleId} and ${rolePermissions.action} = ${action}`)
-        .run();
+      await tx
+        .delete(rolePermissions)
+        .where(
+          sql`${rolePermissions.roleId} = ${roleId} and ${rolePermissions.action} = ${action}`,
+        );
     }
-    writeAudit(
+    await writeAudit(
       tx,
       {
         type: 'auth',
@@ -331,11 +326,15 @@ export function replacePermissions(
 }
 
 /** Up and down arrows send the whole list, so the result is always coherent. */
-export function reorderRoles(deps: AppDeps, actor: RoleActor, order: string[]): void {
+export async function reorderRoles(
+  deps: AppDeps,
+  actor: RoleActor,
+  order: string[],
+): Promise<void> {
   const now = deps.now();
 
-  deps.db.transaction((tx) => {
-    const rows = roleRows(tx);
+  await deps.db.transaction(async (tx) => {
+    const rows = await roleRows(tx);
     const known = new Set(rows.map((row) => row.id));
     const sent = new Set(order);
     if (
@@ -349,10 +348,10 @@ export function reorderRoles(deps: AppDeps, actor: RoleActor, order: string[]): 
     // The system role takes part like any other row: where it sits is
     // presentation, and nothing depends on it being first.
     const at = nowIso(now);
-    order.forEach((id, sortOrder) => {
-      tx.update(roles).set({ sortOrder, updatedAt: at }).where(eq(roles.id, id)).run();
-    });
-    writeAudit(
+    for (const [sortOrder, id] of order.entries()) {
+      await tx.update(roles).set({ sortOrder, updatedAt: at }).where(eq(roles.id, id));
+    }
+    await writeAudit(
       tx,
       {
         type: 'auth',
@@ -371,19 +370,20 @@ export function reorderRoles(deps: AppDeps, actor: RoleActor, order: string[]): 
  * cascade), and one summary event records how many moved — not one per member,
  * which would bury the rest of the log.
  */
-export function deleteRole(deps: AppDeps, actor: RoleActor, id: string, migrateTo?: string): void {
+export async function deleteRole(
+  deps: AppDeps,
+  actor: RoleActor,
+  id: string,
+  migrateTo?: string,
+): Promise<void> {
   const now = deps.now();
 
-  deps.db.transaction((tx) => {
-    const current = tx.select().from(roles).where(eq(roles.id, id)).get();
+  await deps.db.transaction(async (tx) => {
+    const [current] = await tx.select().from(roles).where(eq(roles.id, id));
     if (!current) throw notFound('That role');
     assertEditable(current, actor);
 
-    const holders = tx
-      .select({ count: sql<number>`count(*)` })
-      .from(members)
-      .where(eq(members.role, id))
-      .get();
+    const [holders] = await tx.select({ count: count() }).from(members).where(eq(members.role, id));
     // count(*) over a table that exists always answers a row; a miss here
     // would be a broken query rather than an empty workspace.
     if (!holders) throw new AppError(500, 'count_failed', 'The member count did not answer.');
@@ -398,19 +398,19 @@ export function deleteRole(deps: AppDeps, actor: RoleActor, id: string, migrateT
           `${memberCount} ${memberCount === 1 ? 'member holds' : 'members hold'} this role. Choose which role to move them to first.`,
         );
       }
-      destination = requireMigrationTarget(tx, id, migrateTo);
-      tx.update(members)
+      destination = await requireMigrationTarget(tx, id, migrateTo);
+      await tx
+        .update(members)
         .set({ role: destination.id, updatedAt: nowIso(now) })
-        .where(eq(members.role, id))
-        .run();
+        .where(eq(members.role, id));
     } else if (migrateTo !== undefined) {
       // Nobody to move, but a destination the admin cannot have meant is still
       // worth saying out loud rather than silently ignoring.
-      destination = requireMigrationTarget(tx, id, migrateTo);
+      destination = await requireMigrationTarget(tx, id, migrateTo);
     }
 
-    tx.delete(roles).where(eq(roles.id, id)).run();
-    writeAudit(
+    await tx.delete(roles).where(eq(roles.id, id));
+    await writeAudit(
       tx,
       {
         type: 'auth',
@@ -431,18 +431,14 @@ export function deleteRole(deps: AppDeps, actor: RoleActor, id: string, migrateT
 }
 
 /** One role with the counts and permissions the page reads it with. */
-function readRole(tx: DbOrTx, row: RoleRow): WorkspaceRole {
-  const counts = memberCounts(tx);
+async function readRole(tx: DbOrTx, row: RoleRow): Promise<WorkspaceRole> {
+  const counts = await memberCounts(tx);
   return serialize(
     row,
     counts.get(row.id) ?? 0,
     row.isSystem
       ? [...ACTIONS]
-      : tx
-          .select()
-          .from(rolePermissions)
-          .where(eq(rolePermissions.roleId, row.id))
-          .all()
+      : (await tx.select().from(rolePermissions).where(eq(rolePermissions.roleId, row.id)))
           .map((grant) => grant.action)
           .filter(isKnownAction),
   );
@@ -484,11 +480,11 @@ function assertLabelFree(rows: RoleRow[], slug: string, label: string): void {
  * because promoting the last two people in a department is a choice somebody
  * may genuinely mean.
  */
-function requireMigrationTarget(tx: DbOrTx, id: string, migrateTo: string): RoleRow {
+async function requireMigrationTarget(tx: DbOrTx, id: string, migrateTo: string): Promise<RoleRow> {
   if (migrateTo === id) {
     throw invalidFields({ migrateTo: 'Choose a different role to move these members to.' });
   }
-  return requireRole(tx, migrateTo, 'migrateTo');
+  return await requireRole(tx, migrateTo, 'migrateTo');
 }
 
 /**

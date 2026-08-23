@@ -42,7 +42,7 @@ describe('the dashboard payload', () => {
         await inject(ctx.app, {
           method: 'GET',
           url: '/api/v1/dashboard',
-          cookie: memberCookie(ctx.db, 'viewer'),
+          cookie: await memberCookie(ctx.db, 'viewer'),
         })
       ).statusCode,
     ).toBe(200);

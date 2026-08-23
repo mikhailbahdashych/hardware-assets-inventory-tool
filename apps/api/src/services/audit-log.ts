@@ -1,4 +1,4 @@
-import { desc, eq, sql } from 'drizzle-orm';
+import { count, desc, eq } from 'drizzle-orm';
 import {
   AUDIT_TYPE_LABELS,
   AUDIT_TYPES,
@@ -23,17 +23,16 @@ export const MAX_AUDIT_LIMIT = 500;
  * pill. The counts are taken over the whole log rather than the page, so
  * switching pills never makes the other numbers move.
  */
-export function auditPage(db: Db, query: AuditQuery): AuditPage {
-  const rows = db
+export async function auditPage(db: Db, query: AuditQuery): Promise<AuditPage> {
+  const rows = await db
     .select()
     .from(auditEvents)
     .where(query.type ? eq(auditEvents.type, query.type) : undefined)
     .orderBy(desc(auditEvents.at), desc(auditEvents.id))
     .limit(query.limit)
-    .offset(query.offset)
-    .all();
+    .offset(query.offset);
 
-  const counts = typeCounts(db);
+  const counts = await typeCounts(db);
   return {
     items: rows.map(toAuditItem),
     typeCounts: counts,
@@ -42,14 +41,14 @@ export function auditPage(db: Db, query: AuditQuery): AuditPage {
 }
 
 /** The same rows the screen shows, as a file — one renderer, so they agree. */
-export function auditCsv(db: Db, type?: AuditType): string {
-  const rows = db
-    .select()
-    .from(auditEvents)
-    .where(type ? eq(auditEvents.type, type) : undefined)
-    .orderBy(desc(auditEvents.at), desc(auditEvents.id))
-    .all()
-    .map(toAuditItem);
+export async function auditCsv(db: Db, type?: AuditType): Promise<string> {
+  const rows = (
+    await db
+      .select()
+      .from(auditEvents)
+      .where(type ? eq(auditEvents.type, type) : undefined)
+      .orderBy(desc(auditEvents.at), desc(auditEvents.id))
+  ).map(toAuditItem);
 
   return toCsv(
     ['Time', 'Actor', 'Event', 'Type'],
@@ -62,12 +61,11 @@ export function auditCsv(db: Db, type?: AuditType): string {
   );
 }
 
-function typeCounts(db: Db): AuditTypeCounts {
-  const rows = db
-    .select({ type: auditEvents.type, count: sql<number>`count(*)` })
+async function typeCounts(db: Db): Promise<AuditTypeCounts> {
+  const rows = await db
+    .select({ type: auditEvents.type, count: count() })
     .from(auditEvents)
-    .groupBy(auditEvents.type)
-    .all();
+    .groupBy(auditEvents.type);
 
   // Every pill needs a number even when nothing of that kind has happened, so
   // the counts start at zero rather than being absent from the map.

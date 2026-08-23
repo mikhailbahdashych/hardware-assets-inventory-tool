@@ -11,8 +11,9 @@ afterEach(async () => {
   await ctx?.close();
 });
 
-const statusRows = () => ctx.db.select().from(assetStatuses).orderBy(assetStatuses.sortOrder).all();
-const edgeRows = () => ctx.db.select().from(assetStatusTransitions).all();
+const statusRows = async () =>
+  await ctx.db.select().from(assetStatuses).orderBy(assetStatuses.sortOrder);
+const edgeRows = async () => await ctx.db.select().from(assetStatusTransitions);
 
 /**
  * An upgraded instance must behave exactly as it did before the workflow was
@@ -22,7 +23,7 @@ const edgeRows = () => ctx.db.select().from(assetStatusTransitions).all();
 describe('the boot seed lays down today’s workflow', () => {
   it('writes the six default statuses in the default order', async () => {
     ctx = await buildTestApp();
-    const rows = statusRows();
+    const rows = await statusRows();
 
     expect(rows.map((row) => row.id)).toEqual(DEFAULT_ASSET_STATUSES.map((entry) => entry.id));
     expect(rows.map((row) => row.sortOrder)).toEqual([0, 1, 2, 3, 4, 5]);
@@ -40,7 +41,7 @@ describe('the boot seed lays down today’s workflow', () => {
 
   it('connects every non-assigned status to every other, and nothing to assigned', async () => {
     ctx = await buildTestApp();
-    const edges = edgeRows();
+    const edges = await edgeRows();
 
     // Five statuses an asset moves between directly: 5 × 4 = 20 edges.
     expect(edges).toHaveLength(20);
@@ -55,38 +56,35 @@ describe('the boot seed lays down today’s workflow', () => {
 
   it('changes nothing when it runs again — it runs at every boot', async () => {
     ctx = await buildTestApp();
-    const before = { statuses: statusRows(), edges: edgeRows() };
+    const before = { statuses: await statusRows(), edges: await edgeRows() };
 
-    seed(ctx.db);
-    seed(ctx.db);
+    await seed(ctx.db);
+    await seed(ctx.db);
 
-    expect(statusRows()).toEqual(before.statuses);
-    expect(edgeRows()).toEqual(before.edges);
+    expect(await statusRows()).toEqual(before.statuses);
+    expect(await edgeRows()).toEqual(before.edges);
   });
 
   it('leaves an edited workflow alone rather than putting a deleted status back', async () => {
     ctx = await buildTestApp();
-    ctx.db.delete(assetStatusTransitions).run();
-    ctx.db.delete(assetStatuses).run();
-    ctx.db
-      .insert(assetStatuses)
-      .values({
-        id: 'on_loan',
-        label: 'On loan',
-        color: 'info',
-        isSystem: false,
-        assignableFrom: true,
-        checkinTarget: true,
-        sortOrder: 0,
-        createdAt: '2026-08-17T09:00:00.000Z',
-        updatedAt: '2026-08-17T09:00:00.000Z',
-      })
-      .run();
+    await ctx.db.delete(assetStatusTransitions);
+    await ctx.db.delete(assetStatuses);
+    await ctx.db.insert(assetStatuses).values({
+      id: 'on_loan',
+      label: 'On loan',
+      color: 'info',
+      isSystem: false,
+      assignableFrom: true,
+      checkinTarget: true,
+      sortOrder: 0,
+      createdAt: '2026-08-17T09:00:00.000Z',
+      updatedAt: '2026-08-17T09:00:00.000Z',
+    });
 
-    seed(ctx.db);
+    await seed(ctx.db);
 
-    expect(statusRows().map((row) => row.id)).toEqual(['on_loan']);
-    expect(edgeRows()).toEqual([]);
+    expect((await statusRows()).map((row) => row.id)).toEqual(['on_loan']);
+    expect(await edgeRows()).toEqual([]);
   });
 
   /**
@@ -97,13 +95,15 @@ describe('the boot seed lays down today’s workflow', () => {
    */
   it('comes back to the default after the workspace is emptied', async () => {
     ctx = await buildTestApp();
-    ctx.db.delete(assetStatusTransitions).run();
-    ctx.db.update(assetStatuses).set({ label: 'In stock' }).where(eq(assetStatuses.id, 'available')).run(); // prettier-ignore
+    await ctx.db.delete(assetStatusTransitions);
+    await ctx.db.update(assetStatuses).set({ label: 'In stock' }).where(eq(assetStatuses.id, 'available')); // prettier-ignore
 
     await emptyWorkspace(ctx.deps);
 
-    expect(statusRows().map((row) => row.id)).toEqual(DEFAULT_ASSET_STATUSES.map((s) => s.id));
-    expect(statusRows()[0]!.label).toBe('Available');
-    expect(edgeRows()).toHaveLength(20);
+    expect((await statusRows()).map((row) => row.id)).toEqual(
+      DEFAULT_ASSET_STATUSES.map((s) => s.id),
+    );
+    expect((await statusRows())[0]!.label).toBe('Available');
+    expect(await edgeRows()).toHaveLength(20);
   });
 });

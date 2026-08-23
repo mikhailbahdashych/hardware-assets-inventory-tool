@@ -22,6 +22,7 @@ const EDITABLE = [
   'emailInvites',
   'emailWeeklyDigest',
   'mfaRequired',
+  'uploadQuotaMb',
 ] as const;
 
 /**
@@ -29,8 +30,8 @@ const EDITABLE = [
  * behind an admin session — so a missing row is a broken instance, not a case
  * to paper over with defaults nobody chose.
  */
-export function getSettings(db: DbOrTx): OrgSettingsRow {
-  const settings = db.select().from(orgSettings).get();
+export async function getSettings(db: DbOrTx): Promise<OrgSettingsRow> {
+  const [settings] = await db.select().from(orgSettings);
   if (!settings) {
     throw new AppError(
       500,
@@ -41,15 +42,15 @@ export function getSettings(db: DbOrTx): OrgSettingsRow {
   return settings;
 }
 
-export function updateSettings(
+export async function updateSettings(
   deps: AppDeps,
   actor: Actor,
   patch: SettingsPatchInput,
-): OrgSettingsRow {
+): Promise<OrgSettingsRow> {
   const now = deps.now();
 
-  return deps.db.transaction((tx) => {
-    const current = getSettings(tx);
+  return await deps.db.transaction(async (tx) => {
+    const current = await getSettings(tx);
 
     const values: Record<string, unknown> = {};
     const changedFields: string[] = [];
@@ -64,14 +65,14 @@ export function updateSettings(
     if (changedFields.length === 0) return current;
 
     values.updatedAt = nowIso(now);
-    tx.update(orgSettings).set(values).where(eq(orgSettings.id, current.id)).run();
+    await tx.update(orgSettings).set(values).where(eq(orgSettings.id, current.id));
 
     // Switching the requirement off takes every secret and recovery code with
     // it, in the same transaction as the setting that stopped needing them.
     // Leaving them behind would mean a later re-enable silently restored
     // authenticators nobody remembers adding.
-    if (patch.mfaRequired === false) wipeAllMfa(tx, now);
-    writeAudit(
+    if (patch.mfaRequired === false) await wipeAllMfa(tx, now);
+    await writeAudit(
       tx,
       {
         type: 'system',

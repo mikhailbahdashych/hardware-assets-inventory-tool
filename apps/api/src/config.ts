@@ -10,6 +10,18 @@ const envSchema = z.object({
   PORT: z.coerce.number().int().positive().default(3000),
   HOST: z.string().default('0.0.0.0'),
   DATA_DIR: z.string().default('./data'),
+  // Present means Postgres, absent means the SQLite file — the only way an
+  // instance picks an engine. The scheme is checked rather than assumed: a
+  // `mysql://` or a `file:` here is a deployment that thinks it is running on
+  // something this app cannot talk to, and finding that out at the first query
+  // is worse than finding it out at boot.
+  DATABASE_URL: z
+    .string()
+    .refine(
+      (value) => /^postgres(ql)?:\/\//i.test(value),
+      'DATABASE_URL must be a postgres:// or postgresql:// URL',
+    )
+    .optional(),
   // http(s) only: APP_URL is the base of every invitation and reset link, and
   // z.url() alone would happily accept `javascript:` — which is a scheme that
   // executes when somebody clicks the link in their email.
@@ -26,6 +38,17 @@ const envSchema = z.object({
    */
   TRUST_PROXY: z.string().optional(),
   WEB_DIST: z.string().optional(),
+  // Present means the bucket, absent means the uploads directory under
+  // DATA_DIR — the only way an instance picks where attachments live. The rest
+  // describe how to reach it: a region for AWS, an endpoint and path-style
+  // addressing for the MinIO-compatible stores that have neither.
+  S3_BUCKET: z.string().optional(),
+  S3_REGION: z.string().optional(),
+  S3_ENDPOINT: z
+    .url()
+    .refine((value) => /^https?:\/\//i.test(value), 'S3_ENDPOINT must be an http(s) URL')
+    .optional(),
+  S3_FORCE_PATH_STYLE: z.enum(['true', 'false']).optional(),
   SMTP_HOST: z.string().optional(),
   SMTP_PORT: z.coerce.number().int().positive().default(587),
   SMTP_SECURE: z.enum(['true', 'false']).optional(),
@@ -41,6 +64,8 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
     port: parsed.PORT,
     host: parsed.HOST,
     dataDir: parsed.DATA_DIR,
+    databaseUrl: parsed.DATABASE_URL,
+    engine: parsed.DATABASE_URL ? 'postgres' : 'sqlite',
     appUrl: parsed.APP_URL,
     cookieSecure:
       parsed.COOKIE_SECURE !== undefined
@@ -50,6 +75,10 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
     trustProxy: readTrustProxy(parsed.TRUST_PROXY),
     // fastify-static needs an absolute root.
     webDist: parsed.WEB_DIST ? resolve(parsed.WEB_DIST) : undefined,
+    s3Bucket: parsed.S3_BUCKET,
+    s3Region: parsed.S3_REGION,
+    s3Endpoint: parsed.S3_ENDPOINT,
+    s3ForcePathStyle: parsed.S3_FORCE_PATH_STYLE === 'true',
     smtp: readSmtp(parsed),
   };
 }

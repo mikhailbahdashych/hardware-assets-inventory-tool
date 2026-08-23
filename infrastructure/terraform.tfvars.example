@@ -1,0 +1,32 @@
+# Copy to terraform.tfvars and edit. Every value below is a default this stack
+# already has, so an empty file works too — the useful ones are marked.
+
+# region      = "eu-central-1"
+# name_prefix = "inventory"
+# tags        = { Owner = "it-team" }
+
+# The image the instance runs. A published release tag is the normal answer;
+# pin it rather than tracking :latest, so an upgrade is a decision. The tag
+# below is what this project's FIRST release will publish — there is none yet,
+# so it is a shape to copy and not a value to apply today. Until then, point
+# this at your own build (README.md, "Applying it", has the ECR route).
+# app_image = "ghcr.io/mikhailbahdashych/hardware-assets-inventory-tool:0.1.0"
+
+# Sizes. The AMI's architecture follows instance_type, so t3.small is a
+# one-line change and not two.
+# instance_type        = "t4g.small"
+# db_instance_class    = "db.t4g.micro"
+# db_allocated_storage = 20
+
+# The scheduled jobs run on wall-clock time, so this decides when 08:00 is.
+# timezone = "UTC"
+
+# Both or neither. With them, the app is served over HTTPS from a load balancer
+# and APP_URL becomes https://<domain>; without them, it answers on the
+# instance's Elastic IP over plain HTTP.
+# domain          = "inventory.example.com"
+# route53_zone_id = "Z0123456789ABCDEFGHIJ"
+
+# Set true before `terraform destroy`, and only then: it lets the apply delete
+# every attachment version in the bucket without asking.
+# bucket_force_destroy = false

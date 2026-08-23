@@ -1,4 +1,4 @@
-import { and, asc, eq, sql } from 'drizzle-orm';
+import { and, asc, count, eq } from 'drizzle-orm';
 import {
   ASSIGNED_STATUS,
   MAX_ASSET_STATUSES,
@@ -47,20 +47,20 @@ const serialize = (row: AssetStatusRow): WorkflowStatus => ({
   sortOrder: row.sortOrder,
 });
 
-const statusRows = (db: DbOrTx): AssetStatusRow[] =>
-  db.select().from(assetStatuses).orderBy(asc(assetStatuses.sortOrder)).all();
+const statusRows = async (db: DbOrTx): Promise<AssetStatusRow[]> =>
+  await db.select().from(assetStatuses).orderBy(asc(assetStatuses.sortOrder));
 
-const edgeRows = (db: DbOrTx): WorkflowTransition[] =>
-  db
-    .select()
-    .from(assetStatusTransitions)
-    .orderBy(asc(assetStatusTransitions.fromStatus), asc(assetStatusTransitions.toStatus))
-    .all()
-    .map((row) => ({ from: row.fromStatus, to: row.toStatus }));
+const edgeRows = async (db: DbOrTx): Promise<WorkflowTransition[]> =>
+  (
+    await db
+      .select()
+      .from(assetStatusTransitions)
+      .orderBy(asc(assetStatusTransitions.fromStatus), asc(assetStatusTransitions.toStatus))
+  ).map((row) => ({ from: row.fromStatus, to: row.toStatus }));
 
 /** The whole workflow, as `GET /api/v1/workflow` and the services read it. */
-export function getWorkflow(db: DbOrTx): WorkflowPayload {
-  return { statuses: statusRows(db).map(serialize), transitions: edgeRows(db) };
+export async function getWorkflow(db: DbOrTx): Promise<WorkflowPayload> {
+  return { statuses: (await statusRows(db)).map(serialize), transitions: await edgeRows(db) };
 }
 
 /**
@@ -68,45 +68,46 @@ export function getWorkflow(db: DbOrTx): WorkflowPayload {
  * Which field matters: a bad `status` on an asset form and a bad `newStatus`
  * in the check-in modal must highlight different inputs.
  */
-export function requireStatus(db: DbOrTx, id: string, field = 'status'): AssetStatusRow {
-  const row = db.select().from(assetStatuses).where(eq(assetStatuses.id, id)).get();
+export async function requireStatus(
+  db: DbOrTx,
+  id: string,
+  field = 'status',
+): Promise<AssetStatusRow> {
+  const [row] = await db.select().from(assetStatuses).where(eq(assetStatuses.id, id));
   if (!row) throw invalidFields({ [field]: `"${id}" is not a status in this workspace.` });
   return row;
 }
 
 /** Whether the graph has this edge. Nothing else decides a direct move. */
-export function transitionAllowed(db: DbOrTx, from: string, to: string): boolean {
-  return Boolean(
-    db
-      .select()
-      .from(assetStatusTransitions)
-      .where(
-        and(eq(assetStatusTransitions.fromStatus, from), eq(assetStatusTransitions.toStatus, to)),
-      )
-      .get(),
-  );
+export async function transitionAllowed(db: DbOrTx, from: string, to: string): Promise<boolean> {
+  const edges = await db
+    .select()
+    .from(assetStatusTransitions)
+    .where(
+      and(eq(assetStatusTransitions.fromStatus, from), eq(assetStatusTransitions.toStatus, to)),
+    );
+  return edges.length > 0;
 }
 
 /** The statuses an asset may be handed out from, in the workspace's order. */
-export function assignableStatuses(db: DbOrTx): AssetStatusRow[] {
-  return db
+export async function assignableStatuses(db: DbOrTx): Promise<AssetStatusRow[]> {
+  return await db
     .select()
     .from(assetStatuses)
     .where(eq(assetStatuses.assignableFrom, true))
-    .orderBy(asc(assetStatuses.sortOrder))
-    .all();
+    .orderBy(asc(assetStatuses.sortOrder));
 }
 
-export function createStatus(
+export async function createStatus(
   deps: AppDeps,
   actor: Actor,
   input: StatusCreateInput,
-): WorkflowStatus {
+): Promise<WorkflowStatus> {
   const now = deps.now();
   const at = nowIso(now);
 
-  return deps.db.transaction((tx) => {
-    const existing = statusRows(tx);
+  return await deps.db.transaction(async (tx) => {
+    const existing = await statusRows(tx);
     if (existing.length >= MAX_ASSET_STATUSES) {
       throw new AppError(
         409,
@@ -124,20 +125,18 @@ export function createStatus(
     // Last in the list, like a new custom field: a status the admin just added
     // has no claim on a place among the ones they arranged.
     const sortOrder = existing.reduce((highest, row) => Math.max(highest, row.sortOrder), -1) + 1;
-    tx.insert(assetStatuses)
-      .values({
-        id,
-        label: input.label,
-        color: input.color,
-        isSystem: false,
-        assignableFrom: input.assignableFrom,
-        checkinTarget: input.checkinTarget,
-        sortOrder,
-        createdAt: at,
-        updatedAt: at,
-      })
-      .run();
-    writeAudit(
+    await tx.insert(assetStatuses).values({
+      id,
+      label: input.label,
+      color: input.color,
+      isSystem: false,
+      assignableFrom: input.assignableFrom,
+      checkinTarget: input.checkinTarget,
+      sortOrder,
+      createdAt: at,
+      updatedAt: at,
+    });
+    await writeAudit(
       tx,
       {
         type: 'system',
@@ -149,20 +148,20 @@ export function createStatus(
       now,
     );
 
-    return serialize(requireStatus(tx, id));
+    return serialize(await requireStatus(tx, id));
   });
 }
 
-export function updateStatus(
+export async function updateStatus(
   deps: AppDeps,
   actor: Actor,
   id: string,
   patch: StatusPatchInput,
-): WorkflowStatus {
+): Promise<WorkflowStatus> {
   const now = deps.now();
 
-  return deps.db.transaction((tx) => {
-    const rows = statusRows(tx);
+  return await deps.db.transaction(async (tx) => {
+    const rows = await statusRows(tx);
     const current = rows.find((row) => row.id === id);
     if (!current) throw notFound('That status');
 
@@ -209,8 +208,8 @@ export function updateStatus(
     if (changedFields.length === 0) return serialize(current);
 
     values.updatedAt = nowIso(now);
-    tx.update(assetStatuses).set(values).where(eq(assetStatuses.id, id)).run();
-    writeAudit(
+    await tx.update(assetStatuses).set(values).where(eq(assetStatuses.id, id));
+    await writeAudit(
       tx,
       {
         type: 'system',
@@ -223,7 +222,7 @@ export function updateStatus(
       now,
     );
 
-    return serialize(requireStatus(tx, id));
+    return serialize(await requireStatus(tx, id));
   });
 }
 
@@ -233,11 +232,16 @@ export function updateStatus(
  * cascade), and one summary event records how many moved — not one per asset,
  * which would bury the rest of the log after a bulk migration.
  */
-export function deleteStatus(deps: AppDeps, actor: Actor, id: string, migrateTo?: string): void {
+export async function deleteStatus(
+  deps: AppDeps,
+  actor: Actor,
+  id: string,
+  migrateTo?: string,
+): Promise<void> {
   const now = deps.now();
 
-  deps.db.transaction((tx) => {
-    const rows = statusRows(tx);
+  await deps.db.transaction(async (tx) => {
+    const rows = await statusRows(tx);
     const current = rows.find((row) => row.id === id);
     if (!current) throw notFound('That status');
     if (current.isSystem) {
@@ -250,11 +254,7 @@ export function deleteStatus(deps: AppDeps, actor: Actor, id: string, migrateTo?
     if (current.assignableFrom) assertNotLastAssignable(rows, id);
     if (current.checkinTarget) assertNotLastCheckinTarget(rows, id);
 
-    const holders = tx
-      .select({ count: sql<number>`count(*)` })
-      .from(assets)
-      .where(eq(assets.status, id))
-      .get();
+    const [holders] = await tx.select({ count: count() }).from(assets).where(eq(assets.status, id));
     // count(*) over a table that exists always answers a row; a miss here
     // would be a broken query rather than an empty inventory.
     if (!holders) throw new AppError(500, 'count_failed', 'The status count did not answer.');
@@ -269,19 +269,19 @@ export function deleteStatus(deps: AppDeps, actor: Actor, id: string, migrateTo?
           `${assetCount} ${assetCount === 1 ? 'asset is' : 'assets are'} in this status. Choose where to move ${assetCount === 1 ? 'it' : 'them'} first.`,
         );
       }
-      destination = requireMigrationTarget(tx, id, migrateTo);
-      tx.update(assets)
+      destination = await requireMigrationTarget(tx, id, migrateTo);
+      await tx
+        .update(assets)
         .set({ status: destination.id, updatedAt: nowIso(now) })
-        .where(eq(assets.status, id))
-        .run();
+        .where(eq(assets.status, id));
     } else if (migrateTo !== undefined) {
       // Nothing to move, but a destination the admin cannot have meant is
       // still worth saying out loud rather than silently ignoring.
-      destination = requireMigrationTarget(tx, id, migrateTo);
+      destination = await requireMigrationTarget(tx, id, migrateTo);
     }
 
-    tx.delete(assetStatuses).where(eq(assetStatuses.id, id)).run();
-    writeAudit(
+    await tx.delete(assetStatuses).where(eq(assetStatuses.id, id));
+    await writeAudit(
       tx,
       {
         type: 'system',
@@ -306,15 +306,15 @@ export function deleteStatus(deps: AppDeps, actor: Actor, id: string, migrateTo?
  * grid of checkboxes naturally holds, and it makes the operation idempotent —
  * two admins saving the same matrix land on the same graph.
  */
-export function replaceTransitions(
+export async function replaceTransitions(
   deps: AppDeps,
   actor: Actor,
   input: TransitionsPutInput,
-): WorkflowTransition[] {
+): Promise<WorkflowTransition[]> {
   const now = deps.now();
 
-  return deps.db.transaction((tx) => {
-    const known = new Set(statusRows(tx).map((row) => row.id));
+  return await deps.db.transaction(async (tx) => {
+    const known = new Set((await statusRows(tx)).map((row) => row.id));
 
     // Deduped silently: a matrix cannot check a box twice, and a client that
     // repeats an edge is asking for the same graph either way.
@@ -339,17 +339,17 @@ export function replaceTransitions(
       wanted.set(`${edge.from}→${edge.to}`, { from: edge.from, to: edge.to });
     }
 
-    const stored = new Set(edgeRows(tx).map((edge) => `${edge.from}→${edge.to}`));
+    const stored = new Set((await edgeRows(tx)).map((edge) => `${edge.from}→${edge.to}`));
     const added = [...wanted.keys()].filter((key) => !stored.has(key)).length;
     const removed = [...stored].filter((key) => !wanted.has(key)).length;
 
     if (added === 0 && removed === 0) return edgeRows(tx);
 
-    tx.delete(assetStatusTransitions).run();
+    await tx.delete(assetStatusTransitions);
     for (const edge of wanted.values()) {
-      tx.insert(assetStatusTransitions).values({ fromStatus: edge.from, toStatus: edge.to }).run();
+      await tx.insert(assetStatusTransitions).values({ fromStatus: edge.from, toStatus: edge.to });
     }
-    writeAudit(
+    await writeAudit(
       tx,
       {
         type: 'system',
@@ -366,11 +366,15 @@ export function replaceTransitions(
 }
 
 /** Up and down arrows send the whole list, so the result is always coherent. */
-export function reorderStatuses(deps: AppDeps, actor: Actor, ids: string[]): WorkflowStatus[] {
+export async function reorderStatuses(
+  deps: AppDeps,
+  actor: Actor,
+  ids: string[],
+): Promise<WorkflowStatus[]> {
   const now = deps.now();
 
-  return deps.db.transaction((tx) => {
-    const rows = statusRows(tx);
+  return await deps.db.transaction(async (tx) => {
+    const rows = await statusRows(tx);
     const known = new Set(rows.map((row) => row.id));
     const sent = new Set(ids);
     if (
@@ -383,10 +387,10 @@ export function reorderStatuses(deps: AppDeps, actor: Actor, ids: string[]): Wor
     }
 
     const at = nowIso(now);
-    ids.forEach((id, sortOrder) => {
-      tx.update(assetStatuses).set({ sortOrder, updatedAt: at }).where(eq(assetStatuses.id, id)).run(); // prettier-ignore
-    });
-    writeAudit(
+    for (const [sortOrder, id] of ids.entries()) {
+      await tx.update(assetStatuses).set({ sortOrder, updatedAt: at }).where(eq(assetStatuses.id, id)); // prettier-ignore
+    }
+    await writeAudit(
       tx,
       {
         type: 'system',
@@ -397,7 +401,7 @@ export function reorderStatuses(deps: AppDeps, actor: Actor, ids: string[]): Wor
       now,
     );
 
-    return statusRows(tx).map(serialize);
+    return (await statusRows(tx)).map(serialize);
   });
 }
 
@@ -413,14 +417,18 @@ function assertLabelFree(rows: AssetStatusRow[], slug: string, label: string): v
 }
 
 /** Where assets in a deleted status go. Never `assigned`, never itself. */
-function requireMigrationTarget(tx: DbOrTx, id: string, migrateTo: string): AssetStatusRow {
+async function requireMigrationTarget(
+  tx: DbOrTx,
+  id: string,
+  migrateTo: string,
+): Promise<AssetStatusRow> {
   if (migrateTo === id) {
     throw invalidFields({ migrateTo: 'Choose a different status to move these assets to.' });
   }
   if (migrateTo === ASSIGNED_STATUS) {
     throw invalidFields({ migrateTo: 'Assets are moved into Assigned by assigning them.' });
   }
-  const row = tx.select().from(assetStatuses).where(eq(assetStatuses.id, migrateTo)).get();
+  const [row] = await tx.select().from(assetStatuses).where(eq(assetStatuses.id, migrateTo));
   if (!row) throw invalidFields({ migrateTo: 'That status could not be found.' });
   return row;
 }

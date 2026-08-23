@@ -17,7 +17,7 @@ export function registerSetupRoutes(app: FastifyInstance, deps: AppDeps): void {
   app
     .withTypeProvider<ZodTypeProvider>()
     .post('/api/v1/setup', { schema: { body: setupInput } }, async (request, reply) => {
-      const existing = deps.db.select().from(orgSettings).get();
+      const [existing] = await deps.db.select().from(orgSettings);
       if (existing) {
         throw new AppError(409, 'already_initialized', 'This instance is already set up.');
       }
@@ -26,32 +26,28 @@ export function registerSetupRoutes(app: FastifyInstance, deps: AppDeps): void {
       const passwordHash = await hashPassword(request.body.password);
       const memberId = newId();
 
-      const member = deps.db.transaction((tx) => {
-        tx.insert(orgSettings)
-          .values({
-            id: 1,
-            orgName: request.body.orgName,
-            // The column is nullable because NULL is the Settings page's
-            // "Forever"; a new workspace starts on the design's 12 months.
-            logRetentionMonths: 12,
-            createdAt: nowIso(now),
-            updatedAt: nowIso(now),
-          })
-          .run();
-        tx.insert(members)
-          .values({
-            id: memberId,
-            email: request.body.email,
-            displayName: request.body.name,
-            passwordHash,
-            // The system role, which the boot seed has already laid down.
-            role: ADMIN_ROLE,
-            status: 'active',
-            createdAt: nowIso(now),
-            updatedAt: nowIso(now),
-          })
-          .run();
-        writeAudit(
+      const member = await deps.db.transaction(async (tx) => {
+        await tx.insert(orgSettings).values({
+          id: 1,
+          orgName: request.body.orgName,
+          // The column is nullable because NULL is the Settings page's
+          // "Forever"; a new workspace starts on the design's 12 months.
+          logRetentionMonths: 12,
+          createdAt: nowIso(now),
+          updatedAt: nowIso(now),
+        });
+        await tx.insert(members).values({
+          id: memberId,
+          email: request.body.email,
+          displayName: request.body.name,
+          passwordHash,
+          // The system role, which the boot seed has already laid down.
+          role: ADMIN_ROLE,
+          status: 'active',
+          createdAt: nowIso(now),
+          updatedAt: nowIso(now),
+        });
+        await writeAudit(
           tx,
           {
             type: 'system',
@@ -66,14 +62,14 @@ export function registerSetupRoutes(app: FastifyInstance, deps: AppDeps): void {
         // By id, not "the first row": this is only correct while the table has
         // exactly one member, which is true today and is not a property to
         // depend on. A miss means the insert above did not happen.
-        const created = tx.select().from(members).where(eq(members.id, memberId)).get();
+        const [created] = await tx.select().from(members).where(eq(members.id, memberId));
         if (!created) {
           throw new AppError(500, 'setup_failed', 'The first admin could not be created.');
         }
         return created;
       });
 
-      const session = createSession(deps.db, memberId, now);
+      const session = await createSession(deps.db, memberId, now);
       setSessionCookie(reply, session.raw, session.expiresAt, deps.config);
       return { member: serializeMember(member) };
     });

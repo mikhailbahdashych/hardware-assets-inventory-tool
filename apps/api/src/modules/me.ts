@@ -24,12 +24,10 @@ export function registerMeRoutes(app: FastifyInstance, deps: AppDeps): void {
       if (request.body.widgets) patch.widgetsJson = JSON.stringify(request.body.widgets);
       patch.updatedAt = nowIso(deps.now());
 
-      deps.db.update(members).set(patch).where(eq(members.id, request.member!.id)).run();
-      const updated = deps.db
-        .select()
-        .from(members)
-        .where(eq(members.id, request.member!.id))
-        .get()!;
+      await deps.db.update(members).set(patch).where(eq(members.id, request.member!.id));
+      const updated = (
+        await deps.db.select().from(members).where(eq(members.id, request.member!.id))
+      )[0]!;
       return { member: serializeMember(updated) };
     },
   );
@@ -40,8 +38,8 @@ export function registerMeRoutes(app: FastifyInstance, deps: AppDeps): void {
    * allowed to do, and the way out of it.
    */
   typed.post('/api/v1/me/mfa/enroll', { preHandler: requireSession }, async (request) => {
-    const settings = getSettings(deps.db);
-    return beginEnrolment(deps.db, request.member!, settings.orgName, deps.now());
+    const settings = await getSettings(deps.db);
+    return await beginEnrolment(deps.db, request.member!, settings.orgName, deps.now());
   });
 
   /**
@@ -54,8 +52,8 @@ export function registerMeRoutes(app: FastifyInstance, deps: AppDeps): void {
     async (request) => {
       const now = deps.now();
       const member = request.member!;
-      const recoveryCodes = confirmEnrolment(deps.db, member, request.body.code, now);
-      writeAudit(
+      const recoveryCodes = await confirmEnrolment(deps.db, member, request.body.code, now);
+      await writeAudit(
         deps.db,
         {
           type: 'auth',

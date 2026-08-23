@@ -34,7 +34,7 @@ export function registerWorkflowRoutes(app: FastifyInstance, deps: AppDeps): voi
     '/api/v1/workflow/statuses',
     { schema: { body: statusCreateSchema }, preHandler: requireAction('workflow.manage') },
     async (request, reply) =>
-      reply.status(201).send({ status: createStatus(deps, request.member!, request.body) }),
+      reply.status(201).send({ status: await createStatus(deps, request.member!, request.body) }),
   );
 
   typed.patch(
@@ -44,7 +44,7 @@ export function registerWorkflowRoutes(app: FastifyInstance, deps: AppDeps): voi
       preHandler: requireAction('workflow.manage'),
     },
     async (request) => ({
-      status: updateStatus(deps, request.member!, request.params.id, request.body),
+      status: await updateStatus(deps, request.member!, request.params.id, request.body),
     }),
   );
 
@@ -56,7 +56,9 @@ export function registerWorkflowRoutes(app: FastifyInstance, deps: AppDeps): voi
   typed.put(
     '/api/v1/workflow/statuses/order',
     { schema: { body: statusOrderSchema }, preHandler: requireAction('workflow.manage') },
-    async (request) => ({ statuses: reorderStatuses(deps, request.member!, request.body.ids) }),
+    async (request) => ({
+      statuses: await reorderStatuses(deps, request.member!, request.body.ids),
+    }),
   );
 
   typed.delete(
@@ -66,7 +68,7 @@ export function registerWorkflowRoutes(app: FastifyInstance, deps: AppDeps): voi
       preHandler: requireAction('workflow.manage'),
     },
     async (request, reply) => {
-      deleteStatus(deps, request.member!, request.params.id, request.query.migrateTo);
+      await deleteStatus(deps, request.member!, request.params.id, request.query.migrateTo);
       return reply.status(204).send();
     },
   );
@@ -74,6 +76,8 @@ export function registerWorkflowRoutes(app: FastifyInstance, deps: AppDeps): voi
   typed.put(
     '/api/v1/workflow/transitions',
     { schema: { body: transitionsPutSchema }, preHandler: requireAction('workflow.manage') },
-    async (request) => ({ transitions: replaceTransitions(deps, request.member!, request.body) }),
+    async (request) => ({
+      transitions: await replaceTransitions(deps, request.member!, request.body),
+    }),
   );
 }

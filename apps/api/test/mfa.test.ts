@@ -20,8 +20,8 @@ afterEach(async () => {
 const ADMIN = { email: 'tomasz@acme.io', password: 'correct-horse-battery' };
 
 /** The secret the app generated for a member, read straight from the column. */
-function storedSecret(email: string): string {
-  const row = ctx.db.select().from(members).where(eq(members.email, email)).get();
+async function storedSecret(email: string): Promise<string> {
+  const [row] = await ctx.db.select().from(members).where(eq(members.email, email));
   if (!row?.mfaSecret) throw new Error(`${email} has no secret`);
   return row.mfaSecret;
 }
@@ -38,7 +38,7 @@ async function enrol(cookie: string, email: string) {
     method: 'POST',
     url: '/api/v1/me/mfa/confirm',
     cookie,
-    body: { code: totpCode(storedSecret(email), new Date()) },
+    body: { code: totpCode(await storedSecret(email), new Date()) },
   });
   expect(confirmed.statusCode, confirmed.body).toBe(200);
   return { enrolment: started.json(), recoveryCodes: confirmed.json().recoveryCodes as string[] };
@@ -92,7 +92,7 @@ describe('enrolling an authenticator', () => {
     for (const code of recoveryCodes) expect(code).toMatch(/^[a-z0-9]{5}-[a-z0-9]{5}$/);
 
     // Stored hashed, like every other token in this app.
-    const stored = ctx.db.select().from(mfaRecoveryCodes).all();
+    const stored = await ctx.db.select().from(mfaRecoveryCodes);
     expect(stored).toHaveLength(10);
     for (const row of stored) {
       expect(recoveryCodes).not.toContain(row.codeHash);
@@ -135,7 +135,7 @@ describe('signing in with a second factor', () => {
     const res = await inject(ctx.app, {
       method: 'POST',
       url: '/api/v1/auth/mfa/verify',
-      body: { challengeToken, code: totpCode(storedSecret(ADMIN.email), new Date()) },
+      body: { challengeToken, code: totpCode(await storedSecret(ADMIN.email), new Date()) },
     });
 
     expect(res.statusCode, res.body).toBe(200);
@@ -166,11 +166,7 @@ describe('signing in with a second factor', () => {
     });
     expect(second.statusCode).toBe(422);
 
-    const spent = ctx.db
-      .select()
-      .from(mfaRecoveryCodes)
-      .all()
-      .filter((row) => row.usedAt);
+    const spent = (await ctx.db.select().from(mfaRecoveryCodes)).filter((row) => row.usedAt);
     expect(spent).toHaveLength(1);
   });
 
@@ -202,14 +198,14 @@ describe('signing in with a second factor', () => {
     const cookie = await setupOrg(ctx.app);
     await enrol(cookie, ADMIN.email);
     const { challengeToken } = (await login(ADMIN)).json();
-    const code = () => totpCode(storedSecret(ADMIN.email), new Date());
+    const code = async () => totpCode(await storedSecret(ADMIN.email), new Date());
 
     expect(
       (
         await inject(ctx.app, {
           method: 'POST',
           url: '/api/v1/auth/mfa/verify',
-          body: { challengeToken, code: code() },
+          body: { challengeToken, code: await code() },
         })
       ).statusCode,
     ).toBe(200);
@@ -217,7 +213,7 @@ describe('signing in with a second factor', () => {
     const replay = await inject(ctx.app, {
       method: 'POST',
       url: '/api/v1/auth/mfa/verify',
-      body: { challengeToken, code: code() },
+      body: { challengeToken, code: await code() },
     });
     expect(replay.statusCode).toBe(401);
   });
@@ -295,7 +291,7 @@ describe('when the workspace requires it', () => {
 
     // The one that matters most: the requirement is still on, and every
     // enrolled member still has their authenticator.
-    const settings = ctx.db.select().from(orgSettings).get();
+    const [settings] = await ctx.db.select().from(orgSettings);
     expect(settings?.mfaRequired).toBe(true);
   });
 
@@ -326,10 +322,10 @@ describe('admin control', () => {
     });
     expect(res.statusCode).toBe(204);
 
-    const row = ctx.db.select().from(members).where(eq(members.id, id)).get()!;
+    const row = (await ctx.db.select().from(members).where(eq(members.id, id)))[0]!;
     expect(row.mfaSecret).toBeNull();
     expect(row.mfaConfirmedAt).toBeNull();
-    expect(ctx.db.select().from(mfaRecoveryCodes).all()).toHaveLength(0);
+    expect(await ctx.db.select().from(mfaRecoveryCodes)).toHaveLength(0);
 
     // And the password alone signs in again, because there is no second factor.
     expect((await login(ADMIN)).json().member.email).toBe(ADMIN.email);
@@ -345,7 +341,7 @@ describe('admin control', () => {
       body: { mfaRequired: true },
     });
     await enrol(cookie, ADMIN.email);
-    expect(ctx.db.select().from(mfaRecoveryCodes).all().length).toBeGreaterThan(0);
+    expect((await ctx.db.select().from(mfaRecoveryCodes)).length).toBeGreaterThan(0);
 
     const off = await inject(ctx.app, {
       method: 'PATCH',
@@ -356,8 +352,8 @@ describe('admin control', () => {
     expect(off.statusCode).toBe(200);
     expect(off.json().settings.mfaRequired).toBe(false);
 
-    expect(ctx.db.select().from(mfaRecoveryCodes).all()).toHaveLength(0);
-    for (const row of ctx.db.select().from(members).all()) {
+    expect(await ctx.db.select().from(mfaRecoveryCodes)).toHaveLength(0);
+    for (const row of await ctx.db.select().from(members)) {
       expect(row.mfaSecret, row.email).toBeNull();
       expect(row.mfaConfirmedAt, row.email).toBeNull();
     }
@@ -432,10 +428,10 @@ describe('resetting somebody’s recovery codes', () => {
     const res = await resetCodes(cookie, id);
     expect(res.statusCode, res.body).toBe(204);
 
-    expect(ctx.db.select().from(mfaRecoveryCodes).all()).toHaveLength(0);
+    expect(await ctx.db.select().from(mfaRecoveryCodes)).toHaveLength(0);
     // Unlike the full reset, nothing here is un-protected: the authenticator
     // still stands, so the sessions it guards keep working.
-    const row = ctx.db.select().from(members).where(eq(members.id, id)).get()!;
+    const row = (await ctx.db.select().from(members).where(eq(members.id, id)))[0]!;
     expect(row.mfaConfirmedAt).not.toBeNull();
     expect(row.mfaSecret).not.toBeNull();
     expect(
@@ -482,10 +478,10 @@ describe('resetting somebody’s recovery codes', () => {
     await enrol(cookie, ADMIN.email);
     const id = await myId(cookie);
 
-    const viewer = memberCookie(ctx.db, 'viewer');
+    const viewer = await memberCookie(ctx.db, 'viewer');
     expect((await resetCodes(viewer, id)).statusCode).toBe(403);
     // And the refusal really refused: the codes are still there.
-    expect(ctx.db.select().from(mfaRecoveryCodes).all()).toHaveLength(10);
+    expect(await ctx.db.select().from(mfaRecoveryCodes)).toHaveLength(10);
   });
 });
 
@@ -501,15 +497,11 @@ describe('a sign-in that finds no codes left', () => {
     return res;
   }
 
-  const totp = () => totpCode(storedSecret(ADMIN.email), new Date());
+  const totp = async () => totpCode(await storedSecret(ADMIN.email), new Date());
 
   /** Codes still in hand, straight off the table. */
-  const unusedCount = () =>
-    ctx.db
-      .select()
-      .from(mfaRecoveryCodes)
-      .all()
-      .filter((row) => row.usedAt === null).length;
+  const unusedCount = async () =>
+    (await ctx.db.select().from(mfaRecoveryCodes)).filter((row) => row.usedAt === null).length;
 
   /** Every code an admin's reset would leave behind: none. */
   async function resetCodes(cookie: string) {
@@ -528,7 +520,7 @@ describe('a sign-in that finds no codes left', () => {
     await enrol(cookie, ADMIN.email);
     await resetCodes(cookie);
 
-    const codes = (await signIn(totp())).json().recoveryCodes as string[];
+    const codes = (await signIn(await totp())).json().recoveryCodes as string[];
 
     expect(codes).toHaveLength(10);
     expect(new Set(codes).size).toBe(10);
@@ -536,7 +528,7 @@ describe('a sign-in that finds no codes left', () => {
 
     // The response is the only place they exist in the clear: what the table
     // holds is their hashes, and nothing else is left over from the old set.
-    const stored = ctx.db.select().from(mfaRecoveryCodes).all();
+    const stored = await ctx.db.select().from(mfaRecoveryCodes);
     expect(stored.map((row) => row.codeHash).sort()).toEqual(codes.map(hashToken).sort());
     for (const row of stored) expect(row.usedAt).toBeNull();
   });
@@ -547,7 +539,7 @@ describe('a sign-in that finds no codes left', () => {
     await enrol(cookie, ADMIN.email);
 
     // Nine still in hand, so nothing is reissued and the key is simply absent.
-    expect((await signIn(totp())).json().recoveryCodes).toBeUndefined();
+    expect((await signIn(await totp())).json().recoveryCodes).toBeUndefined();
   });
 
   it('reissues in the very response that spent the last code', async () => {
@@ -558,11 +550,10 @@ describe('a sign-in that finds no codes left', () => {
     // Nine sign-ins' worth of spending, without nine logins the rate limiter
     // would rightly refuse. Marked used rather than deleted, exactly as
     // verifying with one leaves them.
-    ctx.db
+    await ctx.db
       .update(mfaRecoveryCodes)
       .set({ usedAt: '2026-08-18T00:00:00.000Z' })
-      .where(ne(mfaRecoveryCodes.codeHash, hashToken(last)))
-      .run();
+      .where(ne(mfaRecoveryCodes.codeHash, hashToken(last)));
 
     const codes = (await signIn(last)).json().recoveryCodes as string[];
 
@@ -577,12 +568,12 @@ describe('a sign-in that finds no codes left', () => {
     const cookie = await setupOrg(ctx.app);
     await enrol(cookie, ADMIN.email);
     await resetCodes(cookie);
-    const codes = (await signIn(totp())).json().recoveryCodes as string[];
+    const codes = (await signIn(await totp())).json().recoveryCodes as string[];
 
     const again = await signIn(codes[0]!);
     expect(again.json().member.email).toBe(ADMIN.email);
     // Spent, not reissued: nine is not zero, so nothing was minted.
-    expect(unusedCount()).toBe(9);
+    expect(await unusedCount()).toBe(9);
     expect(again.json().recoveryCodes).toBeUndefined();
   });
 
@@ -591,7 +582,7 @@ describe('a sign-in that finds no codes left', () => {
     const cookie = await setupOrg(ctx.app);
     await enrol(cookie, ADMIN.email);
     await resetCodes(cookie);
-    const session = sessionCookie(await signIn(totp()));
+    const session = sessionCookie(await signIn(await totp()));
 
     const log = await inject(ctx.app, { method: 'GET', url: '/api/v1/audit', cookie: session });
     const entry = (
@@ -660,7 +651,7 @@ describe('what the members list says about two-factor', () => {
     ctx = await buildTestApp();
     const cookie = await setupOrg(ctx.app);
     await enrol(cookie, ADMIN.email);
-    ctx.db.delete(mfaRecoveryCodes).run();
+    await ctx.db.delete(mfaRecoveryCodes);
 
     // The difference the column exists for: "none left" is a state to fix,
     // "no set at all" is somebody who never enrolled.

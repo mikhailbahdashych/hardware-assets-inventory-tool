@@ -40,7 +40,7 @@ export function startScheduler(deps: AppDeps, log: FastifyBaseLogger): Scheduler
       log.info(result, 'weekly digest');
     }),
     task(SCHEDULE.maintenance, 'maintenance', async () => {
-      const result = runMaintenance(deps, deps.now());
+      const result = await runMaintenance(deps, deps.now());
       log.info(result, 'maintenance');
     }),
   ];

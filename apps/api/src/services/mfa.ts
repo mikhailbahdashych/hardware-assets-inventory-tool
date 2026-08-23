@@ -1,5 +1,5 @@
 import { randomInt } from 'node:crypto';
-import { and, eq, isNull, sql } from 'drizzle-orm';
+import { and, count, eq, isNull } from 'drizzle-orm';
 import { RECOVERY_CODE_COUNT } from '@inventory/shared';
 import type { Db, DbOrTx } from '@/types/db.js';
 import type { MfaEnrolment, MfaStatus } from '@/types/mfa.js';
@@ -38,12 +38,12 @@ export function mfaStatus(required: boolean, member: Pick<MemberRow, 'mfaConfirm
  * half-scanned QR and came back should get a clean one rather than a secret
  * their authenticator may or may not still hold.
  */
-export function beginEnrolment(
+export async function beginEnrolment(
   db: DbOrTx,
   member: MemberRow,
   orgName: string,
   now: Date,
-): MfaEnrolment {
+): Promise<MfaEnrolment> {
   if (member.mfaConfirmedAt) {
     throw new AppError(
       409,
@@ -53,10 +53,10 @@ export function beginEnrolment(
   }
 
   const secret = generateTotpSecret();
-  db.update(members)
+  await db
+    .update(members)
     .set({ mfaSecret: secret, updatedAt: nowIso(now) })
-    .where(eq(members.id, member.id))
-    .run();
+    .where(eq(members.id, member.id));
 
   return { secret, otpauthUri: otpauthUri(secret, member.email, orgName) };
 }
@@ -69,7 +69,12 @@ export function beginEnrolment(
  * Returns the raw codes. They are stored hashed and never recoverable, which is
  * why the UI shows them once and says so.
  */
-export function confirmEnrolment(db: Db, member: MemberRow, code: string, now: Date): string[] {
+export async function confirmEnrolment(
+  db: Db,
+  member: MemberRow,
+  code: string,
+  now: Date,
+): Promise<string[]> {
   if (member.mfaConfirmedAt) {
     throw new AppError(409, 'mfa_already_enrolled', 'This account already has an authenticator.');
   }
@@ -81,12 +86,12 @@ export function confirmEnrolment(db: Db, member: MemberRow, code: string, now: D
   }
 
   const codes = Array.from({ length: RECOVERY_CODE_COUNT }, generateRecoveryCode);
-  db.transaction((tx) => {
-    tx.update(members)
+  await db.transaction(async (tx) => {
+    await tx
+      .update(members)
       .set({ mfaConfirmedAt: nowIso(now), updatedAt: nowIso(now) })
-      .where(eq(members.id, member.id))
-      .run();
-    replaceRecoveryCodes(tx, member.id, codes, now);
+      .where(eq(members.id, member.id));
+    await replaceRecoveryCodes(tx, member.id, codes, now);
   });
   return codes;
 }
@@ -96,12 +101,17 @@ export function confirmEnrolment(db: Db, member: MemberRow, code: string, now: D
  * recovery codes, decided by what matches rather than by what they claim.
  * A recovery code is spent here, in the same call that accepts it.
  */
-export function verifyChallenge(db: DbOrTx, member: MemberRow, code: string, now: Date): boolean {
+export async function verifyChallenge(
+  db: DbOrTx,
+  member: MemberRow,
+  code: string,
+  now: Date,
+): Promise<boolean> {
   const candidate = code.trim().toLowerCase();
   if (member.mfaSecret && verifyTotp(member.mfaSecret, code, now)) return true;
 
   const hash = hashToken(candidate);
-  const match = db
+  const [match] = await db
     .select()
     .from(mfaRecoveryCodes)
     .where(
@@ -110,24 +120,24 @@ export function verifyChallenge(db: DbOrTx, member: MemberRow, code: string, now
         eq(mfaRecoveryCodes.codeHash, hash),
         isNull(mfaRecoveryCodes.usedAt),
       ),
-    )
-    .get();
+    );
   if (!match) return false;
 
-  db.update(mfaRecoveryCodes)
+  await db
+    .update(mfaRecoveryCodes)
     .set({ usedAt: nowIso(now) })
-    .where(eq(mfaRecoveryCodes.id, match.id))
-    .run();
+    .where(eq(mfaRecoveryCodes.id, match.id));
   return true;
 }
 
 /** How many are left, for the UI to say so before somebody runs out. */
-export function unusedRecoveryCodeCount(db: DbOrTx, memberId: string): number {
-  return db
-    .select({ id: mfaRecoveryCodes.id })
-    .from(mfaRecoveryCodes)
-    .where(and(eq(mfaRecoveryCodes.memberId, memberId), isNull(mfaRecoveryCodes.usedAt)))
-    .all().length;
+export async function unusedRecoveryCodeCount(db: DbOrTx, memberId: string): Promise<number> {
+  return (
+    await db
+      .select({ id: mfaRecoveryCodes.id })
+      .from(mfaRecoveryCodes)
+      .where(and(eq(mfaRecoveryCodes.memberId, memberId), isNull(mfaRecoveryCodes.usedAt)))
+  ).length;
 }
 
 /**
@@ -137,13 +147,12 @@ export function unusedRecoveryCodeCount(db: DbOrTx, memberId: string): number {
  * whether that means anything is `serializeMemberSummary`'s decision, since
  * somebody who never enrolled has no set to count either.
  */
-export function unusedRecoveryCodeCounts(db: DbOrTx): Map<string, number> {
-  const rows = db
-    .select({ memberId: mfaRecoveryCodes.memberId, count: sql<number>`count(*)` })
+export async function unusedRecoveryCodeCounts(db: DbOrTx): Promise<Map<string, number>> {
+  const rows = await db
+    .select({ memberId: mfaRecoveryCodes.memberId, count: count() })
     .from(mfaRecoveryCodes)
     .where(isNull(mfaRecoveryCodes.usedAt))
-    .groupBy(mfaRecoveryCodes.memberId)
-    .all();
+    .groupBy(mfaRecoveryCodes.memberId);
   return new Map(rows.map((row) => [row.memberId, row.count]));
 }
 
@@ -151,17 +160,17 @@ export function unusedRecoveryCodeCounts(db: DbOrTx): Map<string, number> {
  * Puts a member back to un-enrolled: secret gone, codes gone. Their next sign-in
  * walks them through setup again if the workspace still requires it.
  */
-export function resetMemberMfa(db: DbOrTx, memberId: string, now: Date): void {
-  db.update(members)
+export async function resetMemberMfa(db: DbOrTx, memberId: string, now: Date): Promise<void> {
+  await db
+    .update(members)
     .set({ mfaSecret: null, mfaConfirmedAt: null, updatedAt: nowIso(now) })
-    .where(eq(members.id, memberId))
-    .run();
-  db.delete(mfaRecoveryCodes).where(eq(mfaRecoveryCodes.memberId, memberId)).run();
+    .where(eq(members.id, memberId));
+  await db.delete(mfaRecoveryCodes).where(eq(mfaRecoveryCodes.memberId, memberId));
   // Sessions go too, the same way a password reset ends them. An admin resets
   // somebody's second factor because the phone is gone or the account is
   // suspect; leaving live sessions signed in would keep exactly the access the
   // reset is meant to interrupt, now with one factor instead of two.
-  db.delete(sessions).where(eq(sessions.memberId, memberId)).run();
+  await db.delete(sessions).where(eq(sessions.memberId, memberId));
 }
 
 /**
@@ -178,15 +187,19 @@ export function resetMemberMfa(db: DbOrTx, memberId: string, now: Date): void {
  * The raws are returned once and stored hashed, same rule as an invite link.
  * Call it inside the caller's transaction, with the audit event beside it.
  */
-export function replenishRecoveryCodes(db: DbOrTx, member: MemberRow, now: Date): string[] | null {
+export async function replenishRecoveryCodes(
+  db: DbOrTx,
+  member: MemberRow,
+  now: Date,
+): Promise<string[] | null> {
   // Somebody mid-enrolment has no set to run out of, and issuing one before
   // an authenticator is confirmed would hand out the way around a lock that
   // does not exist yet.
   if (member.mfaConfirmedAt === null) return null;
-  if (unusedRecoveryCodeCount(db, member.id) > 0) return null;
+  if ((await unusedRecoveryCodeCount(db, member.id)) > 0) return null;
 
   const codes = Array.from({ length: RECOVERY_CODE_COUNT }, generateRecoveryCode);
-  replaceRecoveryCodes(db, member.id, codes, now);
+  await replaceRecoveryCodes(db, member.id, codes, now);
   return codes;
 }
 
@@ -201,8 +214,8 @@ export function replenishRecoveryCodes(db: DbOrTx, member: MemberRow, now: Date)
  * the authenticator still stands and still guards the next sign-in — so ending
  * sessions would be a punishment for an admin's housekeeping.
  */
-export function resetMemberRecoveryCodes(db: DbOrTx, memberId: string): void {
-  const member = db.select().from(members).where(eq(members.id, memberId)).get();
+export async function resetMemberRecoveryCodes(db: DbOrTx, memberId: string): Promise<void> {
+  const [member] = await db.select().from(members).where(eq(members.id, memberId));
   if (!member) throw notFound('That member');
   if (member.mfaConfirmedAt === null) {
     throw new AppError(
@@ -211,7 +224,7 @@ export function resetMemberRecoveryCodes(db: DbOrTx, memberId: string): void {
       'That member has no authenticator, so there are no codes to reset.',
     );
   }
-  db.delete(mfaRecoveryCodes).where(eq(mfaRecoveryCodes.memberId, memberId)).run();
+  await db.delete(mfaRecoveryCodes).where(eq(mfaRecoveryCodes.memberId, memberId));
 }
 
 /**
@@ -220,25 +233,26 @@ export function resetMemberRecoveryCodes(db: DbOrTx, memberId: string): void {
  * with authenticators nobody remembers adding — and would leave the codes
  * sitting in the database in the meantime.
  */
-export function wipeAllMfa(db: DbOrTx, now: Date): void {
-  db.update(members)
-    .set({ mfaSecret: null, mfaConfirmedAt: null, updatedAt: nowIso(now) })
-    .run();
-  db.delete(mfaRecoveryCodes).run();
+export async function wipeAllMfa(db: DbOrTx, now: Date): Promise<void> {
+  await db.update(members).set({ mfaSecret: null, mfaConfirmedAt: null, updatedAt: nowIso(now) });
+  await db.delete(mfaRecoveryCodes);
 }
 
-function replaceRecoveryCodes(tx: DbOrTx, memberId: string, codes: string[], now: Date): void {
-  tx.delete(mfaRecoveryCodes).where(eq(mfaRecoveryCodes.memberId, memberId)).run();
+async function replaceRecoveryCodes(
+  tx: DbOrTx,
+  memberId: string,
+  codes: string[],
+  now: Date,
+): Promise<void> {
+  await tx.delete(mfaRecoveryCodes).where(eq(mfaRecoveryCodes.memberId, memberId));
   for (const code of codes) {
-    tx.insert(mfaRecoveryCodes)
-      .values({
-        id: newId(),
-        memberId,
-        codeHash: hashToken(code),
-        usedAt: null,
-        createdAt: nowIso(now),
-      })
-      .run();
+    await tx.insert(mfaRecoveryCodes).values({
+      id: newId(),
+      memberId,
+      codeHash: hashToken(code),
+      usedAt: null,
+      createdAt: nowIso(now),
+    });
   }
 }
 

@@ -12,6 +12,8 @@ Everything this app keeps lives in one directory — `DATA_DIR`, which is `/data
 
 Back up that directory and you have backed up the product. There is nothing else — no external cache, no queue, no secret at rest.
 
+That is the default instance, and everything above [PostgreSQL and S3](#postgresql-and-s3) describes it. Setting `DATABASE_URL` or `S3_BUCKET` moves part of the state out of the directory, and that section is where it is backed up instead.
+
 ## Cold backup: stop, copy, start
 
 The simplest correct thing, and the one to use if you are unsure:
@@ -58,6 +60,18 @@ If you restored from a `.backup` snapshot, the file is called `backup.db` — re
 
 A restored database from an older release is fine: migrations run at boot and bring it forward.
 
+## PostgreSQL and S3
+
+`DATABASE_URL` moves the rows to a PostgreSQL server; `S3_BUCKET` moves the attachments to a bucket. Set either and the directory stops being the whole story — with both set it holds nothing worth copying, and the state lives in two places that each know how to back themselves up.
+
+**The rows become the database server's problem, and it is better at this than `cp` is.** On RDS that means automated backups — seven days of them in [`infrastructure/`](../infrastructure/README.md), taken in the maintenance window, with point-in-time recovery anywhere inside it, and storage up to the size of the database costs nothing. Take a manual snapshot before anything you would want to undo: automated ones expire on their own, manual ones wait for you. On a PostgreSQL server you run yourself, `pg_dump --format=custom` is the equivalent worth keeping, because `pg_restore` can be selective about that format and cannot be about a plain SQL file.
+
+**The attachments become the bucket's.** The Terraform bucket is versioned, so an overwritten or deleted object is recoverable until its old versions are expired — and nothing expires them for you. Versioning is not off-site, though: it survives a mistake, not a deleted bucket or a lost account. Replication to a second bucket, or a scheduled `aws s3 sync` to somewhere else, is what turns it into a backup.
+
+**Nothing snapshots the two together, and that is the part to plan for.** A restore that puts the database back to Tuesday while the bucket is still at Friday leaves rows pointing at objects that do not exist, and objects nothing points at. The app cleans up the second kind on its own — the nightly sweep removes stored files no attachment row names, once they are a day old — but the first kind is a download that 404s, and whether that matters is your call. If it does, take a manual RDS snapshot and record the bucket's state at the same moment, and restore them as a pair.
+
+[`infrastructure/README.md`](../infrastructure/README.md#backups) has the AWS specifics. Moving an existing workspace from SQLite to PostgreSQL is not a restore and not a migration — there is no automated path before 1.0; [Moving up](deployment.md#moving-up) says what the export-and-import route costs.
+
 ## The JSON export is not a backup
 
 Admin → Settings → **Export all data** produces a JSON file of assets, people, ownership history, custom fields, members and settings. It is a **reporting format** — for a spreadsheet, an audit, or moving data somewhere else.
@@ -77,6 +91,6 @@ Then you know.
 
 ## Notes
 
-- **Single replica.** The nightly jobs run in-process and SQLite is one file; two containers on one volume would both fire. This matters for backups too: one writer means one consistent thing to copy.
+- **Single replica.** The nightly jobs run in-process, so two containers would both fire them — on either engine. It matters here because it is also what makes a backup simple: one writer means one consistent thing to copy.
 - **Snapshot the volume if your host can.** A filesystem or block-level snapshot of a stopped container is equivalent to the cold copy and usually faster.
 - The database is small. A workspace with 10,000 assets and their full history is a few tens of megabytes; the attachments are what take space.

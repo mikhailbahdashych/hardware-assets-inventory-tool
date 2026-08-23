@@ -1,6 +1,7 @@
 import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { ATTACHMENT_ACCEPT } from '@inventory/shared';
 import {
   ADMIN_MEMBER,
   INVENTORY_ROUTES,
@@ -368,6 +369,16 @@ describe('the asset detail record', () => {
     expect(link).toHaveAttribute('href', '/api/v1/attachments/file-1');
     expect(link).toHaveAttribute('download');
     expect(screen.getByText('184 KB')).toBeInTheDocument();
+  });
+
+  it('offers the picker only the file types the server would accept', async () => {
+    renderApp(detailRoutes, '/assets/asset-1');
+    const input = await screen.findByLabelText('Upload attachment');
+    // The same list the API refuses everything else against, so the browser
+    // greys out a file the upload would only bounce.
+    expect(input).toHaveAttribute('accept', ATTACHMENT_ACCEPT);
+    expect(input.getAttribute('accept')).toContain('.pdf');
+    expect(input.getAttribute('accept')).not.toContain('.svg');
   });
 
   it('hides the upload and remove affordances from a viewer', async () => {

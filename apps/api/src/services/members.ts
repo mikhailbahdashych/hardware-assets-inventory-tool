@@ -14,6 +14,7 @@ import type {
 import { employees, members, roles } from '@/db/schema.js';
 import { nowIso } from '@/lib/dates.js';
 import { AppError, invalidFields, notFound } from '@/lib/errors.js';
+import { DUPLICATE_MEMBER_EMAIL } from '@/lib/unique.js';
 import { newId } from '@/lib/ids.js';
 import { serializeMemberSummary } from '@/lib/serialize.js';
 import { writeAudit } from './audit.js';
@@ -37,16 +38,17 @@ function tokenUrl(config: Config, path: string, raw: string): string {
   return url.toString();
 }
 
-export function listMembers(db: Db): MemberSummary[] {
+export async function listMembers(db: Db): Promise<MemberSummary[]> {
   // One grouped count for the whole page rather than a query per row.
-  const codesLeft = unusedRecoveryCodeCounts(db);
+  const codesLeft = await unusedRecoveryCodeCounts(db);
   return (
-    db
-      .select({ member: members, employee: employees })
-      .from(members)
-      .leftJoin(employees, eq(members.employeeId, employees.id))
-      .orderBy(asc(members.displayName))
-      .all()
+    (
+      await db
+        .select({ member: members, employee: employees })
+        .from(members)
+        .leftJoin(employees, eq(members.employeeId, employees.id))
+        .orderBy(asc(members.displayName))
+    )
       // A member with no row in that map has spent every code (or never had
       // any): a Map miss that is a genuine zero, which is the one shape of `??`
       // this codebase keeps.
@@ -56,40 +58,40 @@ export function listMembers(db: Db): MemberSummary[] {
   );
 }
 
-export function inviteMember(deps: AppDeps, actor: Actor, input: InviteInput): InviteResult {
+export async function inviteMember(
+  deps: AppDeps,
+  actor: Actor,
+  input: InviteInput,
+): Promise<InviteResult> {
   const now = deps.now();
   const at = nowIso(now);
 
-  const { member, raw } = deps.db.transaction((tx) => {
-    requireFreeEmail(tx, input.email);
+  const { member, raw } = await deps.db.transaction(async (tx) => {
+    await requireFreeEmail(tx, input.email);
     // Roles are rows, so the id on the form is checked against them here — the
     // schema can only say it is a non-empty string.
-    const role = requireRole(tx, input.role);
-    const employee = input.employeeId === null ? null : requireEmployee(tx, input.employeeId);
+    const role = await requireRole(tx, input.role);
+    const employee = input.employeeId === null ? null : await requireEmployee(tx, input.employeeId);
 
     const id = newId();
-    tx.insert(members)
-      .values({
-        id,
-        email: input.email,
-        // Nobody has told us their name yet — accepting the invite does that.
-        // A linked employee record already knows it; otherwise the email's own
-        // local part stands in, so the design's two-line member cell is never
-        // blank and nothing is invented.
-        displayName: employee
-          ? `${employee.firstName} ${employee.lastName}`
-          : localPart(input.email),
-        passwordHash: null,
-        role: input.role,
-        status: 'invited',
-        employeeId: input.employeeId,
-        createdAt: at,
-        updatedAt: at,
-      })
-      .run();
+    await tx.insert(members).values({
+      id,
+      email: input.email,
+      // Nobody has told us their name yet — accepting the invite does that.
+      // A linked employee record already knows it; otherwise the email's own
+      // local part stands in, so the design's two-line member cell is never
+      // blank and nothing is invented.
+      displayName: employee ? `${employee.firstName} ${employee.lastName}` : localPart(input.email),
+      passwordHash: null,
+      role: input.role,
+      status: 'invited',
+      employeeId: input.employeeId,
+      createdAt: at,
+      updatedAt: at,
+    });
 
-    const raw = issueAuthToken(tx, id, 'invite', now);
-    writeAudit(
+    const raw = await issueAuthToken(tx, id, 'invite', now);
+    await writeAudit(
       tx,
       {
         type: 'auth',
@@ -103,7 +105,7 @@ export function inviteMember(deps: AppDeps, actor: Actor, input: InviteInput): I
       },
       now,
     );
-    return { member: readMember(tx, id), raw };
+    return { member: await readMember(tx, id), raw };
   });
 
   return { member, inviteUrl: tokenUrl(deps.config, INVITE_PATH, raw) };
@@ -113,16 +115,16 @@ export function inviteMember(deps: AppDeps, actor: Actor, input: InviteInput): I
  * A fresh invitation link. Issuing one retires the previous unconsumed invite,
  * so a link that leaked stops working the moment an admin resends.
  */
-export function resendInvite(deps: AppDeps, actor: Actor, id: string): InviteLink {
+export async function resendInvite(deps: AppDeps, actor: Actor, id: string): Promise<InviteLink> {
   const now = deps.now();
 
-  const raw = deps.db.transaction((tx) => {
-    const member = requireMember(tx, id);
+  const raw = await deps.db.transaction(async (tx) => {
+    const member = await requireMember(tx, id);
     if (member.status !== 'invited') {
       throw new AppError(409, 'already_active', 'That member has already joined the workspace.');
     }
-    const raw = issueAuthToken(tx, member.id, 'invite', now);
-    writeAudit(
+    const raw = await issueAuthToken(tx, member.id, 'invite', now);
+    await writeAudit(
       tx,
       {
         type: 'auth',
@@ -145,11 +147,11 @@ export function resendInvite(deps: AppDeps, actor: Actor, id: string): InviteLin
  * hands it over in person. It is never given to an anonymous requester — that
  * is why /auth/forgot-password answers 204 and issues nothing.
  */
-export function issueResetLink(deps: AppDeps, actor: Actor, id: string): ResetLink {
+export async function issueResetLink(deps: AppDeps, actor: Actor, id: string): Promise<ResetLink> {
   const now = deps.now();
 
-  const raw = deps.db.transaction((tx) => {
-    const member = requireMember(tx, id);
+  const raw = await deps.db.transaction(async (tx) => {
+    const member = await requireMember(tx, id);
     if (member.status !== 'active') {
       throw new AppError(
         409,
@@ -157,8 +159,8 @@ export function issueResetLink(deps: AppDeps, actor: Actor, id: string): ResetLi
         'That member has not accepted their invitation yet — resend the invite instead.',
       );
     }
-    const raw = issueAuthToken(tx, member.id, 'password_reset', now);
-    writeAudit(
+    const raw = await issueAuthToken(tx, member.id, 'password_reset', now);
+    await writeAudit(
       tx,
       {
         type: 'auth',
@@ -176,20 +178,20 @@ export function issueResetLink(deps: AppDeps, actor: Actor, id: string): ResetLi
   return { resetUrl: tokenUrl(deps.config, RESET_PATH, raw) };
 }
 
-export function updateMember(
+export async function updateMember(
   deps: AppDeps,
   actor: Actor,
   id: string,
   patch: MemberPatchInput,
-): MemberSummary {
+): Promise<MemberSummary> {
   const now = deps.now();
 
-  return deps.db.transaction((tx) => {
-    const current = requireMember(tx, id);
+  return await deps.db.transaction(async (tx) => {
+    const current = await requireMember(tx, id);
     const values: Partial<typeof members.$inferInsert> = {};
     // Named outside the branch so the audit event below can snapshot its label
     // without asking the table a second time.
-    let destination = null as ReturnType<typeof requireRole> | null;
+    let destination = null as Awaited<ReturnType<typeof requireRole>> | null;
 
     if (patch.role !== undefined && patch.role !== current.role) {
       if (id === actor.id) {
@@ -199,10 +201,10 @@ export function updateMember(
           'You cannot change your own role — ask another admin to do it.',
         );
       }
-      destination = requireRole(tx, patch.role);
+      destination = await requireRole(tx, patch.role);
       // Losing the last admin is the one role change nobody may make.
       if (current.role === ADMIN_ROLE && patch.role !== ADMIN_ROLE) {
-        assertNotLastAdmin(tx, current);
+        await assertNotLastAdmin(tx, current);
       }
       values.role = patch.role;
     }
@@ -216,14 +218,14 @@ export function updateMember(
     if (Object.keys(values).length === 0) return readMember(tx, id);
 
     values.updatedAt = nowIso(now);
-    tx.update(members).set(values).where(eq(members.id, id)).run();
+    await tx.update(members).set(values).where(eq(members.id, id));
 
     if (values.role && destination) {
       // Both sides as labels. The role they came *from* may not exist by the
       // time anybody reads this line, which is exactly why it is snapshotted;
       // a row that is somehow gone already renders as the id it was.
-      const from = tx.select().from(roles).where(eq(roles.id, current.role)).get();
-      writeAudit(
+      const [from] = await tx.select().from(roles).where(eq(roles.id, current.role));
+      await writeAudit(
         tx,
         {
           type: 'auth',
@@ -242,7 +244,7 @@ export function updateMember(
     }
     if (patch.employeeId !== undefined && values.employeeId !== undefined) {
       const employee = values.employeeId === null ? null : requireEmployee(tx, values.employeeId);
-      writeAudit(
+      await writeAudit(
         tx,
         {
           type: 'auth',
@@ -254,7 +256,9 @@ export function updateMember(
           // null is the sentence's "unlinked" branch, not a missing name.
           params: {
             memberName: current.displayName,
-            employeeName: employee ? `${employee.firstName} ${employee.lastName}` : null,
+            employeeName: employee
+              ? `${(await employee).firstName} ${(await employee).lastName}`
+              : null,
           },
         },
         now,
@@ -265,11 +269,11 @@ export function updateMember(
   });
 }
 
-export function removeMember(deps: AppDeps, actor: Actor, id: string): void {
+export async function removeMember(deps: AppDeps, actor: Actor, id: string): Promise<void> {
   const now = deps.now();
 
-  deps.db.transaction((tx) => {
-    const member = requireMember(tx, id);
+  await deps.db.transaction(async (tx) => {
+    const member = await requireMember(tx, id);
     if (id === actor.id) {
       throw new AppError(
         409,
@@ -278,13 +282,13 @@ export function removeMember(deps: AppDeps, actor: Actor, id: string): void {
       );
     }
 
-    assertNotLastAdmin(tx, member);
+    await assertNotLastAdmin(tx, member);
 
     // sessions.member_id CASCADEs, so removing the row signs them out
     // everywhere; audit_events.actor_member_id is SET NULL, so what they did
     // stays in the log under their snapshotted name.
-    tx.delete(members).where(eq(members.id, id)).run();
-    writeAudit(
+    await tx.delete(members).where(eq(members.id, id));
+    await writeAudit(
       tx,
       {
         type: 'auth',
@@ -299,22 +303,21 @@ export function removeMember(deps: AppDeps, actor: Actor, id: string): void {
 }
 
 /** One member, for a caller that has an id — the routes that mail them. */
-export function memberById(db: DbOrTx, id: string): MemberSummary {
-  return readMember(db, id);
+export async function memberById(db: DbOrTx, id: string): Promise<MemberSummary> {
+  return await readMember(db, id);
 }
 
-function readMember(tx: DbOrTx, id: string): MemberSummary {
-  const row = tx
+async function readMember(tx: DbOrTx, id: string): Promise<MemberSummary> {
+  const [row] = await tx
     .select({ member: members, employee: employees })
     .from(members)
     .leftJoin(employees, eq(members.employeeId, employees.id))
-    .where(eq(members.id, id))
-    .get();
+    .where(eq(members.id, id));
   if (!row) throw notFound('That member');
   return serializeMemberSummary(
     row.member,
     row.employee,
-    unusedRecoveryCodeCount(tx, row.member.id),
+    await unusedRecoveryCodeCount(tx, row.member.id),
   );
 }
 
@@ -340,16 +343,17 @@ function readMember(tx: DbOrTx, id: string): MemberSummary {
  * anchored to `ASSIGNED_STATUS`: every other role is a row a workspace edits,
  * and this one is the row it cannot.
  */
-function assertNotLastAdmin(tx: DbOrTx, target: MemberRow): void {
+async function assertNotLastAdmin(tx: DbOrTx, target: MemberRow): Promise<void> {
   if (target.role !== ADMIN_ROLE || target.status !== 'active') return;
 
-  const remaining = tx
-    .select({ id: members.id })
-    .from(members)
-    .where(
-      and(eq(members.role, ADMIN_ROLE), eq(members.status, 'active'), ne(members.id, target.id)),
-    )
-    .all().length;
+  const remaining = (
+    await tx
+      .select({ id: members.id })
+      .from(members)
+      .where(
+        and(eq(members.role, ADMIN_ROLE), eq(members.status, 'active'), ne(members.id, target.id)),
+      )
+  ).length;
 
   if (remaining === 0) {
     throw new AppError(
@@ -360,21 +364,22 @@ function assertNotLastAdmin(tx: DbOrTx, target: MemberRow): void {
   }
 }
 
-function requireMember(tx: DbOrTx, id: string): MemberRow {
-  const member = tx.select().from(members).where(eq(members.id, id)).get();
+async function requireMember(tx: DbOrTx, id: string): Promise<MemberRow> {
+  const [member] = await tx.select().from(members).where(eq(members.id, id));
   if (!member) throw notFound('That member');
   return member;
 }
 
-function requireEmployee(tx: DbOrTx, id: string) {
-  const employee = tx.select().from(employees).where(eq(employees.id, id)).get();
+async function requireEmployee(tx: DbOrTx, id: string) {
+  const [employee] = await tx.select().from(employees).where(eq(employees.id, id));
   if (!employee) throw invalidFields({ employeeId: 'That employee record no longer exists.' });
   return employee;
 }
 
-function requireFreeEmail(tx: DbOrTx, email: string): void {
-  if (tx.select().from(members).where(eq(members.email, email)).get()) {
-    throw invalidFields({ email: 'Someone already signs in with that email address.' });
+async function requireFreeEmail(tx: DbOrTx, email: string): Promise<void> {
+  const [clash] = await tx.select().from(members).where(eq(members.email, email));
+  if (clash) {
+    throw invalidFields(DUPLICATE_MEMBER_EMAIL);
   }
 }
 

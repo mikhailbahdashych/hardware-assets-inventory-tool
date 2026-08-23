@@ -28,6 +28,26 @@ export default tseslint.config(
     },
   },
   {
+    // The API is async end to end, and drizzle's query builders are thenables:
+    // a forgotten `await` is a statement that still compiles, still returns a
+    // truthy object, and silently never ran. These three rules need the type
+    // checker, which is why this block hands the parser a project — and they
+    // are the only thing standing between that mistake and a green suite.
+    files: ['apps/api/**/*.ts'],
+    languageOptions: {
+      parser: tseslint.parser,
+      parserOptions: {
+        project: ['./apps/api/tsconfig.json'],
+        tsconfigRootDir: import.meta.dirname,
+      },
+    },
+    rules: {
+      '@typescript-eslint/no-floating-promises': 'error',
+      '@typescript-eslint/no-misused-promises': 'error',
+      '@typescript-eslint/await-thenable': 'error',
+    },
+  },
+  {
     files: ['apps/web/**/*.{ts,tsx}'],
     plugins: {
       'react-hooks': reactHooks,

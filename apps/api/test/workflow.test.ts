@@ -40,9 +40,9 @@ async function admin(): Promise<{ cookie: string; actor: Actor }> {
  * message is always "Please correct the highlighted fields." — so these
  * assertions read the field the form would highlight.
  */
-function fieldErrors(run: () => unknown): Record<string, string> {
+async function fieldErrors(run: () => unknown): Promise<Record<string, string>> {
   try {
-    run();
+    await run();
   } catch (error) {
     const fields = (error as { fields?: Record<string, string> }).fields;
     if (!fields) {
@@ -53,28 +53,23 @@ function fieldErrors(run: () => unknown): Record<string, string> {
   throw new Error('expected a throw, got a return');
 }
 
-const events = (action: string) =>
-  ctx.db
-    .select()
-    .from(auditEvents)
-    .where(eq(auditEvents.action, action))
-    .all()
-    .map((row) => ({ ...row, params: JSON.parse(row.params) as Record<string, unknown> }));
+const events = async (action: string) =>
+  (await ctx.db.select().from(auditEvents).where(eq(auditEvents.action, action))).map((row) => ({
+    ...row,
+    params: JSON.parse(row.params) as Record<string, unknown>,
+  }));
 
-function addAsset(status: string, tag = 'AST-0001'): string {
+async function addAsset(status: string, tag = 'AST-0001'): Promise<string> {
   const at = '2026-08-17T09:00:00.000Z';
-  ctx.db
-    .insert(assets)
-    .values({
-      id: `asset-${tag}`,
-      assetTag: tag,
-      name: 'MacBook Pro 14"',
-      category: 'laptops',
-      status,
-      createdAt: at,
-      updatedAt: at,
-    })
-    .run();
+  await ctx.db.insert(assets).values({
+    id: `asset-${tag}`,
+    assetTag: tag,
+    name: 'MacBook Pro 14"',
+    category: 'laptops',
+    status,
+    createdAt: at,
+    updatedAt: at,
+  });
   return `asset-${tag}`;
 }
 
@@ -88,7 +83,7 @@ describe('GET /api/v1/workflow', () => {
     const viewer = await inject(ctx.app, {
       method: 'GET',
       url: '/api/v1/workflow',
-      cookie: memberCookie(ctx.db, 'viewer'),
+      cookie: await memberCookie(ctx.db, 'viewer'),
     });
     expect(viewer.statusCode).toBe(200);
     expect(viewer.json().statuses).toHaveLength(6);
@@ -100,33 +95,33 @@ describe('the workflow endpoints are admin-only', () => {
   it('turns a manager away from every one of them', async () => {
     ctx = await buildTestApp();
     await setupOrg(ctx.app);
-    const manager = memberCookie(ctx.db, 'manager');
+    const manager = await memberCookie(ctx.db, 'manager');
 
     const attempts = [
-      inject(ctx.app, {
+      await inject(ctx.app, {
         method: 'POST',
         url: '/api/v1/workflow/statuses',
         cookie: manager,
         body: { label: 'On loan', color: 'info' },
       }),
-      inject(ctx.app, {
+      await inject(ctx.app, {
         method: 'PATCH',
         url: '/api/v1/workflow/statuses/ordered',
         cookie: manager,
         body: { label: 'Ordered in' },
       }),
-      inject(ctx.app, {
+      await inject(ctx.app, {
         method: 'DELETE',
         url: '/api/v1/workflow/statuses/ordered',
         cookie: manager,
       }),
-      inject(ctx.app, {
+      await inject(ctx.app, {
         method: 'PUT',
         url: '/api/v1/workflow/transitions',
         cookie: manager,
         body: { transitions: [] },
       }),
-      inject(ctx.app, {
+      await inject(ctx.app, {
         method: 'PUT',
         url: '/api/v1/workflow/statuses/order',
         cookie: manager,
@@ -134,8 +129,8 @@ describe('the workflow endpoints are admin-only', () => {
       }),
     ];
 
-    for (const res of await Promise.all(attempts)) expect(res.statusCode).toBe(403);
-    expect(getWorkflow(ctx.db).statuses).toHaveLength(6);
+    for (const res of attempts) expect(res.statusCode).toBe(403);
+    expect((await getWorkflow(ctx.db)).statuses).toHaveLength(6);
   });
 });
 
@@ -173,12 +168,7 @@ describe('an admin editing the workflow over HTTP', () => {
       url: '/api/v1/workflow/statuses/order',
       cookie,
       body: {
-        ids: [
-          'on_loan',
-          ...getWorkflow(ctx.db)
-            .statuses.map((s) => s.id)
-            .slice(0, 6),
-        ],
+        ids: ['on_loan', ...(await getWorkflow(ctx.db)).statuses.map((s) => s.id).slice(0, 6)],
       },
     });
     expect(reordered.statusCode).toBe(200);
@@ -200,7 +190,7 @@ describe('an admin editing the workflow over HTTP', () => {
     });
     expect(removed.statusCode).toBe(204);
     // The edge went with it rather than pointing at nothing.
-    expect(getWorkflow(ctx.db).transitions).toEqual([]);
+    expect((await getWorkflow(ctx.db)).transitions).toEqual([]);
   });
 
   it('404s an unknown status and 422s a payload the contract refuses', async () => {
@@ -227,7 +217,7 @@ describe('an admin editing the workflow over HTTP', () => {
   it('refuses to delete a status assets carry until it is told where they go', async () => {
     ctx = await buildTestApp();
     const { cookie } = await admin();
-    addAsset('lost_stolen', 'AST-0001');
+    await addAsset('lost_stolen', 'AST-0001');
 
     const blocked = await inject(ctx.app, {
       method: 'DELETE',
@@ -244,15 +234,17 @@ describe('an admin editing the workflow over HTTP', () => {
       cookie,
     });
     expect(migrated.statusCode).toBe(204);
-    expect(ctx.db.select().from(assets).all()[0]!.status).toBe('retired');
-    expect(getWorkflow(ctx.db).statuses.map((status) => status.id)).not.toContain('lost_stolen');
+    expect((await ctx.db.select().from(assets))[0]!.status).toBe('retired');
+    expect((await getWorkflow(ctx.db)).statuses.map((status) => status.id)).not.toContain(
+      'lost_stolen',
+    );
   });
 });
 
 describe('reading the workflow', () => {
   it('answers the seeded statuses in sort order with their flags', async () => {
     ctx = await buildTestApp();
-    const payload = getWorkflow(ctx.db);
+    const payload = await getWorkflow(ctx.db);
 
     expect(payload.statuses.map((status) => status.id)).toEqual([
       'available',
@@ -280,7 +272,7 @@ describe('creating a status', () => {
     ctx = await buildTestApp();
     const { actor } = await admin();
 
-    const created = createStatus(ctx.deps, actor, {
+    const created = await createStatus(ctx.deps, actor, {
       label: 'On loan',
       color: 'info',
       assignableFrom: false,
@@ -295,8 +287,8 @@ describe('creating a status', () => {
       checkinTarget: true,
       sortOrder: 6,
     });
-    expect(getWorkflow(ctx.db).statuses.at(-1)!.id).toBe('on_loan');
-    expect(events('workflow.status_created')).toMatchObject([
+    expect((await getWorkflow(ctx.db)).statuses.at(-1)!.id).toBe('on_loan');
+    expect(await events('workflow.status_created')).toMatchObject([
       { type: 'system', actorMemberId: actor.id, params: { label: 'On loan' } },
     ]);
   });
@@ -307,22 +299,26 @@ describe('creating a status', () => {
     const input = { assignableFrom: false, checkinTarget: false } as const;
 
     expect(
-      fieldErrors(() => createStatus(ctx.deps, actor, { label: '—', color: 'ok', ...input })).label,
+      (await fieldErrors(() => createStatus(ctx.deps, actor, { label: '—', color: 'ok', ...input }))).label, // prettier-ignore
     ).toMatch(/letters or numbers/i);
     // Case-insensitively taken, and taken as a slug: "In Repair" is in_repair.
     expect(
-      fieldErrors(() =>
-        createStatus(ctx.deps, actor, { label: 'available', color: 'ok', ...input }),
+      (
+        await fieldErrors(() =>
+          createStatus(ctx.deps, actor, { label: 'available', color: 'ok', ...input }),
+        )
       ).label,
     ).toMatch(/already exists/i);
     expect(
-      fieldErrors(() =>
-        createStatus(ctx.deps, actor, { label: 'In Repair', color: 'ok', ...input }),
+      (
+        await fieldErrors(() =>
+          createStatus(ctx.deps, actor, { label: 'In Repair', color: 'ok', ...input }),
+        )
       ).label,
     ).toMatch(/already exists/i);
 
-    expect(getWorkflow(ctx.db).statuses).toHaveLength(6);
-    expect(events('workflow.status_created')).toEqual([]);
+    expect((await getWorkflow(ctx.db)).statuses).toHaveLength(6);
+    expect(await events('workflow.status_created')).toEqual([]);
   });
 
   it('stops at the cap, because the matrix has to stay readable', async () => {
@@ -330,23 +326,23 @@ describe('creating a status', () => {
     const { actor } = await admin();
 
     for (let index = 6; index < MAX_ASSET_STATUSES; index += 1) {
-      createStatus(ctx.deps, actor, {
+      await createStatus(ctx.deps, actor, {
         label: `Status ${index}`,
         color: 'neut',
         assignableFrom: false,
         checkinTarget: false,
       });
     }
-    expect(getWorkflow(ctx.db).statuses).toHaveLength(MAX_ASSET_STATUSES);
+    expect((await getWorkflow(ctx.db)).statuses).toHaveLength(MAX_ASSET_STATUSES);
 
-    expect(() =>
+    await expect(
       createStatus(ctx.deps, actor, {
         label: 'One too many',
         color: 'neut',
         assignableFrom: false,
         checkinTarget: false,
       }),
-    ).toThrow(/20 statuses/);
+    ).rejects.toThrow(/20 statuses/);
   });
 });
 
@@ -354,16 +350,20 @@ describe('editing a status', () => {
   it('renames and recolors without touching the slug assets carry', async () => {
     ctx = await buildTestApp();
     const { actor } = await admin();
-    addAsset('in_repair');
+    await addAsset('in_repair');
 
-    const updated = updateStatus(ctx.deps, actor, 'in_repair', {
+    const updated = await updateStatus(ctx.deps, actor, 'in_repair', {
       label: 'At the repair shop',
       color: 'err',
     });
 
-    expect(updated).toMatchObject({ id: 'in_repair', label: 'At the repair shop', color: 'err' });
-    expect(ctx.db.select().from(assets).all()[0]!.status).toBe('in_repair');
-    expect(events('workflow.status_updated')).toMatchObject([
+    expect(updated).toMatchObject({
+      id: 'in_repair',
+      label: 'At the repair shop',
+      color: 'err',
+    });
+    expect((await ctx.db.select().from(assets))[0]!.status).toBe('in_repair');
+    expect(await events('workflow.status_updated')).toMatchObject([
       { params: { label: 'At the repair shop', changedFields: ['label', 'color'] } },
     ]);
   });
@@ -372,22 +372,24 @@ describe('editing a status', () => {
     ctx = await buildTestApp();
     const { actor } = await admin();
 
-    updateStatus(ctx.deps, actor, 'ordered', { label: 'Ordered', color: 'info' });
+    await updateStatus(ctx.deps, actor, 'ordered', { label: 'Ordered', color: 'info' });
 
-    expect(events('workflow.status_updated')).toEqual([]);
+    expect(await events('workflow.status_updated')).toEqual([]);
   });
 
   it('lets the system status be renamed but never re-flagged', async () => {
     ctx = await buildTestApp();
     const { actor } = await admin();
 
-    expect(updateStatus(ctx.deps, actor, 'assigned', { label: 'In use' }).label).toBe('In use');
+    expect((await updateStatus(ctx.deps, actor, 'assigned', { label: 'In use' })).label).toBe(
+      'In use',
+    );
     expect(
-      fieldErrors(() => updateStatus(ctx.deps, actor, 'assigned', { assignableFrom: true }))
+      (await fieldErrors(() => updateStatus(ctx.deps, actor, 'assigned', { assignableFrom: true })))
         .assignableFrom,
     ).toMatch(/system status/i);
     expect(
-      fieldErrors(() => updateStatus(ctx.deps, actor, 'assigned', { checkinTarget: true }))
+      (await fieldErrors(() => updateStatus(ctx.deps, actor, 'assigned', { checkinTarget: true })))
         .checkinTarget,
     ).toMatch(/system status/i);
   });
@@ -397,28 +399,31 @@ describe('editing a status', () => {
     const { actor } = await admin();
 
     expect(
-      fieldErrors(() => updateStatus(ctx.deps, actor, 'ordered', { label: 'retired' })).label,
+      (await fieldErrors(() => updateStatus(ctx.deps, actor, 'ordered', { label: 'retired' })))
+        .label,
     ).toMatch(/already exists/i);
     // Its own name, in its own case, is not a collision.
-    expect(updateStatus(ctx.deps, actor, 'ordered', { label: 'Ordered' }).label).toBe('Ordered');
+    expect((await updateStatus(ctx.deps, actor, 'ordered', { label: 'Ordered' })).label).toBe(
+      'Ordered',
+    );
   });
 
   it('will not turn off the last way to hand an asset out or take one back', async () => {
     ctx = await buildTestApp();
     const { actor } = await admin();
 
-    updateStatus(ctx.deps, actor, 'ordered', { assignableFrom: false });
-    expect(() => updateStatus(ctx.deps, actor, 'available', { assignableFrom: false })).toThrow(
-      /handed out/i,
-    );
+    await updateStatus(ctx.deps, actor, 'ordered', { assignableFrom: false });
+    await expect(
+      updateStatus(ctx.deps, actor, 'available', { assignableFrom: false }),
+    ).rejects.toThrow(/handed out/i);
 
-    updateStatus(ctx.deps, actor, 'in_repair', { checkinTarget: false });
-    updateStatus(ctx.deps, actor, 'retired', { checkinTarget: false });
-    expect(() => updateStatus(ctx.deps, actor, 'available', { checkinTarget: false })).toThrow(
-      /checked in/i,
-    );
+    await updateStatus(ctx.deps, actor, 'in_repair', { checkinTarget: false });
+    await updateStatus(ctx.deps, actor, 'retired', { checkinTarget: false });
+    await expect(
+      updateStatus(ctx.deps, actor, 'available', { checkinTarget: false }),
+    ).rejects.toThrow(/checked in/i);
 
-    const workflow = getWorkflow(ctx.db);
+    const workflow = await getWorkflow(ctx.db);
     expect(workflow.statuses.filter((status) => status.assignableFrom)).toHaveLength(1);
     expect(workflow.statuses.filter((status) => status.checkinTarget)).toHaveLength(1);
   });
@@ -429,13 +434,13 @@ describe('deleting a status', () => {
     ctx = await buildTestApp();
     const { actor } = await admin();
 
-    deleteStatus(ctx.deps, actor, 'lost_stolen');
+    await deleteStatus(ctx.deps, actor, 'lost_stolen');
 
-    const workflow = getWorkflow(ctx.db);
+    const workflow = await getWorkflow(ctx.db);
     expect(workflow.statuses.map((status) => status.id)).not.toContain('lost_stolen');
     // Four statuses left in the mesh: 4 × 3 = 12 edges, none dangling.
     expect(workflow.transitions).toHaveLength(12);
-    expect(events('workflow.status_deleted')).toMatchObject([
+    expect(await events('workflow.status_deleted')).toMatchObject([
       { params: { label: 'Lost/Stolen', assetCount: 0 } },
     ]);
   });
@@ -444,47 +449,45 @@ describe('deleting a status', () => {
     ctx = await buildTestApp();
     const { actor } = await admin();
 
-    expect(() => deleteStatus(ctx.deps, actor, 'assigned')).toThrow(/system status/i);
-    expect(getWorkflow(ctx.db).statuses).toHaveLength(6);
+    await expect(deleteStatus(ctx.deps, actor, 'assigned')).rejects.toThrow(/system status/i);
+    expect((await getWorkflow(ctx.db)).statuses).toHaveLength(6);
   });
 
   it('refuses to take the last assignable status or the last check-in target', async () => {
     ctx = await buildTestApp();
     const { actor } = await admin();
 
-    deleteStatus(ctx.deps, actor, 'ordered');
-    expect(() => deleteStatus(ctx.deps, actor, 'available')).toThrow(/handed out/i);
+    await deleteStatus(ctx.deps, actor, 'ordered');
+    await expect(deleteStatus(ctx.deps, actor, 'available')).rejects.toThrow(/handed out/i);
 
-    updateStatus(ctx.deps, actor, 'available', { checkinTarget: false });
-    deleteStatus(ctx.deps, actor, 'retired');
-    expect(() => deleteStatus(ctx.deps, actor, 'in_repair')).toThrow(/checked in/i);
+    await updateStatus(ctx.deps, actor, 'available', { checkinTarget: false });
+    await deleteStatus(ctx.deps, actor, 'retired');
+    await expect(deleteStatus(ctx.deps, actor, 'in_repair')).rejects.toThrow(/checked in/i);
   });
 
   it('says how many assets are in the way, and moves them when told where', async () => {
     ctx = await buildTestApp();
     const { actor } = await admin();
-    addAsset('lost_stolen', 'AST-0001');
-    addAsset('lost_stolen', 'AST-0002');
+    await addAsset('lost_stolen', 'AST-0001');
+    await addAsset('lost_stolen', 'AST-0002');
 
-    expect(() => deleteStatus(ctx.deps, actor, 'lost_stolen')).toThrow(/2 assets/);
-    expect(getWorkflow(ctx.db).statuses.map((status) => status.id)).toContain('lost_stolen');
+    await expect(deleteStatus(ctx.deps, actor, 'lost_stolen')).rejects.toThrow(/2 assets/);
+    expect((await getWorkflow(ctx.db)).statuses.map((status) => status.id)).toContain(
+      'lost_stolen',
+    );
 
-    deleteStatus(ctx.deps, actor, 'lost_stolen', 'retired');
+    await deleteStatus(ctx.deps, actor, 'lost_stolen', 'retired');
 
-    expect(
-      ctx.db
-        .select()
-        .from(assets)
-        .all()
-        .map((row) => row.status),
-    ).toEqual([
+    expect((await ctx.db.select().from(assets)).map((row) => row.status)).toEqual([
       // prettier-ignore
       'retired',
       'retired',
     ]);
-    expect(getWorkflow(ctx.db).statuses.map((status) => status.id)).not.toContain('lost_stolen');
+    expect((await getWorkflow(ctx.db)).statuses.map((status) => status.id)).not.toContain(
+      'lost_stolen',
+    );
     // One summary event, not one per asset.
-    expect(events('workflow.status_deleted')).toMatchObject([
+    expect(await events('workflow.status_deleted')).toMatchObject([
       { params: { label: 'Lost/Stolen', migratedToLabel: 'Retired', assetCount: 2 } },
     ]);
   });
@@ -492,16 +495,16 @@ describe('deleting a status', () => {
   it('refuses a destination that is missing, the system status, or itself', async () => {
     ctx = await buildTestApp();
     const { actor } = await admin();
-    addAsset('lost_stolen');
+    await addAsset('lost_stolen');
 
-    const attempt = (migrateTo: string) =>
-      fieldErrors(() => deleteStatus(ctx.deps, actor, 'lost_stolen', migrateTo)).migrateTo;
-    expect(attempt('nowhere')).toMatch(/could not be found/i);
-    expect(attempt('assigned')).toMatch(/assigning/i);
-    expect(attempt('lost_stolen')).toMatch(/different status/i);
+    const attempt = async (migrateTo: string) =>
+      (await fieldErrors(() => deleteStatus(ctx.deps, actor, 'lost_stolen', migrateTo))).migrateTo;
+    expect(await attempt('nowhere')).toMatch(/could not be found/i);
+    expect(await attempt('assigned')).toMatch(/assigning/i);
+    expect(await attempt('lost_stolen')).toMatch(/different status/i);
 
-    expect(ctx.db.select().from(assets).all()[0]!.status).toBe('lost_stolen');
-    expect(getWorkflow(ctx.db).statuses).toHaveLength(6);
+    expect((await ctx.db.select().from(assets))[0]!.status).toBe('lost_stolen');
+    expect((await getWorkflow(ctx.db)).statuses).toHaveLength(6);
   });
 });
 
@@ -510,7 +513,7 @@ describe('replacing the transition graph', () => {
     ctx = await buildTestApp();
     const { actor } = await admin();
 
-    const stored = replaceTransitions(ctx.deps, actor, {
+    const stored = await replaceTransitions(ctx.deps, actor, {
       transitions: [
         { from: 'ordered', to: 'available' },
         { from: 'available', to: 'retired' },
@@ -523,7 +526,7 @@ describe('replacing the transition graph', () => {
       { from: 'ordered', to: 'available' },
     ]);
     // 20 seeded, 2 kept: 18 gone, none added.
-    expect(events('workflow.transitions_updated')).toMatchObject([
+    expect(await events('workflow.transitions_updated')).toMatchObject([
       { params: { added: 0, removed: 18 } },
     ]);
   });
@@ -532,34 +535,39 @@ describe('replacing the transition graph', () => {
     ctx = await buildTestApp();
     const { actor } = await admin();
 
-    expect(replaceTransitions(ctx.deps, actor, { transitions: [] })).toEqual([]);
-    expect(ctx.db.select().from(assetStatusTransitions).all()).toEqual([]);
+    expect(await replaceTransitions(ctx.deps, actor, { transitions: [] })).toEqual([]);
+    expect(await ctx.db.select().from(assetStatusTransitions)).toEqual([]);
   });
 
   it('writes nothing when the graph is resubmitted unchanged', async () => {
     ctx = await buildTestApp();
     const { actor } = await admin();
 
-    replaceTransitions(ctx.deps, actor, { transitions: getWorkflow(ctx.db).transitions });
+    await replaceTransitions(ctx.deps, actor, {
+      transitions: (await getWorkflow(ctx.db)).transitions,
+    });
 
-    expect(events('workflow.transitions_updated')).toEqual([]);
+    expect(await events('workflow.transitions_updated')).toEqual([]);
   });
 
   it('refuses an unknown endpoint, a self-edge, and anything touching assigned', async () => {
     ctx = await buildTestApp();
     const { actor } = await admin();
-    const attempt = (from: string, to: string) =>
-      fieldErrors(() => replaceTransitions(ctx.deps, actor, { transitions: [{ from, to }] }))
-        .transitions;
+    const attempt = async (from: string, to: string) =>
+      (
+        await fieldErrors(() =>
+          replaceTransitions(ctx.deps, actor, { transitions: [{ from, to }] }),
+        )
+      ).transitions;
 
-    expect(attempt('available', 'nowhere')).toMatch(/nowhere/);
-    expect(attempt('nowhere', 'available')).toMatch(/nowhere/);
-    expect(attempt('available', 'available')).toMatch(/itself/i);
-    expect(attempt('available', 'assigned')).toMatch(/assigning/i);
-    expect(attempt('assigned', 'available')).toMatch(/assigning/i);
+    expect(await attempt('available', 'nowhere')).toMatch(/nowhere/);
+    expect(await attempt('nowhere', 'available')).toMatch(/nowhere/);
+    expect(await attempt('available', 'available')).toMatch(/itself/i);
+    expect(await attempt('available', 'assigned')).toMatch(/assigning/i);
+    expect(await attempt('assigned', 'available')).toMatch(/assigning/i);
 
     // Nothing half-applied: the seeded mesh is still whole.
-    expect(getWorkflow(ctx.db).transitions).toHaveLength(20);
+    expect((await getWorkflow(ctx.db)).transitions).toHaveLength(20);
   });
 });
 
@@ -568,7 +576,7 @@ describe('reordering statuses', () => {
     ctx = await buildTestApp();
     const { actor } = await admin();
 
-    const reordered = reorderStatuses(ctx.deps, actor, [
+    const reordered = await reorderStatuses(ctx.deps, actor, [
       'ordered',
       'available',
       'assigned',
@@ -586,26 +594,26 @@ describe('reordering statuses', () => {
       'retired',
     ]);
     expect(reordered.map((status) => status.sortOrder)).toEqual([0, 1, 2, 3, 4, 5]);
-    expect(getWorkflow(ctx.db).statuses[0]!.id).toBe('ordered');
-    expect(events('workflow.statuses_reordered')).toHaveLength(1);
+    expect((await getWorkflow(ctx.db)).statuses[0]!.id).toBe('ordered');
+    expect(await events('workflow.statuses_reordered')).toHaveLength(1);
   });
 
   it('refuses a list that is not every status exactly once', async () => {
     ctx = await buildTestApp();
     const { actor } = await admin();
-    const ids = getWorkflow(ctx.db).statuses.map((status) => status.id);
+    const ids = (await getWorkflow(ctx.db)).statuses.map((status) => status.id);
 
-    const attempt = (sent: string[]) =>
-      fieldErrors(() => reorderStatuses(ctx.deps, actor, sent)).ids;
+    const attempt = async (sent: string[]) =>
+      (await fieldErrors(() => reorderStatuses(ctx.deps, actor, sent))).ids;
 
     // Too short, the right length with one id twice, and one id that is not
     // a status at all — a partial renumbering would leave two rows sharing a
     // place, so none of the three may get halfway.
-    expect(attempt(ids.slice(1))).toMatch(/exactly once/i);
-    expect(attempt([...ids.slice(2), ids[1]!, ids[1]!])).toMatch(/exactly once/i);
-    expect(attempt([...ids.slice(1), 'nowhere'])).toMatch(/exactly once/i);
+    expect(await attempt(ids.slice(1))).toMatch(/exactly once/i);
+    expect(await attempt([...ids.slice(2), ids[1]!, ids[1]!])).toMatch(/exactly once/i);
+    expect(await attempt([...ids.slice(1), 'nowhere'])).toMatch(/exactly once/i);
 
-    expect(getWorkflow(ctx.db).statuses.map((status) => status.id)).toEqual(ids);
+    expect((await getWorkflow(ctx.db)).statuses.map((status) => status.id)).toEqual(ids);
   });
 });
 
@@ -613,38 +621,39 @@ describe('what the other services ask the workflow', () => {
   it('hands back a status row or a field error naming the field that carried it', async () => {
     ctx = await buildTestApp();
 
-    expect(requireStatus(ctx.db, 'in_repair').label).toBe('In repair');
+    expect((await requireStatus(ctx.db, 'in_repair')).label).toBe('In repair');
     // Which field carried the bad slug decides which input the form highlights.
-    expect(fieldErrors(() => requireStatus(ctx.db, 'nowhere')).status).toMatch(/nowhere/);
-    expect(fieldErrors(() => requireStatus(ctx.db, 'nowhere', 'newStatus')).newStatus).toMatch(
-      /nowhere/,
-    );
+    expect((await fieldErrors(() => requireStatus(ctx.db, 'nowhere'))).status).toMatch(/nowhere/);
+    expect(
+      (await fieldErrors(() => requireStatus(ctx.db, 'nowhere', 'newStatus'))).newStatus,
+    ).toMatch(/nowhere/);
   });
 
   it('answers whether an edge exists, from the table and nowhere else', async () => {
     ctx = await buildTestApp();
 
-    expect(transitionAllowed(ctx.db, 'available', 'retired')).toBe(true);
-    expect(transitionAllowed(ctx.db, 'available', 'assigned')).toBe(false);
+    expect(await transitionAllowed(ctx.db, 'available', 'retired')).toBe(true);
+    expect(await transitionAllowed(ctx.db, 'available', 'assigned')).toBe(false);
 
-    ctx.db
+    await ctx.db
       .delete(assetStatusTransitions)
-      .where(eq(assetStatusTransitions.fromStatus, 'available'))
-      .run();
-    expect(transitionAllowed(ctx.db, 'available', 'retired')).toBe(false);
+      .where(eq(assetStatusTransitions.fromStatus, 'available'));
+    expect(await transitionAllowed(ctx.db, 'available', 'retired')).toBe(false);
   });
 
   it('lists the statuses an asset can be handed out from, in sort order', async () => {
     ctx = await buildTestApp();
 
-    expect(assignableStatuses(ctx.db).map((row) => row.label)).toEqual(['Available', 'Ordered']);
+    expect((await assignableStatuses(ctx.db)).map((row) => row.label)).toEqual([
+      'Available',
+      'Ordered',
+    ]);
 
-    ctx.db
+    await ctx.db
       .update(assetStatuses)
       .set({ assignableFrom: true })
-      .where(eq(assetStatuses.id, 'in_repair'))
-      .run();
-    expect(assignableStatuses(ctx.db).map((row) => row.label)).toEqual([
+      .where(eq(assetStatuses.id, 'in_repair'));
+    expect((await assignableStatuses(ctx.db)).map((row) => row.label)).toEqual([
       'Available',
       'In repair',
       'Ordered',

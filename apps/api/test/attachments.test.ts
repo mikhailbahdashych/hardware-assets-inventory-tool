@@ -1,7 +1,10 @@
+import { createHash } from 'node:crypto';
 import { existsSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { attachments } from '@/db/schema.js';
+import { nowIso } from '@/lib/dates.js';
+import { newId } from '@/lib/ids.js';
 import { buildTestApp, inject, memberCookie, setupOrg, type TestApp } from './helpers.js';
 
 let ctx: TestApp;
@@ -58,7 +61,7 @@ describe('attachments', () => {
       uploadedByName: 'Tomasz Kowalski',
     });
 
-    const row = ctx.db.select().from(attachments).all()[0]!;
+    const row = (await ctx.db.select().from(attachments))[0]!;
     // The stored name is ours, never the caller's — an uploaded name is not a path.
     expect(row.storedName).not.toBe('invoice-ast-0001.pdf');
     expect(existsSync(join(ctx.uploadsDir, row.storedName))).toBe(true);
@@ -109,7 +112,7 @@ describe('attachments', () => {
     const admin = await setupOrg(ctx.app);
     const asset = await createAsset(admin);
     const uploaded = await upload(admin, asset.id, 'warranty.pdf', 'warranty bytes');
-    const stored = ctx.db.select().from(attachments).all()[0]!.storedName;
+    const stored = (await ctx.db.select().from(attachments))[0]!.storedName;
 
     const res = await inject(ctx.app, {
       method: 'DELETE',
@@ -117,7 +120,7 @@ describe('attachments', () => {
       cookie: admin,
     });
     expect(res.statusCode).toBe(204);
-    expect(ctx.db.select().from(attachments).all()).toHaveLength(0);
+    expect(await ctx.db.select().from(attachments)).toHaveLength(0);
     expect(existsSync(join(ctx.uploadsDir, stored))).toBe(false);
   });
 
@@ -133,7 +136,7 @@ describe('attachments', () => {
       cookie: admin,
     });
     expect(res.statusCode).toBe(204);
-    expect(ctx.db.select().from(attachments).all()).toHaveLength(0);
+    expect(await ctx.db.select().from(attachments)).toHaveLength(0);
     expect(readdirSync(ctx.uploadsDir)).toHaveLength(0);
   });
 
@@ -142,7 +145,7 @@ describe('attachments', () => {
     const admin = await setupOrg(ctx.app);
     const asset = await createAsset(admin);
     const uploaded = await upload(admin, asset.id, 'warranty.pdf', 'warranty bytes');
-    const viewer = memberCookie(ctx.db, 'viewer');
+    const viewer = await memberCookie(ctx.db, 'viewer');
 
     expect((await upload(viewer, asset.id, 'nope.pdf', 'x')).statusCode).toBe(403);
     expect(
@@ -165,6 +168,18 @@ describe('attachments', () => {
     ).toBe(200);
   });
 
+  it('records the checksum of the bytes it stored', async () => {
+    ctx = await buildTestApp();
+    const admin = await setupOrg(ctx.app);
+    const asset = await createAsset(admin);
+    const content = '%PDF-1.7 fake invoice';
+
+    await upload(admin, asset.id, 'invoice.pdf', content);
+
+    const row = (await ctx.db.select().from(attachments))[0]!;
+    expect(row.sha256).toBe(createHash('sha256').update(content).digest('hex'));
+  });
+
   it('404s for an unknown asset and an unknown attachment', async () => {
     ctx = await buildTestApp();
     const admin = await setupOrg(ctx.app);
@@ -173,5 +188,109 @@ describe('attachments', () => {
       (await inject(ctx.app, { method: 'GET', url: '/api/v1/attachments/nope', cookie: admin }))
         .statusCode,
     ).toBe(404);
+  });
+});
+
+describe('the upload policy', () => {
+  it('refuses a file type the policy does not name, and stores nothing', async () => {
+    ctx = await buildTestApp();
+    const admin = await setupOrg(ctx.app);
+    const asset = await createAsset(admin);
+
+    const res = await upload(admin, asset.id, 'payroll.exe', 'MZ');
+    expect(res.statusCode).toBe(422);
+    expect(res.json().error.code).toBe('file_type_not_allowed');
+    expect(res.json().error.message).toBe(
+      '.exe files are not accepted. Attachments can be images, PDFs, office documents, text or archives.',
+    );
+
+    expect(await ctx.db.select().from(attachments)).toEqual([]);
+    expect(existsSync(ctx.uploadsDir) ? readdirSync(ctx.uploadsDir) : []).toEqual([]);
+  });
+
+  it('refuses a scriptable image and a file with no extension at all', async () => {
+    ctx = await buildTestApp();
+    const admin = await setupOrg(ctx.app);
+    const asset = await createAsset(admin);
+
+    // SVG is left out on purpose: the download headers make it safe to serve,
+    // which is not a reason to invite it onto the volume.
+    const svg = await upload(admin, asset.id, 'logo.svg', '<svg onload="alert(1)"/>');
+    expect(svg.statusCode).toBe(422);
+    expect(svg.json().error.code).toBe('file_type_not_allowed');
+
+    const bare = await upload(admin, asset.id, 'README', 'notes');
+    expect(bare.statusCode).toBe(422);
+    expect(bare.json().error.message).toContain('no extension');
+  });
+
+  it('takes the same file however the camera spelled its extension', async () => {
+    ctx = await buildTestApp();
+    const admin = await setupOrg(ctx.app);
+    const asset = await createAsset(admin);
+
+    const res = await upload(admin, asset.id, 'IMG_0042.HEIC', 'heic bytes');
+    expect(res.statusCode).toBe(200);
+    expect(res.json().attachment.filename).toBe('IMG_0042.HEIC');
+  });
+
+  it('refuses an upload the workspace has no room for, naming both numbers', async () => {
+    ctx = await buildTestApp();
+    const admin = await setupOrg(ctx.app);
+    const asset = await createAsset(admin);
+
+    await inject(ctx.app, {
+      method: 'PATCH',
+      url: '/api/v1/settings',
+      cookie: admin,
+      body: { uploadQuotaMb: 100 },
+    });
+    // Earlier uploads that filled the workspace, bar a hundred bytes.
+    await ctx.db.insert(attachments).values({
+      id: newId(),
+      assetId: asset.id,
+      filename: 'archive.zip',
+      storedName: 'archive.zip',
+      sizeBytes: 100 * 1024 * 1024 - 100,
+      mime: 'application/zip',
+      uploadedByMemberId: null,
+      createdAt: nowIso(),
+    });
+
+    const res = await upload(admin, asset.id, 'invoice.pdf', 'x'.repeat(200));
+    expect(res.statusCode).toBe(413);
+    expect(res.json().error.code).toBe('storage_quota_exceeded');
+    expect(res.json().error.message).toBe(
+      'This workspace has used 100 MB of its 100 MB attachment storage — this 200 B file does not fit.',
+    );
+
+    // The row was never written, and the bytes are not left on the volume.
+    expect(await ctx.db.select().from(attachments)).toHaveLength(1);
+    expect(readdirSync(ctx.uploadsDir)).toEqual([]);
+  });
+
+  it('lets an upload through while there is room for it', async () => {
+    ctx = await buildTestApp();
+    const admin = await setupOrg(ctx.app);
+    const asset = await createAsset(admin);
+
+    await inject(ctx.app, {
+      method: 'PATCH',
+      url: '/api/v1/settings',
+      cookie: admin,
+      body: { uploadQuotaMb: 100 },
+    });
+    await ctx.db.insert(attachments).values({
+      id: newId(),
+      assetId: asset.id,
+      filename: 'archive.zip',
+      storedName: 'archive.zip',
+      sizeBytes: 50 * 1024 * 1024,
+      mime: 'application/zip',
+      uploadedByMemberId: null,
+      createdAt: nowIso(),
+    });
+
+    expect((await upload(admin, asset.id, 'invoice.pdf', 'still fits')).statusCode).toBe(200);
   });
 });

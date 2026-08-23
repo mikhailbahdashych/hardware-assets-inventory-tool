@@ -70,23 +70,21 @@ describe('the demo seed', () => {
       'viewer',
     ]);
     // Plus somebody mid-invitation, which is a state the Members page draws.
-    const invited = ctx.db.select().from(members).where(eq(members.status, 'invited')).all();
+    const invited = await ctx.db.select().from(members).where(eq(members.status, 'invited'));
     expect(invited.length).toBeGreaterThanOrEqual(1);
   });
 
   it('holds the assignment invariant it seeded through', async () => {
     await seeded();
 
-    const open = ctx.db
+    const open = await ctx.db
       .select({ assetId: assignments.assetId })
       .from(assignments)
-      .where(isNull(assignments.returnedAt))
-      .all();
-    const assigned = ctx.db
+      .where(isNull(assignments.returnedAt));
+    const assigned = await ctx.db
       .select({ id: assets.id })
       .from(assets)
-      .where(eq(assets.status, 'assigned'))
-      .all();
+      .where(eq(assets.status, 'assigned'));
 
     expect(open.map((row) => row.assetId).sort()).toEqual(assigned.map((row) => row.id).sort());
     // The partial unique index would have thrown, but say it out loud.
@@ -96,16 +94,11 @@ describe('the demo seed', () => {
   it('leaves a history behind, not just a snapshot', async () => {
     await seeded();
 
-    const closed = ctx.db
+    const closed = await ctx.db
       .select()
       .from(assignments)
-      .where(and(isNull(assignments.returnedAt)))
-      .all();
-    const returned = ctx.db
-      .select()
-      .from(assignments)
-      .all()
-      .filter((row) => row.returnedAt);
+      .where(and(isNull(assignments.returnedAt)));
+    const returned = (await ctx.db.select().from(assignments)).filter((row) => row.returnedAt);
     expect(returned.length).toBeGreaterThan(0);
     expect(closed.length).toBeGreaterThan(0);
 
@@ -123,11 +116,9 @@ describe('the demo seed', () => {
     // Jonas is leaving now, but the phone he handed back in the spring came
     // back from somebody who was staying. A log that says "offboarded" there
     // is a log that has rewritten its own past.
-    const jonas = ctx.db
-      .select()
-      .from(assignments)
-      .all()
-      .filter((row) => row.holderNameSnapshot === 'Jonas Weber' && row.returnedAt);
+    const jonas = (await ctx.db.select().from(assignments)).filter(
+      (row) => row.holderNameSnapshot === 'Jonas Weber' && row.returnedAt,
+    );
 
     expect(jonas.length).toBeGreaterThan(0);
     for (const row of jonas) {
@@ -137,7 +128,7 @@ describe('the demo seed', () => {
 
   it('writes an activity log that spans every filter pill', async () => {
     await seeded();
-    const rows = ctx.db.select().from(auditEvents).all();
+    const rows = await ctx.db.select().from(auditEvents);
 
     for (const type of AUDIT_TYPES) {
       expect(rows.filter((row) => row.type === type).length, type).toBeGreaterThan(0);
@@ -175,7 +166,7 @@ describe('the demo seed', () => {
 
   it('shows every category and status the app can render', async () => {
     await seeded();
-    const rows = ctx.db.select().from(assets).all();
+    const rows = await ctx.db.select().from(assets);
 
     expect(new Set(rows.map((row) => row.category)).size).toBeGreaterThanOrEqual(4);
     // A demo that only shows Available and Assigned hides half the pills.
@@ -185,11 +176,10 @@ describe('the demo seed', () => {
   it('curates the workflow instead of leaving the seeded mesh', async () => {
     await seeded();
 
-    const statuses = ctx.db
+    const statuses = await ctx.db
       .select()
       .from(assetStatuses)
-      .orderBy(asc(assetStatuses.sortOrder))
-      .all();
+      .orderBy(asc(assetStatuses.sortOrder));
     // The six a fresh instance is seeded with, plus the company's own — last
     // in the list, because that is where a status somebody added belongs.
     expect(statuses.map((row) => row.id)).toEqual([
@@ -207,11 +197,9 @@ describe('the demo seed', () => {
     expect(imaging.checkinTarget).toBe(true);
     expect(imaging.assignableFrom).toBe(false);
 
-    const edges = ctx.db
-      .select()
-      .from(assetStatusTransitions)
-      .all()
-      .map((row) => `${row.fromStatus}→${row.toStatus}`);
+    const edges = (await ctx.db.select().from(assetStatusTransitions)).map(
+      (row) => `${row.fromStatus}→${row.toStatus}`,
+    );
     expect(edges.sort()).toEqual(DEMO_TRANSITIONS.map((edge) => `${edge.from}→${edge.to}`).sort());
     // A graph worth photographing is one with shape: a new machine is imaged
     // before it is lent out, and retirement is where an asset's story ends.
@@ -221,7 +209,7 @@ describe('the demo seed', () => {
 
   it('applies that workflow through the service, so the log carries it', async () => {
     await seeded();
-    const rows = ctx.db.select().from(auditEvents).all();
+    const rows = await ctx.db.select().from(auditEvents);
 
     const created = rows.find((row) => row.action === 'workflow.status_created');
     const rewired = rows.find((row) => row.action === 'workflow.transitions_updated');
@@ -242,16 +230,10 @@ describe('the demo seed', () => {
     // The curated graph has no available → ordered edge, and the history is
     // full of moves the curation would forbid. Both are true because the
     // rewiring is the last thing that happens — assert the order, not the luck.
-    const rewired = ctx.db
-      .select()
-      .from(auditEvents)
-      .all()
+    const rewired = (await ctx.db.select().from(auditEvents))
       .filter((row) => row.action.startsWith('workflow.'))
       .map((row) => row.at);
-    const moves = ctx.db
-      .select()
-      .from(auditEvents)
-      .all()
+    const moves = (await ctx.db.select().from(auditEvents))
       .filter((row) => row.action === 'asset.checked_in' || row.action === 'asset.assigned')
       .map((row) => row.at);
 
@@ -265,7 +247,7 @@ describe('the demo seed', () => {
   it('curates a fourth role instead of leaving the three it was seeded with', async () => {
     await seeded();
 
-    const rows = ctx.db.select().from(roles).orderBy(asc(roles.sortOrder)).all();
+    const rows = await ctx.db.select().from(roles).orderBy(asc(roles.sortOrder));
     // The three a fresh instance is seeded with, plus the company's own — last
     // in the list, because that is where a role somebody added belongs.
     expect(rows.map((row) => row.id)).toEqual(['admin', 'manager', 'viewer', DEMO_ROLE.id]);
@@ -275,26 +257,22 @@ describe('the demo seed', () => {
     expect(auditor.color).toBe('warn');
     expect(auditor.isSystem).toBe(false);
 
-    const granted = (roleId: string) =>
-      ctx.db
-        .select()
-        .from(rolePermissions)
-        .where(eq(rolePermissions.roleId, roleId))
-        .all()
+    const granted = async (roleId: string) =>
+      (await ctx.db.select().from(rolePermissions).where(eq(rolePermissions.roleId, roleId)))
         .map((row) => row.action)
         .sort();
-    expect(granted(DEMO_ROLE.id)).toEqual(['audit.view', 'export.run']);
+    expect(await granted(DEMO_ROLE.id)).toEqual(['audit.view', 'export.run']);
     // The matrix saves every role's grants at once, so the curation has to
     // carry Manager's along with it or the save would quietly revoke them.
-    expect(granted('manager').length).toBe(9);
+    expect((await granted('manager')).length).toBe(9);
     // The system role stores no rows at all: its set is ACTIONS by definition.
-    expect(granted('admin')).toEqual([]);
+    expect(await granted('admin')).toEqual([]);
   });
 
   it('hands that role to the one person whose job it describes', async () => {
     const result = await seeded();
 
-    const holders = ctx.db.select().from(members).where(eq(members.role, DEMO_ROLE.id)).all();
+    const holders = await ctx.db.select().from(members).where(eq(members.role, DEMO_ROLE.id));
     expect(holders.length).toBe(1);
     // And her login is printed with the others, so the role can be tried out.
     const account = result.signIn.find((row) => row.role === DEMO_ROLE.id);
@@ -303,7 +281,7 @@ describe('the demo seed', () => {
 
   it('applies those roles through the service, so the log carries them', async () => {
     await seeded();
-    const rows = ctx.db.select().from(auditEvents).all();
+    const rows = await ctx.db.select().from(auditEvents);
 
     const created = rows.find((row) => row.action === 'role.created');
     const granted = rows.find((row) => row.action === 'role.permissions_changed');
@@ -331,7 +309,7 @@ describe('the demo seed', () => {
     );
 
     // And left the existing workspace exactly as it was.
-    expect(ctx.db.select().from(employees).all().length).toBeGreaterThan(0);
+    expect((await ctx.db.select().from(employees)).length).toBeGreaterThan(0);
   });
 
   it('reseeds identically when asked to reset', async () => {
@@ -340,18 +318,14 @@ describe('the demo seed', () => {
 
     expect(second.counts).toEqual(first.counts);
     // Same clock, same data — a hosted demo can restore itself on a timer.
-    const tags = ctx.db
-      .select({ tag: assets.assetTag })
-      .from(assets)
-      .all()
-      .map((r) => r.tag);
+    const tags = (await ctx.db.select({ tag: assets.assetTag }).from(assets)).map((r) => r.tag);
     expect(new Set(tags).size).toBe(tags.length);
     expect(second.orgName).toBe(first.orgName);
   });
 
   it('never leaves a real password in reach', async () => {
     const result = await seeded();
-    const rows = ctx.db.select().from(members).all();
+    const rows = await ctx.db.select().from(members);
 
     for (const row of rows) {
       expect(row.passwordHash, row.email).not.toBe(result.signIn[0]!.password);

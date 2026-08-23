@@ -32,6 +32,8 @@ export interface ExportedAttachment {
   assetId: string;
   filename: string;
   sizeBytes: number;
+  /** Hex sha256 of the bytes; null for a file uploaded before checksums existed. */
+  sha256: string | null;
   mime: string | null;
   uploadedByMemberId: string | null;
   createdAt: string;

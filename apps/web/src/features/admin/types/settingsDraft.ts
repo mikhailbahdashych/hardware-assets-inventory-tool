@@ -11,6 +11,8 @@ export interface SettingsDraft {
   defaultCurrency: Currency;
   assetTagPrefix: string;
   warrantyLeadDays: string;
+  /** Text for the same reason the lead time is: a number input holds words. */
+  uploadQuotaMb: string;
   logRetentionMonths: LogRetention;
   emailWarrantyAlerts: boolean;
   emailReturnReminders: boolean;

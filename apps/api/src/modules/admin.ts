@@ -5,6 +5,7 @@ import { AUDIT_TYPES, settingsPatchInput, workspaceDeleteInput } from '@inventor
 import type { AppDeps } from '@/types/app.js';
 import { requireAction } from '@/plugins/rbac.js';
 import { clearSessionCookie } from '@/services/sessions.js';
+import { storageUsedBytes } from '@/services/attachments.js';
 import { auditCsv, auditPage, DEFAULT_AUDIT_LIMIT, MAX_AUDIT_LIMIT } from '@/services/audit-log.js';
 import { getSettings, updateSettings } from '@/services/settings.js';
 import { deleteWorkspace } from '@/services/workspace.js';
@@ -38,18 +39,21 @@ export function registerAdminRoutes(app: FastifyInstance, deps: AppDeps): void {
       return reply
         .header('content-type', 'text/csv; charset=utf-8')
         .header('content-disposition', `attachment; filename="activity-log-${day}.csv"`)
-        .send(auditCsv(deps.db, request.query.type));
+        .send(await auditCsv(deps.db, request.query.type));
     },
   );
 
+  // `storageUsedBytes` rides beside the row rather than in it: it is a sum over
+  // another table, not a column, and PATCH answers with the row alone.
   typed.get('/api/v1/settings', { preHandler: requireAction('settings.manage') }, async () => ({
-    settings: getSettings(deps.db),
+    settings: await getSettings(deps.db),
+    storageUsedBytes: await storageUsedBytes(deps.db),
   }));
 
   typed.patch(
     '/api/v1/settings',
     { schema: { body: settingsPatchInput }, preHandler: requireAction('settings.manage') },
-    async (request) => ({ settings: updateSettings(deps, request.member!, request.body) }),
+    async (request) => ({ settings: await updateSettings(deps, request.member!, request.body) }),
   );
 
   typed.post(

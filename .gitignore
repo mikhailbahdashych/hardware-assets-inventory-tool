@@ -23,9 +23,32 @@ e2e/blob-report/
 # local tooling state
 .claude/
 .remember/
+# Session working notes, same category as the two above. Git already ignores
+# them a level down, in .superpowers/sdd/.gitignore — which is enough for git
+# and not enough for prettier: that reads the root .gitignore only, so without
+# this line `npm run format:check` walks into one person's scratch markdown and
+# fails the gate on it.
+.superpowers/
 .DS_Store
 e2e/.data/
 e2e/.auth/
+
+# What `terraform` leaves in infrastructure/ that prettier can parse.
+# infrastructure/.gitignore covers these and more (crash logs besides), for
+# whoever reads that directory on its own — but they have to be here as well:
+# prettier takes its ignore list from the *root* .gitignore only, so anything
+# missing from this block is a file `npm run format:check` walks into.
+#
+# .terraform/ is a 700 MB provider binary it chokes on. The state file is
+# worse: prettier infers `json` from .tfstate, so `format:check` reports it as
+# unformatted and `npm run format` rewrites it — a file that holds the database
+# password and that nothing but Terraform has any business editing. Both of
+# those turn "I followed infrastructure/README.md" into a failing gate.
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfvars
+*.tfplan
 
 # Working notes for whoever is actively building the thing — a scratchpad for
 # one person's session, not a description of the product. What an adopting
