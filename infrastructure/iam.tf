@@ -36,17 +36,29 @@ data "aws_iam_policy_document" "app" {
   # The attachments bucket. Exactly the four operations the storage driver
   # makes: put on upload, get on download, delete on removal, and list for the
   # nightly orphan sweep. List is a bucket-level action and the other three are
-  # object-level, which is why this is two statements rather than one.
+  # object-level, which is why this is two statements rather than one — and
+  # both stop at `local.attachments_prefix`, because that is the only place
+  # the app writes and the only prefix it lists. Whatever else the bucket ever
+  # holds is out of the instance's reach.
   statement {
     sid       = "AttachmentObjects"
     actions   = ["s3:GetObject", "s3:PutObject", "s3:DeleteObject"]
-    resources = ["${aws_s3_bucket.attachments.arn}/*"]
+    resources = ["${aws_s3_bucket.attachments.arn}/${local.attachments_prefix}*"]
   }
 
   statement {
     sid       = "AttachmentBucket"
     actions   = ["s3:ListBucket"]
     resources = [aws_s3_bucket.attachments.arn]
+
+    # `s3:prefix` is the request's Prefix parameter, which the sweep always
+    # sends. A listing of the whole bucket has no prefix, fails this test, and
+    # is refused — the app never makes one.
+    condition {
+      test     = "StringLike"
+      variable = "s3:prefix"
+      values   = ["${local.attachments_prefix}*"]
+    }
   }
 
   # One parameter, by ARN. SecureString values are encrypted under the

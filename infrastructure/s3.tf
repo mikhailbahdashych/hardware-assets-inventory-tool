@@ -39,7 +39,6 @@ resource "aws_s3_bucket_server_side_encryption_configuration" "attachments" {
     apply_server_side_encryption_by_default {
       sse_algorithm = "AES256"
     }
-    bucket_key_enabled = true
   }
 }
 
@@ -52,4 +51,38 @@ resource "aws_s3_bucket_versioning" "attachments" {
   versioning_configuration {
     status = "Enabled"
   }
+}
+
+# TLS or nothing. The app's SDK never speaks plain HTTP to S3 and the gateway
+# endpoint carries HTTPS like any other path, so this deny costs no legitimate
+# request anything — it turns "nobody would" into "nobody can". A Deny is not
+# a public grant, which is why it coexists with the public access block above.
+data "aws_iam_policy_document" "attachments_bucket" {
+  statement {
+    sid       = "DenyInsecureTransport"
+    effect    = "Deny"
+    actions   = ["s3:*"]
+    resources = [aws_s3_bucket.attachments.arn, "${aws_s3_bucket.attachments.arn}/*"]
+
+    principals {
+      type        = "*"
+      identifiers = ["*"]
+    }
+
+    condition {
+      test     = "Bool"
+      variable = "aws:SecureTransport"
+      values   = ["false"]
+    }
+  }
+}
+
+resource "aws_s3_bucket_policy" "attachments" {
+  bucket = aws_s3_bucket.attachments.id
+  policy = data.aws_iam_policy_document.attachments_bucket.json
+
+  # The four bucket sub-resources otherwise go out in parallel, and S3 answers
+  # a concurrent pair with `OperationAborted` now and then. Sequencing this one
+  # behind the access block costs nothing and removes the re-apply.
+  depends_on = [aws_s3_bucket_public_access_block.attachments]
 }

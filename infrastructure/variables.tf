@@ -101,6 +101,12 @@ locals {
   # and what the connection string in SSM tells the driver to verify against.
   rds_ca_path = "/etc/inventory/rds-ca.pem"
 
+  # The one key prefix the app writes under and the only one its nightly sweep
+  # lists — `KEY_PREFIX` in apps/api/src/services/storage.ts. iam.tf scopes the
+  # instance's bucket grants to it, so the two have to agree, and this is the
+  # side that says so.
+  attachments_prefix = "uploads/"
+
   domain_enabled = var.domain != null
 
   # A private ECR image needs a `docker login` on the instance and four extra

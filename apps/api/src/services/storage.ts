@@ -33,9 +33,12 @@ export const uploadsDir = (config: Config): string => join(config.dataDir, 'uplo
 
 /**
  * Keys sit under one prefix so the bucket may hold other things — Terraform's
- * state, a backup, whatever the operator already keeps there.
+ * state, a backup, whatever the operator already keeps there. The full-scale
+ * stack scopes the instance's bucket grants to exactly this prefix
+ * (`local.attachments_prefix` in infrastructure/variables.tf), and
+ * test/storage-prefix-parity.test.ts is what keeps the two from drifting apart.
  */
-const KEY_PREFIX = 'uploads/';
+export const KEY_PREFIX = 'uploads/';
 
 /**
  * Naming a bucket is the whole choice, the way `DATABASE_URL` is the whole
