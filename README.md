@@ -90,16 +90,7 @@ mkdir -p data
 docker compose up -d
 ```
 
-**Both of those wait on a release this project has not cut yet.** Nothing has been pushed to `ghcr.io/mikhailbahdashych/hardware-assets-inventory-tool`, so the pull is refused and neither block has an image to start. The compose file carries `build: .` beside the image name, but a directory holding only the compose file has no build context for it to read — so today's path is a checkout, and it is four lines instead of three:
-
-```bash
-git clone https://github.com/mikhailbahdashych/hardware-assets-inventory-tool.git
-cd hardware-assets-inventory-tool
-mkdir -p data
-docker compose up -d
-```
-
-Finding nothing to pull, that builds the image from the source beside it and runs it. Tagging a release publishes the exact version, its `major.minor`, and `:latest`, for amd64 and arm64 — and from that day the two blocks above are literal, and pinning a version becomes a decision you can make.
+Every release publishes the exact version, its `major.minor` and `:latest`, for amd64 and arm64 — `0.1.0`, `0.1` and `latest` today. `:latest` is the right tag to try it with and the wrong one to run it on: pin a version (`image: ghcr.io/mikhailbahdashych/hardware-assets-inventory-tool:0.1.0` in the compose file) so an upgrade is a decision you make, not a restart that made it for you. Running your own modifications is the same file from a checkout: the compose file carries `build: .` beside the image name, and `docker compose up -d --build` at the repository root builds the image from the source beside it instead of pulling one.
 
 Whichever of them you ran, open <http://localhost:3000>: the first screen creates your organization and its first admin. That is the whole install.
 
@@ -122,7 +113,7 @@ When one machine stops being the answer — more people than one process should 
 
 **There is no automated SQLite→PostgreSQL data path before 1.0.** Moving an existing workspace across is an export and a CSV import — and ownership history, attachment bytes and passwords do not travel that way. [Moving up](docs/deployment.md#moving-up) in the deployment guide is honest about what that costs. Choose the engine when you stand the instance up, and if that is more than you are willing to lose, stay on production light until the path exists.
 
-**Two things to settle before the first apply.** By default the app answers on that Elastic IP over **plain HTTP** — which is the transport for `/setup`, for every sign-in and for the session cookie that comes back — so the default address is one to finish setup on and not one to hand around. Set `domain` and `route53_zone_id` and the stack grows an Application Load Balancer with an ACM certificate, `APP_URL` becomes `https://<domain>`, and the instance stops answering the world directly; [Before you call it production](infrastructure/README.md#before-you-call-it-production) is the short list that starts there. And `app_image` defaults to the same unpublished `:latest` as the blocks above — the difference is that a Terraform apply against a tag that does not exist _succeeds_, prints an address, and leaves it answering nothing.
+**Two things to settle before the first apply.** By default the app answers on that Elastic IP over **plain HTTP** — which is the transport for `/setup`, for every sign-in and for the session cookie that comes back — so the default address is one to finish setup on and not one to hand around. Set `domain` and `route53_zone_id` and the stack grows an Application Load Balancer with an ACM certificate, `APP_URL` becomes `https://<domain>`, and the instance stops answering the world directly; [Before you call it production](infrastructure/README.md#before-you-call-it-production) is the short list that starts there. And `app_image`: it defaults to `:latest`, the tag to try with and not the one to run on — pin a release there too, and mind that a Terraform apply against a tag that does not exist _succeeds_, prints an address, and leaves it answering nothing.
 
 [`docs/recipes/change-infrastructure.md`](docs/recipes/change-infrastructure.md) is the checklist for changing the stack afterwards — resize, re-region, rotate, restore.
 
