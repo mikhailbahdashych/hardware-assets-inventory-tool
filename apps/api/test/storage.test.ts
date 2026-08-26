@@ -174,7 +174,12 @@ describe('the S3 driver', () => {
     const listings = sentOf(stub, ListObjectsV2Command);
     expect(listings).toHaveLength(3);
     expect(listings[0]!.input).toMatchObject({ Bucket: BUCKET, Prefix: 'uploads/' });
-    expect(listings[1]!.input.ContinuationToken).toBe('uploads/file-1000.pdf');
+    // Every page carries the prefix, not just the first: the instance role's
+    // ListBucket grant is conditioned on it, so a page without one is refused.
+    expect(listings[1]!.input).toMatchObject({
+      Prefix: 'uploads/',
+      ContinuationToken: 'uploads/file-1000.pdf',
+    });
   });
 });
 

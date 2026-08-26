@@ -5,11 +5,9 @@
 # name_prefix = "inventory"
 # tags        = { Owner = "it-team" }
 
-# The image the instance runs. A published release tag is the normal answer;
-# pin it rather than tracking :latest, so an upgrade is a decision. The tag
-# below is what this project's FIRST release will publish — there is none yet,
-# so it is a shape to copy and not a value to apply today. Until then, point
-# this at your own build (README.md, "Applying it", has the ECR route).
+# The image the instance runs. Pin a published release rather than tracking
+# :latest, so an upgrade is a decision and not a reboot that made one for you.
+# An ECR URI works too — the instance role grows the pull grants by itself.
 # app_image = "ghcr.io/mikhailbahdashych/hardware-assets-inventory-tool:0.1.0"
 
 # Sizes. The AMI's architecture follows instance_type, so t3.small is a

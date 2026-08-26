@@ -62,7 +62,7 @@ db_allocated_storage = 50
 
 `apply_immediately = true` in `rds.tf` means both happen now rather than at the next maintenance window. Both cause a short outage — a class change is a reboot, a storage change is usually online but can be slow.
 
-**The step people forget:** **storage only goes up.** RDS cannot shrink an allocated volume, so a `50` typed where you meant `20` is permanent short of a snapshot-restore into a new instance. And after a storage change RDS refuses another one for six hours; there is no way to hurry that.
+**The step people forget:** **storage only goes up.** RDS cannot shrink an allocated volume, so a `50` typed where you meant `20` is permanent short of a snapshot-restore into a new instance. And after a storage change RDS refuses another one for six hours; there is no way to hurry that. The same rule bites from the other side once autoscaling has fired: `rds.tf` lets the volume grow on its own up to 100 GB or twice `db_allocated_storage`, and after it has, a plan shows `allocated_storage` going _down_ to the variable — which RDS refuses at apply time. Raise `db_allocated_storage` to what the console says the instance actually has, then apply.
 
 ## 3. Add the domain and TLS — `infrastructure/terraform.tfvars`
 

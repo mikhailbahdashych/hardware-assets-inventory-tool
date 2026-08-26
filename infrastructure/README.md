@@ -43,7 +43,7 @@ No file here is a module and no file here has a `count` on it for cleverness's s
 
 **Attachment traffic takes the S3 gateway endpoint**, which is attached to both route tables. It is free, and it keeps the one thing that will actually grow off the instance's public path.
 
-**The instance may touch only `uploads/` in that bucket, and only over TLS.** Its role's grants stop at the prefix the app writes and lists (`iam.tf`, agreeing with `KEY_PREFIX` in `apps/api/src/services/storage.ts`), and the bucket policy denies any request that arrives without `aws:SecureTransport` (`s3.tf`). Neither costs a legitimate request anything; both turn a habit into a rule.
+**The instance may touch only `uploads/` in that bucket, and only over TLS.** Its role's grants stop at the prefix the app writes and lists (`iam.tf`, agreeing with `KEY_PREFIX` in `apps/api/src/services/storage.ts`), and the bucket policy denies any request that did not arrive over TLS — `aws:SecureTransport` false — (`s3.tf`). Neither costs a legitimate request anything; both turn a habit into a rule.
 
 ## Prerequisites
 

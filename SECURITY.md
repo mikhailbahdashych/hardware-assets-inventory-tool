@@ -52,7 +52,7 @@ The design decisions that keep the common problems out are documented rather
 than assumed: sessions and one-time tokens are stored only as hashes, the
 origin guard stands in for CSRF tokens, uploads are allow-listed by extension
 and always served as downloads rather than rendered, the container runs
-unprivileged, and every mutation is audited in the same transaction. The root `CLAUDE.md` and `apps/api/CLAUDE.md`
-describe each one, and a full review with its findings is recorded in the
-project's history. If you think one of those decisions is wrong, that is a
-report too.
+unprivileged, and a change and the audit event describing it share one
+transaction. The `CLAUDE.md` files and the `Dockerfile` describe each one, and
+a full review with its findings is recorded in the project's history. If you
+think one of those decisions is wrong, that is a report too.

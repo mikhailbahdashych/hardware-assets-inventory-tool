@@ -39,7 +39,6 @@ resource "aws_s3_bucket_server_side_encryption_configuration" "attachments" {
     apply_server_side_encryption_by_default {
       sse_algorithm = "AES256"
     }
-    bucket_key_enabled = true
   }
 }
 
@@ -81,4 +80,9 @@ data "aws_iam_policy_document" "attachments_bucket" {
 resource "aws_s3_bucket_policy" "attachments" {
   bucket = aws_s3_bucket.attachments.id
   policy = data.aws_iam_policy_document.attachments_bucket.json
+
+  # The four bucket sub-resources otherwise go out in parallel, and S3 answers
+  # a concurrent pair with `OperationAborted` now and then. Sequencing this one
+  # behind the access block costs nothing and removes the re-apply.
+  depends_on = [aws_s3_bucket_public_access_block.attachments]
 }
