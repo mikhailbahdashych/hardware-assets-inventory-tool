@@ -33,7 +33,7 @@ No file here is a module and no file here has a `count` on it for cleverness's s
   │  S3 gateway endpoint ── on both route tables  │
   └───────────────────────────────────────────────┘
                         │
-                  S3 bucket (attachments, private, versioned)
+                  S3 bucket (attachments, private, versioned, TLS-only)
                   SSM SecureString /inventory/db-url
 ```
 
@@ -42,6 +42,8 @@ No file here is a module and no file here has a `count` on it for cleverness's s
 **The second public subnet is empty** until you turn on the domain module. An Application Load Balancer will not exist without subnets in two availability zones, so it is cheaper to create the subnet now than to renumber the VPC later. An empty subnet costs nothing.
 
 **Attachment traffic takes the S3 gateway endpoint**, which is attached to both route tables. It is free, and it keeps the one thing that will actually grow off the instance's public path.
+
+**The instance may touch only `uploads/` in that bucket, and only over TLS.** Its role's grants stop at the prefix the app writes and lists (`iam.tf`, agreeing with `KEY_PREFIX` in `apps/api/src/services/storage.ts`), and the bucket policy denies any request that arrives without `aws:SecureTransport` (`s3.tf`). Neither costs a legitimate request anything; both turn a habit into a rule.
 
 ## Prerequisites
 
@@ -148,20 +150,20 @@ aws ssm get-parameter --with-decryption --output text --query Parameter.Value \
 
 ## Variables
 
-| Variable               | Default            | What it is                                                                                                                                                     |
-| ---------------------- | ------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `region`               | `eu-central-1`     | Everything lives here. The AMI is looked up in it, so changing it needs no second edit.                                                                        |
-| `name_prefix`          | `inventory`        | On every resource name and the `Project` tag. A second value gives you a second stack in one account.                                                          |
-| `tags`                 | `{}`               | Merged into the provider's `default_tags`, on top of `Project` and `ManagedBy`.                                                                                |
-| `vpc_cidr`             | `10.0.0.0/16`      | The four /24s are carved out of it.                                                                                                                            |
-| `app_image`            | `ghcr.io/…:latest` | The container to run. An ECR hostname here grows the login and the four `ecr:` grants; a public registry needs neither.                                        |
-| `instance_type`        | `t4g.small`        | The AMI architecture follows it — `t3.small` picks the x86_64 AL2023 by itself.                                                                                |
-| `db_instance_class`    | `db.t4g.micro`     | RDS class.                                                                                                                                                     |
-| `db_allocated_storage` | `20`               | GB, and a floor: `rds.tf` autoscales it to 100 rather than let a full volume stop the app. Raising it applies in place; lowering it is not a thing RDS can do. |
-| `timezone`             | `UTC`              | `TZ` for the container. The nightly jobs run on wall-clock time.                                                                                               |
-| `bucket_force_destroy` | `false`            | Whether `destroy` may delete a bucket with objects in it. See [Tearing it down](#tearing-it-down).                                                             |
-| `domain`               | `null`             | A hostname here creates the certificate, the load balancer and the DNS record.                                                                                 |
-| `route53_zone_id`      | `null`             | The zone `domain` lives in. Both or neither — the stack refuses half.                                                                                          |
+| Variable               | Default            | What it is                                                                                                                                                                                                     |
+| ---------------------- | ------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `region`               | `eu-central-1`     | Everything lives here. The AMI is looked up in it, so changing it needs no second edit.                                                                                                                        |
+| `name_prefix`          | `inventory`        | On every resource name and the `Project` tag. A second value gives you a second stack in one account.                                                                                                          |
+| `tags`                 | `{}`               | Merged into the provider's `default_tags`, on top of `Project` and `ManagedBy`.                                                                                                                                |
+| `vpc_cidr`             | `10.0.0.0/16`      | The four /24s are carved out of it.                                                                                                                                                                            |
+| `app_image`            | `ghcr.io/…:latest` | The container to run. An ECR hostname here grows the login and the four `ecr:` grants; a public registry needs neither.                                                                                        |
+| `instance_type`        | `t4g.small`        | The AMI architecture follows it — `t3.small` picks the x86_64 AL2023 by itself.                                                                                                                                |
+| `db_instance_class`    | `db.t4g.micro`     | RDS class.                                                                                                                                                                                                     |
+| `db_allocated_storage` | `20`               | GB, and a floor: `rds.tf` autoscales it up to 100 GB or twice this value, whichever is larger, rather than let a full volume stop the app. Raising it applies in place; lowering it is not a thing RDS can do. |
+| `timezone`             | `UTC`              | `TZ` for the container. The nightly jobs run on wall-clock time.                                                                                                                                               |
+| `bucket_force_destroy` | `false`            | Whether `destroy` may delete a bucket with objects in it. See [Tearing it down](#tearing-it-down).                                                                                                             |
+| `domain`               | `null`             | A hostname here creates the certificate, the load balancer and the DNS record.                                                                                                                                 |
+| `route53_zone_id`      | `null`             | The zone `domain` lives in. Both or neither — the stack refuses half.                                                                                                                                          |
 
 ## Outputs
 
