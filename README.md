@@ -15,7 +15,6 @@ Self-hosted, MIT licensed, and small enough that the whole install is one contai
 - [Security](#security)
   - [Two-factor authentication](#two-factor-authentication)
 - [Development](#development)
-- [Not in this version](#not-in-this-version)
 - [Screenshots](#screenshots)
 - [License](#license)
 
@@ -212,10 +211,6 @@ The API's suite runs against either engine, which is what keeps the two schema m
 **`http://localhost:5173/kitchen-sink` is the design system.** Colour tokens with their resolved values, the type scale, the whole icon inventory, and every primitive in every state it ships with — in both themes and both densities. Open it beside whatever you are changing. It is a dev-only route, excluded from production builds, and it cannot drift from the app because it renders the same components.
 
 Read [`CLAUDE.md`](CLAUDE.md) first, then the one next to the code you are changing — each area has its own, and together they are what a Claude Code session follows. [`docs/recipes/`](docs/recipes/) has an end-to-end checklist for the changes teams make most.
-
-## Not in this version
-
-Documented so nobody goes looking: OIDC/SSO, API tokens, pagination past ~10k assets, and a category-management UI. That ceiling is about the unpaginated list endpoints and is the same on either engine — past it, open an issue. The category list is a code-only change today; see [`docs/recipes/add-enum-value.md`](docs/recipes/add-enum-value.md). Two entries have left this list already: statuses, which an admin now edits in the app, and PostgreSQL, which is now one environment variable.
 
 ## Screenshots
 
