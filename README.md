@@ -1,4 +1,4 @@
-# Inventory — hardware asset tracking for IT teams
+<h1 align="center">Hardware assets tracking system for IT teams</h1>
 
 Self-hosted, MIT licensed, and small enough that the whole install is one container over one directory: track devices, who holds them, and the full ownership history of every one. Every setting has a default, so an instance with no configuration at all runs and its first screen creates your organization — and when one machine stops being enough, `DATABASE_URL` moves the rows to PostgreSQL and `S3_BUCKET` moves the attachments to a bucket, without changing anything else about the app.
 
