@@ -256,4 +256,4 @@ _Both themes ship. Signed in, it follows the preference stored with your account
 
 ## License
 
-MIT — see [`LICENSE`](LICENSE).
+MIT
