@@ -4,19 +4,19 @@ Self-hosted, MIT licensed, and small enough that the whole install is one contai
 
 ## Table of contents
 
-- [What it is](#what-it-is)
-- [Three ways to run it](#three-ways-to-run-it)
-  - [Demo](#demo)
-  - [Production light](#production-light)
-  - [Full scale](#full-scale)
-- [Configuration](#configuration)
-  - [Running without email](#running-without-email)
-  - [Backup and restore](#backup-and-restore)
-- [Security](#security)
-  - [Two-factor authentication](#two-factor-authentication)
-- [Development](#development)
-- [Screenshots](#screenshots)
-- [License](#license)
+1. [What it is](#what-it-is)
+2. [Three ways to run it](#three-ways-to-run-it)
+   1. [Demo](#demo)
+   2. [Production light](#production-light)
+   3. [Full scale](#full-scale)
+3. [Configuration](#configuration)
+   1. [Running without email](#running-without-email)
+   2. [Backup and restore](#backup-and-restore)
+4. [Security](#security)
+   1. [Two-factor authentication](#two-factor-authentication)
+5. [Development](#development)
+6. [Screenshots](#screenshots)
+7. [License](#license)
 
 ## What it is
 
