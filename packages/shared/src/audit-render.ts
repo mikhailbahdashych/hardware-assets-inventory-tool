@@ -190,6 +190,7 @@ const RENDERERS: Record<string, (params: AuditParams) => string> = {
     `${text(p, 'memberName', 'A member')}’s recovery codes were reissued`,
   'auth.login': () => 'Signed in',
   'auth.password_reset': () => 'Reset their password',
+  'auth.password_changed': () => 'Changed their password',
   'system.setup_completed': (p) => `Set up ${text(p, 'orgName', 'the workspace')}`,
   'system.settings_updated': (p) => `Updated workspace settings${fieldList(p)}`,
 };

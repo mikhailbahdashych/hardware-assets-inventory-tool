@@ -4,4 +4,4 @@
  * an owner instead of a boolean per caller — see providers/ModalProvider.tsx.
  */
 export type GlobalModal =
-  'palette' | 'newAsset' | 'addEmployee' | 'inviteMember' | 'import' | 'widgets';
+  'palette' | 'newAsset' | 'addEmployee' | 'inviteMember' | 'import' | 'widgets' | 'changePassword';

@@ -159,6 +159,7 @@ describe('the actions', () => {
       'Add employee',
       'Invite member',
       'Import CSV',
+      'Change password',
       'Toggle theme',
       'Admin settings',
     ]) {
@@ -178,6 +179,8 @@ describe('the actions', () => {
 
     await within(dialog).findByText('Actions');
     expect(within(dialog).getByRole('option', { name: /Toggle theme/ })).toBeInTheDocument();
+    // Your own password is yours whatever the role grants.
+    expect(within(dialog).getByRole('option', { name: /Change password/ })).toBeInTheDocument();
     expect(within(dialog).queryByRole('option', { name: /New asset/ })).toBeNull();
     expect(within(dialog).queryByRole('option', { name: /Invite member/ })).toBeNull();
     expect(within(dialog).queryByRole('option', { name: /Admin settings/ })).toBeNull();

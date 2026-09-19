@@ -2,6 +2,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import type {
   AcceptInviteInput,
   AssetCreateInput,
+  ChangePasswordInput,
   AssetPatchInput,
   AssignInput,
   CheckinInput,
@@ -510,6 +511,16 @@ const member = (id: string) => `/members/${encodeURIComponent(id)}`;
  * raw token exists — the database keeps its hash — so the modal shows it
  * rather than assuming an email went out.
  */
+/**
+ * No invalidation: a password is not query data, and the sessions it revokes
+ * are other browsers' problems. Plain useMutation on purpose.
+ */
+export const useChangePassword = () =>
+  useMutation({
+    mutationFn: (input: ChangePasswordInput) =>
+      apiFetch<undefined>('/me/password', { method: 'POST', body: input }),
+  });
+
 export const useInviteMember = () =>
   useAdminMutation((input: InviteInput) =>
     apiFetch<{ member: MemberSummary; inviteUrl: string }>('/members/invites', {
