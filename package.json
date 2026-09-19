@@ -1,6 +1,6 @@
 {
   "name": "hardware-assets-inventory-tool",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "type": "module",
   "description": "Open-source, self-hosted hardware asset inventory for IT teams \u2014 track devices, who holds them, and the full ownership history.",
