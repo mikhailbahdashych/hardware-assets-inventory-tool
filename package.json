@@ -1,6 +1,6 @@
 {
   "name": "hardware-assets-inventory-tool",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "type": "module",
   "description": "Open-source, self-hosted hardware asset inventory for IT teams \u2014 track devices, who holds them, and the full ownership history.",
@@ -42,5 +42,13 @@
     "prettier": "^3.9.6",
     "typescript": "^6.0.3",
     "typescript-eslint": "^8.67.0"
+  },
+  "overrides": {
+    "tsup": {
+      "esbuild": "^0.28.1"
+    },
+    "@esbuild-kit/core-utils": {
+      "esbuild": "^0.25.0"
+    }
   }
 }

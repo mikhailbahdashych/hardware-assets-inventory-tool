@@ -120,8 +120,11 @@ resource "aws_instance" "app" {
     public_ip          = aws_eip.app.public_ip
     # Only behind the load balancer. Set on an instance with nothing in front
     # of it, X-Forwarded-For becomes a header any client writes for itself —
-    # and the sign-in rate limits are keyed on what it says.
+    # and the sign-in rate limits are keyed on what it says. The value is the
+    # VPC's CIDR: the balancer's addresses live in it and move around, and the
+    # security group already admits nobody else on port 80.
     trust_proxy = local.domain_enabled
+    vpc_cidr    = var.vpc_cidr
   })
 
   # The image tag is read by user_data at boot, so a new tag is a new script,

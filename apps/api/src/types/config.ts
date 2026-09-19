@@ -46,7 +46,7 @@ export interface Config {
   cookieSecure: boolean;
   logLevel: string;
   /** What Fastify should believe about `X-Forwarded-For`; `false` unless set. */
-  trustProxy: boolean | number | string[];
+  trustProxy: boolean | string[];
   /** Absolute path to the built SPA; when set (and existing) the API serves it. */
   webDist?: string;
   /**

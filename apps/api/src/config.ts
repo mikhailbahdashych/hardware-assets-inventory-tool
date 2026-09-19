@@ -84,15 +84,25 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
 }
 
 /**
- * `true`, `false`, a hop count, or a comma-separated list of trusted addresses
- * — the shapes Fastify accepts, so an operator can name their proxy's subnet
- * rather than trusting whatever arrives.
+ * `true`, `false`, or a comma-separated list of trusted addresses, CIDRs or
+ * proxy-addr presets (`loopback`, `uniquelocal`) — never a hop count. fastify
+ * 5.12.1 disabled the numeric form (GHSA-3m5p-2c4r-xxw2: a hop count cannot
+ * verify the connecting address) and now compiles it to "trust nothing",
+ * silently — so a number is refused here, at boot, with the migration in the
+ * message, instead of running with rate limits that share one bucket.
  */
-function readTrustProxy(value: string | undefined): boolean | number | string[] {
+function readTrustProxy(value: string | undefined): boolean | string[] {
   if (value === undefined || value === '' || value === 'false') return false;
   if (value === 'true') return true;
-  const hops = Number(value);
-  if (Number.isInteger(hops) && hops > 0) return hops;
+  if (/^\d+$/.test(value.trim())) {
+    throw new Error(
+      `TRUST_PROXY=${value.trim()} is a hop count, which fastify no longer supports ` +
+        '(GHSA-3m5p-2c4r-xxw2 — a hop count cannot verify the connecting address). ' +
+        'Name the proxy instead: its address or CIDR (TRUST_PROXY=10.0.0.0/16), or ' +
+        'TRUST_PROXY=loopback,uniquelocal for a proxy on the same host. ' +
+        'docs/deployment.md has the details.',
+    );
+  }
   return value.split(',').map((entry) => entry.trim());
 }
 

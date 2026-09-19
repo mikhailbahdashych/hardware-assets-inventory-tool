@@ -77,9 +77,9 @@ Both or neither — `variables.tf` has a validation that refuses half, because a
 
 **What disappears at the same time:** `ec2.tf`'s two world-facing rules (`app_http`, `app_https`). With a balancer in front, the instance stops being reachable from the internet, and the plan will show both being destroyed. That is the design, not a gap.
 
-**Where `APP_URL` changes:** `local.app_url` in `ec2.tf` flips from `http://<eip>` to `https://<domain>`, and `TRUST_PROXY=1` joins the environment file so the sign-in rate limits key on the client's address rather than the balancer's. Both are inside `user_data`, so **the plan will replace the instance** — expected, and the reason the whole thing is one apply and not three.
+**Where `APP_URL` changes:** `local.app_url` in `ec2.tf` flips from `http://<eip>` to `https://<domain>`, and `TRUST_PROXY=<the VPC's CIDR>` joins the environment file so the sign-in rate limits key on the client's address rather than the balancer's. Both are inside `user_data`, so **the plan will replace the instance** — expected, and the reason the whole thing is one apply and not three.
 
-That `1` is a hop count and it is not shorthand for `true`. The balancer appends the address it saw to `X-Forwarded-For` rather than replacing the header, and `true` tells the app to believe the left-most entry — the one the caller wrote for itself, before the balancer ever saw the request. One hop is the topology this stack builds: the balancer, and nothing in front of it.
+That CIDR names the balancer by where its addresses live, and it is not shorthand for `true`. The balancer appends the address it saw to `X-Forwarded-For` rather than replacing the header, and `true` tells the app to believe the left-most entry — the one the caller wrote for itself, before the balancer ever saw the request. A hop count (`1`), the old form, is refused at boot — fastify disabled numeric trust because a count cannot verify who connected.
 
 **The step people forget:** `APP_URL` is the origin guard's only input. Between the instance being replaced and DNS actually resolving to the balancer, anybody reaching the old address gets a 403 on every save, with no clue why. Have the record's TTL low before you start, and check `terraform output app_url` against your address bar afterwards — `www.` counts, the port counts, `http` versus `https` counts.
 

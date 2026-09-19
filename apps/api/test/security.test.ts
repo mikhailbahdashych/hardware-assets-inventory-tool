@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { requireAction } from '@/plugins/rbac.js';
+import { loadConfig } from '@/config.js';
 import { buildTestApp, inject, setupOrg, SETUP_BODY, type TestApp } from './helpers.js';
 
 let ctx: TestApp;
@@ -151,6 +152,43 @@ describe('rate limiting behind a proxy', () => {
     );
     // Twelve claimed addresses, one real socket: the header buys nothing.
     expect(attempts.filter((res) => res.statusCode === 429).length).toBeGreaterThan(0);
+  });
+
+  it('refuses a hop count at boot, naming the migration', () => {
+    // fastify 5.12.1 disabled numeric trustProxy (GHSA-3m5p-2c4r-xxw2): a hop
+    // count cannot verify the connecting address, so upstream now fails closed
+    // — silently trusting nothing. The boot error is what turns that silence
+    // into an instruction.
+    expect(() => loadConfig({ TRUST_PROXY: '1' })).toThrow(/hop count/i);
+    expect(() => loadConfig({ TRUST_PROXY: '2' })).toThrow(/GHSA-3m5p-2c4r-xxw2/);
+  });
+
+  it('reads addresses, CIDRs and presets as a list, and keeps the booleans', () => {
+    expect(loadConfig({ TRUST_PROXY: '10.0.0.0/16' }).trustProxy).toEqual(['10.0.0.0/16']);
+    expect(loadConfig({ TRUST_PROXY: 'loopback, uniquelocal' }).trustProxy).toEqual([
+      'loopback',
+      'uniquelocal',
+    ]);
+    expect(loadConfig({}).trustProxy).toBe(false);
+    expect(loadConfig({ TRUST_PROXY: 'true' }).trustProxy).toBe(true);
+    expect(loadConfig({ TRUST_PROXY: 'false' }).trustProxy).toBe(false);
+  });
+
+  it('believes the header when the connecting address is a named proxy', async () => {
+    // The address-form migration target: app.inject connects from 127.0.0.1,
+    // which `loopback` names — so the compiled proxy-addr path is what runs.
+    ctx = await buildTestApp({ TRUST_PROXY: 'loopback' });
+    const attempts = await Promise.all(
+      Array.from({ length: 12 }, (_unused, index) =>
+        inject(ctx.app, {
+          method: 'POST',
+          url: '/api/v1/auth/login',
+          headers: { 'x-forwarded-for': `203.0.113.${index}` },
+          body: { email: 'nobody@acme.io', password: 'wrong-password-here' },
+        }),
+      ),
+    );
+    expect(attempts.every((res) => res.statusCode === 401)).toBe(true);
   });
 
   it('believes the header once TRUST_PROXY is set, so one client cannot starve the bucket', async () => {
