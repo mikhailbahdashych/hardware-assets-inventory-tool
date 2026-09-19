@@ -1,4 +1,5 @@
 import { AssetFormModal } from '@/features/assets/AssetFormModal';
+import { ChangePasswordModal } from '@/features/auth/ChangePasswordModal';
 import { CustomizeWidgetsModal } from '@/features/dashboard/CustomizeWidgetsModal';
 import { EmployeeFormModal } from '@/features/employees/EmployeeFormModal';
 import { ImportWizardModal } from '@/features/import/ImportWizardModal';
@@ -31,6 +32,8 @@ export function ModalHost({ member, permissions }: ModalHostProps) {
       return <ImportWizardModal onClose={closeModal} />;
     case 'widgets':
       return <CustomizeWidgetsModal member={member} onClose={closeModal} />;
+    case 'changePassword':
+      return <ChangePasswordModal onClose={closeModal} />;
     case null:
       return null;
   }

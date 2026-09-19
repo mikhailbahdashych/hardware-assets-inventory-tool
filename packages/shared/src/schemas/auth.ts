@@ -31,6 +31,14 @@ export const resetPasswordInput = z.object({
 });
 export type ResetPasswordInput = z.infer<typeof resetPasswordInput>;
 
+export const changePasswordInput = z.object({
+  // min(1), not the password rule: this one only has to match what is stored,
+  // and an account predating a stricter rule still owns its password.
+  currentPassword: z.string().min(1),
+  newPassword: password,
+});
+export type ChangePasswordInput = z.infer<typeof changePasswordInput>;
+
 export const acceptInviteInput = z.object({
   token: z.string().min(1),
   name,

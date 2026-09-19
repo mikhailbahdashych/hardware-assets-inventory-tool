@@ -2,12 +2,15 @@ import { Link, useLocation } from 'react-router';
 import { useRoles } from '@/api/queries';
 import { Avatar, Icon, IconButton } from '@/components/ui';
 import { roleInfo, roleMap } from '@/lib/roles';
+import { useModals } from '@/providers/ModalProvider';
 import { isNavItemActive, navItemsFor } from './nav';
 import type { SidebarProps } from './types/sidebar';
 import styles from './Sidebar.module.css';
 
 export function Sidebar({ member, permissions, orgName, onSignOut }: SidebarProps) {
   const { pathname } = useLocation();
+  // The same call the palette's action makes — one modal, two doors.
+  const { openModal } = useModals();
   const items = navItemsFor(permissions);
   // The role under the member's name is a row's label, not a word this build
   // knows — the same lookup the Members page's pills go through.
@@ -48,6 +51,13 @@ export function Sidebar({ member, permissions, orgName, onSignOut }: SidebarProp
             <div className={styles.memberName}>{member.displayName}</div>
             <div className={styles.memberRole}>{roleInfo(byId, member.role).label}</div>
           </div>
+          <IconButton
+            icon="key"
+            label="Change password"
+            size={26}
+            iconSize={13}
+            onClick={() => openModal('changePassword')}
+          />
           <IconButton icon="logOut" label="Sign out" size={26} iconSize={13} onClick={onSignOut} />
         </div>
       </div>

@@ -3,6 +3,7 @@ import type {
   AcceptInviteInput,
   AssetCreateInput,
   AssetPatchInput,
+  ChangePasswordInput,
   AssignInput,
   CheckinInput,
   CustomFieldCreateInput,
@@ -185,6 +186,16 @@ export function useForgotPassword() {
       apiFetch('/auth/forgot-password', { method: 'POST', body: input }),
   });
 }
+
+/**
+ * No invalidation: a password is not query data, and the sessions it revokes
+ * are other browsers' problems. Plain useMutation on purpose.
+ */
+export const useChangePassword = () =>
+  useMutation({
+    mutationFn: (input: ChangePasswordInput) =>
+      apiFetch<undefined>('/me/password', { method: 'POST', body: input }),
+  });
 
 /** Theme, density and dashboard-widget visibility, persisted per member. */
 export function useUpdatePrefs() {

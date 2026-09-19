@@ -33,6 +33,12 @@ const ACTIONS: ActionDefinition[] = [
     effect: { kind: 'modal', modal: 'import' },
     requires: 'import.run',
   },
+  {
+    // No `requires`: your own password is yours whatever the role grants.
+    title: 'Change password',
+    icon: 'key',
+    effect: { kind: 'modal', modal: 'changePassword' },
+  },
   { title: 'Toggle theme', icon: 'moon', effect: { kind: 'theme' } },
   {
     title: 'Admin settings',

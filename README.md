@@ -148,7 +148,7 @@ There are deliberately no S3 key variables: credentials come from the standard A
 This is a first-class way to run it, not a degraded one.
 
 - **Invitations** come back as a link the admin copies and hands over.
-- **Password resets** are the same: an admin issues a link from the Members page. `/auth/forgot-password` always answers 204 and issues nothing, because a reset link must never be handed to whoever asked for it.
+- **Password resets** are the same: an admin issues a link from the Members page. `/auth/forgot-password` always answers 204 and issues nothing, because a reset link must never be handed to whoever asked for it. Merely wanting a different password needs no admin at all — the key button beside Sign out changes it, and signs out every other browser.
 - **Everything that would email** — the invite checkbox, the assign and check-in notifications, the four notification switches — shows disabled with the reason where the control is.
 
 ### Backup and restore
