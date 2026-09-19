@@ -56,14 +56,14 @@ Node 22+. Two processes start — the API on `:3000` and Vite on `:5173`, which 
 A fresh instance is empty and lands on `/setup`, which is the real first-run experience but leaves every screen blank — and this app is largely about history. `npm run seed:demo` gives you a fictional company: twelve people, twenty-six devices, four months of assignments, returns and audit history. It prints one login per role — including the fourth one the workspace invented for itself — so you can see what each of them gets:
 
 ```
-  Northwind Robotics is ready in /path/to/repo/data
+Northwind Robotics is ready in /path/to/repo/data
 
-  26 assets · 12 employees · 19 ownership records · 79 logged events
+26 assets · 12 employees · 19 ownership records · 79 logged events
 
-  ada.okafor@northwind.example    demo-password  (admin)
-  marco.rossi@northwind.example   demo-password  (manager)
-  lena.fischer@northwind.example  demo-password  (viewer)
-  grace.chen@northwind.example    demo-password  (auditor)
+ada.okafor@northwind.example    demo-password  (admin)
+marco.rossi@northwind.example   demo-password  (manager)
+lena.fischer@northwind.example  demo-password  (viewer)
+grace.chen@northwind.example    demo-password  (auditor)
 ```
 
 Every date is relative to the moment you run it, so warranties are always about to lapse and returns are always about to fall due — the dashboard is never a museum. It refuses to touch a workspace that already has data; `npm run seed:demo -- --reset` replaces one. The seeder ships in the production image too (`node apps/api/dist/db/seed-demo-cli.js --reset`, honouring `DEMO_PASSWORD`), so a public demo instance can restore itself on a schedule.
