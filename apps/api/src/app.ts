@@ -1,7 +1,7 @@
 import fastifyCookie from '@fastify/cookie';
 import fastifyMultipart from '@fastify/multipart';
 import fastifyRateLimit from '@fastify/rate-limit';
-import Fastify, { type FastifyInstance } from 'fastify';
+import Fastify, { type FastifyInstance, type FastifyServerOptions } from 'fastify';
 import { serializerCompiler, validatorCompiler } from 'fastify-type-provider-zod';
 import type { AppDeps, BuildAppOptions } from './types/app.js';
 import { loggerOptions } from './lib/logging.js';
@@ -42,7 +42,11 @@ export async function buildApp(opts: BuildAppOptions): Promise<FastifyInstance> 
     mailer: opts.mailer !== undefined ? opts.mailer : createMailer(opts.config),
   };
 
-  const app = Fastify({
+  // Named, not inferred: since fastify 5.12.1 an inferred options object
+  // matches the HTTP/2 factory overload first and the instance types as an
+  // Http2SecureServer. The annotation keeps overload resolution on the plain
+  // HTTP server this app actually runs.
+  const options: FastifyServerOptions = {
     logger: loggerOptions(opts.config, opts.logDestination),
     // Decides what `request.ip` is, which is what the rate limits are keyed on.
     // Behind a reverse proxy without this, every request in the world shares
@@ -50,7 +54,8 @@ export async function buildApp(opts: BuildAppOptions): Promise<FastifyInstance> 
     // With it set when nothing is in front, any client can claim any address
     // and the limits mean nothing — so it is opt-in, per deployment.
     trustProxy: opts.config.trustProxy,
-  });
+  };
+  const app = Fastify(options);
 
   app.setValidatorCompiler(validatorCompiler);
   app.setSerializerCompiler(serializerCompiler);
