@@ -36,6 +36,18 @@ describe('changing your own password', () => {
     expect(screen.getByText(/signed out everywhere else/i)).toBeInTheDocument();
   });
 
+  it("shows the failure whole when it is not a field's", async () => {
+    await submitChange({
+      'POST /me/password': {
+        status: 429,
+        body: { error: { code: 'rate_limited', message: 'Too many attempts. Try again later.' } },
+      },
+    });
+
+    expect(await screen.findByText('Too many attempts. Try again later.')).toBeInTheDocument();
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+  });
+
   it("shows the server's words under the field that was wrong", async () => {
     await submitChange({
       'POST /me/password': {

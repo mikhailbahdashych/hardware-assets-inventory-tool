@@ -4,6 +4,7 @@ import { auditEvents } from '@/db/schema.js';
 import {
   buildTestApp,
   inject,
+  memberCookie,
   SETUP_BODY,
   sessionCookie,
   setupOrg,
@@ -85,6 +86,59 @@ describe('POST /api/v1/me/password', () => {
       .from(auditEvents)
       .where(eq(auditEvents.action, 'auth.password_changed'));
     expect(rows).toHaveLength(0);
+  });
+
+  it('kills a pending admin-issued reset link, which must not outlive the change', async () => {
+    ctx = await buildTestApp();
+    const cookie = await setupOrg(ctx.app);
+    const me = await inject(ctx.app, { method: 'GET', url: '/api/v1/auth/me', cookie });
+    const id = me.json().member.id as string;
+    const link = await inject(ctx.app, {
+      method: 'POST',
+      url: `/api/v1/members/${id}/reset-link`,
+      cookie,
+    });
+    const token = new URL(link.json().resetUrl as string).searchParams.get('token')!;
+
+    await changePassword(cookie, {
+      currentPassword: SETUP_BODY.password,
+      newPassword: NEW_PASSWORD,
+    });
+
+    // Whoever holds the old link must not be able to take the account back.
+    const reset = await inject(ctx.app, {
+      method: 'POST',
+      url: '/api/v1/auth/reset-password',
+      body: { token, newPassword: 'attacker-chosen-password' },
+    });
+    expect(reset.statusCode).toBe(401);
+    expect((await login('attacker-chosen-password')).statusCode).toBe(401);
+    expect((await login(NEW_PASSWORD)).statusCode).toBe(200);
+  });
+
+  it('rates guesses per member, not per office address', async () => {
+    ctx = await buildTestApp();
+    const cookie = await setupOrg(ctx.app);
+    // Ten wrong guesses exhaust this member's own bucket…
+    for (let index = 0; index < 10; index += 1) {
+      await changePassword(cookie, {
+        currentPassword: `wrong-guess-${index}`,
+        newPassword: NEW_PASSWORD,
+      });
+    }
+    const eleventh = await changePassword(cookie, {
+      currentPassword: 'wrong-guess-10',
+      newPassword: NEW_PASSWORD,
+    });
+    expect(eleventh.statusCode).toBe(429);
+
+    // …and a colleague on the same address still gets an answer.
+    const colleague = await memberCookie(ctx.db, 'viewer');
+    const res = await changePassword(colleague, {
+      currentPassword: 'anything-at-all',
+      newPassword: NEW_PASSWORD,
+    });
+    expect(res.statusCode).toBe(422);
   });
 
   it('is for the signed-in only', async () => {

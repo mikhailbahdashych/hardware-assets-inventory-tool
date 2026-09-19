@@ -1,9 +1,9 @@
-import { and, eq, ne } from 'drizzle-orm';
-import type { FastifyInstance } from 'fastify';
+import { and, eq, isNull, ne } from 'drizzle-orm';
+import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
 import { changePasswordInput, mfaConfirmInput, prefsPatchInput } from '@inventory/shared';
 import type { AppDeps } from '@/types/app.js';
-import { members, sessions } from '@/db/schema.js';
+import { authTokens, members, sessions } from '@/db/schema.js';
 import { nowIso } from '@/lib/dates.js';
 import { invalidFields } from '@/lib/errors.js';
 import { hashPassword, verifyPassword } from '@/lib/password.js';
@@ -15,9 +15,18 @@ import { beginEnrolment, confirmEnrolment } from '@/services/mfa.js';
 import { SESSION_COOKIE } from '@/services/sessions.js';
 import { getSettings } from '@/services/settings.js';
 
-// Same shape as the token endpoints' limit: a stolen session must not get to
-// brute-force the current password out of this route.
-const PASSWORD_RATE = { max: 10, timeWindow: 60 * 60 * 1000 };
+// The same numbers as `modules/auth.ts`'s TOKEN_RATE: a stolen session must
+// not get to brute-force the current password out of this route. Keyed on the
+// member — which this route, unlike /auth/login, actually knows — so rotating
+// addresses buys no extra guesses and an office NAT shares no bucket. The
+// session hook is an instance-level onRequest registered before this plugin,
+// so `request.member` is resolved by the time the key is asked for; the ip is
+// only ever the key for a request that will 401 anyway.
+const PASSWORD_RATE = {
+  max: 10,
+  timeWindow: 60 * 60 * 1000,
+  keyGenerator: (request: FastifyRequest) => request.member?.id ?? request.ip,
+};
 
 /** Personal preferences — every role may change their own. */
 export function registerMeRoutes(app: FastifyInstance, deps: AppDeps): void {
@@ -68,6 +77,8 @@ export function registerMeRoutes(app: FastifyInstance, deps: AppDeps): void {
       const passwordHash = await hashPassword(request.body.newPassword);
       // The session id IS the hashed cookie — that is the storage scheme — so
       // "every session but this one" is a hash away, no request decoration.
+      // The `!` holds because requireAuth passed, and plugins/session.ts sets
+      // `request.member` from this cookie and nothing else.
       const currentSessionId = hashToken(request.cookies[SESSION_COOKIE]!);
       await deps.db.transaction(async (tx) => {
         await tx
@@ -79,6 +90,17 @@ export function registerMeRoutes(app: FastifyInstance, deps: AppDeps): void {
         await tx
           .delete(sessions)
           .where(and(eq(sessions.memberId, member.id), ne(sessions.id, currentSessionId)));
+        // A pending admin-issued reset link must not outlive the change:
+        // whoever holds it could otherwise take the account straight back.
+        await tx
+          .delete(authTokens)
+          .where(
+            and(
+              eq(authTokens.memberId, member.id),
+              eq(authTokens.purpose, 'password_reset'),
+              isNull(authTokens.consumedAt),
+            ),
+          );
         await writeAudit(
           tx,
           {
