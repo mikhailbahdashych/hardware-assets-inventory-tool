@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   ADMIN_MEMBER,
   ADMIN_ROUTES,
+  MANAGER_ACTIONS,
   AUDITOR_ROLE,
   INVITED_SUMMARY,
   LINKED_SUMMARY,
@@ -233,6 +234,29 @@ describe('inviting a member', () => {
 });
 
 describe('the row actions', () => {
+  it('offers nothing on an admin row to anybody below admin', async () => {
+    renderApp(
+      {
+        ...ADMIN_ROUTES,
+        // A manager whose role the workspace granted members.manage.
+        'GET /auth/me': session({ ...ADMIN_MEMBER, id: 'member-9', role: 'manager' }, [
+          ...MANAGER_ACTIONS,
+          'members.manage',
+        ]),
+      },
+      '/members',
+    );
+
+    // The admin's row: no menu at all — every action on it is shielded.
+    const admin = await memberRow('tomasz@acme.io');
+    expect(within(admin).queryByRole('button', { name: /Actions for/ })).toBeNull();
+    // Below the shield the grant still works.
+    const viewer = await memberRow('maya.lindqvist@acme.io');
+    expect(
+      within(viewer).getByRole('button', { name: 'Actions for Maya Lindqvist' }),
+    ).toBeInTheDocument();
+  });
+
   async function openMenu(email: string) {
     const row = await memberRow(email);
     await userEvent.click(within(row).getByRole('button', { name: /actions for/i }));

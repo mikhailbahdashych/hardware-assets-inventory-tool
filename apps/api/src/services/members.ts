@@ -69,6 +69,7 @@ export async function inviteMember(
 
   const { member, raw } = await deps.db.transaction(async (tx) => {
     await requireFreeEmail(tx, input.email);
+    if (input.role === ADMIN_ROLE) await assertAdminActor(tx, actor);
     // Roles are rows, so the id on the form is checked against them here — the
     // schema can only say it is a non-empty string.
     const role = await requireRole(tx, input.role);
@@ -121,6 +122,7 @@ export async function resendInvite(deps: AppDeps, actor: Actor, id: string): Pro
 
   const raw = await deps.db.transaction(async (tx) => {
     const member = await requireMember(tx, id);
+    if (member.role === ADMIN_ROLE) await assertAdminActor(tx, actor);
     if (member.status !== 'invited') {
       throw new AppError(409, 'already_active', 'That member has already joined the workspace.');
     }
@@ -168,6 +170,7 @@ export async function setMemberPassword(
   const passwordHash = await hashPassword(newPassword);
   await deps.db.transaction(async (tx) => {
     const member = await requireMember(tx, id);
+    if (member.role === ADMIN_ROLE) await assertAdminActor(tx, actor);
     if (member.status !== 'active') {
       throw new AppError(
         409,
@@ -217,6 +220,7 @@ export async function issueResetLink(deps: AppDeps, actor: Actor, id: string): P
 
   const raw = await deps.db.transaction(async (tx) => {
     const member = await requireMember(tx, id);
+    if (member.role === ADMIN_ROLE) await assertAdminActor(tx, actor);
     if (member.status !== 'active') {
       throw new AppError(
         409,
@@ -253,6 +257,7 @@ export async function updateMember(
 
   return await deps.db.transaction(async (tx) => {
     const current = await requireMember(tx, id);
+    if (current.role === ADMIN_ROLE || patch.role === ADMIN_ROLE) await assertAdminActor(tx, actor);
     const values: Partial<typeof members.$inferInsert> = {};
     // Named outside the branch so the audit event below can snapshot its label
     // without asking the table a second time.
@@ -339,6 +344,7 @@ export async function removeMember(deps: AppDeps, actor: Actor, id: string): Pro
 
   await deps.db.transaction(async (tx) => {
     const member = await requireMember(tx, id);
+    if (member.role === ADMIN_ROLE) await assertAdminActor(tx, actor);
     if (id === actor.id) {
       throw new AppError(
         409,
@@ -408,6 +414,24 @@ async function readMember(tx: DbOrTx, id: string): Promise<MemberSummary> {
  * anchored to `ASSIGNED_STATUS`: every other role is a row a workspace edits,
  * and this one is the row it cannot.
  */
+/**
+ * Nobody below admin acts on an admin — or mints one. `members.manage` is a
+ * grant any workspace role can hold, so without this rule a custom role would
+ * be a ladder over the very accounts that could revoke it: set an admin's
+ * password, or hold a fresh reset or invite link, and the workspace is yours.
+ * The actor's rank is read from their row rather than trusted from a claim,
+ * so a demotion bites on the demoted member's very next request.
+ */
+export async function assertAdminActor(db: DbOrTx, actor: Actor): Promise<void> {
+  const [row] = await db
+    .select({ role: members.role })
+    .from(members)
+    .where(eq(members.id, actor.id));
+  if (!row || row.role !== ADMIN_ROLE) {
+    throw new AppError(403, 'admin_shield', 'Only an admin can manage an admin account.');
+  }
+}
+
 async function assertNotLastAdmin(tx: DbOrTx, target: MemberRow): Promise<void> {
   if (target.role !== ADMIN_ROLE || target.status !== 'active') return;
 

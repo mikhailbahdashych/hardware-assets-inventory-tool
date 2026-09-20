@@ -39,7 +39,7 @@ export const queryKeys = {
   workflow: ['workflow'] as const,
   roles: ['roles'] as const,
   members: ['members'] as const,
-  notifications: ['notifications'] as const,
+  notifications: (limit: number) => ['notifications', limit] as const,
   settings: ['settings'] as const,
   dashboard: ['dashboard'] as const,
   audit: (filter: AuditFilter) => ['audit', filter] as const,
@@ -197,14 +197,18 @@ export function useDashboard() {
   });
 }
 
+/** The API's own default page size; the page's "Load more" adds another. */
+export const INBOX_PAGE = 50;
+
 /**
  * The signed-in member's own inbox — every member has one, so the bell asks
- * unconditionally. `useMarkNotificationsRead` is the write half.
+ * unconditionally and shares the first page with the Notifications page.
+ * `useMarkNotificationsRead` is the write half.
  */
-export function useNotifications() {
+export function useNotifications(limit: number = INBOX_PAGE) {
   return useQuery({
-    queryKey: queryKeys.notifications,
-    queryFn: () => apiFetch<NotificationsPayload>('/notifications'),
+    queryKey: queryKeys.notifications(limit),
+    queryFn: () => apiFetch<NotificationsPayload>(`/notifications?limit=${limit}`),
   });
 }
 

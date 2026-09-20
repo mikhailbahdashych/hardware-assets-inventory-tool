@@ -14,4 +14,6 @@ export interface MembersPageProps {
   /** What the signed-in member may do, resolved server-side — see `can`. */
   permissions: Action[];
   memberId: string;
+  /** The viewer's role id — only ever compared against ADMIN_ROLE, the one role either app may name. */
+  viewerRole: string;
 }

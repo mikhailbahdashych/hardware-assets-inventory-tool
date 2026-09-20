@@ -20,4 +20,6 @@ export interface NotificationItem extends RenderableNotification {
 export interface NotificationsPayload {
   notifications: NotificationItem[];
   unreadCount: number;
+  /** Every row the member has, read or not — what tells a pager there is more. */
+  total: number;
 }

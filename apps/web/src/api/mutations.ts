@@ -30,7 +30,6 @@ import type {
   WorkspaceDeleteInput,
   WorkspaceRole,
 } from '@inventory/shared';
-import type { NotificationsPayload } from '@inventory/shared';
 import { apiFetch, apiUpload } from './client';
 import { invalidateAdmin, invalidateInventory } from './invalidate';
 import { queryKeys } from './queries';
@@ -529,27 +528,15 @@ export const useResendInvite = () =>
   );
 
 /**
- * Opening the bell reads the whole inbox in one write. The cache is told the
- * same fact rather than refetched — the answer is already known locally.
+ * The Notifications page's "Mark all read" — one write over the whole inbox,
+ * then a refetch of every cached page, so the rows and the badge move together.
  */
 export function useMarkNotificationsRead() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: () => apiFetch('/notifications/read', { method: 'POST' }),
-    onSuccess: () => {
-      queryClient.setQueryData<NotificationsPayload>(
-        queryKeys.notifications,
-        (inbox) =>
-          inbox && {
-            notifications: inbox.notifications.map((row) => ({
-              ...row,
-              // A row read earlier keeps its own time; the rest were read now.
-              readAt: row.readAt ?? new Date().toISOString(),
-            })),
-            unreadCount: 0,
-          },
-      );
-    },
+    // By prefix: the key carries the page size, and every size just changed.
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['notifications'] }),
   });
 }
 

@@ -159,6 +159,39 @@ describe('the inbox', () => {
     expect(omarRows[0]!.readAt).toBeNull();
   });
 
+  it('pages the history: limit on the query, the total for the footer', async () => {
+    ctx = await buildTestApp();
+    const cookie = await setupOrg(ctx.app);
+    const { employeeId, memberCookie: maya } = await linkedEmployee(cookie);
+    for (const name of ['One', 'Two', 'Three']) {
+      const assetId = await createAsset(cookie, { name });
+      await inject(ctx.app, {
+        method: 'POST',
+        url: `/api/v1/assets/${assetId}/assign`,
+        cookie,
+        body: { employeeId, checkoutDate: '2026-09-20' },
+      });
+    }
+
+    const page = await inject(ctx.app, {
+      method: 'GET',
+      url: '/api/v1/notifications?limit=2',
+      cookie: maya,
+    });
+    expect(page.json().notifications).toHaveLength(2);
+    expect(page.json().total).toBe(3);
+    // The unread badge counts the whole inbox, not the page.
+    expect(page.json().unreadCount).toBe(3);
+
+    const everything = await inject(ctx.app, {
+      method: 'GET',
+      url: '/api/v1/notifications',
+      cookie: maya,
+    });
+    expect(everything.json().notifications).toHaveLength(3);
+    expect(everything.json().total).toBe(3);
+  });
+
   it('warranty alerts go to everyone whose role manages assets, exactly once per date', async () => {
     const now = new Date('2026-09-20T08:00:00Z');
     ctx = await buildTestApp({}, () => now);

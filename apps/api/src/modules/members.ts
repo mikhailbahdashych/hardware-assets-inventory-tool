@@ -1,10 +1,11 @@
 import type { FastifyInstance } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
 import { z } from 'zod';
-import { inviteInput, memberPatchInput, setPasswordInput } from '@inventory/shared';
+import { ADMIN_ROLE, inviteInput, memberPatchInput, setPasswordInput } from '@inventory/shared';
 import type { AppDeps } from '@/types/app.js';
 import { requireAction, requireAuth } from '@/plugins/rbac.js';
 import {
+  assertAdminActor,
   inviteMember,
   issueResetLink,
   setMemberPassword,
@@ -92,6 +93,8 @@ export function registerMemberRoutes(app: FastifyInstance, deps: AppDeps): void 
     async (request, reply) => {
       const now = deps.now();
       const target = await memberById(deps.db, request.params.id);
+      // An admin's second factor is part of the shield around their account.
+      if (target.role === ADMIN_ROLE) await assertAdminActor(deps.db, request.member!);
       await deps.db.transaction(async (tx) => {
         await resetMemberMfa(tx, target.id, now);
         await writeAudit(
@@ -127,6 +130,8 @@ export function registerMemberRoutes(app: FastifyInstance, deps: AppDeps): void 
     async (request, reply) => {
       const now = deps.now();
       const target = await memberById(deps.db, request.params.id);
+      // An admin's second factor is part of the shield around their account.
+      if (target.role === ADMIN_ROLE) await assertAdminActor(deps.db, request.member!);
       await deps.db.transaction(async (tx) => {
         await resetMemberRecoveryCodes(tx, target.id);
         await writeAudit(

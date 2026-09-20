@@ -87,18 +87,24 @@ export async function notifyActionHolders(
   return written;
 }
 
-const INBOX_LIMIT = 50;
+export const DEFAULT_INBOX_LIMIT = 50;
+export const MAX_INBOX_LIMIT = 200;
 
 export async function listNotifications(
   db: DbOrTx,
   memberId: string,
+  limit: number = DEFAULT_INBOX_LIMIT,
 ): Promise<NotificationsPayload> {
   const rows = await db
     .select()
     .from(notifications)
     .where(eq(notifications.memberId, memberId))
     .orderBy(desc(notifications.createdAt))
-    .limit(INBOX_LIMIT);
+    .limit(limit);
+  const [total] = await db
+    .select({ value: count() })
+    .from(notifications)
+    .where(eq(notifications.memberId, memberId));
   const [unread] = await db
     .select({ value: count() })
     .from(notifications)
@@ -113,6 +119,7 @@ export async function listNotifications(
       readAt: row.readAt,
     })),
     unreadCount: unread === undefined ? 0 : unread.value,
+    total: total === undefined ? 0 : total.value,
   };
 }
 

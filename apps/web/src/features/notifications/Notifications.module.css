@@ -1,0 +1,95 @@
+.header {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.intro {
+  margin-right: auto;
+}
+
+.title {
+  font-size: 18px;
+  font-weight: 600;
+  margin: 0;
+}
+
+.summary {
+  color: var(--muted);
+  font-size: 12.5px;
+  margin: 3px 0 0;
+  max-width: 520px;
+}
+
+.loading {
+  display: flex;
+  justify-content: center;
+  padding: 40px 0;
+}
+
+.list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 11px 14px;
+}
+
+.row + .row {
+  border-top: 1px solid var(--border);
+}
+
+/* Unread wears the accent on its edge and its weight; read rows sit quiet. */
+.row[data-unread='true'] {
+  box-shadow: inset 2px 0 0 var(--acc);
+}
+
+.sentence {
+  font-size: 13px;
+  color: var(--text);
+  min-width: 0;
+}
+
+.row[data-unread='true'] .sentence {
+  font-weight: 600;
+}
+
+.time {
+  flex: none;
+  font-size: 11.5px;
+  color: var(--faint);
+}
+
+.count {
+  margin-top: -6px;
+  font-size: 11.5px;
+  color: var(--faint);
+}
+
+.loadMore {
+  align-self: center;
+  height: 29px;
+  padding: 0 14px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: none;
+  color: var(--muted);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.loadMore:hover {
+  background: var(--hover);
+}

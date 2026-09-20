@@ -460,7 +460,7 @@ export const INVENTORY_ROUTES: StubRoutes = {
   'GET /employees': { body: { employees: [MAYA] } },
   'GET /custom-fields': { body: { customFields: CUSTOM_FIELDS } },
   'GET /assets/next-tag': { body: { assetTag: 'AST-0144' } },
-  'GET /notifications': { body: { notifications: [], unreadCount: 0 } },
+  'GET /notifications': { body: { notifications: [], unreadCount: 0, total: 0 } },
   'GET /workflow': { body: WORKFLOW },
   'GET /roles': { body: ROLES },
 };
@@ -485,7 +485,7 @@ export const ADMIN_ROUTES: StubRoutes = {
   'GET /members': { body: { members: [ADMIN_SUMMARY, INVITED_SUMMARY, LINKED_SUMMARY] } },
   'GET /settings': { body: { settings: SETTINGS, storageUsedBytes: 188_416 } },
   'GET /audit': { body: AUDIT_PAGE },
-  'GET /notifications': { body: { notifications: [], unreadCount: 0 } },
+  'GET /notifications': { body: { notifications: [], unreadCount: 0, total: 0 } },
   'GET /workflow': { body: WORKFLOW },
   'GET /roles': { body: ROLES },
 };

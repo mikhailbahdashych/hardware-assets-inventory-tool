@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Link } from 'react-router';
 import {
+  ADMIN_ROLE,
   can,
   MEMBER_STATUS_COLORS,
   MEMBER_STATUS_LABELS,
@@ -29,7 +30,7 @@ import { SetPasswordModal } from './SetPasswordModal';
 import type { MembersDialog, MembersPageProps } from './types/membersPage';
 import styles from './Members.module.css';
 
-export function MembersPage({ permissions, memberId }: MembersPageProps) {
+export function MembersPage({ permissions, memberId, viewerRole }: MembersPageProps) {
   const [dialog, setDialog] = useState<MembersDialog | null>(null);
   const toast = useToast();
   const { openModal } = useModals();
@@ -48,6 +49,9 @@ export function MembersPage({ permissions, memberId }: MembersPageProps) {
   const byRoleId = roleMap(roleRows);
 
   function rowActions(member: MemberSummary): MenuItem[] {
+    // Nobody below admin acts on an admin — the API refuses every one of these
+    // on an admin row, so drawing the menu would only promise refusals.
+    if (member.role === ADMIN_ROLE && viewerRole !== ADMIN_ROLE) return [];
     const items: MenuItem[] = [];
     if (member.status === 'invited') {
       items.push({
@@ -225,10 +229,13 @@ export function MembersPage({ permissions, memberId }: MembersPageProps) {
     {
       header: '',
       width: '40px',
-      render: (member) =>
-        manages ? (
-          <Menu label={`Actions for ${member.displayName}`} items={rowActions(member)} />
-        ) : null,
+      render: (member) => {
+        if (!manages) return null;
+        const items = rowActions(member);
+        return items.length > 0 ? (
+          <Menu label={`Actions for ${member.displayName}`} items={items} />
+        ) : null;
+      },
     },
   ];
 
