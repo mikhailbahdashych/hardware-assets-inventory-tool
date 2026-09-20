@@ -10,7 +10,7 @@ import styles from './Members.module.css';
  * text and copying is the convenience on top. Clipboard access needs a secure
  * context, which a self-hosted instance on plain http is not.
  */
-export function CopyLinkModal({ title, subtitle, label, url, onClose }: CopyLinkModalProps) {
+export function CopyLinkModal({ title, subtitle, label, url, hint, onClose }: CopyLinkModalProps) {
   const [copied, setCopied] = useState(false);
 
   return (
@@ -38,8 +38,9 @@ export function CopyLinkModal({ title, subtitle, label, url, onClose }: CopyLink
         </Button>
       </div>
       <p className={styles.linkHint}>
-        Anyone with this link can use it once, and it expires on its own. Send it over a channel you
-        trust.
+        {/* The optional prop's default: the sentence that is true of every link. */}
+        {hint ??
+          'Anyone with this link can use it once, and it expires on its own. Send it over a channel you trust.'}
       </p>
     </Modal>
   );

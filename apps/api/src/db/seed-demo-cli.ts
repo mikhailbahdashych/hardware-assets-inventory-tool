@@ -20,7 +20,7 @@ import { makeStorage, uploadsDir } from '@/services/storage.js';
  *   npm run seed:demo -- --reset      # empties it first, which is destructive
  *   DEMO_PASSWORD=… npm run seed:demo # otherwise the default below
  */
-const DEFAULT_PASSWORD = 'demo-password';
+const DEFAULT_PASSWORD = 'Demo-password1';
 
 async function main(): Promise<void> {
   const reset = process.argv.includes('--reset');

@@ -11,7 +11,6 @@ They are written to be handed to Claude Code: open a session in the repo and say
 | [add-permission-action.md](add-permission-action.md) | A new thing a role may be granted. (Roles themselves are edited in the app.)         |
 | [add-page.md](add-page.md)                           | A new section with its own nav entry and route.                                      |
 | [add-dashboard-widget.md](add-dashboard-widget.md)   | Another card on the dashboard, toggleable per member.                                |
-| [add-email.md](add-email.md)                         | A new message, transactional or scheduled.                                           |
 | [rebrand.md](rebrand.md)                             | Your own name, colours and fonts.                                                    |
 | [change-infrastructure.md](change-infrastructure.md) | Resize, re-region, rotate or restore the AWS deployment in `infrastructure/`.        |
 

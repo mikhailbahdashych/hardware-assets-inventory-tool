@@ -6,7 +6,6 @@ import {
   ADMIN_ROUTES,
   AUDIT_PAGE,
   MANAGER_ACTIONS,
-  NO_SMTP_META,
   session,
   SETTINGS,
 } from '@/test/api-stub';
@@ -135,7 +134,7 @@ describe('workspace settings', () => {
     expect(screen.getByLabelText(/asset tag prefix/i)).toHaveValue('AST');
     expect(screen.getByLabelText(/warranty alert lead time/i)).toHaveValue(60);
     expect(screen.getByRole('switch', { name: /warranty alerts/i })).toBeChecked();
-    expect(screen.getByRole('switch', { name: /weekly digest/i })).not.toBeChecked();
+    expect(screen.getByRole('switch', { name: /return reminders/i })).toBeChecked();
   });
 
   it('still answers the old settings URL', async () => {
@@ -167,7 +166,7 @@ describe('workspace settings', () => {
       {
         ...ADMIN_ROUTES,
         'PATCH /settings': {
-          body: { settings: { ...SETTINGS, orgName: 'Globex', emailWeeklyDigest: true } },
+          body: { settings: { ...SETTINGS, orgName: 'Globex', returnReminders: false } },
         },
       },
       '/admin',
@@ -176,7 +175,7 @@ describe('workspace settings', () => {
     const input = await screen.findByLabelText(/company name/i);
     await userEvent.clear(input);
     await userEvent.type(input, 'Globex');
-    await userEvent.click(screen.getByRole('switch', { name: /weekly digest/i }));
+    await userEvent.click(screen.getByRole('switch', { name: /return reminders/i }));
     // Leaving a field is not a save: nothing has been sent yet.
     await userEvent.tab();
     expect(api.called('PATCH /settings')).toBeUndefined();
@@ -185,7 +184,7 @@ describe('workspace settings', () => {
     await waitFor(() => expect(api.called('PATCH /settings')).toBeDefined());
     expect(api.called('PATCH /settings')!.body).toEqual({
       orgName: 'Globex',
-      emailWeeklyDigest: true,
+      returnReminders: false,
     });
     expect(await screen.findByText('Settings saved.')).toBeInTheDocument();
   });
@@ -290,19 +289,6 @@ describe('workspace settings', () => {
 
     await waitFor(() => expect(api.called('PATCH /settings')).toBeDefined());
     expect(api.called('PATCH /settings')!.body).toEqual({ logRetentionMonths: null });
-  });
-});
-
-describe('an instance with no SMTP', () => {
-  it('disables the email switches and says why, rather than lying about them', async () => {
-    renderApp({ ...ADMIN_ROUTES, 'GET /meta': { body: NO_SMTP_META } }, '/admin');
-
-    const warranty = await screen.findByRole('switch', { name: /warranty alerts/i });
-    expect(warranty).toBeDisabled();
-    expect(screen.getAllByText('SMTP is not configured on this instance')).toHaveLength(4);
-
-    // Everything that does not need email still works.
-    expect(screen.getByLabelText(/company name/i)).toBeEnabled();
   });
 });
 

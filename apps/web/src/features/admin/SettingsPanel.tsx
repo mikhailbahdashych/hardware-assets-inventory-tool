@@ -150,7 +150,7 @@ function SettingsForm({ settings, storageUsedBytes }: SettingsFormProps) {
       </section>
 
       <section className={styles.card}>
-        <h2 className={styles.cardTitleTight}>Email notifications</h2>
+        <h2 className={styles.cardTitleTight}>Notifications</h2>
         {NOTIFICATION_TOGGLES.map((toggle) => (
           <div key={toggle.key} className={styles.row}>
             <div className={styles.rowText}>

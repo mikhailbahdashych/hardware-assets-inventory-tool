@@ -11,7 +11,7 @@ export const ADMIN = {
   orgName: 'Acme Corp',
   name: 'Tomasz Kowalski',
   email: 'tomasz@acme.io',
-  password: 'correct-horse-battery',
+  password: 'Correct-horse-battery1',
 };
 
 const STATE_FILE = fileURLToPath(new URL('../.auth/admin.json', import.meta.url));

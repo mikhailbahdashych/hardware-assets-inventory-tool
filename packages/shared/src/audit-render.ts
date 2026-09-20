@@ -68,10 +68,8 @@ const FIELD_LABELS: Record<string, string> = {
   orgName: 'organization name',
   warrantyLeadDays: 'warranty alert lead time',
   logRetentionMonths: 'activity log retention',
-  emailWarrantyAlerts: 'warranty alert emails',
-  emailReturnReminders: 'return reminder emails',
-  emailInvites: 'member invite emails',
-  emailWeeklyDigest: 'weekly digest emails',
+  warrantyAlerts: 'warranty alerts',
+  returnReminders: 'return reminders',
 };
 
 function fieldList(params: AuditParams): string {

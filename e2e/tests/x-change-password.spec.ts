@@ -7,8 +7,8 @@ import { expect, test } from '@playwright/test';
 // suite's login budget (see e2e/CLAUDE.md) — which is why the multi-browser
 // revocation and the old-password refusal stay pinned by the API integration
 // tests rather than being re-proven here with more sign-ins.
-const GRACE = { email: 'grace.chen@acme.io', password: 'a-longer-passphrase' };
-const NEW_PASSWORD = 'an-even-longer-passphrase';
+const GRACE = { email: 'grace.chen@acme.io', password: 'A-longer-passphrase1' };
+const NEW_PASSWORD = 'An-even-longer-passphrase2';
 
 test('a member changes their own password from the sidebar', async ({ page }) => {
   await page.goto('/login');

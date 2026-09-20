@@ -61,10 +61,10 @@ Northwind Robotics is ready in /path/to/repo/data
 
 26 assets · 12 employees · 19 ownership records · 79 logged events
 
-ada.okafor@northwind.example    demo-password  (admin)
-marco.rossi@northwind.example   demo-password  (manager)
-lena.fischer@northwind.example  demo-password  (viewer)
-grace.chen@northwind.example    demo-password  (auditor)
+ada.okafor@northwind.example    Demo-password1  (admin)
+marco.rossi@northwind.example   Demo-password1  (manager)
+lena.fischer@northwind.example  Demo-password1  (viewer)
+grace.chen@northwind.example    Demo-password1  (auditor)
 ```
 
 Sign in as any of the four to see what that role can do — the viewer has no mutation affordances anywhere, the manager has no Admin section, and Auditor is the role the demo workspace invented for itself on the Roles page: two ticks, so the activity log and the export open and nothing else does.

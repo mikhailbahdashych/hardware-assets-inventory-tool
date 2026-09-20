@@ -25,6 +25,7 @@ import type { TableColumn } from '@/types/table';
 import { ChangeRoleModal } from './ChangeRoleModal';
 import { CopyLinkModal } from './CopyLinkModal';
 import { RemoveMemberModal } from './RemoveMemberModal';
+import { SetPasswordModal } from './SetPasswordModal';
 import type { MembersDialog, MembersPageProps } from './types/membersPage';
 import styles from './Members.module.css';
 
@@ -80,6 +81,13 @@ export function MembersPage({ permissions, memberId }: MembersPageProps) {
             onError: (error) => toast.show(error.message, 'err'),
           }),
       });
+      // Your own password changes through Account, with the current one as proof.
+      if (member.id !== memberId) {
+        items.push({
+          label: 'Set a password',
+          onSelect: () => setDialog({ kind: 'password', member }),
+        });
+      }
     }
 
     // Unlike role and removal, this *is* allowed on your own account: locking
@@ -263,12 +271,29 @@ export function MembersPage({ permissions, memberId }: MembersPageProps) {
       {dialog?.kind === 'remove' && (
         <RemoveMemberModal member={dialog.member} onClose={() => setDialog(null)} />
       )}
+      {dialog?.kind === 'password' && (
+        <SetPasswordModal
+          member={dialog.member}
+          onClose={() => setDialog(null)}
+          onSet={(password) =>
+            setDialog({
+              kind: 'link',
+              title: 'Password set',
+              subtitle: `Hand it to ${dialog.member.displayName} yourself — their other sessions are signed out`,
+              label: 'New password',
+              url: password,
+              hint: 'It appears only here — the app keeps only a hash. Send it over a channel you trust.',
+            })
+          }
+        />
+      )}
       {dialog?.kind === 'link' && (
         <CopyLinkModal
           title={dialog.title}
           subtitle={dialog.subtitle}
           label={dialog.label}
           url={dialog.url}
+          hint={dialog.hint}
           onClose={() => setDialog(null)}
         />
       )}

@@ -139,6 +139,7 @@ const ICON_NAMES: IconName[] = [
   'workflow',
   'logOut',
   'x',
+  'bell',
 ];
 
 /** The surface tokens, in the order tokens.css declares them. */
@@ -596,9 +597,9 @@ export function KitchenSink() {
           <ToggleSwitch
             checked={toggles.digest}
             onChange={(v) => setToggles((t) => ({ ...t, digest: v }))}
-            label="Weekly digest"
+            label="Return reminders"
           />
-          <span style={{ fontSize: 12.5 }}>Weekly digest</span>
+          <span style={{ fontSize: 12.5 }}>Return reminders</span>
         </Row>
         <div style={{ maxWidth: 560 }}>
           <Dropzone
@@ -613,8 +614,8 @@ export function KitchenSink() {
 
       <Section title="Disabled and error states">
         {/* The states a screen actually hits. A disabled control keeps its
-            reason visible next to it rather than vanishing — see how the
-            Settings page handles an instance with no SMTP. */}
+            reason visible next to it rather than vanishing — see the Roles
+            page, which does this for the role you yourself hold. */}
         <div
           style={{
             display: 'grid',
@@ -645,7 +646,7 @@ export function KitchenSink() {
           <Checkbox label="Disabled checkbox" disabled />
           <ToggleSwitch checked={false} onChange={() => {}} label="Disabled switch" disabled />
           <span style={{ fontSize: 11.5, color: 'var(--muted)' }}>
-            SMTP is not configured on this instance
+            Only another admin can change the role you hold
           </span>
         </Row>
       </Section>

@@ -67,9 +67,9 @@ Run `npm run dev` and open `http://localhost:5173/kitchen-sink` (dev-only route,
 
 Walk it in **both themes and both densities** before calling UI work done. It cannot go stale, because it renders the same components the app does — which is also why a new primitive is not finished until it has a section there.
 
-## When email does not exist
+## The inbox
 
-`/meta` reports `smtpConfigured`, and `components/app/NotifyCheckbox.tsx` is the one control that reads it: disabled, with the reason where the switch is, rather than hidden. Somebody wondering why nobody got an email should find the answer where they went looking for the switch. The Settings page's four notification toggles do the same thing inline.
+The bell in `components/app/NotificationsBell.tsx` is the delivery mechanism. It counts the unread in its accessible name as well as on the badge, portals its panel to the body exactly like `Menu` and for the same clipping reason, and renders every row through `renderNotification` from `@inventory/shared` — the audit log's shared-renderer pattern, so the API never sends prose. Opening the panel posts `/notifications/read`, once, and only when something is unread: the rows are notices, not tasks, so there is no per-row read state to manage. The Settings page's two notification switches decide what the scheduled jobs put there.
 
 ## The import wizard
 

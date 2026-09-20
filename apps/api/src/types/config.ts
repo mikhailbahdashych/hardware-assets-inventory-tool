@@ -1,6 +1,6 @@
 // What `loadConfig()` (src/config.ts) produces: the whole environment, read
 // once, in one shape. Zero-config by design — every value has a self-hosting
-// default, and an instance with no SMTP at all is a supported way to run this.
+// default, and an instance with nothing set at all is a supported way to run.
 
 /**
  * Which database this instance runs on. Not a setting anybody chooses by name:

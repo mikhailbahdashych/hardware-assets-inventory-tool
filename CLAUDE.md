@@ -63,7 +63,7 @@ Same two processes, same ports, your checkout bind-mounted so hot reload still w
 - **TDD**: write the failing test first, watch it fail, then implement. Config files are exempt; behavior is not.
 - Work happens in sequential PRs; the repo owner merges every PR. Never merge.
 
-- **Email is optional, and that is a feature.** No `SMTP_HOST` means `deps.mailer` is null, and every path that would send has a link-based one that works instead. Delivery never fails the request that triggered it.
+- **There is no email — notices land in an in-app inbox.** `notifications` holds one row per recipient member, rendered into a sentence by `renderNotification` in `packages/shared` (the audit log's pattern), deduplicated by a unique `(member_id, dedupe_key)`. Personal notices reach the member linked to an employee; operational ones reach every member whose role grants the action. Invitations and password resets are copyable links, and an admin can set a member's password outright — so nothing waits on deliverability.
 - **Ship = tag.** `git tag vX.Y.Z && git push --tags` builds and publishes the image; upgrading an instance is pulling it and restarting, because migrations run at boot and are idempotent.
 
 ## Where things are decided

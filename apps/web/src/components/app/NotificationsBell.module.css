@@ -1,0 +1,63 @@
+.wrap {
+  position: relative;
+  display: inline-flex;
+}
+
+/* The visual half of the unread count; the bell's label carries it for readers. */
+.badge {
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  min-width: 15px;
+  height: 15px;
+  padding: 0 4px;
+  border-radius: 8px;
+  background: var(--err);
+  color: var(--surface);
+  font-size: 9.5px;
+  font-weight: 600;
+  line-height: 15px;
+  text-align: center;
+  pointer-events: none;
+}
+
+/* Portalled to the body and positioned fixed, exactly like Menu's panel. */
+.panel {
+  position: fixed;
+  z-index: 60;
+  width: 330px;
+  padding: 4px;
+  overflow-y: auto;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: var(--mshadow);
+}
+
+.row {
+  padding: 8px 9px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.row + .row {
+  border-top: 1px solid var(--border);
+}
+
+.sentence {
+  font-size: 12.5px;
+  color: var(--text);
+}
+
+.time {
+  font-size: 11px;
+  color: var(--faint);
+}
+
+.empty {
+  padding: 14px 9px;
+  font-size: 12.5px;
+  color: var(--muted);
+  text-align: center;
+}

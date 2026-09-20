@@ -10,7 +10,7 @@ import { signIn } from '../helpers/session';
 //
 // Runs after members.spec.ts, which left Grace Chen holding Viewer.
 
-const GRACE = { email: 'grace.chen@acme.io', name: 'Grace Chen', password: 'a-longer-passphrase' };
+const GRACE = { email: 'grace.chen@acme.io', name: 'Grace Chen', password: 'A-longer-passphrase1' };
 
 /** A row of the roles card — the matrix below repeats every label as a column. */
 const roleRow = (page: Page, label: string) =>

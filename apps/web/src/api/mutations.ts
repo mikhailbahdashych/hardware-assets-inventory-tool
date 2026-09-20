@@ -30,6 +30,7 @@ import type {
   WorkspaceDeleteInput,
   WorkspaceRole,
 } from '@inventory/shared';
+import type { NotificationsPayload } from '@inventory/shared';
 import { apiFetch, apiUpload } from './client';
 import { invalidateAdmin, invalidateInventory } from './invalidate';
 import { queryKeys } from './queries';
@@ -527,10 +528,44 @@ export const useResendInvite = () =>
     apiFetch<{ inviteUrl: string }>(`${member(id)}/resend-invite`, { method: 'POST' }),
   );
 
-/** The recovery path on an instance with no SMTP: an admin hands this over. */
+/**
+ * Opening the bell reads the whole inbox in one write. The cache is told the
+ * same fact rather than refetched — the answer is already known locally.
+ */
+export function useMarkNotificationsRead() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () => apiFetch('/notifications/read', { method: 'POST' }),
+    onSuccess: () => {
+      queryClient.setQueryData<NotificationsPayload>(
+        queryKeys.notifications,
+        (inbox) =>
+          inbox && {
+            notifications: inbox.notifications.map((row) => ({
+              ...row,
+              // A row read earlier keeps its own time; the rest were read now.
+              readAt: row.readAt ?? new Date().toISOString(),
+            })),
+            unreadCount: 0,
+          },
+      );
+    },
+  });
+}
+
+/** An admin hands the copyable link over out of band — the polite recovery. */
 export const useIssueResetLink = () =>
   useAdminMutation((id: string) =>
     apiFetch<{ resetUrl: string }>(`${member(id)}/reset-link`, { method: 'POST' }),
+  );
+
+/** The blunt recovery: a new password, set outright and handed over. */
+export const useSetMemberPassword = () =>
+  useAdminMutation((input: { id: string; newPassword: string }) =>
+    apiFetch(`${member(input.id)}/password`, {
+      method: 'POST',
+      body: { newPassword: input.newPassword },
+    }),
   );
 
 export const useUpdateMember = () =>

@@ -8,7 +8,6 @@ import {
   INVITED_SUMMARY,
   LINKED_SUMMARY,
   MAYA,
-  NO_SMTP_META,
   ROLES,
   session,
   VIEWER_ACTIONS,
@@ -170,25 +169,14 @@ describe('inviting a member', () => {
       email: 'grace@acme.io',
       role: 'manager',
       employeeId: 'emp-1',
-      sendEmail: true,
     });
 
-    // Without SMTP the link is the whole delivery mechanism, so it is shown
-    // as text as well as copied — a clipboard can fail, a readable field cannot.
+    // The link is the whole delivery mechanism, so it is shown as text as
+    // well as copied — a clipboard can fail, a readable field cannot.
     const link = await screen.findByLabelText('Invitation link');
     expect(link).toHaveValue('http://localhost:3000/accept-invite?token=abc123');
     await userEvent.click(screen.getByRole('button', { name: 'Copy' }));
     expect(writeText).toHaveBeenCalledWith('http://localhost:3000/accept-invite?token=abc123');
-  });
-
-  it('cannot offer to email the invitation on an instance with no SMTP', async () => {
-    renderApp({ ...ADMIN_ROUTES, 'GET /meta': { body: NO_SMTP_META } }, '/members');
-
-    await userEvent.click(await screen.findByRole('button', { name: /invite member/i }));
-    const checkbox = screen.getByRole('checkbox', { name: /send invitation email now/i });
-    expect(checkbox).toBeDisabled();
-    expect(checkbox).not.toBeChecked();
-    expect(screen.getByText(/No SMTP is configured/)).toBeInTheDocument();
   });
 
   it('offers every role the workspace has, with the words it gave them', async () => {

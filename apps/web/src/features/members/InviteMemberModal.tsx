@@ -10,10 +10,9 @@ import { RoleCards } from './RoleCards';
 import type { InviteMemberModalProps } from './types/inviteMemberModal';
 
 /**
- * Inviting grants sign-in access. The link comes back in the response whether
- * or not an email went out, so this ends on the link rather than on a claim
- * that something was sent — SMTP arrives in a later PR, and an instance
- * without it must still be able to add people.
+ * Inviting grants sign-in access. The link in the response is the whole
+ * delivery mechanism, so this ends on it, shown once as copyable text — the
+ * admin hands it over on a channel the workspace already trusts.
  */
 export function InviteMemberModal({ onClose }: InviteMemberModalProps) {
   const [email, setEmail] = useState('');

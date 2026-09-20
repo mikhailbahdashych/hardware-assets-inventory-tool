@@ -7,7 +7,8 @@ import type { MemberSummary } from '@/types/api';
 export type MembersDialog =
   | { kind: 'role'; member: MemberSummary }
   | { kind: 'remove'; member: MemberSummary }
-  | { kind: 'link'; title: string; subtitle: string; label: string; url: string };
+  | { kind: 'password'; member: MemberSummary }
+  | { kind: 'link'; title: string; subtitle: string; label: string; url: string; hint?: string };
 
 export interface MembersPageProps {
   /** What the signed-in member may do, resolved server-side — see `can`. */

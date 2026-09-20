@@ -144,9 +144,9 @@ export async function resendInvite(deps: AppDeps, actor: Actor, id: string): Pro
 }
 
 /**
- * The recovery path on an instance with no SMTP: an admin copies this link and
- * hands it over in person. It is never given to an anonymous requester — that
- * is why /auth/forgot-password answers 204 and issues nothing.
+ * The polite recovery path: an admin copies this link and hands it over in
+ * person. It is never given to an anonymous requester — which is why there is
+ * no /auth/forgot-password endpoint at all.
  */
 /**
  * The other recovery door: an admin sets the password outright and hands it

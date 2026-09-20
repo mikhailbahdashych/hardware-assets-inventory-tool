@@ -4,6 +4,7 @@ import { useBreadcrumbDetail } from '@/providers/BreadcrumbProvider';
 import { useModals } from '@/providers/ModalProvider';
 import { useDocumentTitle } from '@/lib/useDocumentTitle';
 import { useThemeControls } from './useThemeControls';
+import { NotificationsBell } from './NotificationsBell';
 import { breadcrumbForPath } from './nav';
 import type { TopbarProps } from './types/topbar';
 import styles from './Topbar.module.css';
@@ -31,6 +32,7 @@ export function Topbar({ orgName }: TopbarProps) {
           <span className={styles.searchLabel}>Search assets, people…</span>
           <Kbd>⌘K</Kbd>
         </button>
+        <NotificationsBell />
         <IconButton
           icon={theme === 'light' ? 'sun' : 'moon'}
           label="Toggle theme"

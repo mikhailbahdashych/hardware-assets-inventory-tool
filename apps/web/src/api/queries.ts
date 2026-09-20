@@ -1,5 +1,10 @@
 import { useQuery } from '@tanstack/react-query';
-import type { AuditType, RolesPayload, WorkflowPayload } from '@inventory/shared';
+import type {
+  AuditType,
+  NotificationsPayload,
+  RolesPayload,
+  WorkflowPayload,
+} from '@inventory/shared';
 import { ApiError, apiFetch } from './client';
 import type {
   Asset,
@@ -34,6 +39,7 @@ export const queryKeys = {
   workflow: ['workflow'] as const,
   roles: ['roles'] as const,
   members: ['members'] as const,
+  notifications: ['notifications'] as const,
   settings: ['settings'] as const,
   dashboard: ['dashboard'] as const,
   audit: (filter: AuditFilter) => ['audit', filter] as const,
@@ -188,6 +194,17 @@ export function useDashboard() {
   return useQuery({
     queryKey: queryKeys.dashboard,
     queryFn: () => apiFetch<DashboardPayload>('/dashboard'),
+  });
+}
+
+/**
+ * The signed-in member's own inbox — every member has one, so the bell asks
+ * unconditionally. `useMarkNotificationsRead` is the write half.
+ */
+export function useNotifications() {
+  return useQuery({
+    queryKey: queryKeys.notifications,
+    queryFn: () => apiFetch<NotificationsPayload>('/notifications'),
   });
 }
 
