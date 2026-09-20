@@ -27,7 +27,7 @@ export function AppShell({ member, permissions, orgName }: AppShellProps) {
             onSignOut={() => logout.mutate(undefined, { onSuccess: () => navigate('/login') })}
           />
           <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
-            <Topbar />
+            <Topbar orgName={orgName} />
             <div style={{ flex: 1, overflowY: 'auto' }}>
               <Outlet />
             </div>

@@ -27,12 +27,13 @@ const ICONS = {
     </>
   ),
   dots: (
-    // Filled, unlike the rest of the inventory: three stroked 1px rings are
-    // fog at the 14px this renders at, and a menu trigger has to read as one.
+    // Filled and unstroked, unlike the rest of the inventory: stroked 1px
+    // rings are fog at the 14px this renders at, and a menu trigger has to
+    // read as one. The radius is the whole drawn size — nothing inherits.
     <>
-      <circle cx="12" cy="12" r="1.6" fill="currentColor" />
-      <circle cx="19" cy="12" r="1.6" fill="currentColor" />
-      <circle cx="5" cy="12" r="1.6" fill="currentColor" />
+      <circle cx="12" cy="12" r="2.45" fill="currentColor" stroke="none" />
+      <circle cx="19" cy="12" r="2.45" fill="currentColor" stroke="none" />
+      <circle cx="5" cy="12" r="2.45" fill="currentColor" stroke="none" />
     </>
   ),
   gear: (

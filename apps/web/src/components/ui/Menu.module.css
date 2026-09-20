@@ -8,10 +8,12 @@
   width: 24px;
   height: 24px;
   border: 1px solid var(--border);
-  border-radius: 6px;
+  /* 5px and flex:none to match IconButton at this size, which this imitates. */
+  border-radius: 5px;
   background: none;
   color: var(--muted);
   cursor: pointer;
+  flex: none;
 }
 
 .trigger:hover,

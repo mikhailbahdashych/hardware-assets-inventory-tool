@@ -30,9 +30,13 @@ export const UNAUTHENTICATED = {
   body: { error: { code: 'unauthorized', message: 'Sign in to continue.' } },
 };
 
-/** Resets the state that outlives a render: theme lives on <html> and in localStorage. */
+/**
+ * Resets the state that outlives a render: theme lives on <html> and in
+ * localStorage, and the shell writes the tab title.
+ */
 export function resetAppState(): void {
   window.localStorage.clear();
   delete document.documentElement.dataset.theme;
   delete document.documentElement.dataset.density;
+  document.title = 'Inventory';
 }

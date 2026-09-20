@@ -7,7 +7,9 @@ import styles from './Menu.module.css';
 const GAP = 4;
 
 /**
- * The design's "···" overflow button and the menu behind it. Closes on Escape,
+ * The design's row-overflow button (the `dots` icon on a bordered square —
+ * the bare "···" glyph it drew vanished beside a column of em dashes) and the
+ * menu behind it. Closes on Escape,
  * on an outside click, on a scroll, and as soon as something is chosen — a menu
  * left open over the row it just changed is a menu pointing at stale data.
  *

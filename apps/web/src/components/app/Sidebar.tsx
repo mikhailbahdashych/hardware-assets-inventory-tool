@@ -4,6 +4,7 @@ import { Avatar, Icon, IconButton } from '@/components/ui';
 import { roleInfo, roleMap } from '@/lib/roles';
 import { useModals } from '@/providers/ModalProvider';
 import { isNavItemActive, navSectionsFor } from './nav';
+import type { NavItem } from './types/nav';
 import type { SidebarProps } from './types/sidebar';
 import styles from './Sidebar.module.css';
 
@@ -17,7 +18,7 @@ export function Sidebar({ member, permissions, orgName, onSignOut }: SidebarProp
   const roles = useRoles();
   const byId = roleMap(roles.data === undefined ? [] : roles.data.roles);
 
-  function navLink(item: (typeof sections.inventory)[number]) {
+  function navLink(item: NavItem) {
     return (
       <Link
         key={item.to}

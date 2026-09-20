@@ -45,7 +45,7 @@ const rowLabels = (rows: HTMLElement[]) =>
   rows.map((row) => within(row).getAllByRole('cell')[0]!.textContent);
 
 describe('reaching the workflow page', () => {
-  it('is in the admin section of the sidebar, between the log and the settings', async () => {
+  it('sits in the workspace half of the sidebar, marked current', async () => {
     renderApp(workspace().routes, '/workflow');
     const nav = await screen.findByRole('navigation', { name: 'Workspace' });
     expect(within(nav).getByRole('link', { name: 'Workflow' })).toHaveAttribute(

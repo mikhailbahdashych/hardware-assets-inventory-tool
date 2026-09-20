@@ -43,9 +43,8 @@ test('invites a viewer, who accepts and finds every mutation gone', async ({ pag
   await expect(
     viewer.getByRole('navigation', { name: 'Inventory' }).getByRole('link', { name: 'Assets' }),
   ).toBeVisible();
-  await expect(
-    viewer.getByRole('navigation', { name: 'Workspace' }).getByRole('link', { name: 'Admin' }),
-  ).toHaveCount(0);
+  // Absence wants the widest scope: not in either nav, not anywhere.
+  await expect(viewer.getByRole('link', { name: 'Admin' })).toHaveCount(0);
 
   await viewer.goto('/assets');
   await expect(viewer.getByRole('row').filter({ hasText: 'AST-0001' })).toBeVisible();

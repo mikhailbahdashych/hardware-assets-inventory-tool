@@ -117,9 +117,9 @@ test('the member who holds it reads the log and still creates nothing', async ({
 
   // Nothing else moved. The pages a role can reach never changed — what a role
   // may *do* is what the matrix decides.
-  const nav = auditor.getByRole('navigation', { name: 'Workspace' });
-  await expect(nav.getByRole('link', { name: 'Roles' })).toHaveCount(0);
-  await expect(nav.getByRole('link', { name: 'Admin' })).toHaveCount(0);
+  // Absence wants the widest scope: not in either nav, not anywhere.
+  await expect(auditor.getByRole('link', { name: 'Roles' })).toHaveCount(0);
+  await expect(auditor.getByRole('link', { name: 'Admin' })).toHaveCount(0);
   await auditor.goto('/assets');
   await expect(auditor.getByRole('button', { name: 'New asset' })).toHaveCount(0);
 

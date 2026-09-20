@@ -1,9 +1,10 @@
-import { screen, waitFor } from '@testing-library/react';
+import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   ADMIN_MEMBER,
   AUDITOR_ROLE,
+  DASHBOARD_ROUTES,
   EVERY_ACTION,
   READY_META,
   ROLES,
@@ -261,5 +262,17 @@ describe('when the instance cannot be described', () => {
 
     expect(await screen.findByRole('alert')).toHaveTextContent('Inventory could not start');
     expect(screen.getByRole('button', { name: 'Reload' })).toBeInTheDocument();
+  });
+});
+
+describe('the sidebar', () => {
+  it('keeps the inventory on top and workspace management at the bottom', async () => {
+    renderApp(DASHBOARD_ROUTES, '/dashboard');
+    const inventory = await screen.findByRole('navigation', { name: 'Inventory' });
+    const workspace = await screen.findByRole('navigation', { name: 'Workspace' });
+    expect(within(inventory).getByRole('link', { name: 'Assets' })).toBeInTheDocument();
+    expect(within(workspace).getByRole('link', { name: 'Members' })).toBeInTheDocument();
+    expect(within(workspace).getByRole('link', { name: 'Admin' })).toBeInTheDocument();
+    expect(within(inventory).queryByRole('link', { name: 'Members' })).toBeNull();
   });
 });
