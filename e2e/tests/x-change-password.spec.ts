@@ -15,7 +15,7 @@ test('a member changes their own password from the sidebar', async ({ page }) =>
   await page.getByLabel('Email').fill(GRACE.email);
   await page.getByLabel('Password').fill(GRACE.password);
   await page.getByRole('button', { name: 'Sign in', exact: true }).click();
-  await expect(page.getByRole('navigation')).toBeVisible();
+  await expect(page.getByRole('navigation', { name: 'Inventory' })).toBeVisible();
 
   await page.getByRole('button', { name: 'Change password' }).click();
   const dialog = page.getByRole('dialog');
@@ -32,7 +32,7 @@ test('a member changes their own password from the sidebar', async ({ page }) =>
   await expect(dialog).not.toBeVisible();
   // The consequence is announced, and this session survives it.
   await expect(page.getByText(/signed out everywhere else/)).toBeVisible();
-  await expect(page.getByRole('navigation')).toBeVisible();
+  await expect(page.getByRole('navigation', { name: 'Inventory' })).toBeVisible();
 
   // Around the loop: the new password is the account now. (That the old one
   // is refused is the API test's fact; a failed login here would spend the
@@ -42,5 +42,5 @@ test('a member changes their own password from the sidebar', async ({ page }) =>
   await page.getByLabel('Email').fill(GRACE.email);
   await page.getByLabel('Password').fill(NEW_PASSWORD);
   await page.getByRole('button', { name: 'Sign in', exact: true }).click();
-  await expect(page.getByRole('navigation')).toBeVisible();
+  await expect(page.getByRole('navigation', { name: 'Inventory' })).toBeVisible();
 });

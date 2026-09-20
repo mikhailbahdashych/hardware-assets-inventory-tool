@@ -1,9 +1,10 @@
-import { screen, waitFor } from '@testing-library/react';
+import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   ADMIN_MEMBER,
   AUDITOR_ROLE,
+  DASHBOARD_ROUTES,
   EVERY_ACTION,
   READY_META,
   ROLES,
@@ -104,7 +105,7 @@ describe('login', () => {
     await userEvent.click(screen.getByRole('button', { name: /^sign in$/i }));
 
     await waitFor(() => expect(api.called('POST /auth/login')).toBeDefined());
-    expect(await screen.findByRole('navigation')).toBeInTheDocument();
+    expect(await screen.findByRole('navigation', { name: 'Inventory' })).toBeInTheDocument();
   });
 
   it('shows the server message when the credentials are wrong', async () => {
@@ -171,11 +172,11 @@ describe('app shell', () => {
     expect(await screen.findByText('Acme Corp')).toBeInTheDocument();
     expect(screen.getByText('Tomasz Kowalski')).toBeInTheDocument();
     expect(await screen.findByText('Admin', { selector: 'div' })).toBeInTheDocument();
-    const nav = screen.getByRole('navigation');
-    expect(nav).toHaveTextContent('Dashboard');
-    expect(nav).toHaveTextContent('Assets');
-    expect(nav).toHaveTextContent('Employees');
-    expect(nav).toHaveTextContent('Members');
+    const inventory = screen.getByRole('navigation', { name: 'Inventory' });
+    expect(inventory).toHaveTextContent('Dashboard');
+    expect(inventory).toHaveTextContent('Assets');
+    expect(inventory).toHaveTextContent('Employees');
+    expect(screen.getByRole('navigation', { name: 'Workspace' })).toHaveTextContent('Members');
   });
 
   it('names a role the workspace invented, not one this build knows', async () => {
@@ -198,7 +199,7 @@ describe('app shell', () => {
 
   it('hides Admin from non-admins and keeps the page out of reach', async () => {
     renderApp(authenticatedRoutes({ ...ADMIN_MEMBER, role: 'viewer' }, VIEWER_ACTIONS), '/admin');
-    await screen.findByRole('navigation');
+    await screen.findByRole('navigation', { name: 'Inventory' });
     expect(screen.queryByRole('link', { name: 'Admin' })).toBeNull();
     await waitFor(() =>
       expect(screen.getByText('Dashboard', { selector: 'h1' })).toBeInTheDocument(),
@@ -238,7 +239,7 @@ describe('app shell', () => {
       authenticatedRoutes({ ...ADMIN_MEMBER, theme: 'dark', density: 'compact' }),
       '/dashboard',
     );
-    await screen.findByRole('navigation');
+    await screen.findByRole('navigation', { name: 'Inventory' });
     await waitFor(() => {
       expect(document.documentElement.dataset.theme).toBe('dark');
       expect(document.documentElement.dataset.density).toBe('compact');
@@ -261,5 +262,17 @@ describe('when the instance cannot be described', () => {
 
     expect(await screen.findByRole('alert')).toHaveTextContent('Inventory could not start');
     expect(screen.getByRole('button', { name: 'Reload' })).toBeInTheDocument();
+  });
+});
+
+describe('the sidebar', () => {
+  it('keeps the inventory on top and workspace management at the bottom', async () => {
+    renderApp(DASHBOARD_ROUTES, '/dashboard');
+    const inventory = await screen.findByRole('navigation', { name: 'Inventory' });
+    const workspace = await screen.findByRole('navigation', { name: 'Workspace' });
+    expect(within(inventory).getByRole('link', { name: 'Assets' })).toBeInTheDocument();
+    expect(within(workspace).getByRole('link', { name: 'Members' })).toBeInTheDocument();
+    expect(within(workspace).getByRole('link', { name: 'Admin' })).toBeInTheDocument();
+    expect(within(inventory).queryByRole('link', { name: 'Members' })).toBeNull();
   });
 });

@@ -49,7 +49,7 @@ test('deletes the workspace and leaves an instance asking to be set up', async (
   await page.getByLabel('Password').fill('another-good-passphrase');
   await page.getByRole('button', { name: 'Create workspace' }).click();
 
-  await expect(page.getByRole('navigation')).toBeVisible();
+  await expect(page.getByRole('navigation', { name: 'Inventory' })).toBeVisible();
   await expect(page.getByText('Globex', { exact: true })).toBeVisible();
   // Nothing came back with it.
   await page.goto('/assets');

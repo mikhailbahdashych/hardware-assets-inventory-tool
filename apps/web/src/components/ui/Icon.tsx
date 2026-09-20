@@ -26,6 +26,16 @@ const ICONS = {
       <path d="M21 2l-9.6 9.6M15.5 7.5l3 3L22 7l-3-3" />
     </>
   ),
+  dots: (
+    // Filled and unstroked, unlike the rest of the inventory: stroked 1px
+    // rings are fog at the 14px this renders at, and a menu trigger has to
+    // read as one. The radius is the whole drawn size — nothing inherits.
+    <>
+      <circle cx="12" cy="12" r="2.45" fill="currentColor" stroke="none" />
+      <circle cx="19" cy="12" r="2.45" fill="currentColor" stroke="none" />
+      <circle cx="5" cy="12" r="2.45" fill="currentColor" stroke="none" />
+    </>
+  ),
   gear: (
     <path d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
   ),

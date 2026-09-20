@@ -17,7 +17,7 @@ afterEach(() => {
 });
 
 const openPalette = async () => {
-  await screen.findByRole('navigation');
+  await screen.findByRole('navigation', { name: 'Inventory' });
   await userEvent.keyboard('{Meta>}k{/Meta}');
   return screen.findByRole('dialog');
 };
@@ -32,7 +32,7 @@ describe('opening and closing the palette', () => {
 
   it('opens on Ctrl-K too, for the people not on a Mac', async () => {
     renderApp(DASHBOARD_ROUTES, '/dashboard');
-    await screen.findByRole('navigation');
+    await screen.findByRole('navigation', { name: 'Inventory' });
     await userEvent.keyboard('{Control>}k{/Control}');
     expect(await screen.findByRole('dialog')).toBeInTheDocument();
   });

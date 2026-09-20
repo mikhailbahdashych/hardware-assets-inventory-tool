@@ -3,7 +3,8 @@ import { useRoles } from '@/api/queries';
 import { Avatar, Icon, IconButton } from '@/components/ui';
 import { roleInfo, roleMap } from '@/lib/roles';
 import { useModals } from '@/providers/ModalProvider';
-import { isNavItemActive, navItemsFor } from './nav';
+import { isNavItemActive, navSectionsFor } from './nav';
+import type { NavItem } from './types/nav';
 import type { SidebarProps } from './types/sidebar';
 import styles from './Sidebar.module.css';
 
@@ -11,11 +12,25 @@ export function Sidebar({ member, permissions, orgName, onSignOut }: SidebarProp
   const { pathname } = useLocation();
   // The same call the palette's action makes — one modal, two doors.
   const { openModal } = useModals();
-  const items = navItemsFor(permissions);
+  const sections = navSectionsFor(permissions);
   // The role under the member's name is a row's label, not a word this build
   // knows — the same lookup the Members page's pills go through.
   const roles = useRoles();
   const byId = roleMap(roles.data === undefined ? [] : roles.data.roles);
+
+  function navLink(item: NavItem) {
+    return (
+      <Link
+        key={item.to}
+        to={item.to}
+        className={styles.navItem}
+        aria-current={isNavItemActive(item.to, pathname) ? 'page' : undefined}
+      >
+        <Icon name={item.icon} size={15} />
+        {item.label}
+      </Link>
+    );
+  }
 
   return (
     <div className={styles.sidebar}>
@@ -29,19 +44,14 @@ export function Sidebar({ member, permissions, orgName, onSignOut }: SidebarProp
         </div>
       </div>
 
-      <nav className={styles.nav} aria-label="Sections">
-        {items.map((item) => (
-          <Link
-            key={item.to}
-            to={item.to}
-            className={styles.navItem}
-            data-gap-before={item.gapBefore}
-            aria-current={isNavItemActive(item.to, pathname) ? 'page' : undefined}
-          >
-            <Icon name={item.icon} size={15} />
-            {item.label}
-          </Link>
-        ))}
+      <nav className={styles.nav} aria-label="Inventory">
+        {sections.inventory.map((item) => navLink(item))}
+      </nav>
+
+      {/* The workspace manages itself from the bottom, next to the person
+          doing it; the inventory everybody came for keeps the top. */}
+      <nav className={`${styles.nav} ${styles.navBottom}`} aria-label="Workspace">
+        {sections.workspace.map((item) => navLink(item))}
       </nav>
 
       <div className={styles.footer}>

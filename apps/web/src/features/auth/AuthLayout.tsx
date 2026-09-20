@@ -2,6 +2,7 @@ import { useId } from 'react';
 import { ApiError } from '@/api/client';
 import { useMeta } from '@/api/queries';
 import { Icon, IconButton } from '@/components/ui';
+import { useDocumentTitle } from '@/lib/useDocumentTitle';
 import { useTheme } from '@/providers/ThemeProvider';
 import type { AuthFieldProps, AuthLayoutProps, FormErrorProps } from './types/authLayout';
 import styles from './Auth.module.css';
@@ -10,6 +11,9 @@ import styles from './Auth.module.css';
 export function AuthLayout({ title, subtitle, children, below }: AuthLayoutProps) {
   const { theme, toggleTheme } = useTheme();
   const { data: meta } = useMeta();
+  // The tab says what the screen says — these pages name themselves fully
+  // ("Sign in to Inventory"), so nothing needs appending.
+  useDocumentTitle(title);
 
   return (
     <div className={styles.screen}>

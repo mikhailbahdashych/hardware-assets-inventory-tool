@@ -22,7 +22,7 @@ export async function signInFresh(page: Page): Promise<void> {
   await page.getByLabel('Email').fill(ADMIN.email);
   await page.getByLabel('Password').fill(ADMIN.password);
   await page.getByRole('button', { name: 'Sign in', exact: true }).click();
-  await expect(page.getByRole('navigation')).toBeVisible();
+  await expect(page.getByRole('navigation', { name: 'Inventory' })).toBeVisible();
 }
 
 /**
@@ -38,7 +38,7 @@ export async function signIn(page: Page): Promise<void> {
     const cookies = JSON.parse(readFileSync(STATE_FILE, 'utf8')) as Cookie[];
     await page.context().addCookies(cookies);
     await page.goto('/dashboard');
-    await expect(page.getByRole('navigation')).toBeVisible();
+    await expect(page.getByRole('navigation', { name: 'Inventory' })).toBeVisible();
     return;
   }
 

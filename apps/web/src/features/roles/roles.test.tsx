@@ -41,9 +41,9 @@ const rowLabels = (rows: HTMLElement[]) =>
   rows.map((row) => within(row).getAllByRole('cell')[0]!.textContent);
 
 describe('reaching the roles page', () => {
-  it('is in the admin section of the sidebar, after the workflow', async () => {
+  it('sits in the workspace half of the sidebar, marked current', async () => {
     renderApp(workspace().routes, '/roles');
-    const nav = await screen.findByRole('navigation');
+    const nav = await screen.findByRole('navigation', { name: 'Workspace' });
     expect(within(nav).getByRole('link', { name: 'Roles' })).toHaveAttribute(
       'aria-current',
       'page',
@@ -59,7 +59,7 @@ describe('reaching the roles page', () => {
       },
       '/roles',
     );
-    await screen.findByRole('navigation');
+    await screen.findByRole('navigation', { name: 'Inventory' });
     expect(screen.queryByRole('link', { name: 'Roles' })).toBeNull();
     await waitFor(() =>
       expect(screen.getByText('Dashboard', { selector: 'h1' })).toBeInTheDocument(),

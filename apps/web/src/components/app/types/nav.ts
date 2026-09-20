@@ -5,8 +5,15 @@ export interface NavItem {
   label: string;
   to: string;
   icon: IconName;
-  /** The design separates Admin from the other sections with a 10px gap. */
-  gapBefore?: boolean;
+}
+
+/**
+ * The sidebar's two halves: the inventory everybody works in on top, and the
+ * management of the workspace itself pinned to the bottom, above the member.
+ */
+export interface NavSections {
+  inventory: NavItem[];
+  workspace: NavItem[];
 }
 
 /** A nav item plus the permission that reveals it, if it needs one. */

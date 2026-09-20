@@ -37,12 +37,14 @@ test('invites a viewer, who accepts and finds every mutation gone', async ({ pag
   await viewer.getByLabel('Your name').fill(GRACE.name);
   await viewer.getByLabel('Password').fill(GRACE.password);
   await viewer.getByRole('button', { name: 'Join workspace' }).click();
-  await expect(viewer.getByRole('navigation')).toBeVisible();
+  await expect(viewer.getByRole('navigation', { name: 'Inventory' })).toBeVisible();
 
   // Read-only everywhere: the lists open, nothing on them acts.
-  const nav = viewer.getByRole('navigation');
-  await expect(nav.getByRole('link', { name: 'Assets' })).toBeVisible();
-  await expect(nav.getByRole('link', { name: 'Admin' })).toHaveCount(0);
+  await expect(
+    viewer.getByRole('navigation', { name: 'Inventory' }).getByRole('link', { name: 'Assets' }),
+  ).toBeVisible();
+  // Absence wants the widest scope: not in either nav, not anywhere.
+  await expect(viewer.getByRole('link', { name: 'Admin' })).toHaveCount(0);
 
   await viewer.goto('/assets');
   await expect(viewer.getByRole('row').filter({ hasText: 'AST-0001' })).toBeVisible();

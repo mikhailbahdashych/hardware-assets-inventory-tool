@@ -1,20 +1,25 @@
+/* A bordered square like IconButton's, not a bare glyph: the old faint "···"
+   sat beside a column of em dashes and read as data, not as a control. */
 .trigger {
   margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   width: 24px;
   height: 24px;
-  border: none;
+  border: 1px solid var(--border);
+  /* 5px and flex:none to match IconButton at this size, which this imitates. */
   border-radius: 5px;
   background: none;
-  color: var(--faint);
+  color: var(--muted);
   cursor: pointer;
-  font: inherit;
-  font-size: 14px;
-  line-height: 1;
+  flex: none;
 }
 
 .trigger:hover,
 .trigger[aria-expanded='true'] {
   background: var(--hover);
+  color: var(--text);
 }
 
 /* Portalled to the body: a table cell clips its overflow and the card clips to
