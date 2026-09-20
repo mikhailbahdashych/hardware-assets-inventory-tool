@@ -11,7 +11,7 @@ variable "name_prefix" {
 
   validation {
     # The narrowest rules any of the names built from this have to satisfy: an
-    # S3 bucket prefix is lower-case only, and a load balancer name caps at 32
+    # S3 bucket prefix is lower-case only, and an RDS identifier caps at 63
     # characters — 24 here leaves room for the longest suffix in the stack and
     # then some. Failing on the variable beats failing on the twentieth
     # resource of an apply.
@@ -33,7 +33,7 @@ variable "tags" {
 }
 
 variable "vpc_cidr" {
-  description = "The VPC's address range. The four /24 subnets are carved out of it."
+  description = "The VPC's address range. The three /24 subnets are carved out of it."
   type        = string
   default     = "10.0.0.0/16"
 }
@@ -62,6 +62,40 @@ variable "db_allocated_storage" {
   default     = 20
 }
 
+variable "app_url" {
+  description = "The public address browsers will use, when your own edge (proxy, VPN, load balancer) stands in front of the instance. The app's origin guard compares every save against it, so it must be exactly what the address bar says. Null means the instance is the front door: http://<the Elastic IP>."
+  type        = string
+  default     = null
+
+  validation {
+    # The app validates APP_URL at boot and refuses anything that is not an
+    # http(s) URL — which under --restart=always is a crash loop behind an
+    # address that answers nothing. Failing on the variable beats that.
+    condition     = var.app_url == null || can(regex("^https?://", var.app_url))
+    error_message = "app_url must start with http:// or https:// — it is what a browser's address bar will say."
+  }
+}
+
+variable "trust_proxy" {
+  description = "Your edge's address or CIDR — 203.0.113.7 for a proxy out on the internet, 10.0.0.0/8 for one inside your network. It keys the sign-in rate limits on the real client instead of the proxy. An address, not `true` (accepted, but it trusts the whole forwarded chain), and never a hop count — the app refuses one at boot. Null means nothing is in front."
+  type        = string
+  default     = null
+
+  validation {
+    # The app refuses the pre-0.2 numeric form at boot; refuse it at plan time.
+    condition     = var.trust_proxy == null || !can(regex("^[0-9]+$", trimspace(var.trust_proxy)))
+    error_message = "trust_proxy is the edge's address or CIDR, not a hop count."
+  }
+
+  validation {
+    # Half an edge is not a configuration: with something in front, browsers
+    # see ITS address, so app_url must say so or the origin guard 403s every
+    # save. This cross-variable check is also why required_version is >= 1.9.
+    condition     = var.trust_proxy == null || var.app_url != null
+    error_message = "trust_proxy without app_url cannot work: the origin guard needs the edge's address too."
+  }
+}
+
 variable "timezone" {
   description = "TZ for the container. The scheduled jobs run on wall-clock time, so this decides when 08:00 is."
   type        = string
@@ -72,27 +106,6 @@ variable "bucket_force_destroy" {
   description = "Whether `terraform destroy` may delete the attachments bucket with objects still in it. Off, because a bucket that empties itself on a typo is not a feature — turn it on deliberately before tearing the stack down."
   type        = bool
   default     = false
-}
-
-variable "domain" {
-  description = "Public hostname to serve on. Null (the default) means the app answers on the instance's Elastic IP over plain HTTP; a name here creates an ACM certificate, an ALB and a Route53 record, and APP_URL becomes https://<domain>."
-  type        = string
-  default     = null
-}
-
-variable "route53_zone_id" {
-  description = "The hosted zone `domain` lives in. Route53 is where both the certificate validation record and the A record are written, so the zone has to be here."
-  type        = string
-  default     = null
-
-  validation {
-    # Half the domain module is not a state anything can be applied from: a
-    # certificate with nowhere to prove itself never validates, and an apply
-    # would hang for the whole of aws_acm_certificate_validation's default
-    # create timeout — 75 minutes — before saying so.
-    condition     = (var.domain == null) == (var.route53_zone_id == null)
-    error_message = "Set both domain and route53_zone_id, or neither."
-  }
 }
 
 locals {
@@ -106,8 +119,6 @@ locals {
   # instance's bucket grants to it, so the two have to agree, and this is the
   # side that says so.
   attachments_prefix = "uploads/"
-
-  domain_enabled = var.domain != null
 
   # A private ECR image needs a `docker login` on the instance and four extra
   # ecr:* grants on its role; a public one (ghcr, docker hub) needs neither, so

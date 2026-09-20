@@ -30,8 +30,9 @@ locals {
   # APP_URL has to be exactly the address a browser types. The app compares
   # every mutating request's Origin against it and answers 403 on a mismatch,
   # so a wrong value here is not a cosmetic thing: it is an instance where
-  # nothing saves, starting with /setup.
-  app_url = local.domain_enabled ? "https://${var.domain}" : "http://${aws_eip.app.public_ip}"
+  # nothing saves, starting with /setup. With an operator-managed edge in
+  # front, var.app_url is that edge's address; alone, the EIP is the address.
+  app_url = coalesce(var.app_url, "http://${aws_eip.app.public_ip}")
 }
 
 # Allocated before the instance, because user_data has to be able to name it.
@@ -63,12 +64,12 @@ resource "aws_security_group" "app" {
   }
 }
 
-# Without the domain module the instance is the front door, so the world
-# reaches it directly. With it, dns.tf adds a rule for the load balancer's
-# security group instead and these two are not created at all.
+# The instance is the front door: this stack ends at a public IP over plain
+# HTTP, and the domain, the proxy and the TLS in front of it are the
+# operator's own edge — see "Before you call it production" in the README.
+# An edge does not close this: narrow cidr_ipv4 to the edge's address once
+# one is in front, or anybody who learns the IP still walks straight past it.
 resource "aws_vpc_security_group_ingress_rule" "app_http" {
-  count = local.domain_enabled ? 0 : 1
-
   security_group_id = aws_security_group.app.id
   description       = "HTTP from anywhere"
   cidr_ipv4         = "0.0.0.0/0"
@@ -78,8 +79,6 @@ resource "aws_vpc_security_group_ingress_rule" "app_http" {
 }
 
 resource "aws_vpc_security_group_ingress_rule" "app_https" {
-  count = local.domain_enabled ? 0 : 1
-
   security_group_id = aws_security_group.app.id
   # Nothing listens here yet. It is open because the usual next step for an
   # instance on a bare IP is a TLS terminator on the box itself (docs/
@@ -102,7 +101,7 @@ resource "aws_vpc_security_group_egress_rule" "app_all" {
 resource "aws_instance" "app" {
   ami           = data.aws_ami.al2023.id
   instance_type = var.instance_type
-  subnet_id     = aws_subnet.public[0].id
+  subnet_id     = aws_subnet.public.id
 
   vpc_security_group_ids = [aws_security_group.app.id]
   iam_instance_profile   = aws_iam_instance_profile.app.name
@@ -118,13 +117,8 @@ resource "aws_instance" "app" {
     app_url            = local.app_url
     timezone           = var.timezone
     public_ip          = aws_eip.app.public_ip
-    # Only behind the load balancer. Set on an instance with nothing in front
-    # of it, X-Forwarded-For becomes a header any client writes for itself —
-    # and the sign-in rate limits are keyed on what it says. The value is the
-    # VPC's CIDR: the balancer's addresses live in it and move around, and the
-    # security group already admits nobody else on port 80.
-    trust_proxy = local.domain_enabled
-    vpc_cidr    = var.vpc_cidr
+    # Empty string rather than null: templatefile conditionals test strings.
+    trust_proxy = var.trust_proxy == null ? "" : var.trust_proxy
   })
 
   # The image tag is read by user_data at boot, so a new tag is a new script,

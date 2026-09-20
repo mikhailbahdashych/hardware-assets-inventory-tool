@@ -35,19 +35,14 @@ resource "aws_internet_gateway" "main" {
   }
 }
 
-# Two public subnets for one instance, because an ALB needs a subnet in each of
-# two zones before it will exist at all. Without the domain module the second
-# one sits empty and costs nothing.
 resource "aws_subnet" "public" {
-  count = 2
-
   vpc_id                  = aws_vpc.main.id
-  cidr_block              = cidrsubnet(var.vpc_cidr, 8, count.index)
-  availability_zone       = data.aws_availability_zones.available.names[count.index]
+  cidr_block              = cidrsubnet(var.vpc_cidr, 8, 0)
+  availability_zone       = data.aws_availability_zones.available.names[0]
   map_public_ip_on_launch = true
 
   tags = {
-    Name = "${var.name_prefix}-public-${count.index + 1}"
+    Name = "${var.name_prefix}-public"
   }
 }
 
@@ -79,9 +74,7 @@ resource "aws_route_table" "public" {
 }
 
 resource "aws_route_table_association" "public" {
-  count = length(aws_subnet.public)
-
-  subnet_id      = aws_subnet.public[count.index].id
+  subnet_id      = aws_subnet.public.id
   route_table_id = aws_route_table.public.id
 }
 

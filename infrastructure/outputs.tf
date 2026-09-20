@@ -8,6 +8,11 @@ output "app_url" {
   value       = local.app_url
 }
 
+output "public_ip" {
+  description = "The instance's Elastic IP — the address to point your own edge at. With app_url set, app_url above is what browsers see and this is what your proxy forwards to."
+  value       = aws_eip.app.public_ip
+}
+
 output "instance_id" {
   description = "For `aws ssm start-session --target <id>` — the only way in, since this stack creates no SSH key and opens no port 22."
   value       = aws_instance.app.id

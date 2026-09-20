@@ -53,17 +53,6 @@ chmod 0644 '${rds_ca_path}'
 # The trace goes off for exactly as long as it takes to read the connection
 # string and write it down. Everything else about this boot is worth having in
 # the log; a database password in a world-readable log file is not.
-#
-# TRUST_PROXY is the VPC's CIDR and not `true`, which would be a hole rather
-# than a setting. Fastify resolves `request.ip` to the last address it still
-# trusts in `X-Forwarded-For`, and `true` trusts the whole header — so it lands
-# on the LEFT-most entry, the one the client wrote for itself. The load
-# balancer appends the address it saw instead of replacing the header, so that
-# entry survives. The CIDR names the balancer the only way that stays true as
-# its addresses move around inside the VPC — and the instance's security group
-# admits nobody else on port 80. A hop count (`1`) is the pre-0.2 form and the
-# app refuses to boot on it: fastify disabled numeric trust because a count
-# cannot verify who actually connected.
 set +x
 db_url="$(aws ssm get-parameter --region '${region}' --name '${ssm_parameter_name}' \
   --with-decryption --query Parameter.Value --output text)"
@@ -75,8 +64,8 @@ S3_BUCKET=${s3_bucket}
 S3_REGION=${region}
 APP_URL=${app_url}
 TZ=${timezone}
-%{ if trust_proxy ~}
-TRUST_PROXY=${vpc_cidr}
+%{ if trust_proxy != "" ~}
+TRUST_PROXY=${trust_proxy}
 %{ endif ~}
 EOF
 set -x

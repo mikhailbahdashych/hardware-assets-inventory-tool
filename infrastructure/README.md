@@ -6,7 +6,7 @@ If one machine is still enough, it probably is: [`docs/deployment.md`](../docs/d
 
 > **Before you apply anything, read [Tearing it down](#tearing-it-down).** The bucket is versioned, and a versioned bucket refuses to be deleted while a single object version is left in it — which is how a five-minute experiment becomes a stack you cannot remove without going and reading this file anyway. It is one variable. Know which one before you start.
 
-No file here is a module and no file here has a `count` on it for cleverness's sake. One responsibility per file — `vpc.tf`, `ec2.tf`, `rds.tf`, `s3.tf`, `iam.tf`, `dns.tf` — because the person changing this is either an operator with a specific question or a Claude Code session that has been told to change one thing.
+No file here is a module and no file here has a `count` on it for cleverness's sake. One responsibility per file — `vpc.tf`, `ec2.tf`, `rds.tf`, `s3.tf`, `iam.tf` — because the person changing this is either an operator with a specific question or a Claude Code session that has been told to change one thing.
 
 ## What it creates
 
@@ -20,10 +20,10 @@ No file here is a module and no file here has a `count` on it for cleverness's s
   │ VPC 10.0.0.0/16                               │
   │                                               │
   │  public  10.0.0.0/24  ┌──────────────────┐    │
-  │    (az a)             │ EC2 t4g.small    │    │
+  │                       │ EC2 t4g.small    │    │
   │                       │  docker :80→3000 │    │
-  │  public  10.0.1.0/24  │  + Elastic IP    │    │
-  │    (az b, empty)      └────────┬─────────┘    │
+  │                       │  + Elastic IP    │    │
+  │                       └────────┬─────────┘    │
   │                                │ 5432         │
   │  private 10.0.10.0/24 ┌────────┴─────────┐    │
   │  private 10.0.11.0/24 │ RDS PostgreSQL 17│    │
@@ -39,7 +39,7 @@ No file here is a module and no file here has a `count` on it for cleverness's s
 
 **There is no NAT gateway, on purpose.** The instance sits in a public subnet with an Elastic IP, so its outbound traffic — the image pull, Session Manager, S3 — leaves through the internet gateway directly. A NAT gateway would cost about as much as the instance and buy this stack nothing: the one thing it would protect is a private instance, and a private instance cannot be reached by a browser either. The database is private and speaks to nobody but the instance's security group.
 
-**The second public subnet is empty** until you turn on the domain module. An Application Load Balancer will not exist without subnets in two availability zones, so it is cheaper to create the subnet now than to renumber the VPC later. An empty subnet costs nothing.
+**The stack ends at plain HTTP on the Elastic IP, on purpose.** The domain, the proxy, the VPN and the TLS in front of it are your own edge — every company already has one, and this stack refuses to guess at it. Point yours at the instance (`terraform output public_ip`) and set two variables so the app knows: `app_url` (what the address bar will say — the origin guard refuses every save whose Origin differs) and `trust_proxy` (the edge's address or CIDR, so the sign-in rate limits see clients rather than the edge). Two honest limits of that arrangement: the instance stays reachable directly until you narrow the two ingress rules in `ec2.tf` to the edge's address, and an edge outside AWS reaches the instance over plain HTTP across the internet — if that hop matters, terminate TLS on the box instead. No edge yet? Port 443 is already open for exactly that — [`docs/deployment.md`](../docs/deployment.md) has the Caddy block.
 
 **Attachment traffic takes the S3 gateway endpoint**, which is attached to both route tables. It is free, and it keeps the one thing that will actually grow off the instance's public path.
 
@@ -155,15 +155,15 @@ aws ssm get-parameter --with-decryption --output text --query Parameter.Value \
 | `region`               | `eu-central-1`     | Everything lives here. The AMI is looked up in it, so changing it needs no second edit.                                                                                                                        |
 | `name_prefix`          | `inventory`        | On every resource name and the `Project` tag. A second value gives you a second stack in one account.                                                                                                          |
 | `tags`                 | `{}`               | Merged into the provider's `default_tags`, on top of `Project` and `ManagedBy`.                                                                                                                                |
-| `vpc_cidr`             | `10.0.0.0/16`      | The four /24s are carved out of it.                                                                                                                                                                            |
+| `vpc_cidr`             | `10.0.0.0/16`      | The three /24s are carved out of it.                                                                                                                                                                           |
 | `app_image`            | `ghcr.io/…:latest` | The container to run. An ECR hostname here grows the login and the four `ecr:` grants; a public registry needs neither.                                                                                        |
 | `instance_type`        | `t4g.small`        | The AMI architecture follows it — `t3.small` picks the x86_64 AL2023 by itself.                                                                                                                                |
 | `db_instance_class`    | `db.t4g.micro`     | RDS class.                                                                                                                                                                                                     |
 | `db_allocated_storage` | `20`               | GB, and a floor: `rds.tf` autoscales it up to 100 GB or twice this value, whichever is larger, rather than let a full volume stop the app. Raising it applies in place; lowering it is not a thing RDS can do. |
 | `timezone`             | `UTC`              | `TZ` for the container. The nightly jobs run on wall-clock time.                                                                                                                                               |
 | `bucket_force_destroy` | `false`            | Whether `destroy` may delete a bucket with objects in it. See [Tearing it down](#tearing-it-down).                                                                                                             |
-| `domain`               | `null`             | A hostname here creates the certificate, the load balancer and the DNS record.                                                                                                                                 |
-| `route53_zone_id`      | `null`             | The zone `domain` lives in. Both or neither — the stack refuses half.                                                                                                                                          |
+| `app_url`              | `null`             | Only with your own edge in front: the public address browsers use. The origin guard compares every save against it. Null means the front door is `http://<the EIP>`. Changing it replaces the instance.        |
+| `trust_proxy`          | `null`             | Only with your own edge in front: its address or CIDR, so rate limits key on clients. An address, never `true`, never a hop count — the app refuses one at boot.                                               |
 
 ## Outputs
 
@@ -202,32 +202,14 @@ Every one of these is a variable and a `terraform apply`:
 
 - **A bigger instance**: `instance_type`. Within one architecture (`t4g.small` → `t4g.medium`) this is an in-place change — Terraform stops the instance, resizes it and starts it again, so the instance id and the Elastic IP both survive. Across architectures (`t4g` → `t3`) the AMI lookup follows the instance type, and a different AMI means a **replacement**. Read the plan: `~ instance_type` is the first case, `must be replaced` is the second — unless a newer AL2023 has shipped since your last apply, in which case `most_recent = true` moves the AMI under any plan at all and this one says `must be replaced` too. That is normal rather than wrong: the moving AMI is also how this stack gets OS patches. It costs the same three minutes as an upgrade, and nothing in RDS or S3 notices.
 - **A bigger database**: `db_instance_class`, and `db_allocated_storage` for the disk. Both apply immediately rather than waiting for a maintenance window — `apply_immediately = true` in `rds.tf` — which means both cause a short outage when you run them.
-- **A real front door**: `domain` and `route53_zone_id`. See below.
 
 What is _not_ a variable: a second instance. The scheduler runs in-process, so two of them would both fire the nightly jobs. Scale the machine, not the count — the same rule as the single-container deployment, for the same reason.
-
-## The domain module
-
-Set both and `dns.tf` wakes up:
-
-```hcl
-domain          = "inventory.example.com"
-route53_zone_id = "Z0123456789ABCDEFGHIJ"
-```
-
-You get an ACM certificate validated over DNS, an Application Load Balancer across both public subnets, a target group pointing at the instance's port 80, a listener on 443 with a 301 from 80, and an A alias in the zone. Three things change on the instance at the same time: it stops accepting traffic from the world (only the load balancer's security group reaches its port 80), `APP_URL` becomes `https://<domain>`, and `TRUST_PROXY=<the VPC's CIDR>` is written into its environment so the sign-in rate limits see the client's address rather than the balancer's.
-
-That value names the balancer by where it lives, and `true` would be the wrong answer to the same question. The balancer **appends** the address it saw to `X-Forwarded-For` rather than replacing the header, and `TRUST_PROXY=true` makes the app believe the left-most entry — which is whatever the caller wrote there before the balancer ever saw it. A fresh forged address per request is a fresh rate-limit bucket per request, and a log full of addresses somebody chose. The CIDR trusts exactly the machines that can be the balancer — its addresses move around inside the VPC, and the instance's security group admits nothing else on port 80 anyway. (A hop count, the old form here, is refused at boot: fastify disabled numeric trust because a count cannot verify who connected.)
-
-Because `APP_URL` changes, **turning this on replaces the instance** — same three minutes as an upgrade.
-
-**This half has never been applied.** The default path — no domain, the app on its Elastic IP — is the one that gets stood up and torn down for real; the domain module was written and reviewed against the provider's documentation and not run. It is straightforward Terraform and there is nothing exotic in it, but treat the first `apply` with a domain as something to watch rather than something to trust, and expect to fix a detail or two. The certificate validation in particular waits on ACM seeing a DNS record, which is where a wrong zone id costs you the full `aws_acm_certificate_validation` create timeout — **75 minutes** by default — before it says so.
 
 ## Before you call it production
 
 The defaults here are a starter's defaults: everything is arranged so that the stack goes up in ten to fifteen minutes and comes down in about five. One of the differences is a decision; the rest are four lines.
 
-1. **Put TLS in front of it.** This is the one that is not a line, and it is first because the default is worse than it looks: with no `domain`, the app answers on a public IP over **plain HTTP** — and that is the transport for `/setup`, for every sign-in, and for the session cookie that comes back. Anyone on the path reads the admin password. Set `domain` and `route53_zone_id` for the load balancer and its certificate ([The domain module](#the-domain-module)), or terminate TLS on the instance yourself ([`docs/deployment.md`](../docs/deployment.md) has the Caddy block, and port 443 is already open for it). Until you do, treat the address as something to finish setup on and not something to hand around.
+1. **Put TLS in front of it.** This is the one that is not a line, and it is first because the default is worse than it looks: the app answers on a public IP over **plain HTTP** — and that is the transport for `/setup`, for every sign-in, and for the session cookie that comes back. Anyone on the path reads the admin password. Put your company's own edge in front and set `app_url` and `trust_proxy` to match, or terminate TLS on the instance yourself ([`docs/deployment.md`](../docs/deployment.md) has the Caddy block, and port 443 is already open for it). Until you do, treat the address as something to finish setup on and not something to hand around.
 2. **`deletion_protection = true`** in `rds.tf`. Off, today, so `destroy` works.
 3. **`skip_final_snapshot = false`** in `rds.tf`, with a `final_snapshot_identifier`. Off, today, for the same reason.
 4. **`multi_az = true`** in `rds.tf`, if an availability zone going away should not be an outage. It roughly doubles the database cost.
@@ -268,9 +250,11 @@ On-demand list prices in `eu-central-1`, at 730 hours a month, **checked 23 Augu
 | S3 storage and requests, VPC endpoint       | pennies         | ~$0       |
 | **Total**                                   |                 | **~$37**  |
 
-Both t-family lines are burstable and launch in **unlimited** mode, so sustained load past the CPU baseline does not throttle — it bills surplus credits on top of the hourly rate above. Call it **$40 a month** with a little data transfer, which is the number to quote. Two things move it materially: the domain module adds an Application Load Balancer at roughly $20 a month before LCUs, and `multi_az = true` roughly doubles the database lines. Reserved instances or a Savings Plan take about a third off the two compute lines if this is going to run for a year.
+Both t-family lines are burstable and launch in **unlimited** mode, so sustained load past the CPU baseline does not throttle — it bills surplus credits on top of the hourly rate above. Call it **$40 a month** with a little data transfer, which is the number to quote. One thing moves it materially: `multi_az = true` roughly doubles the database lines. Reserved instances or a Savings Plan take about a third off the two compute lines if this is going to run for a year.
 
 ## When it does not work
+
+**The address answers nothing and the container keeps restarting.** `app_url` or `trust_proxy` is not a value the app accepts — it refuses at boot, and `--restart=always` retries forever. `sudo docker logs inventory` (over Session Manager) names the variable and what to write instead.
 
 **`app_url` answers nothing, minutes after the apply finished.** `user_data` is still running or it failed. Get on the instance and read `/var/log/cloud-init-output.log` — it is traced line by line, so the last line is the thing that broke. The two lines that write the connection string are deliberately not traced.
 
