@@ -67,6 +67,8 @@ resource "aws_security_group" "app" {
 # The instance is the front door: this stack ends at a public IP over plain
 # HTTP, and the domain, the proxy and the TLS in front of it are the
 # operator's own edge — see "Before you call it production" in the README.
+# An edge does not close this: narrow cidr_ipv4 to the edge's address once
+# one is in front, or anybody who learns the IP still walks straight past it.
 resource "aws_vpc_security_group_ingress_rule" "app_http" {
   security_group_id = aws_security_group.app.id
   description       = "HTTP from anywhere"

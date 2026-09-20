@@ -25,7 +25,7 @@
 # what keys the sign-in rate limits on the client instead of the edge — an
 # address, never `true`, never a hop count.
 # app_url     = "https://inventory.example.com"
-# trust_proxy = "10.0.0.0/8"
+# trust_proxy = "203.0.113.7" # or a CIDR like 10.0.0.0/8 for an in-network edge
 
 # Set true before `terraform destroy`, and only then: it lets the apply delete
 # every attachment version in the bucket without asking.

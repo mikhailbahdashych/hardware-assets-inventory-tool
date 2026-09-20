@@ -1,5 +1,6 @@
 terraform {
-  # The floor this module was written against; CI pins 1.14.x.
+  # Cross-variable `validation` blocks (variables.tf uses one to keep
+  # `trust_proxy` from arriving without `app_url`) landed in 1.9.
   required_version = ">= 1.9.0"
 
   required_providers {

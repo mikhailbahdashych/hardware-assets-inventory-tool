@@ -6,7 +6,7 @@ If one machine is still enough, it probably is: [`docs/deployment.md`](../docs/d
 
 > **Before you apply anything, read [Tearing it down](#tearing-it-down).** The bucket is versioned, and a versioned bucket refuses to be deleted while a single object version is left in it — which is how a five-minute experiment becomes a stack you cannot remove without going and reading this file anyway. It is one variable. Know which one before you start.
 
-No file here is a module and no file here has a `count` on it for cleverness's sake. One responsibility per file — `vpc.tf`, `ec2.tf`, `rds.tf`, `s3.tf`, `iam.tf`, `dns.tf` — because the person changing this is either an operator with a specific question or a Claude Code session that has been told to change one thing.
+No file here is a module and no file here has a `count` on it for cleverness's sake. One responsibility per file — `vpc.tf`, `ec2.tf`, `rds.tf`, `s3.tf`, `iam.tf` — because the person changing this is either an operator with a specific question or a Claude Code session that has been told to change one thing.
 
 ## What it creates
 
@@ -39,7 +39,7 @@ No file here is a module and no file here has a `count` on it for cleverness's s
 
 **There is no NAT gateway, on purpose.** The instance sits in a public subnet with an Elastic IP, so its outbound traffic — the image pull, Session Manager, S3 — leaves through the internet gateway directly. A NAT gateway would cost about as much as the instance and buy this stack nothing: the one thing it would protect is a private instance, and a private instance cannot be reached by a browser either. The database is private and speaks to nobody but the instance's security group.
 
-**The stack ends at plain HTTP on the Elastic IP, on purpose.** The domain, the proxy, the VPN and the TLS in front of it are your own edge — every company already has one, and this stack refuses to guess at it. Point yours at the instance and set two variables so the app knows: `app_url` (what the address bar will say — the origin guard refuses every save whose Origin differs) and `trust_proxy` (the edge's address or CIDR, so the sign-in rate limits see clients rather than the edge). No edge yet? Port 443 is already open for a TLS terminator on the box itself — [`docs/deployment.md`](../docs/deployment.md) has the Caddy block.
+**The stack ends at plain HTTP on the Elastic IP, on purpose.** The domain, the proxy, the VPN and the TLS in front of it are your own edge — every company already has one, and this stack refuses to guess at it. Point yours at the instance (`terraform output public_ip`) and set two variables so the app knows: `app_url` (what the address bar will say — the origin guard refuses every save whose Origin differs) and `trust_proxy` (the edge's address or CIDR, so the sign-in rate limits see clients rather than the edge). Two honest limits of that arrangement: the instance stays reachable directly until you narrow the two ingress rules in `ec2.tf` to the edge's address, and an edge outside AWS reaches the instance over plain HTTP across the internet — if that hop matters, terminate TLS on the box instead. No edge yet? Port 443 is already open for exactly that — [`docs/deployment.md`](../docs/deployment.md) has the Caddy block.
 
 **Attachment traffic takes the S3 gateway endpoint**, which is attached to both route tables. It is free, and it keeps the one thing that will actually grow off the instance's public path.
 
@@ -155,7 +155,7 @@ aws ssm get-parameter --with-decryption --output text --query Parameter.Value \
 | `region`               | `eu-central-1`     | Everything lives here. The AMI is looked up in it, so changing it needs no second edit.                                                                                                                        |
 | `name_prefix`          | `inventory`        | On every resource name and the `Project` tag. A second value gives you a second stack in one account.                                                                                                          |
 | `tags`                 | `{}`               | Merged into the provider's `default_tags`, on top of `Project` and `ManagedBy`.                                                                                                                                |
-| `vpc_cidr`             | `10.0.0.0/16`      | The four /24s are carved out of it.                                                                                                                                                                            |
+| `vpc_cidr`             | `10.0.0.0/16`      | The three /24s are carved out of it.                                                                                                                                                                           |
 | `app_image`            | `ghcr.io/…:latest` | The container to run. An ECR hostname here grows the login and the four `ecr:` grants; a public registry needs neither.                                                                                        |
 | `instance_type`        | `t4g.small`        | The AMI architecture follows it — `t3.small` picks the x86_64 AL2023 by itself.                                                                                                                                |
 | `db_instance_class`    | `db.t4g.micro`     | RDS class.                                                                                                                                                                                                     |
@@ -253,6 +253,8 @@ On-demand list prices in `eu-central-1`, at 730 hours a month, **checked 23 Augu
 Both t-family lines are burstable and launch in **unlimited** mode, so sustained load past the CPU baseline does not throttle — it bills surplus credits on top of the hourly rate above. Call it **$40 a month** with a little data transfer, which is the number to quote. One thing moves it materially: `multi_az = true` roughly doubles the database lines. Reserved instances or a Savings Plan take about a third off the two compute lines if this is going to run for a year.
 
 ## When it does not work
+
+**The address answers nothing and the container keeps restarting.** `app_url` or `trust_proxy` is not a value the app accepts — it refuses at boot, and `--restart=always` retries forever. `sudo docker logs inventory` (over Session Manager) names the variable and what to write instead.
 
 **`app_url` answers nothing, minutes after the apply finished.** `user_data` is still running or it failed. Get on the instance and read `/var/log/cloud-init-output.log` — it is traced line by line, so the last line is the thing that broke. The two lines that write the connection string are deliberately not traced.
 
