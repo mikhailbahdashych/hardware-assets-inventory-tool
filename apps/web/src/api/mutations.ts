@@ -180,13 +180,6 @@ export function useLogout() {
   });
 }
 
-export function useForgotPassword() {
-  return useMutation({
-    mutationFn: (input: { email: string }) =>
-      apiFetch('/auth/forgot-password', { method: 'POST', body: input }),
-  });
-}
-
 /**
  * No invalidation: a password is not query data, and the sessions it revokes
  * are other browsers' problems. Plain useMutation on purpose.

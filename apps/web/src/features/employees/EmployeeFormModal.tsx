@@ -144,7 +144,7 @@ export function EmployeeFormModal({
         // still on file and can be invited from the Members page. Rolling the
         // record back to keep the pair atomic would throw away typed-in work.
         invite.mutate(
-          { email: created.email, role: inviteRole, employeeId: created.id, sendEmail: true },
+          { email: created.email, role: inviteRole, employeeId: created.id },
           {
             onSuccess: ({ inviteUrl: url }) => setInviteUrl(url),
             onError: (error) =>

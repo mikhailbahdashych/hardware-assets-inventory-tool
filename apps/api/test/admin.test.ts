@@ -191,8 +191,7 @@ describe('workspace settings', () => {
       assetTagPrefix: 'AST',
       warrantyLeadDays: 60,
       logRetentionMonths: 12,
-      emailWarrantyAlerts: true,
-      emailWeeklyDigest: false,
+      warrantyAlerts: true,
     });
   });
 
@@ -229,13 +228,13 @@ describe('workspace settings', () => {
       method: 'PATCH',
       url: '/api/v1/settings',
       cookie: admin,
-      body: { orgName: 'Acme Corporation', assetTagPrefix: 'acme', emailWeeklyDigest: true },
+      body: { orgName: 'Acme Corporation', assetTagPrefix: 'acme', returnReminders: false },
     });
     expect(res.statusCode).toBe(200);
     expect(res.json().settings).toMatchObject({
       orgName: 'Acme Corporation',
       assetTagPrefix: 'ACME',
-      emailWeeklyDigest: true,
+      returnReminders: false,
     });
 
     const [event] = await ctx.db
@@ -246,7 +245,7 @@ describe('workspace settings', () => {
     expect(JSON.parse(event!.params).changedFields).toEqual([
       'orgName',
       'assetTagPrefix',
-      'emailWeeklyDigest',
+      'returnReminders',
     ]);
   });
 

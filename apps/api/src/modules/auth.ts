@@ -4,7 +4,6 @@ import type { ZodTypeProvider } from 'fastify-type-provider-zod';
 import { z } from 'zod';
 import {
   acceptInviteInput,
-  forgotPasswordInput,
   loginInput,
   mfaChallengeInput,
   resetPasswordInput,
@@ -32,7 +31,6 @@ import {
 // for unknown emails so timing never reveals whether an account exists.
 const LOGIN_RATE = { max: 10, timeWindow: 15 * 60 * 1000 };
 const TOKEN_RATE = { max: 10, timeWindow: 60 * 60 * 1000 };
-const FORGOT_RATE = { max: 5, timeWindow: 60 * 60 * 1000 };
 
 export function registerAuthRoutes(app: FastifyInstance, deps: AppDeps): void {
   const typed = app.withTypeProvider<ZodTypeProvider>();
@@ -168,15 +166,8 @@ export function registerAuthRoutes(app: FastifyInstance, deps: AppDeps): void {
     return reply.status(204).send();
   });
 
-  // Without SMTP there is nothing to send; the response is 204 either way so
-  // the endpoint can never be used to probe which emails exist. Recovery
-  // without SMTP: an admin issues a copyable reset link from the Members page.
-  typed.post(
-    '/api/v1/auth/forgot-password',
-    { schema: { body: forgotPasswordInput }, config: { rateLimit: FORGOT_RATE } },
-    async (_request, reply) => reply.status(204).send(),
-  );
-
+  // Recovery is an admin's act: a copyable reset link, or setting a new
+  // password outright, both from the Members page. The login screen says so.
   typed.post(
     '/api/v1/auth/reset-password',
     { schema: { body: resetPasswordInput }, config: { rateLimit: TOKEN_RATE } },

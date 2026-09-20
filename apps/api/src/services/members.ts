@@ -11,11 +11,12 @@ import type {
   MemberSummary,
   ResetLink,
 } from '@/types/members.js';
-import { employees, members, roles } from '@/db/schema.js';
+import { employees, members, roles, sessions } from '@/db/schema.js';
 import { nowIso } from '@/lib/dates.js';
 import { AppError, invalidFields, notFound } from '@/lib/errors.js';
 import { DUPLICATE_MEMBER_EMAIL } from '@/lib/unique.js';
 import { newId } from '@/lib/ids.js';
+import { hashPassword } from '@/lib/password.js';
 import { serializeMemberSummary } from '@/lib/serialize.js';
 import { writeAudit } from './audit.js';
 import { issueAuthToken } from './auth-tokens.js';
@@ -147,6 +148,58 @@ export async function resendInvite(deps: AppDeps, actor: Actor, id: string): Pro
  * hands it over in person. It is never given to an anonymous requester — that
  * is why /auth/forgot-password answers 204 and issues nothing.
  */
+/**
+ * The other recovery door: an admin sets the password outright and hands it
+ * over however the company already talks — a password manager, a hallway.
+ * Refused on your own account on purpose: the self-service change requires the
+ * current password, and an admin's stolen session must not get to skip that.
+ * Every session the member had dies with the old credential; the admin knows
+ * the new one until the member changes it, and the UI says to ask them to.
+ */
+export async function setMemberPassword(
+  deps: AppDeps,
+  actor: Actor,
+  id: string,
+  newPassword: string,
+): Promise<void> {
+  const now = deps.now();
+  if (id === actor.id) {
+    throw new AppError(
+      409,
+      'self_password_set',
+      'Change your own password from the sidebar — it asks for your current one.',
+    );
+  }
+  const passwordHash = await hashPassword(newPassword);
+  await deps.db.transaction(async (tx) => {
+    const member = await requireMember(tx, id);
+    if (member.status !== 'active') {
+      throw new AppError(
+        409,
+        'not_active',
+        'That member has not accepted their invitation yet — resend the invite instead.',
+      );
+    }
+    await tx
+      .update(members)
+      .set({ passwordHash, updatedAt: nowIso(now) })
+      .where(eq(members.id, member.id));
+    await tx.delete(sessions).where(eq(sessions.memberId, member.id));
+    await writeAudit(
+      tx,
+      {
+        type: 'auth',
+        action: 'member.password_set',
+        actorMemberId: actor.id,
+        actorName: actor.displayName,
+        memberId: member.id,
+        params: { memberName: member.displayName },
+      },
+      now,
+    );
+  });
+}
+
 export async function issueResetLink(deps: AppDeps, actor: Actor, id: string): Promise<ResetLink> {
   const now = deps.now();
 

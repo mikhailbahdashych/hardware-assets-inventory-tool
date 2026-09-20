@@ -3,26 +3,6 @@
 // default, and an instance with no SMTP at all is a supported way to run this.
 
 /**
- * SMTP credentials. Half a credential is no credential, so this is either both
- * fields or `null` — a relay on a private network often wants neither.
- */
-export interface SmtpAuth {
-  user: string;
-  pass: string;
-}
-
-/** Where mail goes. `null` on `Config.smtp` means "this instance sends none". */
-export interface SmtpConfig {
-  host: string;
-  port: number;
-  /** Implicit TLS (port 465). STARTTLS on 587 is negotiated, not this flag. */
-  secure: boolean;
-  /** Relays on a private network often need none. */
-  auth: SmtpAuth | null;
-  from: string;
-}
-
-/**
  * Which database this instance runs on. Not a setting anybody chooses by name:
  * it is derived from whether `DATABASE_URL` is present, so a deployment picks
  * an engine by pointing at one.
@@ -60,5 +40,4 @@ export interface Config {
   s3Endpoint?: string;
   /** Path-style addressing, for stores that have no virtual-host names. */
   s3ForcePathStyle: boolean;
-  smtp: SmtpConfig | null;
 }

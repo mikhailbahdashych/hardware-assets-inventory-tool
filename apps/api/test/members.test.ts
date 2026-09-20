@@ -268,7 +268,7 @@ describe('issuing a password reset link', () => {
     const used = await ctx.app.inject({
       method: 'POST',
       url: '/api/v1/auth/reset-password',
-      body: { token, newPassword: 'a-brand-new-password' },
+      body: { token, newPassword: 'A-brand-new-password1' },
     });
     expect(used.statusCode).toBe(200);
   });

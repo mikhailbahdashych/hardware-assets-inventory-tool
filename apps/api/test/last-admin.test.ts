@@ -39,7 +39,7 @@ async function addMember(adminCookie: string, email: string, role: string) {
   const accepted = await inject(ctx.app, {
     method: 'POST',
     url: '/api/v1/auth/accept-invite',
-    body: { token, name: email.split('@')[0], password: 'correct-horse-battery' },
+    body: { token, name: email.split('@')[0], password: 'Correct-horse-battery1' },
   });
   return { cookie: sessionCookie(accepted), id: accepted.json().member.id as string };
 }

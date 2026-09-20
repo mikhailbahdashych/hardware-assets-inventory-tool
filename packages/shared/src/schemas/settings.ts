@@ -45,10 +45,8 @@ export const settingsPatchInput = z.object({
     .min(MIN_UPLOAD_QUOTA_MB, `At least ${MIN_UPLOAD_QUOTA_MB} MB.`)
     .max(MAX_UPLOAD_QUOTA_MB, `At most ${MAX_UPLOAD_QUOTA_MB} MB.`)
     .optional(),
-  emailWarrantyAlerts: z.boolean().optional(),
-  emailReturnReminders: z.boolean().optional(),
-  emailInvites: z.boolean().optional(),
-  emailWeeklyDigest: z.boolean().optional(),
+  warrantyAlerts: z.boolean().optional(),
+  returnReminders: z.boolean().optional(),
   /**
    * Turning this on makes every member enrol before they can use the app;
    * turning it off deletes every stored secret and recovery code, because a

@@ -1,6 +1,5 @@
 import type { Config } from '@/types/config.js';
 import type { Db, DbClient } from '@/types/db.js';
-import type { Mailer } from '@/types/mail.js';
 import type { AttachmentStorage } from '@/types/storage.js';
 
 /**
@@ -22,12 +21,6 @@ export interface AppDeps {
   storage: AttachmentStorage;
   /** Injectable clock — tests control time through it. */
   now: () => Date;
-  /**
-   * `null` when this instance has no SMTP, which is a supported way to run it.
-   * Null rather than a no-op object so the compiler makes every send site say
-   * what it does without email — and every one of them has an answer.
-   */
-  mailer: Mailer | null;
 }
 
 /** What `buildApp()` accepts; only the clock may be left to the caller. */
@@ -38,8 +31,6 @@ export interface BuildAppOptions {
   now?: () => Date;
   /** Omitted means "build one from the config" — the volume, or the bucket. */
   storage?: AttachmentStorage;
-  /** Omitted means "build one from the config", which may still be null. */
-  mailer?: Mailer | null;
   /**
    * Where log lines go. The same kind of seam as `now`: production writes to
    * stdout, and a test hands in a stream so it can assert on what was written —

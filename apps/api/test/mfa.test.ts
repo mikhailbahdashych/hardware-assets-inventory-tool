@@ -17,7 +17,7 @@ afterEach(async () => {
   await ctx?.close();
 });
 
-const ADMIN = { email: 'tomasz@acme.io', password: 'correct-horse-battery' };
+const ADMIN = { email: 'tomasz@acme.io', password: 'Correct-horse-battery1' };
 
 /** The secret the app generated for a member, read straight from the column. */
 async function storedSecret(email: string): Promise<string> {

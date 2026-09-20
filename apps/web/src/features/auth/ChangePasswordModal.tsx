@@ -1,3 +1,4 @@
+import { PASSWORD_HINT } from '@inventory/shared';
 import { useState, type FormEvent } from 'react';
 import { fieldErrors } from '@/api/formErrors';
 import { useChangePassword } from '@/api/mutations';
@@ -71,12 +72,7 @@ export function ChangePasswordModal({ onClose }: ChangePasswordModalProps) {
             />
           )}
         </Field>
-        <Field
-          label="New password"
-          required
-          hint="At least 10 characters"
-          error={errors.newPassword}
-        >
+        <Field label="New password" required hint={PASSWORD_HINT} error={errors.newPassword}>
           {(id) => (
             <Input
               id={id}

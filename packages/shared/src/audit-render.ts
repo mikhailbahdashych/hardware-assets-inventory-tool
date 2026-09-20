@@ -191,6 +191,7 @@ const RENDERERS: Record<string, (params: AuditParams) => string> = {
   'auth.login': () => 'Signed in',
   'auth.password_reset': () => 'Reset their password',
   'auth.password_changed': () => 'Changed their password',
+  'member.password_set': (p) => `Set a new password for ${text(p, 'memberName', 'a member')}`,
   'system.setup_completed': (p) => `Set up ${text(p, 'orgName', 'the workspace')}`,
   'system.settings_updated': (p) => `Updated workspace settings${fieldList(p)}`,
 };

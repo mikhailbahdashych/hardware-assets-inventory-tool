@@ -8,7 +8,6 @@ import type { FastifyInstance, InjectOptions } from 'fastify';
 import pg from 'pg';
 import { buildApp } from '@/app.js';
 import type { AppDeps } from '@/types/app.js';
-import type { MailMessage, Mailer } from '@/types/mail.js';
 import { loadConfig } from '@/config.js';
 import { createDb } from '@/db/client.js';
 import type { Db } from '@/types/db.js';
@@ -76,8 +75,6 @@ export type TestApp = {
   db: Db;
   /** The same deps the app got — scheduled jobs take these directly. */
   deps: AppDeps;
-  /** Every message the fake mailer accepted, in order. Empty without SMTP. */
-  sent: MailMessage[];
   /** Where uploaded files land for this test; removed on close. */
   uploadsDir: string;
   close: () => Promise<void>;
@@ -113,23 +110,12 @@ export async function buildTestApp(
   const { db, client } = await createDb(config);
   await runMigrations(db, MIGRATIONS_ROOT);
   await seed(db);
-  // A recording mailer exactly when the config says this instance can send,
-  // so "no SMTP" is a state the tests exercise rather than a branch they mock.
-  const sent: MailMessage[] = [];
-  const mailer: Mailer | null = config.smtp
-    ? {
-        send: async (message) => {
-          sent.push(message);
-        },
-      }
-    : null;
-
   // Built here rather than inside the app, because the scheduled jobs below
   // take the same deps and the sweep has to look where the uploads went. `s3`
   // is only consulted when the env named a bucket — that choice is the seam's,
   // not the test's.
   const storage = makeStorage(config, s3);
-  const app = await buildApp({ config, db, client, now, storage, mailer, logDestination });
+  const app = await buildApp({ config, db, client, now, storage, logDestination });
   // Every suite closes in `afterEach`, which also runs after the pure unit
   // tests that never built an app and are looking at the previous one. Closing
   // twice was free on libsql and throws on a pg pool, so the second call does
@@ -138,8 +124,7 @@ export async function buildTestApp(
   return {
     app,
     db,
-    deps: { config, db, client, storage, now: now ?? (() => new Date()), mailer },
-    sent,
+    deps: { config, db, client, storage, now: now ?? (() => new Date()) },
     uploadsDir: join(dataDir, 'uploads'),
     close: async () => {
       if (closed) return;
@@ -156,7 +141,7 @@ export const SETUP_BODY = {
   orgName: 'Acme Corp',
   name: 'Tomasz Kowalski',
   email: 'tomasz@acme.io',
-  password: 'correct-horse-battery',
+  password: 'Correct-horse-battery1',
 };
 
 /** Runs first-run setup and returns the admin's session cookie header value. */

@@ -19,7 +19,6 @@ export const inviteInput = z.object({
    * sent either way; the response always carries the link so an admin can copy
    * it. Email arrives in PR 8 and reads this flag then.
    */
-  sendEmail: z.boolean().default(true),
 });
 export type InviteInput = z.infer<typeof inviteInput>;
 

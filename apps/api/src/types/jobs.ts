@@ -1,7 +1,7 @@
 /**
- * What a scheduled mail job did. `skipped` counts the messages a guard stopped
- * — no mailer, a settings toggle, or one already sent — so a log line can tell
- * "nothing to do" apart from "not configured".
+ * What a scheduled inbox job did. `skipped` counts what a guard stopped — a
+ * settings toggle, a dedupe key that already delivered, or a holder with no
+ * linked member — so a log line can tell "nothing to do" apart from "unheard".
  */
 export interface JobResult {
   sent: number;
@@ -20,7 +20,7 @@ export interface MaintenanceResult {
   pruned: number;
   /** Files on the volume that no attachment row names, older than a day. */
   orphanUploadsRemoved: number;
-  /** `notification_log` rows past a year — long after any dedupe window. */
+  /** Inbox rows past ninety days, read or not. */
   notificationRowsPruned: number;
 }
 

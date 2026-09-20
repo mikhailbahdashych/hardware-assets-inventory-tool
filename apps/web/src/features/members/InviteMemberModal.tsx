@@ -4,7 +4,6 @@ import { useInviteMember } from '@/api/mutations';
 import { useEmployees, useRoles } from '@/api/queries';
 import { leastPrivileged } from '@/lib/roles';
 import { Button, Dropdown, Field, Input, Modal } from '@/components/ui';
-import { NotifyCheckbox } from '@/components/app/NotifyCheckbox';
 import formStyles from '@/components/ui/FormModal.module.css';
 import { CopyLinkModal } from './CopyLinkModal';
 import { RoleCards } from './RoleCards';
@@ -20,7 +19,6 @@ export function InviteMemberModal({ onClose }: InviteMemberModalProps) {
   const [email, setEmail] = useState('');
   const [employeeId, setEmployeeId] = useState('');
   const [chosenRole, setChosenRole] = useState('');
-  const [sendEmail, setSendEmail] = useState(true);
   const [inviteUrl, setInviteUrl] = useState<string | null>(null);
 
   const employees = useEmployees();
@@ -39,7 +37,7 @@ export function InviteMemberModal({ onClose }: InviteMemberModalProps) {
     event.preventDefault();
     invite.mutate(
       // "" is the select's "— No link —", which is no link at all.
-      { email, role, employeeId: employeeId === '' ? null : employeeId, sendEmail },
+      { email, role, employeeId: employeeId === '' ? null : employeeId },
       { onSuccess: (result) => setInviteUrl(result.inviteUrl) },
     );
   }
@@ -114,12 +112,6 @@ export function InviteMemberModal({ onClose }: InviteMemberModalProps) {
         <Field label="Role" required>
           <RoleCards name="invite-role" value={role} onChange={setChosenRole} />
         </Field>
-
-        <NotifyCheckbox
-          checked={sendEmail}
-          onChange={setSendEmail}
-          label="Send invitation email now"
-        />
 
         {invite.error && !errors.email && !errors.employeeId && (
           <div className={formStyles.formError}>{invite.error.message}</div>

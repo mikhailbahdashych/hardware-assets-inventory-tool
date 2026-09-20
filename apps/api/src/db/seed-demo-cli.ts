@@ -42,7 +42,7 @@ async function main(): Promise<void> {
     const result = await seedDemo(
       // `--reset` empties the workspace, attachments included, so this needs
       // the same storage the server would have used to write them.
-      { config, db, client, storage: makeStorage(config), now: () => new Date(), mailer: null },
+      { config, db, client, storage: makeStorage(config), now: () => new Date() },
       { password, reset },
     );
 
