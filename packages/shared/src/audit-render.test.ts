@@ -177,6 +177,9 @@ describe('renderAuditEvent', () => {
     expect(renderAuditEvent({ action: 'auth.password_changed', params: {} })).toBe(
       'Changed their password',
     );
+    expect(
+      renderAuditEvent({ action: 'member.password_set', params: { memberName: 'Grace Chen' } }),
+    ).toBe('Set a new password for Grace Chen');
   });
 
   it('renders every workflow change as something an admin would recognise', () => {

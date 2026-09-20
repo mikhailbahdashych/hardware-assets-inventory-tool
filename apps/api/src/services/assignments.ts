@@ -11,7 +11,6 @@ import type { Actor } from '@/types/audit.js';
 import type {
   AssignmentRow,
   CloseAssignmentParams,
-  HolderContact,
   OpenAssignmentParams,
 } from '@/types/assignments.js';
 import { assets, assignments, employees } from '@/db/schema.js';
@@ -20,6 +19,7 @@ import { newId } from '@/lib/ids.js';
 import { AppError, invalidFields, notFound } from '@/lib/errors.js';
 import { serializeAsset } from '@/lib/serialize.js';
 import { writeAudit } from './audit.js';
+import { notifyLinkedMember } from './notifications.js';
 import { assignableStatuses, requireStatus } from './workflow.js';
 
 /**
@@ -133,22 +133,6 @@ export async function employeeHistory(db: DbOrTx, employeeId: string) {
     .orderBy(desc(assignments.checkedOutAt), desc(assignments.createdAt));
 }
 
-/**
- * Who to write to about an asset that is out right now. Read separately from
- * the operations themselves, and *before* a check-in, because afterwards there
- * is by definition nobody holding it any more.
- */
-export async function currentHolderContact(
-  db: DbOrTx,
-  assetId: string,
-): Promise<HolderContact | null> {
-  const open = await activeAssignment(db, assetId);
-  if (!open?.employeeId) return null;
-  const [holder] = await db.select().from(employees).where(eq(employees.id, open.employeeId));
-  if (!holder) return null;
-  return { email: holder.email, name: `${holder.firstName} ${holder.lastName}` };
-}
-
 export async function assignAsset(
   deps: AppDeps,
   actor: Actor,
@@ -210,6 +194,18 @@ export async function assignAsset(
           holderName,
           checkedOutAt: input.checkoutDate,
         },
+      },
+      now,
+    );
+    // The holder's own copy, when their employee record links to a member
+    // account — in this transaction like the audit row, and for the same
+    // reason: a handover that happened tells everyone it happened.
+    await notifyLinkedMember(
+      tx,
+      holder.id,
+      {
+        kind: 'assignment.received',
+        params: { assetName: asset.name, assetTag: asset.assetTag },
       },
       now,
     );
@@ -298,6 +294,18 @@ export async function checkinAsset(
       },
       now,
     );
+
+    if (open.employeeId !== null) {
+      await notifyLinkedMember(
+        tx,
+        open.employeeId,
+        {
+          kind: 'assignment.checked_in',
+          params: { assetName: asset.name, assetTag: asset.assetTag },
+        },
+        now,
+      );
+    }
 
     return serializeAsset((await tx.select().from(assets).where(eq(assets.id, assetId)))[0]!, null);
   });

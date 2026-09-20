@@ -26,6 +26,7 @@ import {
   KeyValueRow,
   Modal,
   PageHeader,
+  Pagination,
   Pill,
   RadioCard,
   SearchInput,
@@ -139,6 +140,7 @@ const ICON_NAMES: IconName[] = [
   'workflow',
   'logOut',
   'x',
+  'bell',
 ];
 
 /** The surface tokens, in the order tokens.css declares them. */
@@ -217,8 +219,9 @@ export function KitchenSink() {
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState('all');
   const [tab, setTab] = useState('activity');
+  const [logPage, setLogPage] = useState(1);
   const [role, setRole] = useState('viewer');
-  const [toggles, setToggles] = useState({ warranty: true, digest: false });
+  const [toggles, setToggles] = useState({ warranty: true, returns: false });
   const [modal, setModal] = useState<'none' | 'plain' | 'scroll'>('none');
   const [category, setCategory] = useState('laptops');
   const [condition, setCondition] = useState('good');
@@ -485,6 +488,15 @@ export function KitchenSink() {
         </Row>
       </Section>
 
+      <Section title="Pagination">
+        {/* Twelve pages, so the windowing and both ellipses are visible; walk it
+            to the ends and watch Prev and Next go dead. */}
+        <Pagination page={logPage} pageCount={12} onChange={setLogPage} />
+        <Pagination page={1} pageCount={3} onChange={() => {}} />
+        {/* One page draws nothing at all, which is why this row looks empty. */}
+        <Pagination page={1} pageCount={1} onChange={() => {}} />
+      </Section>
+
       <Section title="Table">
         <DataTable
           columns={[
@@ -594,11 +606,11 @@ export function KitchenSink() {
           />
           <span style={{ fontSize: 12.5 }}>Warranty alerts</span>
           <ToggleSwitch
-            checked={toggles.digest}
-            onChange={(v) => setToggles((t) => ({ ...t, digest: v }))}
-            label="Weekly digest"
+            checked={toggles.returns}
+            onChange={(v) => setToggles((t) => ({ ...t, returns: v }))}
+            label="Return reminders"
           />
-          <span style={{ fontSize: 12.5 }}>Weekly digest</span>
+          <span style={{ fontSize: 12.5 }}>Return reminders</span>
         </Row>
         <div style={{ maxWidth: 560 }}>
           <Dropzone
@@ -613,8 +625,8 @@ export function KitchenSink() {
 
       <Section title="Disabled and error states">
         {/* The states a screen actually hits. A disabled control keeps its
-            reason visible next to it rather than vanishing — see how the
-            Settings page handles an instance with no SMTP. */}
+            reason visible next to it rather than vanishing — see the Roles
+            page, which does this for the role you yourself hold. */}
         <div
           style={{
             display: 'grid',
@@ -645,7 +657,7 @@ export function KitchenSink() {
           <Checkbox label="Disabled checkbox" disabled />
           <ToggleSwitch checked={false} onChange={() => {}} label="Disabled switch" disabled />
           <span style={{ fontSize: 11.5, color: 'var(--muted)' }}>
-            SMTP is not configured on this instance
+            Only another admin can change the role you hold
           </span>
         </Row>
       </Section>

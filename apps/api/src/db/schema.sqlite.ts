@@ -27,14 +27,10 @@ export const orgSettings = sqliteTable('org_settings', {
   assetTagPrefix: text('asset_tag_prefix').notNull().default('AST'),
   warrantyLeadDays: integer('warranty_lead_days').notNull().default(60),
   logRetentionMonths: integer('log_retention_months'),
-  emailWarrantyAlerts: integer('email_warranty_alerts', { mode: 'boolean' })
-    .notNull()
-    .default(true),
-  emailReturnReminders: integer('email_return_reminders', { mode: 'boolean' })
-    .notNull()
-    .default(true),
-  emailInvites: integer('email_invites', { mode: 'boolean' }).notNull().default(true),
-  emailWeeklyDigest: integer('email_weekly_digest', { mode: 'boolean' }).notNull().default(false),
+  // The column names are fossils from the email era — the toggles now gate
+  // inbox notifications, and renaming a column buys nothing but a migration.
+  warrantyAlerts: integer('email_warranty_alerts', { mode: 'boolean' }).notNull().default(true),
+  returnReminders: integer('email_return_reminders', { mode: 'boolean' }).notNull().default(true),
   /** Global: every member must hold a confirmed authenticator to use the app. */
   mfaRequired: integer('mfa_required', { mode: 'boolean' }).notNull().default(false),
   /**
@@ -366,10 +362,28 @@ export const mfaRecoveryCodes = sqliteTable(
   (table) => [index('mfa_recovery_member_idx').on(table.memberId)],
 );
 
-/** Email idempotency — one row per notification actually sent. */
-export const notificationLog = sqliteTable('notification_log', {
-  id: text('id').primaryKey(),
-  kind: text('kind').notNull(),
-  dedupeKey: text('dedupe_key').notNull().unique(),
-  sentAt: text('sent_at').notNull(),
-});
+/**
+ * The inbox: one row per member per event, materialized at write time — no
+ * shared read-state bookkeeping, and the unique (member, dedupe) pair is what
+ * makes the nightly jobs idempotent. Params are snapshots, rendered to a
+ * sentence by the shared renderer, exactly like audit events.
+ */
+export const notifications = sqliteTable(
+  'notifications',
+  {
+    id: text('id').primaryKey(),
+    memberId: text('member_id')
+      .notNull()
+      .references(() => members.id, { onDelete: 'cascade' }),
+    kind: text('kind').notNull(),
+    params: text('params').notNull().default('{}'),
+    /** Null for one-shot personal events; set where a job must not repeat itself. */
+    dedupeKey: text('dedupe_key'),
+    createdAt: text('created_at').notNull(),
+    readAt: text('read_at'),
+  },
+  (table) => [
+    index('notifications_member_idx').on(table.memberId, table.createdAt),
+    uniqueIndex('notifications_dedupe_idx').on(table.memberId, table.dedupeKey),
+  ],
+);

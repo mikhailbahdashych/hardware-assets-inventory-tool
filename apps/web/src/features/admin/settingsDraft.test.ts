@@ -10,10 +10,8 @@ const STORED: OrgSettings = {
   assetTagPrefix: 'AST',
   warrantyLeadDays: 60,
   logRetentionMonths: 12,
-  emailWarrantyAlerts: true,
-  emailReturnReminders: true,
-  emailInvites: true,
-  emailWeeklyDigest: false,
+  warrantyAlerts: true,
+  returnReminders: true,
   mfaRequired: false,
   uploadQuotaMb: 2048,
   createdAt: '2026-01-01T00:00:00.000Z',
@@ -26,10 +24,8 @@ const untouched: SettingsDraft = {
   assetTagPrefix: 'AST',
   warrantyLeadDays: '60',
   logRetentionMonths: 12,
-  emailWarrantyAlerts: true,
-  emailReturnReminders: true,
-  emailInvites: true,
-  emailWeeklyDigest: false,
+  warrantyAlerts: true,
+  returnReminders: true,
   mfaRequired: false,
   uploadQuotaMb: '2048',
 };
@@ -45,9 +41,9 @@ describe('changedSettings', () => {
   });
 
   it('sends only the fields that differ', () => {
-    expect(changedSettings(STORED, draft({ orgName: 'Globex', emailWeeklyDigest: true }))).toEqual({
+    expect(changedSettings(STORED, draft({ orgName: 'Globex', returnReminders: false }))).toEqual({
       orgName: 'Globex',
-      emailWeeklyDigest: true,
+      returnReminders: false,
     });
   });
 
@@ -98,8 +94,8 @@ describe('changedSettings', () => {
   });
 
   it('takes each switch on its own', () => {
-    expect(changedSettings(STORED, draft({ emailInvites: false }))).toEqual({
-      emailInvites: false,
+    expect(changedSettings(STORED, draft({ warrantyAlerts: false }))).toEqual({
+      warrantyAlerts: false,
     });
   });
 });

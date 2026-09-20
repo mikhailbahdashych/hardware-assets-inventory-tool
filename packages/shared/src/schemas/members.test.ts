@@ -8,7 +8,6 @@ describe('inviteInput', () => {
       email: 'person@acme.io',
       role: 'manager',
       employeeId: null,
-      sendEmail: true,
     });
   });
 
@@ -17,10 +16,8 @@ describe('inviteInput', () => {
       email: 'maya@acme.io',
       role: 'viewer',
       employeeId: 'emp-1',
-      sendEmail: false,
     });
     expect(parsed.employeeId).toBe('emp-1');
-    expect(parsed.sendEmail).toBe(false);
   });
 
   /**

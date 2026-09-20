@@ -11,7 +11,7 @@ import {
   customFieldDefs,
   employees,
   members,
-  notificationLog,
+  notifications,
   orgSettings,
   rolePermissions,
   roles,
@@ -57,7 +57,7 @@ export async function emptyWorkspace(deps: AppDeps): Promise<void> {
 
   await deps.db.transaction(async (tx) => {
     // Children first, so the wipe never depends on which cascades are enabled.
-    await tx.delete(notificationLog);
+    await tx.delete(notifications);
     await tx.delete(auditEvents);
     await tx.delete(attachments);
     await tx.delete(assetCustomValues);

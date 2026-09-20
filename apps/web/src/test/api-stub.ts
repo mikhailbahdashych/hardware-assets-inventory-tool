@@ -119,11 +119,7 @@ export const READY_META = {
   version: '0.1.0',
   orgName: 'Acme Corp',
   defaultCurrency: 'EUR',
-  smtpConfigured: true,
 };
-
-/** The same instance with no SMTP — the state every email affordance must handle. */
-export const NO_SMTP_META = { ...READY_META, smtpConfigured: false };
 
 /**
  * The workflow a freshly seeded instance serves: today's six statuses in
@@ -360,10 +356,8 @@ export const SETTINGS = {
   assetTagPrefix: 'AST',
   warrantyLeadDays: 60,
   logRetentionMonths: 12,
-  emailWarrantyAlerts: true,
-  emailReturnReminders: true,
-  emailInvites: true,
-  emailWeeklyDigest: false,
+  warrantyAlerts: true,
+  returnReminders: true,
   mfaRequired: false,
   uploadQuotaMb: 2048,
   createdAt: '2026-01-01T00:00:00.000Z',
@@ -466,6 +460,7 @@ export const INVENTORY_ROUTES: StubRoutes = {
   'GET /employees': { body: { employees: [MAYA] } },
   'GET /custom-fields': { body: { customFields: CUSTOM_FIELDS } },
   'GET /assets/next-tag': { body: { assetTag: 'AST-0144' } },
+  'GET /notifications': { body: { notifications: [], unreadCount: 0, total: 0 } },
   'GET /workflow': { body: WORKFLOW },
   'GET /roles': { body: ROLES },
 };
@@ -490,6 +485,7 @@ export const ADMIN_ROUTES: StubRoutes = {
   'GET /members': { body: { members: [ADMIN_SUMMARY, INVITED_SUMMARY, LINKED_SUMMARY] } },
   'GET /settings': { body: { settings: SETTINGS, storageUsedBytes: 188_416 } },
   'GET /audit': { body: AUDIT_PAGE },
+  'GET /notifications': { body: { notifications: [], unreadCount: 0, total: 0 } },
   'GET /workflow': { body: WORKFLOW },
   'GET /roles': { body: ROLES },
 };

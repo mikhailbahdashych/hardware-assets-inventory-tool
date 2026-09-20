@@ -1,5 +1,6 @@
 export * from './attachments.js';
 export * from './audit-render.js';
+export * from './notification-render.js';
 export * from './csv.js';
 export * from './enums.js';
 export * from './money.js';

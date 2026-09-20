@@ -51,14 +51,14 @@ export interface InviteLink {
 }
 
 /**
- * A password-reset link an admin issued, likewise returned once. The recovery
- * path on an instance with no SMTP is an admin copying this and handing it over.
+ * A password-reset link an admin issued, likewise returned once. Recovery is an
+ * admin copying this and handing it over — or setting a new password outright.
  */
 export interface ResetLink {
   resetUrl: string;
 }
 
-/** An invitation: the new member, and the link that works with or without SMTP. */
+/** An invitation: the new member, and the link the admin hands over. */
 export interface InviteResult extends InviteLink {
   member: MemberSummary;
 }

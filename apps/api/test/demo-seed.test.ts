@@ -9,6 +9,7 @@ import {
   auditEvents,
   employees,
   members,
+  notifications,
   rolePermissions,
   roles,
 } from '@/db/schema.js';
@@ -26,11 +27,18 @@ const NOW = new Date('2026-08-17T09:00:00.000Z');
 
 async function seeded(overrides: Record<string, unknown> = {}) {
   ctx = await buildTestApp({}, () => NOW);
-  const result = await seedDemo(ctx.deps, { password: 'demo-password-1234', ...overrides });
+  const result = await seedDemo(ctx.deps, { password: 'Demo-password-1234', ...overrides });
   return result;
 }
 
 describe('the demo seed', () => {
+  it('leaves something on the bell, for the members who hold things', async () => {
+    await seeded();
+    const rows = await ctx.db.select().from(notifications);
+    expect(rows.length).toBeGreaterThan(0);
+    expect(rows.map((row) => row.kind)).toContain('assignment.received');
+  });
+
   it('fills an empty workspace with enough to look at', async () => {
     const result = await seeded();
 
@@ -304,7 +312,7 @@ describe('the demo seed', () => {
 
   it('refuses a workspace that already has data', async () => {
     await seeded();
-    await expect(seedDemo(ctx.deps, { password: 'demo-password-1234' })).rejects.toThrow(
+    await expect(seedDemo(ctx.deps, { password: 'Demo-password-1234' })).rejects.toThrow(
       /already/i,
     );
 
@@ -314,7 +322,7 @@ describe('the demo seed', () => {
 
   it('reseeds identically when asked to reset', async () => {
     const first = await seeded();
-    const second = await seedDemo(ctx.deps, { password: 'demo-password-1234', reset: true });
+    const second = await seedDemo(ctx.deps, { password: 'Demo-password-1234', reset: true });
 
     expect(second.counts).toEqual(first.counts);
     // Same clock, same data — a hosted demo can restore itself on a timer.
@@ -340,7 +348,7 @@ async function signInAsAdmin(): Promise<string> {
   const res = await inject(ctx.app, {
     method: 'POST',
     url: '/api/v1/auth/login',
-    body: { email: 'ada.okafor@northwind.example', password: 'demo-password-1234' },
+    body: { email: 'ada.okafor@northwind.example', password: 'Demo-password-1234' },
   });
   const cookie = res.cookies.find((c) => c.name === 'inv_session');
   if (!cookie) throw new Error(`demo admin could not sign in: ${res.body}`);

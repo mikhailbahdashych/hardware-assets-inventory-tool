@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { avatarColor } from '@/lib/avatar';
@@ -10,6 +10,7 @@ import { DataTable } from './DataTable';
 import { FilterPills } from './FilterPills';
 import { Menu } from './Menu';
 import { Modal } from './Modal';
+import { Pagination } from './Pagination';
 import { Pill } from './Pill';
 import { RadioCard } from './RadioCard';
 import { SearchInput } from './SearchInput';
@@ -174,6 +175,42 @@ describe('FilterPills', () => {
     expect(screen.getByRole('button', { name: 'All 13' })).toHaveAttribute('data-active', 'true');
     await userEvent.click(screen.getByRole('button', { name: 'Available 2' }));
     expect(onChange).toHaveBeenCalledWith('available');
+  });
+});
+
+describe('Pagination', () => {
+  it('windows the pages around the current one, with both ends always reachable', () => {
+    render(<Pagination page={6} pageCount={12} onChange={vi.fn()} />);
+    const nav = within(screen.getByRole('navigation', { name: 'Pagination' }));
+
+    expect(nav.getByRole('button', { name: '6' })).toHaveAttribute('aria-current', 'page');
+    for (const label of ['1', '5', '7', '12']) {
+      expect(nav.getByRole('button', { name: label })).not.toHaveAttribute('aria-current');
+    }
+    // Everything between the first page and the window is one ellipsis.
+    expect(nav.queryByRole('button', { name: '3' })).toBeNull();
+    expect(nav.queryByRole('button', { name: '9' })).toBeNull();
+    expect(nav.getAllByText('…')).toHaveLength(2);
+  });
+
+  it('disables the step it cannot take and reports the page asked for', async () => {
+    const onChange = vi.fn();
+    const { rerender } = render(<Pagination page={1} pageCount={3} onChange={onChange} />);
+
+    expect(screen.getByRole('button', { name: 'Prev' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Next' })).toBeEnabled();
+    await userEvent.click(screen.getByRole('button', { name: '3' }));
+    expect(onChange).toHaveBeenCalledWith(3);
+
+    rerender(<Pagination page={3} pageCount={3} onChange={onChange} />);
+    expect(screen.getByRole('button', { name: 'Next' })).toBeDisabled();
+    await userEvent.click(screen.getByRole('button', { name: 'Prev' }));
+    expect(onChange).toHaveBeenCalledWith(2);
+  });
+
+  it('draws nothing at all when everything fits on one page', () => {
+    const { container } = render(<Pagination page={1} pageCount={1} onChange={vi.fn()} />);
+    expect(container).toBeEmptyDOMElement();
   });
 });
 

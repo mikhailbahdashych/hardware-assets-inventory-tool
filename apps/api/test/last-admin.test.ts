@@ -33,15 +33,26 @@ async function addMember(adminCookie: string, email: string, role: string) {
     method: 'POST',
     url: '/api/v1/members/invites',
     cookie: adminCookie,
-    body: { email, role, sendEmail: false },
+    body: { email, role },
   });
   const token = new URL(invite.json().inviteUrl).searchParams.get('token');
   const accepted = await inject(ctx.app, {
     method: 'POST',
     url: '/api/v1/auth/accept-invite',
-    body: { token, name: email.split('@')[0], password: 'correct-horse-battery' },
+    body: { token, name: email.split('@')[0], password: 'Correct-horse-battery1' },
   });
   return { cookie: sessionCookie(accepted), id: accepted.json().member.id as string };
+}
+
+/** An admin *row* that is not an active admin: invited, never accepted. */
+async function pendingAdminId(adminCookie: string): Promise<string> {
+  const res = await inject(ctx.app, {
+    method: 'POST',
+    url: '/api/v1/members/invites',
+    cookie: adminCookie,
+    body: { email: 'pending@acme.io', role: 'admin' },
+  });
+  return res.json().member.id as string;
 }
 
 describe('a workspace always keeps an admin', () => {
@@ -147,7 +158,7 @@ describe('a workspace always keeps an admin', () => {
       method: 'POST',
       url: '/api/v1/members/invites',
       cookie: admin,
-      body: { email: 'pending@acme.io', role: 'admin', sendEmail: false },
+      body: { email: 'pending@acme.io', role: 'admin' },
     });
 
     // Two admin rows, one usable account.
@@ -161,9 +172,12 @@ describe('a workspace always keeps an admin', () => {
  * caller is always an active admin acting on somebody else, so the target is
  * never the last one — which is exactly why it is worth testing directly.
  *
- * It exists for the two futures that would make it reachable: relaxing the
- * self-rule, or granting `members.manage` to a role other than admin. Either
- * change should meet a closed door rather than an empty workspace.
+ * It exists for the futures that would make it reachable. One of them arrived:
+ * `members.manage` granted to a role below admin now meets the admin shield
+ * (`assertAdminActor`) before it could ever reach this guard — which is why
+ * these tests act as an admin *row* that is merely not active. The other,
+ * relaxing the self-rule, should still meet a closed door rather than an
+ * empty workspace.
  */
 describe('the last-admin guard itself', () => {
   it('refuses to demote the last admin, whoever is asking', async () => {
@@ -171,9 +185,10 @@ describe('the last-admin guard itself', () => {
     const admin = await setupOrg(ctx.app);
     const id = await meId(admin);
 
-    // A different actor id is what the self-rule would otherwise catch first.
-    const asSomebodyElse = { id: 'not-this-member', displayName: 'Somebody Else' };
-    await expect(updateMember(ctx.deps, asSomebodyElse, id, { role: 'viewer' })).rejects.toThrow(
+    // A different actor is what the self-rule would otherwise catch first; an
+    // invited admin passes the shield without being an *active* admin.
+    const asPendingAdmin = { id: await pendingAdminId(admin), displayName: 'Pending Admin' };
+    await expect(updateMember(ctx.deps, asPendingAdmin, id, { role: 'viewer' })).rejects.toThrow(
       /only admin/i,
     );
     expect(await activeAdmins()).toBe(1);
@@ -184,8 +199,8 @@ describe('the last-admin guard itself', () => {
     const admin = await setupOrg(ctx.app);
     const id = await meId(admin);
 
-    const asSomebodyElse = { id: 'not-this-member', displayName: 'Somebody Else' };
-    await expect(removeMember(ctx.deps, asSomebodyElse, id)).rejects.toThrow(/only admin/i);
+    const asPendingAdmin = { id: await pendingAdminId(admin), displayName: 'Pending Admin' };
+    await expect(removeMember(ctx.deps, asPendingAdmin, id)).rejects.toThrow(/only admin/i);
     expect(await activeAdmins()).toBe(1);
   });
 
@@ -207,9 +222,9 @@ describe('the last-admin guard itself', () => {
     const id = await meId(admin);
 
     // Linking the last admin to an employee record touches no admin count.
-    const asSomebodyElse = { id: 'not-this-member', displayName: 'Somebody Else' };
+    const asPendingAdmin = { id: await pendingAdminId(admin), displayName: 'Pending Admin' };
     await expect(
-      updateMember(ctx.deps, asSomebodyElse, id, { employeeId: null }),
+      updateMember(ctx.deps, asPendingAdmin, id, { employeeId: null }),
     ).resolves.not.toThrow();
     expect(await activeAdmins()).toBe(1);
   });

@@ -13,7 +13,16 @@ import type { QueryClient } from '@tanstack/react-query';
  * At this scale a refetch is cheap; correctness is not. Extend this function
  * rather than invalidating ad hoc inside a mutation hook.
  */
-const INVENTORY_PREFIXES = [['assets'], ['asset'], ['employees'], ['employee'], ['dashboard']];
+// `notifications` is here because assigning or checking in writes the linked
+// holder's inbox — and the person doing it may be that holder.
+const INVENTORY_PREFIXES = [
+  ['assets'],
+  ['asset'],
+  ['employees'],
+  ['employee'],
+  ['dashboard'],
+  ['notifications'],
+];
 
 export function invalidateInventory(queryClient: QueryClient): void {
   for (const queryKey of INVENTORY_PREFIXES) {

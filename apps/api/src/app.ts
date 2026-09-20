@@ -10,7 +10,6 @@ import { registerOriginGuard } from './plugins/origin-guard.js';
 import { registerSessionAuth } from './plugins/session.js';
 import { registerStaticSpa } from './plugins/static-spa.js';
 import { MAX_ATTACHMENT_BYTES } from './services/attachments.js';
-import { createMailer } from './services/mailer.js';
 import { makeStorage } from './services/storage.js';
 import { registerAdminRoutes } from './modules/admin.js';
 import { registerAssetRoutes } from './modules/assets.js';
@@ -22,6 +21,7 @@ import { registerEmployeeRoutes } from './modules/employees.js';
 import { registerMemberRoutes } from './modules/members.js';
 import { registerMeRoutes } from './modules/me.js';
 import { registerMetaRoutes } from './modules/meta.js';
+import { registerNotificationRoutes } from './modules/notifications.js';
 import { registerRoleRoutes } from './modules/roles.js';
 import { registerSetupRoutes } from './modules/setup.js';
 import { registerWorkflowRoutes } from './modules/workflow.js';
@@ -37,9 +37,6 @@ export async function buildApp(opts: BuildAppOptions): Promise<FastifyInstance> 
     // Same shape again, and the config is what decides: a bucket if one is
     // named, the volume otherwise.
     storage: opts.storage ?? makeStorage(opts.config),
-    // Same shape: an omitted mailer means "build one from the config", which
-    // is itself null when no SMTP host is set.
-    mailer: opts.mailer !== undefined ? opts.mailer : createMailer(opts.config),
   };
 
   // Named, not inferred: since fastify 5.12.1 an inferred options object
@@ -78,6 +75,7 @@ export async function buildApp(opts: BuildAppOptions): Promise<FastifyInstance> 
   registerAttachmentRoutes(app, deps);
   registerRoleRoutes(app, deps);
   registerMemberRoutes(app, deps);
+  registerNotificationRoutes(app, deps);
   registerAdminRoutes(app, deps);
   registerDataRoutes(app, deps);
 

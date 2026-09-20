@@ -59,12 +59,6 @@ export interface Meta {
   orgName?: string;
   /** Currency for assets that do not carry one of their own. */
   defaultCurrency?: Currency;
-  /**
-   * Whether this instance can send email at all. Not a secret — it says
-   * nothing about where mail goes — and the UI needs it to stop offering
-   * checkboxes nothing would act on.
-   */
-  smtpConfigured: boolean;
 }
 
 /**
@@ -261,10 +255,8 @@ export interface OrgSettings {
   warrantyLeadDays: number;
   /** null is "Forever" — a choice, not an absence. */
   logRetentionMonths: LogRetention;
-  emailWarrantyAlerts: boolean;
-  emailReturnReminders: boolean;
-  emailInvites: boolean;
-  emailWeeklyDigest: boolean;
+  warrantyAlerts: boolean;
+  returnReminders: boolean;
   /** Every member must hold a confirmed authenticator to use the workspace. */
   mfaRequired: boolean;
   /** How many megabytes of attachments this workspace may hold. */
@@ -296,7 +288,7 @@ export interface AuditPage {
   items: AuditLogItem[];
   /** How many events sit behind each filter pill, over the whole log. */
   typeCounts: Record<AuditType | 'all', number>;
-  /** Events matching the current filter — what "Load more" counts against. */
+  /** Events matching the current filter — what the pager divides into pages. */
   total: number;
 }
 

@@ -18,6 +18,7 @@ import { DashboardPage } from './features/dashboard/DashboardPage';
 import { EmployeeDetailPage } from './features/employees/EmployeeDetailPage';
 import { EmployeesPage } from './features/employees/EmployeesPage';
 import { MembersPage } from './features/members/MembersPage';
+import { NotificationsPage } from './features/notifications/NotificationsPage';
 import { RolesPage } from './features/roles/RolesPage';
 import { WorkflowPage } from './features/workflow/WorkflowPage';
 
@@ -140,9 +141,12 @@ export function AppRoutes() {
         <Route path="/assets/:id" element={<AssetDetailPage permissions={permissions} />} />
         <Route path="/employees" element={<EmployeesPage permissions={permissions} />} />
         <Route path="/employees/:id" element={<EmployeeDetailPage permissions={permissions} />} />
+        <Route path="/notifications" element={<NotificationsPage />} />
         <Route
           path="/members"
-          element={<MembersPage permissions={permissions} memberId={member.id} />}
+          element={
+            <MembersPage permissions={permissions} memberId={member.id} viewerRole={member.role} />
+          }
         />
         {/* Reading what happened and changing how the workspace behaves are
             different jobs, so they are different pages rather than two tabs. */}

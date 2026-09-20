@@ -38,13 +38,7 @@ export function changedSettings(stored: OrgSettings, draft: SettingsDraft): Sett
     patch.uploadQuotaMb = readNumber(quotaText);
   }
 
-  for (const key of [
-    'emailWarrantyAlerts',
-    'emailReturnReminders',
-    'emailInvites',
-    'emailWeeklyDigest',
-    'mfaRequired',
-  ] as const) {
+  for (const key of ['warrantyAlerts', 'returnReminders', 'mfaRequired'] as const) {
     if (draft[key] !== stored[key]) patch[key] = draft[key];
   }
 

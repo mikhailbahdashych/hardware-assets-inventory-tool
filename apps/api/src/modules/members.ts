@@ -1,20 +1,20 @@
 import type { FastifyInstance } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
 import { z } from 'zod';
-import { inviteInput, memberPatchInput } from '@inventory/shared';
+import { ADMIN_ROLE, inviteInput, memberPatchInput, setPasswordInput } from '@inventory/shared';
 import type { AppDeps } from '@/types/app.js';
 import { requireAction, requireAuth } from '@/plugins/rbac.js';
 import {
+  assertAdminActor,
   inviteMember,
   issueResetLink,
+  setMemberPassword,
   listMembers,
   memberById,
   removeMember,
   resendInvite,
   updateMember,
 } from '@/services/members.js';
-import { requireRole } from '@/services/roles.js';
-import { sendInviteMail, sendResetMail } from '@/services/transactional.js';
 import { writeAudit } from '@/services/audit.js';
 import { resetMemberMfa, resetMemberRecoveryCodes } from '@/services/mfa.js';
 
@@ -36,18 +36,9 @@ export function registerMemberRoutes(app: FastifyInstance, deps: AppDeps): void 
     '/api/v1/members/invites',
     { schema: { body: inviteInput }, preHandler: requireAction('members.manage') },
     async (request) => {
+      // The link in the response is the whole delivery: whoever invited copies
+      // it to the person however the company already talks.
       const result = await inviteMember(deps, request.member!, request.body);
-      // The link is in the response either way; the email is the convenience.
-      if (request.body.sendEmail) {
-        await sendInviteMail(deps, request.log, {
-          to: result.member.email,
-          inviterName: request.member!.displayName,
-          // inviteMember has already checked the role exists, in the
-          // transaction that stored it.
-          roleLabel: (await requireRole(deps.db, result.member.role)).label,
-          url: result.inviteUrl,
-        });
-      }
       return result;
     },
   );
@@ -57,14 +48,6 @@ export function registerMemberRoutes(app: FastifyInstance, deps: AppDeps): void 
     { schema: { params: idParam }, preHandler: requireAction('members.manage') },
     async (request) => {
       const result = await resendInvite(deps, request.member!, request.params.id);
-      // resendInvite has already 404'd on an unknown id, so this one is there.
-      const member = await memberById(deps.db, request.params.id);
-      await sendInviteMail(deps, request.log, {
-        to: member.email,
-        inviterName: request.member!.displayName,
-        roleLabel: (await requireRole(deps.db, member.role)).label,
-        url: result.inviteUrl,
-      });
       return result;
     },
   );
@@ -74,12 +57,24 @@ export function registerMemberRoutes(app: FastifyInstance, deps: AppDeps): void 
     { schema: { params: idParam }, preHandler: requireAction('members.manage') },
     async (request) => {
       const result = await issueResetLink(deps, request.member!, request.params.id);
-      const member = await memberById(deps.db, request.params.id);
-      await sendResetMail(deps, request.log, {
-        to: member.email,
-        url: result.resetUrl,
-      });
       return result;
+    },
+  );
+
+  /**
+   * The blunt recovery: a new password, set outright and handed over out of
+   * band. The copyable reset link above is the polite one; this is for the
+   * workspace whose people live in a password manager anyway.
+   */
+  typed.post(
+    '/api/v1/members/:id/password',
+    {
+      schema: { params: idParam, body: setPasswordInput },
+      preHandler: requireAction('members.manage'),
+    },
+    async (request, reply) => {
+      await setMemberPassword(deps, request.member!, request.params.id, request.body.newPassword);
+      return reply.status(204).send();
     },
   );
 
@@ -98,6 +93,8 @@ export function registerMemberRoutes(app: FastifyInstance, deps: AppDeps): void 
     async (request, reply) => {
       const now = deps.now();
       const target = await memberById(deps.db, request.params.id);
+      // An admin's second factor is part of the shield around their account.
+      if (target.role === ADMIN_ROLE) await assertAdminActor(deps.db, request.member!);
       await deps.db.transaction(async (tx) => {
         await resetMemberMfa(tx, target.id, now);
         await writeAudit(
@@ -133,6 +130,8 @@ export function registerMemberRoutes(app: FastifyInstance, deps: AppDeps): void 
     async (request, reply) => {
       const now = deps.now();
       const target = await memberById(deps.db, request.params.id);
+      // An admin's second factor is part of the shield around their account.
+      if (target.role === ADMIN_ROLE) await assertAdminActor(deps.db, request.member!);
       await deps.db.transaction(async (tx) => {
         await resetMemberRecoveryCodes(tx, target.id);
         await writeAudit(

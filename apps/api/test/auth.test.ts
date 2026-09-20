@@ -244,7 +244,7 @@ describe('invites', () => {
     const accept = await ctx.app.inject({
       method: 'POST',
       url: '/api/v1/auth/accept-invite',
-      body: { token: raw, name: 'Daniel Okafor', password: 'long-enough-password' },
+      body: { token: raw, name: 'Daniel Okafor', password: 'Long-enough-pass1!' },
     });
     expect(accept.statusCode).toBe(200);
     expect(accept.json().member).toMatchObject({ displayName: 'Daniel Okafor', status: 'active' });
@@ -273,7 +273,7 @@ describe('invites', () => {
     await ctx.app.inject({
       method: 'POST',
       url: '/api/v1/auth/accept-invite',
-      body: { token: raw, name: 'Daniel', password: 'long-enough-password' },
+      body: { token: raw, name: 'Daniel', password: 'Long-enough-pass1!' },
     });
     const reuse = await ctx.app.inject({ method: 'GET', url: `/api/v1/auth/invite/${raw}` });
     expect(reuse.statusCode).toBe(401);
@@ -297,7 +297,7 @@ describe('password reset', () => {
     const res = await ctx.app.inject({
       method: 'POST',
       url: '/api/v1/auth/reset-password',
-      body: { token: raw, newPassword: 'brand-new-password-1' },
+      body: { token: raw, newPassword: 'Brand-new-password-1!' },
     });
     expect(res.statusCode).toBe(200);
 
@@ -318,7 +318,7 @@ describe('password reset', () => {
     const newLogin = await ctx.app.inject({
       method: 'POST',
       url: '/api/v1/auth/login',
-      body: { email: SETUP_BODY.email, password: 'brand-new-password-1' },
+      body: { email: SETUP_BODY.email, password: 'Brand-new-password-1!' },
     });
     expect(newLogin.statusCode).toBe(200);
 
@@ -326,21 +326,17 @@ describe('password reset', () => {
     expect(events.some((e) => e.action === 'auth.password_reset')).toBe(true);
   });
 
-  it('forgot-password always answers 204 (no user enumeration)', async () => {
+  it('has no forgot-password endpoint: recovery is an admin act', async () => {
     ctx = await buildTestApp();
     await setupOrg(ctx.app);
-    const known = await ctx.app.inject({
+    // The login screen says whom to ask; the server has nothing to answer. An
+    // admin issues a reset link or sets a new password from the Members page.
+    const res = await ctx.app.inject({
       method: 'POST',
       url: '/api/v1/auth/forgot-password',
       body: { email: SETUP_BODY.email },
     });
-    const unknown = await ctx.app.inject({
-      method: 'POST',
-      url: '/api/v1/auth/forgot-password',
-      body: { email: 'ghost@acme.io' },
-    });
-    expect(known.statusCode).toBe(204);
-    expect(unknown.statusCode).toBe(204);
+    expect(res.statusCode).toBe(404);
   });
 });
 

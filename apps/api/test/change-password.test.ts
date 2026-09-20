@@ -16,7 +16,7 @@ afterEach(async () => {
   await ctx?.close();
 });
 
-const NEW_PASSWORD = 'a-brand-new-password';
+const NEW_PASSWORD = 'A-brand-new-password1';
 
 function login(password: string) {
   return inject(ctx.app, {
@@ -109,10 +109,10 @@ describe('POST /api/v1/me/password', () => {
     const reset = await inject(ctx.app, {
       method: 'POST',
       url: '/api/v1/auth/reset-password',
-      body: { token, newPassword: 'attacker-chosen-password' },
+      body: { token, newPassword: 'Attacker-chosen-pass1' },
     });
     expect(reset.statusCode).toBe(401);
-    expect((await login('attacker-chosen-password')).statusCode).toBe(401);
+    expect((await login('Attacker-chosen-pass1')).statusCode).toBe(401);
     expect((await login(NEW_PASSWORD)).statusCode).toBe(200);
   });
 

@@ -50,6 +50,7 @@ const SECTION_LABELS: Record<string, string> = {
   assets: 'Assets',
   employees: 'Employees',
   members: 'Members',
+  notifications: 'Notifications',
   activity: 'Activity log',
   workflow: 'Workflow',
   roles: 'Roles',

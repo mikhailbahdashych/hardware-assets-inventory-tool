@@ -17,7 +17,7 @@ afterEach(async () => {
   await ctx?.close();
 });
 
-const ADMIN = { email: 'tomasz@acme.io', password: 'correct-horse-battery' };
+const ADMIN = { email: 'tomasz@acme.io', password: 'Correct-horse-battery1' };
 
 /** The secret the app generated for a member, read straight from the column. */
 async function storedSecret(email: string): Promise<string> {
@@ -279,7 +279,7 @@ describe('when the workspace requires it', () => {
       ['GET', '/api/v1/export', undefined],
       ['GET', '/api/v1/settings', undefined],
       ['PATCH', '/api/v1/settings', { mfaRequired: false }],
-      ['POST', '/api/v1/members/invites', { email: 'x@acme.io', role: 'admin', sendEmail: false }],
+      ['POST', '/api/v1/members/invites', { email: 'x@acme.io', role: 'admin' }],
       ['GET', '/api/v1/assets/next-tag', undefined],
     ];
 

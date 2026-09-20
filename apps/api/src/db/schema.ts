@@ -42,7 +42,7 @@ export const {
   employees,
   members,
   mfaRecoveryCodes,
-  notificationLog,
+  notifications,
   orgSettings,
   rolePermissions,
   roles,

@@ -14,9 +14,7 @@ export interface SettingsDraft {
   /** Text for the same reason the lead time is: a number input holds words. */
   uploadQuotaMb: string;
   logRetentionMonths: LogRetention;
-  emailWarrantyAlerts: boolean;
-  emailReturnReminders: boolean;
-  emailInvites: boolean;
-  emailWeeklyDigest: boolean;
+  warrantyAlerts: boolean;
+  returnReminders: boolean;
   mfaRequired: boolean;
 }

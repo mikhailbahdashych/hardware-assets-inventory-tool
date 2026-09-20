@@ -1,3 +1,4 @@
+import { PASSWORD_HINT } from '@inventory/shared';
 import { useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router';
 import { fieldErrors } from '@/api/formErrors';
@@ -46,7 +47,7 @@ export function ResetPasswordPage() {
           type="password"
           value={newPassword}
           onChange={setNewPassword}
-          placeholder="At least 10 characters"
+          placeholder={PASSWORD_HINT}
           autoComplete="new-password"
           autoFocus
           error={errors.newPassword}

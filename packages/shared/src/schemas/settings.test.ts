@@ -45,9 +45,9 @@ describe('settingsPatchInput', () => {
     expect(settingsPatchInput.safeParse({ logRetentionMonths: 7 }).success).toBe(false);
   });
 
-  it('takes each email toggle on its own', () => {
-    expect(settingsPatchInput.parse({ emailWeeklyDigest: true })).toEqual({
-      emailWeeklyDigest: true,
+  it('takes each notification toggle on its own', () => {
+    expect(settingsPatchInput.parse({ returnReminders: false })).toEqual({
+      returnReminders: false,
     });
   });
 });

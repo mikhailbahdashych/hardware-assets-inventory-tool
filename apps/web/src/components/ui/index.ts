@@ -17,6 +17,7 @@ export { KeyValueRow } from './KeyValueRow';
 export { Menu } from './Menu';
 export { Modal } from './Modal';
 export { PageHeader } from './PageHeader';
+export { Pagination } from './Pagination';
 export { Pill } from './Pill';
 export { RadioCard } from './RadioCard';
 export { SearchInput } from './SearchInput';

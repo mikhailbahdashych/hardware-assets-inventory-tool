@@ -14,12 +14,6 @@ export const inviteInput = z.object({
   role: z.string().min(1),
   /** Optional link to the employee record for the same person. */
   employeeId: z.string().min(1).nullable().default(null),
-  /**
-   * The design's "Send invitation email now" checkbox. Without SMTP nothing is
-   * sent either way; the response always carries the link so an admin can copy
-   * it. Email arrives in PR 8 and reads this flag then.
-   */
-  sendEmail: z.boolean().default(true),
 });
 export type InviteInput = z.infer<typeof inviteInput>;
 

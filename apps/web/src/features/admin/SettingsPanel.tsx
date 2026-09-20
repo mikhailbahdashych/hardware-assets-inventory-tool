@@ -13,7 +13,7 @@ import {
 } from '@inventory/shared';
 import { fieldErrors } from '@/api/formErrors';
 import { useUpdateSettings } from '@/api/mutations';
-import { useMeta, useSettings } from '@/api/queries';
+import { useSettings } from '@/api/queries';
 import { Button, Dropdown, Field, Input, Spinner, ToggleSwitch } from '@/components/ui';
 import { formatFileSize } from '@/lib/format';
 import { useToast } from '@/providers/ToastProvider';
@@ -21,35 +21,25 @@ import type { OrgSettings } from '@/types/api';
 import { DeleteWorkspaceModal } from './DeleteWorkspaceModal';
 import { changedSettings } from './settingsDraft';
 import type { SettingsDraft } from './types/settingsDraft';
-import type { EmailToggleKey, SettingsFormProps } from './types/settingsPanel';
+import type { NotificationToggleKey, SettingsFormProps } from './types/settingsPanel';
 import styles from './Admin.module.css';
 
 /** The quota is stored in megabytes; the line beside it is written in bytes. */
 const BYTES_PER_MB = 1024 * 1024;
 
-/** The design's four switches, in its order and its words. */
-const EMAIL_TOGGLES = [
+/** The inbox's two switches: what the nightly jobs put in the bell. */
+const NOTIFICATION_TOGGLES = [
   {
-    key: 'emailWarrantyAlerts',
+    key: 'warrantyAlerts',
     label: 'Warranty alerts',
-    description: 'Notify admins before device warranties expire',
+    description: 'Tell whoever manages assets before device warranties expire',
   },
   {
-    key: 'emailReturnReminders',
+    key: 'returnReminders',
     label: 'Return reminders',
-    description: 'Remind holders when an asset is due back',
+    description: 'Remind holders with a member account when an asset is due back',
   },
-  {
-    key: 'emailInvites',
-    label: 'Member invite emails',
-    description: 'Send sign-up links when members are invited',
-  },
-  {
-    key: 'emailWeeklyDigest',
-    label: 'Weekly digest',
-    description: 'Monday summary of changes for admins',
-  },
-] as const satisfies readonly { key: EmailToggleKey; label: string; description: string }[];
+] as const satisfies readonly { key: NotificationToggleKey; label: string; description: string }[];
 
 export function SettingsPanel() {
   const settings = useSettings();
@@ -87,9 +77,6 @@ function SettingsForm({ settings, storageUsedBytes }: SettingsFormProps) {
 
   const toast = useToast();
   const update = useUpdateSettings();
-  const meta = useMeta();
-  // Metadata that has not arrived cannot promise email works.
-  const canSendEmail = meta.data?.smtpConfigured === true;
   const errors = fieldErrors(update.error);
 
   // The diff *is* the dirty check, so the button and the payload cannot
@@ -163,20 +150,15 @@ function SettingsForm({ settings, storageUsedBytes }: SettingsFormProps) {
       </section>
 
       <section className={styles.card}>
-        <h2 className={styles.cardTitleTight}>Email notifications</h2>
-        {EMAIL_TOGGLES.map((toggle) => (
+        <h2 className={styles.cardTitleTight}>Notifications</h2>
+        {NOTIFICATION_TOGGLES.map((toggle) => (
           <div key={toggle.key} className={styles.row}>
             <div className={styles.rowText}>
               <div className={styles.rowLabel}>{toggle.label}</div>
-              <div className={styles.rowHint}>
-                {/* The switch still stores a preference without SMTP; it just
-                    cannot act on one, and saying so beats a dead control. */}
-                {canSendEmail ? toggle.description : 'SMTP is not configured on this instance'}
-              </div>
+              <div className={styles.rowHint}>{toggle.description}</div>
             </div>
             <ToggleSwitch
               label={toggle.label}
-              disabled={!canSendEmail}
               checked={draft[toggle.key]}
               onChange={(checked) => set(toggle.key, checked)}
             />
@@ -330,10 +312,8 @@ function toDraft(settings: OrgSettings): SettingsDraft {
     warrantyLeadDays: String(settings.warrantyLeadDays),
     uploadQuotaMb: String(settings.uploadQuotaMb),
     logRetentionMonths: settings.logRetentionMonths,
-    emailWarrantyAlerts: settings.emailWarrantyAlerts,
-    emailReturnReminders: settings.emailReturnReminders,
-    emailInvites: settings.emailInvites,
-    emailWeeklyDigest: settings.emailWeeklyDigest,
+    warrantyAlerts: settings.warrantyAlerts,
+    returnReminders: settings.returnReminders,
     mfaRequired: settings.mfaRequired,
   };
 }

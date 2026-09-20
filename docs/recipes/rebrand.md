@@ -19,7 +19,6 @@ The ones that matter:
 - `apps/web/src/components/app/Sidebar.tsx` — the wordmark itself.
 - `apps/web/index.html` — `<title>`, which is the browser tab.
 - `apps/web/src/features/auth/*.tsx` — "Sign in to Inventory", "Set up Inventory".
-- `apps/api/src/services/mail-templates.ts` — the header and footer of every message.
 
 ## 2. The colours — `apps/web/src/styles/tokens.css`
 
@@ -42,10 +41,9 @@ One file, both themes. The accent is what carries a brand:
 
 The semantic colours (`--ok`, `--warn`, `--err`, `--info`, `--neut` and their `-bg` twins) are meaning rather than brand: green is available, amber is a warning, red is a problem. Retint them if your palette demands it, but do not swap what they mean.
 
-Two colours live outside this file, on purpose:
+One palette lives outside this file, on purpose:
 
 - `apps/web/src/lib/avatar.ts` — the nine-colour palette avatars hash into.
-- `apps/api/src/services/mail-templates.ts` — email clients do not read CSS variables, so the constants at the top of that file are literal. It is the one place in the repo a colour is written out.
 
 ## 3. The fonts
 

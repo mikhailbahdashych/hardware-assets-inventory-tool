@@ -2,7 +2,7 @@ import cron from 'node-cron';
 import type { FastifyBaseLogger } from 'fastify';
 import type { AppDeps } from '@/types/app.js';
 import type { SchedulerHandle } from '@/types/jobs.js';
-import { runMaintenance, runReturnReminders, runWarrantyScan, runWeeklyDigest } from './jobs.js';
+import { runMaintenance, runReturnReminders, runWarrantyScan } from './jobs.js';
 
 /**
  * When the jobs run. Everything in `jobs.ts` is a plain function of a date, so
@@ -14,14 +14,13 @@ import { runMaintenance, runReturnReminders, runWarrantyScan, runWeeklyDigest } 
  * What stops a restart from re-sending is the dedupe key, not the schedule.
  *
  * Single-replica only: two containers on one volume would both fire, and only
- * the `notification_log` UNIQUE index would stand between them and duplicates.
+ * the inbox's (member, dedupe) UNIQUE index would stand between them and duplicates.
  * That is documented in the README as a deployment constraint, not defended
  * against here.
  */
 const SCHEDULE = {
   warranty: '0 8 * * *',
   returns: '5 8 * * *',
-  digest: '0 8 * * 1',
   maintenance: '0 3 * * *',
 } as const;
 
@@ -34,10 +33,6 @@ export function startScheduler(deps: AppDeps, log: FastifyBaseLogger): Scheduler
     task(SCHEDULE.returns, 'return reminders', async () => {
       const result = await runReturnReminders(deps, deps.now());
       log.info(result, 'return reminders');
-    }),
-    task(SCHEDULE.digest, 'weekly digest', async () => {
-      const result = await runWeeklyDigest(deps, deps.now());
-      log.info(result, 'weekly digest');
     }),
     task(SCHEDULE.maintenance, 'maintenance', async () => {
       const result = await runMaintenance(deps, deps.now());
@@ -53,7 +48,7 @@ export function startScheduler(deps: AppDeps, log: FastifyBaseLogger): Scheduler
     });
   }
 
-  log.info({ schedule: SCHEDULE, email: deps.mailer !== null }, 'scheduler started');
+  log.info({ schedule: SCHEDULE }, 'scheduler started');
   return {
     stop: () => {
       for (const entry of tasks) void entry.stop();

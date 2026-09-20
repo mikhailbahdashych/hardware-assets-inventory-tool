@@ -33,12 +33,5 @@ services:
       # links are built from it, and an https value switches session cookies to
       # Secure on its own.
       APP_URL: http://localhost:3000
-      # Optional. Without SMTP the app still works: invitations and password
-      # resets are links an admin copies from the UI.
-      # SMTP_HOST: smtp.example.com
-      # SMTP_PORT: '587'
-      # SMTP_USER: inventory
-      # SMTP_PASS: change-me
-      # SMTP_FROM: Inventory <inventory@example.com>
       # Affects when the nightly jobs run — they are wall-clock, not UTC.
       TZ: UTC

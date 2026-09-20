@@ -124,7 +124,7 @@ jobs:
           set -euo pipefail
           curl -sf -X POST http://localhost:3000/api/v1/setup \
             -H 'content-type: application/json' -H 'origin: http://localhost:3000' \
-            -d '{"orgName":"CI","name":"CI Admin","email":"ci@example.com","password":"correct-horse-battery"}' \
+            -d '{"orgName":"CI","name":"CI Admin","email":"ci@example.com","password":"Correct-horse-battery1"}' \
             -c /tmp/cookies > /dev/null
           curl -sf http://localhost:3000/api/v1/meta | grep -q '"needsSetup":false'
           # The SPA is served by the same process, deep links included.

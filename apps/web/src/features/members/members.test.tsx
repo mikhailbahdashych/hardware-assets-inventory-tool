@@ -4,11 +4,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   ADMIN_MEMBER,
   ADMIN_ROUTES,
+  MANAGER_ACTIONS,
   AUDITOR_ROLE,
   INVITED_SUMMARY,
   LINKED_SUMMARY,
   MAYA,
-  NO_SMTP_META,
   ROLES,
   session,
   VIEWER_ACTIONS,
@@ -170,25 +170,14 @@ describe('inviting a member', () => {
       email: 'grace@acme.io',
       role: 'manager',
       employeeId: 'emp-1',
-      sendEmail: true,
     });
 
-    // Without SMTP the link is the whole delivery mechanism, so it is shown
-    // as text as well as copied — a clipboard can fail, a readable field cannot.
+    // The link is the whole delivery mechanism, so it is shown as text as
+    // well as copied — a clipboard can fail, a readable field cannot.
     const link = await screen.findByLabelText('Invitation link');
     expect(link).toHaveValue('http://localhost:3000/accept-invite?token=abc123');
     await userEvent.click(screen.getByRole('button', { name: 'Copy' }));
     expect(writeText).toHaveBeenCalledWith('http://localhost:3000/accept-invite?token=abc123');
-  });
-
-  it('cannot offer to email the invitation on an instance with no SMTP', async () => {
-    renderApp({ ...ADMIN_ROUTES, 'GET /meta': { body: NO_SMTP_META } }, '/members');
-
-    await userEvent.click(await screen.findByRole('button', { name: /invite member/i }));
-    const checkbox = screen.getByRole('checkbox', { name: /send invitation email now/i });
-    expect(checkbox).toBeDisabled();
-    expect(checkbox).not.toBeChecked();
-    expect(screen.getByText(/No SMTP is configured/)).toBeInTheDocument();
   });
 
   it('offers every role the workspace has, with the words it gave them', async () => {
@@ -245,6 +234,29 @@ describe('inviting a member', () => {
 });
 
 describe('the row actions', () => {
+  it('offers nothing on an admin row to anybody below admin', async () => {
+    renderApp(
+      {
+        ...ADMIN_ROUTES,
+        // A manager whose role the workspace granted members.manage.
+        'GET /auth/me': session({ ...ADMIN_MEMBER, id: 'member-9', role: 'manager' }, [
+          ...MANAGER_ACTIONS,
+          'members.manage',
+        ]),
+      },
+      '/members',
+    );
+
+    // The admin's row: no menu at all — every action on it is shielded.
+    const admin = await memberRow('tomasz@acme.io');
+    expect(within(admin).queryByRole('button', { name: /Actions for/ })).toBeNull();
+    // Below the shield the grant still works.
+    const viewer = await memberRow('maya.lindqvist@acme.io');
+    expect(
+      within(viewer).getByRole('button', { name: 'Actions for Maya Lindqvist' }),
+    ).toBeInTheDocument();
+  });
+
   async function openMenu(email: string) {
     const row = await memberRow(email);
     await userEvent.click(within(row).getByRole('button', { name: /actions for/i }));

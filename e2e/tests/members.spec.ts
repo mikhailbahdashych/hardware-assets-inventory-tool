@@ -6,7 +6,7 @@ import { signIn } from '../helpers/session';
 // surfaces that recorded it. This is also where the read-only pass lives — it
 // was deferred from the auth PR because creating a non-admin needs invites.
 
-const GRACE = { email: 'grace.chen@acme.io', name: 'Grace Chen', password: 'a-longer-passphrase' };
+const GRACE = { email: 'grace.chen@acme.io', name: 'Grace Chen', password: 'A-longer-passphrase1' };
 
 test('invites a viewer, who accepts and finds every mutation gone', async ({ page, browser }) => {
   await signIn(page);
@@ -16,8 +16,6 @@ test('invites a viewer, who accepts and finds every mutation gone', async ({ pag
   const invite = page.getByRole('dialog');
   await invite.getByLabel('Email', { exact: true }).fill(GRACE.email);
   await invite.getByRole('radio', { name: /Viewer/ }).click();
-  // No SMTP on this instance, so the copyable link is the whole delivery.
-  await invite.getByLabel('Send invitation email now').uncheck();
   await invite.getByRole('button', { name: 'Send invite' }).click();
 
   const inviteUrl = await invite.getByLabel('Invitation link').inputValue();
@@ -149,7 +147,7 @@ test('issues a reset link for a member who has joined', async ({ page }) => {
   expect(url).toContain('/reset-password?token=');
   await dialog.getByRole('button', { name: 'Done' }).click();
 
-  // The link really works: it is the recovery path when there is no SMTP.
+  // The link really works: it is the recovery path an admin hands over.
   await page.goto(url);
   await expect(page.getByRole('heading', { name: /choose a new password/i })).toBeVisible();
 });

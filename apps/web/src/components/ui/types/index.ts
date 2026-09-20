@@ -20,6 +20,7 @@ export type { KeyValueRowProps } from './keyValueRow';
 export type { MenuAnchor, MenuItem, MenuProps } from './menu';
 export type { ModalProps } from './modal';
 export type { PageHeaderProps } from './pageHeader';
+export type { PaginationProps } from './pagination';
 export type { PillProps } from './pill';
 export type { RadioCardProps } from './radioCard';
 export type { SearchInputProps } from './searchInput';

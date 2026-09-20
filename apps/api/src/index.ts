@@ -5,7 +5,6 @@ import { loadConfig } from './config.js';
 import { createDb } from './db/client.js';
 import { runMigrations } from './db/migrate.js';
 import { seed } from './db/seed.js';
-import { createMailer } from './services/mailer.js';
 import { makeStorage, uploadsDir } from './services/storage.js';
 import { startScheduler } from './services/scheduler.js';
 
@@ -57,17 +56,13 @@ if (config.nodeEnv === 'production' && config.appUrl === 'http://localhost:3000'
   );
 }
 
-const mailer = createMailer(config);
 const storage = makeStorage(config);
-const app = await buildApp({ config, db, client, storage, mailer });
+const app = await buildApp({ config, db, client, storage });
 
 // The same deps the app is using, for the jobs that run on a clock rather than
 // on a request — the same storage included, or the nightly sweep would be
 // looking somewhere the uploads are not.
-const scheduler = startScheduler(
-  { config, db, client, storage, now: () => new Date(), mailer },
-  app.log,
-);
+const scheduler = startScheduler({ config, db, client, storage, now: () => new Date() }, app.log);
 
 // A container stop is a signal, and what is behind `db` has to be told: an
 // unflushed SQLite handle is a corrupt backup waiting to happen, and a

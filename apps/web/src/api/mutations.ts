@@ -180,13 +180,6 @@ export function useLogout() {
   });
 }
 
-export function useForgotPassword() {
-  return useMutation({
-    mutationFn: (input: { email: string }) =>
-      apiFetch('/auth/forgot-password', { method: 'POST', body: input }),
-  });
-}
-
 /**
  * No invalidation: a password is not query data, and the sessions it revokes
  * are other browsers' problems. Plain useMutation on purpose.
@@ -534,10 +527,32 @@ export const useResendInvite = () =>
     apiFetch<{ inviteUrl: string }>(`${member(id)}/resend-invite`, { method: 'POST' }),
   );
 
-/** The recovery path on an instance with no SMTP: an admin hands this over. */
+/**
+ * The Notifications page's "Mark all read" — one write over the whole inbox,
+ * then a refetch of every cached page, so the rows and the badge move together.
+ */
+export function useMarkNotificationsRead() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () => apiFetch('/notifications/read', { method: 'POST' }),
+    // By prefix: the key carries the page size, and every size just changed.
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['notifications'] }),
+  });
+}
+
+/** An admin hands the copyable link over out of band — the polite recovery. */
 export const useIssueResetLink = () =>
   useAdminMutation((id: string) =>
     apiFetch<{ resetUrl: string }>(`${member(id)}/reset-link`, { method: 'POST' }),
+  );
+
+/** The blunt recovery: a new password, set outright and handed over. */
+export const useSetMemberPassword = () =>
+  useAdminMutation((input: { id: string; newPassword: string }) =>
+    apiFetch(`${member(input.id)}/password`, {
+      method: 'POST',
+      body: { newPassword: input.newPassword },
+    }),
   );
 
 export const useUpdateMember = () =>

@@ -13,8 +13,7 @@ import {
   nextAssetTag,
   updateAsset,
 } from '@/services/assets.js';
-import { assignAsset, checkinAsset, currentHolderContact } from '@/services/assignments.js';
-import { sendAssignmentMail, sendCheckinMail } from '@/services/transactional.js';
+import { assignAsset, checkinAsset } from '@/services/assignments.js';
 import { removeStoredFiles } from '@/services/attachments.js';
 
 const idParam = z.object({ id: z.string().min(1) });
@@ -96,38 +95,11 @@ export function registerAssetRoutes(app: FastifyInstance, deps: AppDeps): void {
    * and the handover has already happened by the time anyone would read it.
    */
   async function handOver(request: AssignRequest) {
-    const asset = await assignAsset(deps, request.member!, request.params.id, request.body);
-    if (!request.body.notify) return asset;
-
-    const holder = await currentHolderContact(deps.db, request.params.id);
-    if (holder) {
-      await sendAssignmentMail(deps, request.log, {
-        to: holder.email,
-        assetName: asset.name,
-        assetTag: asset.assetTag,
-        checkedOutAt: request.body.checkoutDate,
-        expectedReturnDate: request.body.expectedReturnDate,
-        url: `${deps.config.appUrl}/assets/${asset.id}`,
-      });
-    }
-    return asset;
+    // The holder's inbox copy is written inside the service's transaction.
+    return await assignAsset(deps, request.member!, request.params.id, request.body);
   }
 
-  /** The holder is read *before* the check-in: afterwards there is not one. */
   async function takeBack(request: CheckinRequest) {
-    const holder = request.body.emailConfirmation
-      ? await currentHolderContact(deps.db, request.params.id)
-      : null;
-    const asset = await checkinAsset(deps, request.member!, request.params.id, request.body);
-
-    if (holder) {
-      await sendCheckinMail(deps, request.log, {
-        to: holder.email,
-        assetName: asset.name,
-        assetTag: asset.assetTag,
-        returnedAt: request.body.returnDate,
-      });
-    }
-    return asset;
+    return await checkinAsset(deps, request.member!, request.params.id, request.body);
   }
 }

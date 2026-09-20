@@ -17,10 +17,8 @@ const EDITABLE = [
   'assetTagPrefix',
   'warrantyLeadDays',
   'logRetentionMonths',
-  'emailWarrantyAlerts',
-  'emailReturnReminders',
-  'emailInvites',
-  'emailWeeklyDigest',
+  'warrantyAlerts',
+  'returnReminders',
   'mfaRequired',
   'uploadQuotaMb',
 ] as const;

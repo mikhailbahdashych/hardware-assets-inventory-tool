@@ -2,14 +2,17 @@ import { existsSync, mkdirSync, utimesSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { eq } from 'drizzle-orm';
 import { afterEach, describe, expect, it } from 'vitest';
-import { attachments, auditEvents, authTokens, notificationLog, sessions } from '@/db/schema.js';
 import {
-  isoWeek,
-  runMaintenance,
-  runReturnReminders,
-  runWarrantyScan,
-  runWeeklyDigest,
-} from '@/services/jobs.js';
+  attachments,
+  auditEvents,
+  authTokens,
+  members,
+  notifications,
+  sessions,
+} from '@/db/schema.js';
+import { runMaintenance, runReturnReminders, runWarrantyScan } from '@/services/jobs.js';
+import { newId } from '@/lib/ids.js';
+import { nowIso } from '@/lib/dates.js';
 import { buildTestApp, inject, setupOrg, type TestApp } from './helpers.js';
 
 let ctx: TestApp;
@@ -17,14 +20,13 @@ afterEach(async () => {
   await ctx?.close();
 });
 
-const SMTP = { SMTP_HOST: 'smtp.acme.io', SMTP_FROM: 'IT <it@acme.io>' };
 const MONDAY = new Date('2026-08-17T08:00:00.000Z');
 
 const day = (from: Date, days: number) =>
   new Date(from.getTime() + days * 86_400_000).toISOString().slice(0, 10);
 
-async function withMail(now: Date = MONDAY) {
-  ctx = await buildTestApp(SMTP, () => now);
+async function withApp(now: Date = MONDAY) {
+  ctx = await buildTestApp({}, () => now);
   const admin = await setupOrg(ctx.app);
   return admin;
 }
@@ -51,32 +53,51 @@ async function createEmployee(cookie: string, body: Record<string, unknown> = {}
   return res.json().employee as { id: string };
 }
 
+/** The inbox's personal bridge: a member account linked to the employee. */
+async function linkMember(employeeId: string): Promise<string> {
+  const id = newId();
+  const at = nowIso();
+  await ctx.db.insert(members).values({
+    id,
+    email: `linked-${id.slice(0, 8)}@acme.io`,
+    displayName: 'Linked Member',
+    passwordHash: 'not-used',
+    role: 'viewer',
+    status: 'active',
+    employeeId,
+    createdAt: at,
+    updatedAt: at,
+  });
+  return id;
+}
+
+const inboxOf = (memberId: string) =>
+  ctx.db.select().from(notifications).where(eq(notifications.memberId, memberId));
+
 describe('the warranty scan', () => {
-  it('mails the admins once about what is expiring inside the lead time', async () => {
-    const admin = await withMail();
+  it('writes one inbox row per expiring asset to whoever may edit assets, once', async () => {
+    const admin = await withApp();
     await createAsset(admin, { name: 'Due soon', warrantyUntil: day(MONDAY, 20) });
     await createAsset(admin, { name: 'Due later', warrantyUntil: day(MONDAY, 120) });
     await createAsset(admin, { name: 'Already gone', warrantyUntil: day(MONDAY, -5) });
 
+    // One recipient (the admin), one asset inside the 60-day lead time.
     expect(await runWarrantyScan(ctx.deps, MONDAY)).toEqual({ sent: 1, skipped: 0 });
-    expect(ctx.sent).toHaveLength(1);
-    expect(ctx.sent[0]!.to).toBe('tomasz@acme.io');
-    expect(ctx.sent[0]!.text).toContain('Due soon');
-    expect(ctx.sent[0]!.text).toContain('20 days left');
-    // Outside the 60-day lead time, and one whose alert is already moot.
-    expect(ctx.sent[0]!.text).not.toContain('Due later');
-    expect(ctx.sent[0]!.text).not.toContain('Already gone');
+    const rows = await ctx.db.select().from(notifications);
+    expect(rows).toHaveLength(1);
+    const params = JSON.parse(rows[0]!.params) as { assetName: string; days: number };
+    expect(params.assetName).toBe('Due soon');
+    expect(params.days).toBe(20);
 
-    // Running again the same day sends nothing.
+    // Running again the same day writes nothing.
     expect(await runWarrantyScan(ctx.deps, MONDAY)).toEqual({ sent: 0, skipped: 1 });
-    expect(ctx.sent).toHaveLength(1);
+    expect(await ctx.db.select().from(notifications)).toHaveLength(1);
   });
 
   it('re-arms when the warranty date is corrected', async () => {
-    const admin = await withMail();
+    const admin = await withApp();
     const asset = await createAsset(admin, { name: 'Laptop', warrantyUntil: day(MONDAY, 20) });
     await runWarrantyScan(ctx.deps, MONDAY);
-    expect(ctx.sent).toHaveLength(1);
 
     await inject(ctx.app, {
       method: 'PATCH',
@@ -85,13 +106,13 @@ describe('the warranty scan', () => {
       body: { warrantyUntil: day(MONDAY, 30) },
     });
 
-    // A different date is a different alert, so the corrected one goes out.
+    // A different date is a different alert, so the corrected one lands too.
     expect(await runWarrantyScan(ctx.deps, MONDAY)).toEqual({ sent: 1, skipped: 0 });
-    expect(ctx.sent[1]!.text).toContain('30 days left');
+    expect(await ctx.db.select().from(notifications)).toHaveLength(2);
   });
 
   it('uses the lead time the workspace set, not a fixed one', async () => {
-    const admin = await withMail();
+    const admin = await withApp();
     await createAsset(admin, { name: 'Due in 20 days', warrantyUntil: day(MONDAY, 20) });
     await inject(ctx.app, {
       method: 'PATCH',
@@ -102,7 +123,6 @@ describe('the warranty scan', () => {
 
     // Inside the default 60 days, outside the 14 this workspace chose.
     expect(await runWarrantyScan(ctx.deps, MONDAY)).toEqual({ sent: 0, skipped: 0 });
-    expect(ctx.sent).toEqual([]);
 
     await inject(ctx.app, {
       method: 'PATCH',
@@ -114,32 +134,24 @@ describe('the warranty scan', () => {
   });
 
   it('does nothing when the workspace has the alerts switched off', async () => {
-    const admin = await withMail();
+    const admin = await withApp();
     await createAsset(admin, { name: 'Laptop', warrantyUntil: day(MONDAY, 20) });
     await inject(ctx.app, {
       method: 'PATCH',
       url: '/api/v1/settings',
       cookie: admin,
-      body: { emailWarrantyAlerts: false },
+      body: { warrantyAlerts: false },
     });
 
     expect(await runWarrantyScan(ctx.deps, MONDAY)).toEqual({ sent: 0, skipped: 1 });
-    expect(ctx.sent).toEqual([]);
-  });
-
-  it('does nothing at all on an instance with no SMTP', async () => {
-    ctx = await buildTestApp({}, () => MONDAY);
-    const admin = await setupOrg(ctx.app);
-    await createAsset(admin, { name: 'Laptop', warrantyUntil: day(MONDAY, 20) });
-
-    expect(await runWarrantyScan(ctx.deps, MONDAY)).toEqual({ sent: 0, skipped: 1 });
-    expect(await ctx.db.select().from(notificationLog)).toEqual([]);
+    expect(await ctx.db.select().from(notifications)).toEqual([]);
   });
 });
 
 describe('return reminders', () => {
   async function assetDueBack(admin: string, dueInDays: number) {
     const maya = await createEmployee(admin);
+    const memberId = await linkMember(maya.id);
     const asset = await createAsset(admin, {
       name: 'MacBook Pro 14"',
       status: 'assigned',
@@ -152,46 +164,62 @@ describe('return reminders', () => {
       cookie: admin,
       body: { status: 'offboarding', returnDueDate: day(MONDAY, dueInDays) },
     });
-    return { maya, asset };
+    return { maya, memberId, asset };
   }
 
-  it('mails the holder, not the admins', async () => {
-    const admin = await withMail();
-    await assetDueBack(admin, 2);
+  it('reminds the linked member, and nobody else', async () => {
+    const admin = await withApp();
+    const { memberId } = await assetDueBack(admin, 2);
 
     expect(await runReturnReminders(ctx.deps, MONDAY)).toEqual({ sent: 1, skipped: 0 });
-    expect(ctx.sent[0]!.to).toBe('maya@acme.io');
-    expect(ctx.sent[0]!.text).toContain('MacBook Pro 14"');
-    expect(ctx.sent[0]!.text).toContain('Maya Lindqvist');
+    const rows = await ctx.db.select().from(notifications);
+    // The assignment itself notified the linked member too; the reminder is the
+    // second row, and both belong to the one linked inbox.
+    expect(rows.every((row) => row.memberId === memberId)).toBe(true);
+    const reminder = rows.find((row) => row.kind === 'return.due')!;
+    const params = JSON.parse(reminder.params) as { assetName: string; overdue: boolean };
+    expect(params.assetName).toBe('MacBook Pro 14"');
+    expect(params.overdue).toBe(false);
   });
 
-  it('nags about something overdue and stays quiet about something far off', async () => {
-    const admin = await withMail();
+  it('flags an overdue return and stays quiet about something far off', async () => {
+    const admin = await withApp();
     await assetDueBack(admin, -4);
     expect((await runReturnReminders(ctx.deps, MONDAY)).sent).toBe(1);
+    const reminder = (await ctx.db.select().from(notifications)).find(
+      (row) => row.kind === 'return.due',
+    )!;
+    expect((JSON.parse(reminder.params) as { overdue: boolean }).overdue).toBe(true);
 
     await ctx.close();
-    const other = await withMail();
+    const other = await withApp();
     await assetDueBack(other, 30);
     expect(await runReturnReminders(ctx.deps, MONDAY)).toEqual({ sent: 0, skipped: 0 });
   });
 
-  it('sends one message a day while the item stays out', async () => {
-    const admin = await withMail();
+  it('nags once as the date nears, once more when it slips, never daily', async () => {
+    const admin = await withApp();
     await assetDueBack(admin, 1);
 
+    // Inside the lead window: one heads-up. A second run — even a day later,
+    // on the due date itself — is the same fact under the same key, and the
+    // unread row is still sitting in the inbox; there is nothing to repeat.
     expect((await runReturnReminders(ctx.deps, MONDAY)).sent).toBe(1);
     expect((await runReturnReminders(ctx.deps, MONDAY)).sent).toBe(0);
+    const dueDay = new Date(MONDAY.getTime() + 86_400_000);
+    expect((await runReturnReminders(ctx.deps, dueDay)).sent).toBe(0);
 
-    // Tomorrow is a new reminder: the item is still out, and more overdue.
-    const tomorrow = new Date(MONDAY.getTime() + 86_400_000);
-    expect((await runReturnReminders(ctx.deps, tomorrow)).sent).toBe(1);
-    expect(ctx.sent).toHaveLength(2);
+    // Slipping into overdue is a new fact: exactly one more row, then quiet.
+    const overdue = new Date(MONDAY.getTime() + 2 * 86_400_000);
+    expect((await runReturnReminders(ctx.deps, overdue)).sent).toBe(1);
+    const later = new Date(MONDAY.getTime() + 3 * 86_400_000);
+    expect((await runReturnReminders(ctx.deps, later)).sent).toBe(0);
   });
 
   it('says nothing about an assignment with no return date', async () => {
-    const admin = await withMail();
+    const admin = await withApp();
     const maya = await createEmployee(admin);
+    await linkMember(maya.id);
     await createAsset(admin, {
       name: 'MacBook Pro 14"',
       status: 'assigned',
@@ -200,57 +228,6 @@ describe('return reminders', () => {
     });
 
     expect(await runReturnReminders(ctx.deps, MONDAY)).toEqual({ sent: 0, skipped: 0 });
-  });
-});
-
-describe('the weekly digest', () => {
-  it('summarizes the fleet and the week, once', async () => {
-    const admin = await withMail();
-    await createAsset(admin, { name: 'MacBook Pro 14"' });
-
-    expect(await runWeeklyDigest(ctx.deps, MONDAY)).toEqual({ sent: 0, skipped: 1 });
-    // It is off by default; a workspace opts in.
-    await inject(ctx.app, {
-      method: 'PATCH',
-      url: '/api/v1/settings',
-      cookie: admin,
-      body: { emailWeeklyDigest: true },
-    });
-
-    expect(await runWeeklyDigest(ctx.deps, MONDAY)).toEqual({ sent: 1, skipped: 0 });
-    expect(ctx.sent[0]!.subject).toBe('Acme Corp Inventory · this week');
-    expect(ctx.sent[0]!.text).toContain('1 assets tracked');
-    // Sentences from the same renderer the activity log uses.
-    expect(ctx.sent[0]!.text).toContain('Added MacBook Pro 14" to the inventory');
-
-    expect(await runWeeklyDigest(ctx.deps, MONDAY)).toEqual({ sent: 0, skipped: 1 });
-  });
-
-  it('is a new digest next week', async () => {
-    const admin = await withMail();
-    await inject(ctx.app, {
-      method: 'PATCH',
-      url: '/api/v1/settings',
-      cookie: admin,
-      body: { emailWeeklyDigest: true },
-    });
-    await runWeeklyDigest(ctx.deps, MONDAY);
-
-    const nextMonday = new Date(MONDAY.getTime() + 7 * 86_400_000);
-    expect((await runWeeklyDigest(ctx.deps, nextMonday)).sent).toBe(1);
-    expect(ctx.sent).toHaveLength(2);
-  });
-});
-
-describe('isoWeek', () => {
-  it('is stable within a week and changes at its boundary', () => {
-    expect(isoWeek(new Date('2026-08-17T00:00:00Z'))).toBe('2026-W34');
-    expect(isoWeek(new Date('2026-08-23T23:59:00Z'))).toBe('2026-W34');
-    expect(isoWeek(new Date('2026-08-24T00:00:00Z'))).toBe('2026-W35');
-  });
-
-  it('gives a year-straddling week to the year of its Thursday', () => {
-    expect(isoWeek(new Date('2027-01-01T00:00:00Z'))).toBe('2026-W53');
   });
 });
 
@@ -266,7 +243,7 @@ describe('the orphan upload sweep', () => {
   }
 
   it('removes a stray file older than a day and keeps a fresh one', async () => {
-    const admin = await withMail();
+    const admin = await withApp();
     const asset = await createAsset(admin, { name: 'MacBook Pro 14"' });
     await inject(ctx.app, {
       method: 'POST',
@@ -299,34 +276,32 @@ describe('the orphan upload sweep', () => {
   });
 
   it('sweeps nothing on an instance where nobody has uploaded anything', async () => {
-    await withMail();
+    await withApp();
     expect(existsSync(ctx.uploadsDir)).toBe(false);
     expect((await runMaintenance(ctx.deps, MONDAY)).orphanUploadsRemoved).toBe(0);
   });
 });
 
-describe('the notification log prune', () => {
-  it('keeps a year of what was sent and drops the rest', async () => {
-    await withMail();
-    const at = (months: number) => {
-      const date = new Date(MONDAY);
-      date.setUTCMonth(date.getUTCMonth() - months);
-      return date.toISOString();
-    };
-    await ctx.db.insert(notificationLog).values([
-      { id: 'old', kind: 'warranty', dedupeKey: 'warranty:old', sentAt: at(13) },
-      { id: 'recent', kind: 'warranty', dedupeKey: 'warranty:recent', sentAt: at(11) },
+describe('the inbox prune', () => {
+  it('keeps ninety days and drops the rest, read or not', async () => {
+    const admin = await withApp();
+    const me = await inject(ctx.app, { method: 'GET', url: '/api/v1/auth/me', cookie: admin });
+    const memberId = me.json().member.id as string;
+    const at = (days: number) => new Date(MONDAY.getTime() - days * 86_400_000).toISOString();
+    await ctx.db.insert(notifications).values([
+      { id: 'old', memberId, kind: 'warranty.expiring', params: '{}', createdAt: at(91) },
+      { id: 'recent', memberId, kind: 'warranty.expiring', params: '{}', createdAt: at(89) },
     ]);
 
     const result = await runMaintenance(ctx.deps, MONDAY);
     expect(result.notificationRowsPruned).toBe(1);
-    expect((await ctx.db.select().from(notificationLog)).map((row) => row.id)).toEqual(['recent']); // prettier-ignore
+    expect((await inboxOf(memberId)).map((row) => row.id)).toEqual(['recent']);
   });
 });
 
 describe('nightly maintenance', () => {
   it('removes what has expired and nothing that has not', async () => {
-    const admin = await withMail();
+    const admin = await withApp();
     const at = new Date(MONDAY.getTime() - 86_400_000).toISOString();
     await ctx.db.insert(authTokens).values({
       id: 'expired-token',
@@ -347,7 +322,7 @@ describe('nightly maintenance', () => {
   });
 
   it('prunes the activity log past the retention the workspace chose', async () => {
-    const admin = await withMail();
+    const admin = await withApp();
     await createAsset(admin, { name: 'MacBook Pro 14"' });
 
     // Backdate the setup event past the 12-month default.
@@ -362,7 +337,7 @@ describe('nightly maintenance', () => {
   });
 
   it('keeps everything when retention is Forever', async () => {
-    const admin = await withMail();
+    const admin = await withApp();
     await inject(ctx.app, {
       method: 'PATCH',
       url: '/api/v1/settings',

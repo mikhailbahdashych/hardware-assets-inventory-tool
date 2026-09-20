@@ -114,7 +114,7 @@ describe('translateUniqueViolation', () => {
       method: 'POST',
       url: '/api/v1/members/invites',
       cookie,
-      body: { email, role: 'viewer', employeeId: null, sendEmail: false },
+      body: { email, role: 'viewer', employeeId: null },
     });
     expect(preCheck.statusCode).toBe(422);
 

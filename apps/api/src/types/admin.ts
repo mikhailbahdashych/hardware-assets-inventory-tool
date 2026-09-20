@@ -19,7 +19,7 @@ export type AuditTypeCounts = Record<AuditType | 'all', number>;
 export interface AuditPage {
   items: AuditItem[];
   typeCounts: AuditTypeCounts;
-  /** Events matching the current filter — what "Load more" counts against. */
+  /** Events matching the current filter — what the pager divides into pages. */
   total: number;
 }
 

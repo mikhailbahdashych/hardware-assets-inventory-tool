@@ -67,24 +67,6 @@
   font-size: 12.5px;
 }
 
-.loadMore {
-  align-self: center;
-  height: 29px;
-  padding: 0 14px;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  background: none;
-  color: var(--muted);
-  font: inherit;
-  font-size: 12px;
-  font-weight: 500;
-  cursor: pointer;
-}
-
-.loadMore:hover {
-  background: var(--hover);
-}
-
 /* Settings */
 
 .settings {

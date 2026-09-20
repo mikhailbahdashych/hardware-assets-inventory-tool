@@ -167,7 +167,6 @@ describe('employee list', () => {
       email: 'sofia@acme.io',
       role: 'manager',
       employeeId: 'emp-9',
-      sendEmail: true,
     });
     expect(await screen.findByLabelText('Invitation link')).toHaveValue(
       'http://localhost:3000/accept-invite?token=xyz',

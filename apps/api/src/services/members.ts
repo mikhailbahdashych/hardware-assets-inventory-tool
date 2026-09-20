@@ -1,4 +1,4 @@
-import { and, asc, eq, ne } from 'drizzle-orm';
+import { and, asc, eq, isNull, ne } from 'drizzle-orm';
 import { ADMIN_ROLE, type InviteInput, type MemberPatchInput } from '@inventory/shared';
 import type { Config } from '@/types/config.js';
 import type { AppDeps } from '@/types/app.js';
@@ -11,11 +11,12 @@ import type {
   MemberSummary,
   ResetLink,
 } from '@/types/members.js';
-import { employees, members, roles } from '@/db/schema.js';
+import { authTokens, employees, members, roles, sessions } from '@/db/schema.js';
 import { nowIso } from '@/lib/dates.js';
 import { AppError, invalidFields, notFound } from '@/lib/errors.js';
 import { DUPLICATE_MEMBER_EMAIL } from '@/lib/unique.js';
 import { newId } from '@/lib/ids.js';
+import { hashPassword } from '@/lib/password.js';
 import { serializeMemberSummary } from '@/lib/serialize.js';
 import { writeAudit } from './audit.js';
 import { issueAuthToken } from './auth-tokens.js';
@@ -68,6 +69,7 @@ export async function inviteMember(
 
   const { member, raw } = await deps.db.transaction(async (tx) => {
     await requireFreeEmail(tx, input.email);
+    if (input.role === ADMIN_ROLE) await assertAdminActor(tx, actor);
     // Roles are rows, so the id on the form is checked against them here — the
     // schema can only say it is a non-empty string.
     const role = await requireRole(tx, input.role);
@@ -120,6 +122,7 @@ export async function resendInvite(deps: AppDeps, actor: Actor, id: string): Pro
 
   const raw = await deps.db.transaction(async (tx) => {
     const member = await requireMember(tx, id);
+    if (member.role === ADMIN_ROLE) await assertAdminActor(tx, actor);
     if (member.status !== 'invited') {
       throw new AppError(409, 'already_active', 'That member has already joined the workspace.');
     }
@@ -143,15 +146,81 @@ export async function resendInvite(deps: AppDeps, actor: Actor, id: string): Pro
 }
 
 /**
- * The recovery path on an instance with no SMTP: an admin copies this link and
- * hands it over in person. It is never given to an anonymous requester — that
- * is why /auth/forgot-password answers 204 and issues nothing.
+ * The other recovery door: an admin sets the password outright and hands it
+ * over however the company already talks — a password manager, a hallway.
+ * Refused on your own account on purpose: the self-service change requires the
+ * current password, and an admin's stolen session must not get to skip that.
+ * Every session the member had dies with the old credential; the admin knows
+ * the new one until the member changes it, and the UI says to ask them to.
+ */
+export async function setMemberPassword(
+  deps: AppDeps,
+  actor: Actor,
+  id: string,
+  newPassword: string,
+): Promise<void> {
+  const now = deps.now();
+  if (id === actor.id) {
+    throw new AppError(
+      409,
+      'self_password_set',
+      'Change your own password from the sidebar — it asks for your current one.',
+    );
+  }
+  const passwordHash = await hashPassword(newPassword);
+  await deps.db.transaction(async (tx) => {
+    const member = await requireMember(tx, id);
+    if (member.role === ADMIN_ROLE) await assertAdminActor(tx, actor);
+    if (member.status !== 'active') {
+      throw new AppError(
+        409,
+        'not_active',
+        'That member has not accepted their invitation yet — resend the invite instead.',
+      );
+    }
+    await tx
+      .update(members)
+      .set({ passwordHash, updatedAt: nowIso(now) })
+      .where(eq(members.id, member.id));
+    await tx.delete(sessions).where(eq(sessions.memberId, member.id));
+    // A pending admin-issued reset link must not outlive the set: whoever
+    // holds it could otherwise take the account straight back — the same rule
+    // the self-service change applies in modules/me.ts.
+    await tx
+      .delete(authTokens)
+      .where(
+        and(
+          eq(authTokens.memberId, member.id),
+          eq(authTokens.purpose, 'password_reset'),
+          isNull(authTokens.consumedAt),
+        ),
+      );
+    await writeAudit(
+      tx,
+      {
+        type: 'auth',
+        action: 'member.password_set',
+        actorMemberId: actor.id,
+        actorName: actor.displayName,
+        memberId: member.id,
+        params: { memberName: member.displayName },
+      },
+      now,
+    );
+  });
+}
+
+/**
+ * The polite recovery path: an admin copies this link and hands it over in
+ * person. It is never given to an anonymous requester — which is why there is
+ * no /auth/forgot-password endpoint at all.
  */
 export async function issueResetLink(deps: AppDeps, actor: Actor, id: string): Promise<ResetLink> {
   const now = deps.now();
 
   const raw = await deps.db.transaction(async (tx) => {
     const member = await requireMember(tx, id);
+    if (member.role === ADMIN_ROLE) await assertAdminActor(tx, actor);
     if (member.status !== 'active') {
       throw new AppError(
         409,
@@ -188,6 +257,7 @@ export async function updateMember(
 
   return await deps.db.transaction(async (tx) => {
     const current = await requireMember(tx, id);
+    if (current.role === ADMIN_ROLE || patch.role === ADMIN_ROLE) await assertAdminActor(tx, actor);
     const values: Partial<typeof members.$inferInsert> = {};
     // Named outside the branch so the audit event below can snapshot its label
     // without asking the table a second time.
@@ -274,6 +344,7 @@ export async function removeMember(deps: AppDeps, actor: Actor, id: string): Pro
 
   await deps.db.transaction(async (tx) => {
     const member = await requireMember(tx, id);
+    if (member.role === ADMIN_ROLE) await assertAdminActor(tx, actor);
     if (id === actor.id) {
       throw new AppError(
         409,
@@ -343,6 +414,24 @@ async function readMember(tx: DbOrTx, id: string): Promise<MemberSummary> {
  * anchored to `ASSIGNED_STATUS`: every other role is a row a workspace edits,
  * and this one is the row it cannot.
  */
+/**
+ * Nobody below admin acts on an admin — or mints one. `members.manage` is a
+ * grant any workspace role can hold, so without this rule a custom role would
+ * be a ladder over the very accounts that could revoke it: set an admin's
+ * password, or hold a fresh reset or invite link, and the workspace is yours.
+ * The actor's rank is read from their row rather than trusted from a claim,
+ * so a demotion bites on the demoted member's very next request.
+ */
+export async function assertAdminActor(db: DbOrTx, actor: Actor): Promise<void> {
+  const [row] = await db
+    .select({ role: members.role })
+    .from(members)
+    .where(eq(members.id, actor.id));
+  if (!row || row.role !== ADMIN_ROLE) {
+    throw new AppError(403, 'admin_shield', 'Only an admin can manage an admin account.');
+  }
+}
+
 async function assertNotLastAdmin(tx: DbOrTx, target: MemberRow): Promise<void> {
   if (target.role !== ADMIN_ROLE || target.status !== 'active') return;
 

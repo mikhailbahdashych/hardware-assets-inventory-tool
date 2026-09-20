@@ -93,7 +93,7 @@ describe('inviting a member', () => {
     };
     expect(member).toMatchObject({ email: 'grace@acme.io', role: 'manager', status: 'invited' });
 
-    // The link is what an admin copies when SMTP is not configured, so it must
+    // The link is what an admin copies and hands over themselves, so it must
     // work on its own — the token in it is the one the invite endpoint accepts.
     const token = new URL(inviteUrl).searchParams.get('token')!;
     const preview = await ctx.app.inject({
@@ -242,7 +242,7 @@ describe('resending an invitation', () => {
 });
 
 describe('issuing a password reset link', () => {
-  it('is the recovery path when there is no SMTP, and it is admin-only', async () => {
+  it('is the polite recovery path, and it is admin-only', async () => {
     ctx = await buildTestApp();
     const admin = await setupOrg(ctx.app);
     const me = (await ctx.db.select().from(members))[0]!;
@@ -268,7 +268,7 @@ describe('issuing a password reset link', () => {
     const used = await ctx.app.inject({
       method: 'POST',
       url: '/api/v1/auth/reset-password',
-      body: { token, newPassword: 'a-brand-new-password' },
+      body: { token, newPassword: 'A-brand-new-password1' },
     });
     expect(used.statusCode).toBe(200);
   });

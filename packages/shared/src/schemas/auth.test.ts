@@ -13,7 +13,7 @@ describe('setupInput', () => {
       orgName: 'Acme Corp',
       name: 'Tomasz Kowalski',
       email: 'Tomasz.Kowalski@Acme.io',
-      password: 'correct-horse-battery',
+      password: 'Correct-horse-battery1',
     });
     expect(parsed.email).toBe('tomasz.kowalski@acme.io');
   });
@@ -24,9 +24,30 @@ describe('setupInput', () => {
         orgName: 'Acme',
         name: 'T',
         email: 't@acme.io',
-        password: 'short',
+        password: 'Sh0rt!',
       }).success,
     ).toBe(false);
+  });
+
+  it('holds every password to the one rule: length, upper, lower, digit, special', () => {
+    const attempt = (password: string) =>
+      setupInput.safeParse({ orgName: 'Acme', name: 'T', email: 't@acme.io', password }).success;
+    expect(attempt('Valid-pass-9x')).toBe(true);
+    expect(attempt('valid-pass-9x')).toBe(false); // no upper-case letter
+    expect(attempt('VALID-PASS-9X')).toBe(false); // no lower-case letter
+    expect(attempt('Valid-pass-xy')).toBe(false); // no digit
+    expect(attempt('ValidPass9xy')).toBe(false); // no special character
+    // The message names all four requirements, because the field shows it.
+    const failed = setupInput.safeParse({
+      orgName: 'Acme',
+      name: 'T',
+      email: 't@acme.io',
+      password: 'ValidPass9xy',
+    });
+    expect(failed.success).toBe(false);
+    if (!failed.success) {
+      expect(JSON.stringify(failed.error.issues)).toMatch(/special character/);
+    }
   });
 
   it('rejects invalid emails and empty org names', () => {
@@ -35,7 +56,7 @@ describe('setupInput', () => {
         orgName: '',
         name: 'T',
         email: 't@acme.io',
-        password: 'long-enough-password',
+        password: 'Long-enough-password1',
       }).success,
     ).toBe(false);
     expect(
@@ -43,7 +64,7 @@ describe('setupInput', () => {
         orgName: 'Acme',
         name: 'T',
         email: 'not-an-email',
-        password: 'long-enough-password',
+        password: 'Long-enough-password1',
       }).success,
     ).toBe(false);
   });
@@ -63,26 +84,26 @@ describe('loginInput', () => {
 describe('resetPasswordInput / acceptInviteInput', () => {
   it('requires a token and a long-enough new password', () => {
     expect(
-      resetPasswordInput.safeParse({ token: '', newPassword: 'long-enough-password' }).success,
+      resetPasswordInput.safeParse({ token: '', newPassword: 'Long-enough-password1' }).success,
     ).toBe(false);
     expect(resetPasswordInput.safeParse({ token: 'abc', newPassword: 'short' }).success).toBe(
       false,
     );
     expect(
-      resetPasswordInput.safeParse({ token: 'abc', newPassword: 'long-enough-password' }).success,
+      resetPasswordInput.safeParse({ token: 'abc', newPassword: 'Long-enough-password1' }).success,
     ).toBe(true);
   });
 
   it('accept-invite requires a display name', () => {
     expect(
-      acceptInviteInput.safeParse({ token: 'abc', name: '', password: 'long-enough-password' })
+      acceptInviteInput.safeParse({ token: 'abc', name: '', password: 'Long-enough-password1' })
         .success,
     ).toBe(false);
     expect(
       acceptInviteInput.safeParse({
         token: 'abc',
         name: 'Daniel Okafor',
-        password: 'long-enough-password',
+        password: 'Long-enough-password1',
       }).success,
     ).toBe(true);
   });

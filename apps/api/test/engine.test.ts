@@ -86,7 +86,7 @@ describe('a workspace on this engine', () => {
       url: '/api/v1/settings',
       cookie: admin,
     });
-    expect(settings.json().settings.emailInvites).toBe(true);
+    expect(settings.json().settings.warrantyAlerts).toBe(true);
 
     const events = await ctx.db
       .select()

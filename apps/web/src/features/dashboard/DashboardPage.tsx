@@ -216,7 +216,7 @@ function PendingReturns({ data }: PendingReturnsProps) {
         )}
       </div>
       <p className={styles.footnote}>
-        Triggered by offboarding · holders are reminded by email when SMTP is configured
+        Triggered by offboarding · holders with a member account are reminded on the bell
       </p>
     </section>
   );
