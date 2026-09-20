@@ -3,19 +3,19 @@ import { renderNotification } from '@inventory/shared';
 import { useMarkNotificationsRead } from '@/api/mutations';
 import { INBOX_PAGE, useNotifications } from '@/api/queries';
 import { PageContainer } from '@/components/app/PageContainer';
-import { Button, EmptyState, Spinner } from '@/components/ui';
+import { Button, EmptyState, Pagination, Spinner } from '@/components/ui';
 import { formatRelativeTime } from '@/lib/format';
 import styles from './Notifications.module.css';
 
 /**
  * The whole inbox, behind the topbar's bell: every notice the member ever got,
- * newest first, paged the way the activity log is. Reading is the "Mark all
+ * newest first, in numbered pages like the activity log. Reading is the "Mark all
  * read" button, deliberately — a page you merely glanced at has not been read,
  * and the unread marks should survive the glance.
  */
 export function NotificationsPage() {
-  const [limit, setLimit] = useState(INBOX_PAGE);
-  const inbox = useNotifications(limit);
+  const [page, setPage] = useState(1);
+  const inbox = useNotifications(INBOX_PAGE, (page - 1) * INBOX_PAGE);
   const markRead = useMarkNotificationsRead();
 
   // A payload that has not arrived yet has no rows and nothing to count.
@@ -64,15 +64,7 @@ export function NotificationsPage() {
         </>
       )}
 
-      {rows.length < total && (
-        <button
-          type="button"
-          className={styles.loadMore}
-          onClick={() => setLimit(limit + INBOX_PAGE)}
-        >
-          Load more
-        </button>
-      )}
+      <Pagination page={page} pageCount={Math.ceil(total / INBOX_PAGE)} onChange={setPage} />
     </PageContainer>
   );
 }

@@ -94,7 +94,7 @@ Both refusals remove what they wrote. A file rejected for filling the disk must 
 - **The unique `(member_id, dedupe_key)` index is what stops a repeat**: jobs insert with `onConflictDoNothing`, which is what makes a re-run idempotent. The key is the whole design — `warranty:{assetId}:{warrantyUntil}` re-arms when the date is corrected; `return:{assignmentId}:{day}` repeats daily while an item is overdue.
 - `src/services/jobs.ts` holds the three scheduled jobs as plain functions of `(deps, now)`; `scheduler.ts` decides only the clock. That is what makes every rule testable with a fixed date, and why a missed run is skipped rather than queued.
 - **The maintenance job is the only one that removes rather than writes**, and it removes four things: expired sessions and tokens, audit events past the workspace's retention, inbox rows older than 90 days, and orphaned uploads. Its result object is the log line — add a sweep, add a count to `MaintenanceResult`.
-- The two routes are `GET /api/v1/notifications` (paged like the audit log: `?limit=` up to 200, defaulting to 50, plus the unread count and the total) and `POST /api/v1/notifications/read`, open to every signed-in member — each member has an inbox, and only their own.
+- The two routes are `GET /api/v1/notifications` (paged like the audit log: `?limit=` up to 200, defaulting to 50, and `?offset=` from 0, plus the unread count and the total — both counts are over the whole inbox, never the page) and `POST /api/v1/notifications/read`, open to every signed-in member — each member has an inbox, and only their own.
 
 ## The one invariant
 

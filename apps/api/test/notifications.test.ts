@@ -159,7 +159,7 @@ describe('the inbox', () => {
     expect(omarRows[0]!.readAt).toBeNull();
   });
 
-  it('pages the history: limit on the query, the total for the footer', async () => {
+  it('pages the history: limit and offset on the query, the total for the footer', async () => {
     ctx = await buildTestApp();
     const cookie = await setupOrg(ctx.app);
     const { employeeId, memberCookie: maya } = await linkedEmployee(cookie);
@@ -182,6 +182,16 @@ describe('the inbox', () => {
     expect(page.json().total).toBe(3);
     // The unread badge counts the whole inbox, not the page.
     expect(page.json().unreadCount).toBe(3);
+
+    // The second page: what the first one left, with the counts unmoved.
+    const second = await inject(ctx.app, {
+      method: 'GET',
+      url: '/api/v1/notifications?limit=2&offset=2',
+      cookie: maya,
+    });
+    expect(second.json().notifications).toHaveLength(1);
+    expect(second.json().total).toBe(3);
+    expect(second.json().unreadCount).toBe(3);
 
     const everything = await inject(ctx.app, {
       method: 'GET',

@@ -75,31 +75,36 @@ describe('the notifications page', () => {
     expect(screen.getByRole('button', { name: 'Mark all read' })).toBeDisabled();
   });
 
-  it('pages the history the way the activity log does', async () => {
+  it('pages the history the way the activity log does — numbered, one page at a time', async () => {
     const api = renderApp(
       {
         ...DASHBOARD_ROUTES,
-        'GET /notifications?limit=50': {
-          body: { notifications: [HANDED], unreadCount: 0, total: 2 },
+        'GET /notifications?limit=50&offset=0': {
+          body: { notifications: [HANDED], unreadCount: 0, total: 60 },
         },
-        'GET /notifications?limit=100': {
-          body: { notifications: [HANDED, RETURNED], unreadCount: 0, total: 2 },
+        'GET /notifications?limit=50&offset=50': {
+          body: { notifications: [RETURNED], unreadCount: 0, total: 60 },
         },
       },
       '/notifications',
     );
 
-    expect(await screen.findByText(/2 notifications/)).toBeInTheDocument();
-    expect(within(screen.getByRole('list')).getAllByRole('listitem')).toHaveLength(1);
+    expect(await screen.findByText(/60 notifications/)).toBeInTheDocument();
+    expect(screen.getByText(/You were handed AST-0042/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Prev' })).toBeDisabled();
 
-    await userEvent.click(screen.getByRole('button', { name: 'Load more' }));
-    await waitFor(() =>
-      expect(within(screen.getByRole('list')).getAllByRole('listitem')).toHaveLength(2),
-    );
-    expect(api.calledAll('GET /notifications').some((call) => call.search === '?limit=100')).toBe(
-      true,
-    );
-    expect(screen.queryByRole('button', { name: 'Load more' })).toBeNull();
+    await userEvent.click(screen.getByRole('button', { name: '2' }));
+    expect(await screen.findByText(/AST-0007 · Dell U2723QE was checked in/)).toBeInTheDocument();
+    expect(
+      api.calledAll('GET /notifications').some((call) => call.search === '?limit=50&offset=50'),
+    ).toBe(true);
+    expect(screen.getByRole('button', { name: 'Next' })).toBeDisabled();
+  });
+
+  it('draws no pager when the whole inbox fits on one page', async () => {
+    renderApp(inboxRoutes(), '/notifications');
+    await screen.findByText(/2 notifications/);
+    expect(screen.queryByRole('navigation', { name: 'Pagination' })).toBeNull();
   });
 
   it('says when there is nothing at all', async () => {

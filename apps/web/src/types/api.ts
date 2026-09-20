@@ -288,7 +288,7 @@ export interface AuditPage {
   items: AuditLogItem[];
   /** How many events sit behind each filter pill, over the whole log. */
   typeCounts: Record<AuditType | 'all', number>;
-  /** Events matching the current filter — what "Load more" counts against. */
+  /** Events matching the current filter — what the pager divides into pages. */
   total: number;
 }
 

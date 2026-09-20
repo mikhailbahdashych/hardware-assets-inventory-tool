@@ -94,13 +94,15 @@ export async function listNotifications(
   db: DbOrTx,
   memberId: string,
   limit: number = DEFAULT_INBOX_LIMIT,
+  offset = 0,
 ): Promise<NotificationsPayload> {
   const rows = await db
     .select()
     .from(notifications)
     .where(eq(notifications.memberId, memberId))
     .orderBy(desc(notifications.createdAt))
-    .limit(limit);
+    .limit(limit)
+    .offset(offset);
   const [total] = await db
     .select({ value: count() })
     .from(notifications)

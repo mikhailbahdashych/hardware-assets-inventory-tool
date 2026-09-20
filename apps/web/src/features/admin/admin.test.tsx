@@ -101,25 +101,46 @@ describe('the activity log', () => {
     expect(await screen.findByText('3 events · retained for 12 months')).toBeInTheDocument();
   });
 
-  it('asks for more only while there are more to ask for', async () => {
+  it('walks the log by numbered pages, asking for the offset it lands on', async () => {
     const api = renderApp(
-      { ...ADMIN_ROUTES, 'GET /audit': { body: { ...AUDIT_PAGE, total: 240 } } },
+      { ...ADMIN_ROUTES, 'GET /audit': { body: { ...AUDIT_PAGE, total: 440 } } },
       '/activity',
     );
 
-    const more = await screen.findByRole('button', { name: /load more/i });
-    await userEvent.click(more);
+    // 440 events at 200 a page is three, and the first one is where we start.
+    expect(await screen.findByRole('button', { name: 'Prev' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: '1' })).toHaveAttribute('aria-current', 'page');
+
+    await userEvent.click(screen.getByRole('button', { name: '3' }));
     await waitFor(() =>
-      expect(api.calledAll('GET /audit').some((call) => call.search.includes('limit=400'))).toBe(
+      expect(api.calledAll('GET /audit').some((call) => call.search.includes('offset=400'))).toBe(
         true,
       ),
     );
+    expect(screen.getByRole('button', { name: 'Next' })).toBeDisabled();
   });
 
-  it('has nothing to load when the log fits on one page', async () => {
+  it('drops back to the first page when the filter changes under it', async () => {
+    const api = renderApp(
+      { ...ADMIN_ROUTES, 'GET /audit': { body: { ...AUDIT_PAGE, total: 440 } } },
+      '/activity',
+    );
+
+    await userEvent.click(await screen.findByRole('button', { name: '2' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Assets 1' }));
+
+    await waitFor(() =>
+      expect(
+        api.calledAll('GET /audit').some((call) => call.search.includes('offset=0&type=assets')),
+      ).toBe(true),
+    );
+    expect(screen.getByRole('button', { name: '1' })).toHaveAttribute('aria-current', 'page');
+  });
+
+  it('has no pager at all when the log fits on one page', async () => {
     renderApp(ADMIN_ROUTES, '/activity');
     await screen.findByText('Assigned MacBook Pro 14" to Maya Lindqvist');
-    expect(screen.queryByRole('button', { name: /load more/i })).toBeNull();
+    expect(screen.queryByRole('navigation', { name: 'Pagination' })).toBeNull();
   });
 });
 

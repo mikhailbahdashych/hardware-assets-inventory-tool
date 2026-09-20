@@ -39,16 +39,17 @@ export const queryKeys = {
   workflow: ['workflow'] as const,
   roles: ['roles'] as const,
   members: ['members'] as const,
-  notifications: (limit: number) => ['notifications', limit] as const,
+  notifications: (limit: number, offset: number) => ['notifications', limit, offset] as const,
   settings: ['settings'] as const,
   dashboard: ['dashboard'] as const,
   audit: (filter: AuditFilter) => ['audit', filter] as const,
 };
 
-/** What the activity log is currently showing — both halves live in the URL. */
+/** What the activity log is currently showing: the filter and the page of it. */
 export interface AuditFilter {
   type?: AuditType;
   limit: number;
+  offset: number;
 }
 
 export function useMeta() {
@@ -197,18 +198,19 @@ export function useDashboard() {
   });
 }
 
-/** The API's own default page size; the page's "Load more" adds another. */
+/** The API's own default page size, and the one the inbox pages by. */
 export const INBOX_PAGE = 50;
 
 /**
  * The signed-in member's own inbox — every member has one, so the bell asks
  * unconditionally and shares the first page with the Notifications page.
- * `useMarkNotificationsRead` is the write half.
+ * `useMarkNotificationsRead` is the write half, and it invalidates the whole
+ * `['notifications']` prefix, so every page it cached refetches.
  */
-export function useNotifications(limit: number = INBOX_PAGE) {
+export function useNotifications(limit: number = INBOX_PAGE, offset = 0) {
   return useQuery({
-    queryKey: queryKeys.notifications(limit),
-    queryFn: () => apiFetch<NotificationsPayload>(`/notifications?limit=${limit}`),
+    queryKey: queryKeys.notifications(limit, offset),
+    queryFn: () => apiFetch<NotificationsPayload>(`/notifications?limit=${limit}&offset=${offset}`),
   });
 }
 
@@ -233,9 +235,13 @@ export function useSettings() {
 }
 
 /**
- * One page of the activity log. "Load more" raises the limit and refetches
- * from the top rather than appending pages: the log grows at the head, so an
- * appended page would duplicate whatever arrived while you were reading.
+ * One page of the activity log — a numbered page, fetched by `offset`, with the
+ * filter and the offset both in the key so every page caches on its own.
+ *
+ * The log grows at the head, so a row that arrives while you read page two can
+ * push another one onto it from page one. That is the accepted trade-off:
+ * numbered pages you can navigate are worth more here than a snapshot that
+ * never shifts, and nothing on this screen is read as a sequence.
  */
 export function useAuditLog(filter: AuditFilter) {
   return useQuery({
@@ -248,7 +254,10 @@ export function useAuditLog(filter: AuditFilter) {
 }
 
 export function auditParams(filter: AuditFilter): string {
-  const params = new URLSearchParams({ limit: String(filter.limit) });
+  const params = new URLSearchParams({
+    limit: String(filter.limit),
+    offset: String(filter.offset),
+  });
   if (filter.type) params.set('type', filter.type);
   return params.toString();
 }

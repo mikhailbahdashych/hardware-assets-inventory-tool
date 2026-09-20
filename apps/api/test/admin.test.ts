@@ -87,7 +87,7 @@ describe('the activity log', () => {
     expect(body.typeCounts.all).toBe(2);
   });
 
-  it('pages with limit and offset so "Load more" can ask for the rest', async () => {
+  it('pages with limit and offset, so the pager can ask for any page', async () => {
     ctx = await buildTestApp();
     const admin = await setupOrg(ctx.app);
     for (let i = 0; i < 4; i += 1) await createAsset(admin, `Asset ${i}`);

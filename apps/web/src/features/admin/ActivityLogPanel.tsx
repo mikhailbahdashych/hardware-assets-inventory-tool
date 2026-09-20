@@ -10,7 +10,7 @@ import {
   type LogRetention,
 } from '@inventory/shared';
 import { useAuditLog, useSettings } from '@/api/queries';
-import { DataTable, EmptyState, FilterPills, Pill, Spinner } from '@/components/ui';
+import { DataTable, EmptyState, FilterPills, Pagination, Pill, Spinner } from '@/components/ui';
 import type { FilterPillOption } from '@/components/ui';
 import { formatLogTime } from '@/lib/format';
 import { setParam } from '@/lib/searchParams';
@@ -18,7 +18,7 @@ import type { AuditLogItem } from '@/types/api';
 import type { TableColumn } from '@/types/table';
 import styles from './Admin.module.css';
 
-/** The API's own default page size; "Load more" adds another of these. */
+/** The API's own default page size, and the one the pager steps by. */
 const PAGE = 200;
 
 /** Time · Actor · Event · Type, on the design's grid. */
@@ -53,10 +53,10 @@ const COLUMNS: TableColumn<AuditLogItem>[] = [
 
 export function ActivityLogPanel() {
   const [searchParams, setSearchParams] = useSearchParams();
-  const [limit, setLimit] = useState(PAGE);
+  const [page, setPage] = useState(1);
 
   const type = readType(searchParams.get('type'));
-  const log = useAuditLog({ type, limit });
+  const log = useAuditLog({ type, limit: PAGE, offset: (page - 1) * PAGE });
   const settings = useSettings();
 
   const counts = log.data?.typeCounts;
@@ -83,7 +83,9 @@ export function ActivityLogPanel() {
             const params = new URLSearchParams(searchParams);
             setParam(params, 'type', value === 'all' ? '' : value);
             setSearchParams(params, { replace: true });
-            setLimit(PAGE);
+            // A different filter is a different log; page three of it is not
+            // where anybody meant to land.
+            setPage(1);
           }}
         />
         {/* A plain link, so the browser downloads the attachment itself and the
@@ -107,11 +109,7 @@ export function ActivityLogPanel() {
         />
       )}
 
-      {items.length < total && (
-        <button type="button" className={styles.loadMore} onClick={() => setLimit(limit + PAGE)}>
-          Load more
-        </button>
-      )}
+      <Pagination page={page} pageCount={Math.ceil(total / PAGE)} onChange={setPage} />
     </div>
   );
 }

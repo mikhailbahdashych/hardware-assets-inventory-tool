@@ -12,6 +12,7 @@ import {
 
 const inboxQuery = z.object({
   limit: z.coerce.number().int().min(1).max(MAX_INBOX_LIMIT).default(DEFAULT_INBOX_LIMIT),
+  offset: z.coerce.number().int().min(0).default(0),
 });
 
 /** The bell: every member has an inbox; nothing here needs a permission. */
@@ -21,7 +22,8 @@ export function registerNotificationRoutes(app: FastifyInstance, deps: AppDeps):
   typed.get(
     '/api/v1/notifications',
     { schema: { querystring: inboxQuery }, preHandler: requireAuth },
-    async (request) => listNotifications(deps.db, request.member!.id, request.query.limit),
+    async (request) =>
+      listNotifications(deps.db, request.member!.id, request.query.limit, request.query.offset),
   );
 
   app.post('/api/v1/notifications/read', { preHandler: requireAuth }, async (request, reply) => {

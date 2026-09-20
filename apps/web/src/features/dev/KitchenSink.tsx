@@ -26,6 +26,7 @@ import {
   KeyValueRow,
   Modal,
   PageHeader,
+  Pagination,
   Pill,
   RadioCard,
   SearchInput,
@@ -218,6 +219,7 @@ export function KitchenSink() {
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState('all');
   const [tab, setTab] = useState('activity');
+  const [logPage, setLogPage] = useState(1);
   const [role, setRole] = useState('viewer');
   const [toggles, setToggles] = useState({ warranty: true, returns: false });
   const [modal, setModal] = useState<'none' | 'plain' | 'scroll'>('none');
@@ -484,6 +486,15 @@ export function KitchenSink() {
             ]}
           />
         </Row>
+      </Section>
+
+      <Section title="Pagination">
+        {/* Twelve pages, so the windowing and both ellipses are visible; walk it
+            to the ends and watch Prev and Next go dead. */}
+        <Pagination page={logPage} pageCount={12} onChange={setLogPage} />
+        <Pagination page={1} pageCount={3} onChange={() => {}} />
+        {/* One page draws nothing at all, which is why this row looks empty. */}
+        <Pagination page={1} pageCount={1} onChange={() => {}} />
       </Section>
 
       <Section title="Table">
