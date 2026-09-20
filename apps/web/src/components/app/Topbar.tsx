@@ -1,7 +1,9 @@
 import { useLocation } from 'react-router';
+import { useMeta } from '@/api/queries';
 import { Icon, IconButton, Kbd } from '@/components/ui';
 import { useBreadcrumbDetail } from '@/providers/BreadcrumbProvider';
 import { useModals } from '@/providers/ModalProvider';
+import { useDocumentTitle } from '@/lib/useDocumentTitle';
 import { useThemeControls } from './useThemeControls';
 import { breadcrumbForPath } from './nav';
 import styles from './Topbar.module.css';
@@ -11,6 +13,12 @@ export function Topbar() {
   const { theme, toggleTheme } = useThemeControls();
   const { openModal } = useModals();
   const detail = useBreadcrumbDetail();
+  const meta = useMeta();
+  const crumb = breadcrumbForPath(pathname, detail);
+  // The tab mirrors the breadcrumb plus whose workspace this is — several
+  // instances open at once is the normal self-hosted condition. Meta still
+  // loading means the tab keeps its previous name for a beat, not a fallback.
+  useDocumentTitle(crumb && meta.data ? `${crumb} · ${meta.data.orgName}` : undefined);
 
   return (
     <div className={styles.topbar}>

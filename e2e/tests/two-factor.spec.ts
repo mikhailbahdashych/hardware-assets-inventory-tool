@@ -63,7 +63,7 @@ test('two-factor: enrol, spend a code, and be handed a fresh set at sign-in', as
   expect(firstSet).toHaveLength(10);
   await page.getByLabel('I have saved these somewhere safe').check();
   await page.getByRole('button', { name: 'Continue to Inventory' }).click();
-  await expect(page.getByRole('navigation')).toBeVisible();
+  await expect(page.getByRole('navigation', { name: 'Inventory' })).toBeVisible();
 
   // The admin surface says where everybody stands, which is the whole point of
   // the column: enrolled, with the full set still in hand.
@@ -75,7 +75,7 @@ test('two-factor: enrol, spend a code, and be handed a fresh set at sign-in', as
   await passwordStep(page);
   await page.getByLabel('Authentication code').fill(firstSet[0]!);
   await page.getByRole('button', { name: 'Verify' }).click();
-  await expect(page.getByRole('navigation')).toBeVisible();
+  await expect(page.getByRole('navigation', { name: 'Inventory' })).toBeVisible();
   await page.goto('/members');
   await expect(adminRow(page)).toContainText('9 of 10 codes left');
 
@@ -106,7 +106,7 @@ test('two-factor: enrol, spend a code, and be handed a fresh set at sign-in', as
 
   await page.getByLabel('I have saved these somewhere safe').check();
   await page.getByRole('button', { name: 'Continue to Inventory' }).click();
-  await expect(page.getByRole('navigation')).toBeVisible();
+  await expect(page.getByRole('navigation', { name: 'Inventory' })).toBeVisible();
 
   await page.goto('/members');
   await expect(adminRow(page)).toContainText('10 of 10 codes left');

@@ -72,7 +72,7 @@ test('remembers the theme across a reload without flashing the old one', async (
   // index.html must have applied the theme already.
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
   await expect(page.locator('body')).toHaveCSS('background-color', 'rgb(14, 14, 17)');
-  await expect(page.getByRole('navigation')).toBeVisible();
+  await expect(page.getByRole('navigation', { name: 'Inventory' })).toBeVisible();
 });
 
 test('carries the stored theme to a fresh session on the same browser', async ({ page }) => {

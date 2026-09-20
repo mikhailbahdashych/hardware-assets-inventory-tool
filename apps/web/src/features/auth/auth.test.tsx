@@ -58,7 +58,7 @@ describe('signing in with a second factor', () => {
       },
     });
 
-    expect(await screen.findByRole('navigation')).toBeInTheDocument();
+    expect(await screen.findByRole('navigation', { name: 'Inventory' })).toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: /save your recovery codes/i })).toBeNull();
   });
 
@@ -101,7 +101,7 @@ describe('signing in with a second factor', () => {
     await userEvent.click(kept);
     await userEvent.click(screen.getByRole('button', { name: /continue to inventory/i }));
 
-    expect(await screen.findByRole('navigation')).toBeInTheDocument();
+    expect(await screen.findByRole('navigation', { name: 'Inventory' })).toBeInTheDocument();
   });
 });
 

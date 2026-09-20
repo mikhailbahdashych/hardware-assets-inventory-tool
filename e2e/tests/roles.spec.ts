@@ -107,7 +107,7 @@ test('the member who holds it reads the log and still creates nothing', async ({
   await auditor.getByLabel('Email').fill(GRACE.email);
   await auditor.getByLabel('Password').fill(GRACE.password);
   await auditor.getByRole('button', { name: 'Sign in', exact: true }).click();
-  await expect(auditor.getByRole('navigation')).toBeVisible();
+  await expect(auditor.getByRole('navigation', { name: 'Inventory' })).toBeVisible();
 
   // Two ticks in a grid is the whole difference: the log opens now, and it is
   // reached the way every other page is.
@@ -117,7 +117,7 @@ test('the member who holds it reads the log and still creates nothing', async ({
 
   // Nothing else moved. The pages a role can reach never changed — what a role
   // may *do* is what the matrix decides.
-  const nav = auditor.getByRole('navigation');
+  const nav = auditor.getByRole('navigation', { name: 'Workspace' });
   await expect(nav.getByRole('link', { name: 'Roles' })).toHaveCount(0);
   await expect(nav.getByRole('link', { name: 'Admin' })).toHaveCount(0);
   await auditor.goto('/assets');

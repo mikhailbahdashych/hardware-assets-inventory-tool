@@ -47,7 +47,7 @@ const rowLabels = (rows: HTMLElement[]) =>
 describe('reaching the workflow page', () => {
   it('is in the admin section of the sidebar, between the log and the settings', async () => {
     renderApp(workspace().routes, '/workflow');
-    const nav = await screen.findByRole('navigation');
+    const nav = await screen.findByRole('navigation', { name: 'Workspace' });
     expect(within(nav).getByRole('link', { name: 'Workflow' })).toHaveAttribute(
       'aria-current',
       'page',
@@ -63,7 +63,7 @@ describe('reaching the workflow page', () => {
       },
       '/workflow',
     );
-    await screen.findByRole('navigation');
+    await screen.findByRole('navigation', { name: 'Inventory' });
     expect(screen.queryByRole('link', { name: 'Workflow' })).toBeNull();
     await waitFor(() =>
       expect(screen.getByText('Dashboard', { selector: 'h1' })).toBeInTheDocument(),

@@ -299,6 +299,6 @@ describe('meta', () => {
       },
       '/assets',
     );
-    expect(await screen.findByRole('navigation')).toBeInTheDocument();
+    expect(await screen.findByRole('navigation', { name: 'Inventory' })).toBeInTheDocument();
   });
 });

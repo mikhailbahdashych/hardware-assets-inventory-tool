@@ -1,57 +1,42 @@
 import { describe, expect, it } from 'vitest';
 import { ACTIONS, DEFAULT_ROLES, type Action } from '@inventory/shared';
-import { breadcrumbForPath, isNavItemActive, navItemsFor } from './nav';
+import { breadcrumbForPath, isNavItemActive, navSectionsFor } from './nav';
 
 /** The set the system role resolves to, and the one the seeded Manager gets. */
 const EVERYTHING: Action[] = [...ACTIONS];
 const MANAGER: Action[] = [...DEFAULT_ROLES.find((role) => role.id === 'manager')!.grants];
 
-describe('navItemsFor', () => {
-  it('shows the gated sections only to a set that holds their action', () => {
-    expect(navItemsFor(EVERYTHING).map((item) => item.label)).toEqual([
-      'Dashboard',
-      'Assets',
-      'Employees',
+describe('navSectionsFor', () => {
+  it('splits the inventory from workspace management, gating the workspace items', () => {
+    const admin = navSectionsFor(EVERYTHING);
+    expect(admin.inventory.map((item) => item.label)).toEqual(['Dashboard', 'Assets', 'Employees']);
+    expect(admin.workspace.map((item) => item.label)).toEqual([
       'Members',
       'Activity log',
       'Workflow',
       'Roles',
       'Admin',
     ]);
-    expect(navItemsFor(MANAGER).map((item) => item.label)).toEqual([
+
+    // The inventory half is everybody's; the workspace half shrinks to what
+    // the role may actually manage — Members stays, being an open page.
+    const manager = navSectionsFor(MANAGER);
+    expect(manager.inventory.map((item) => item.label)).toEqual([
       'Dashboard',
       'Assets',
       'Employees',
-      'Members',
     ]);
-    expect(navItemsFor([]).map((item) => item.label)).toEqual([
-      'Dashboard',
-      'Assets',
-      'Employees',
-      'Members',
-    ]);
+    expect(manager.workspace.map((item) => item.label)).toEqual(['Members']);
+    expect(navSectionsFor([]).workspace.map((item) => item.label)).toEqual(['Members']);
   });
 
   it('reveals one gated section for the one action it names, and no others', () => {
     // The point of the whole feature: a workspace grants `audit.view` to a role
     // of its own and that role gets the Activity log, nothing more.
-    expect(navItemsFor(['audit.view']).map((item) => item.label)).toEqual([
-      'Dashboard',
-      'Assets',
-      'Employees',
+    expect(navSectionsFor(['audit.view']).workspace.map((item) => item.label)).toEqual([
       'Members',
       'Activity log',
     ]);
-  });
-
-  it('separates the admin-only sections from the rest with the design gap', () => {
-    const admin = navItemsFor(EVERYTHING);
-    expect(admin.at(-4)).toMatchObject({ label: 'Activity log', to: '/activity', gapBefore: true });
-    expect(admin.at(-3)).toMatchObject({ label: 'Workflow', to: '/workflow' });
-    expect(admin.at(-2)).toMatchObject({ label: 'Roles', to: '/roles' });
-    expect(admin.at(-1)).toMatchObject({ label: 'Admin', to: '/admin' });
-    // One gap, above the group — not one above each of them.
-    expect(admin.filter((item) => item.gapBefore)).toHaveLength(1);
   });
 });
 

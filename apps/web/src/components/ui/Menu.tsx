@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import type { MenuAnchor, MenuProps } from './types/menu';
+import { Icon } from './Icon';
 import styles from './Menu.module.css';
 
 const GAP = 4;
@@ -67,7 +68,7 @@ export function Menu({ label, items }: MenuProps) {
           });
         }}
       >
-        ···
+        <Icon name="dots" size={14} />
       </button>
       {anchor !== null &&
         createPortal(

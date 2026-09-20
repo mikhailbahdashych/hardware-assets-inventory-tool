@@ -70,12 +70,11 @@
   font-weight: 600;
 }
 
-.navItem[data-gap-before='true'] {
-  margin-top: 10px;
+.navBottom {
+  margin-top: auto;
 }
 
 .footer {
-  margin-top: auto;
   padding: 10px;
   border-top: 1px solid var(--border);
 }
