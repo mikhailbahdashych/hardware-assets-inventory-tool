@@ -19,11 +19,13 @@
 # The scheduled jobs run on wall-clock time, so this decides when 08:00 is.
 # timezone = "UTC"
 
-# Both or neither. With them, the app is served over HTTPS from a load balancer
-# and APP_URL becomes https://<domain>; without them, it answers on the
-# instance's Elastic IP over plain HTTP.
-# domain          = "inventory.example.com"
-# route53_zone_id = "Z0123456789ABCDEFGHIJ"
+# Only with your own edge (proxy, VPN, load balancer) in front of the instance:
+# what the address bar will say, and the edge's address or CIDR. The app's
+# origin guard refuses saves whose Origin is not app_url, and trust_proxy is
+# what keys the sign-in rate limits on the client instead of the edge — an
+# address, never `true`, never a hop count.
+# app_url     = "https://inventory.example.com"
+# trust_proxy = "10.0.0.0/8"
 
 # Set true before `terraform destroy`, and only then: it lets the apply delete
 # every attachment version in the bucket without asking.

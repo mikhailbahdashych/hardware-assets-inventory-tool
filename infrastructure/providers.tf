@@ -1,6 +1,5 @@
 terraform {
-  # Cross-variable `validation` blocks (variables.tf uses one to keep `domain`
-  # and `route53_zone_id` together) landed in 1.9.
+  # The floor this module was written against; CI pins 1.14.x.
   required_version = ">= 1.9.0"
 
   required_providers {

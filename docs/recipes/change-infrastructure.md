@@ -1,6 +1,6 @@
 # Change the infrastructure
 
-Six changes people actually make to the AWS deployment in [`infrastructure/`](../../infrastructure/README.md), each with the variable to touch, what `terraform plan` should say back, and the part that bites.
+Five changes people actually make to the AWS deployment in [`infrastructure/`](../../infrastructure/README.md), each with the variable to touch, what `terraform plan` should say back, and the part that bites.
 
 This is the one recipe where the tests are not the guard rail. Terraform is configuration: there is nothing to write a failing test against, and the only proof that a change is right is the plan you read before you apply it. **Reading the plan is the step.** A plan that says `must be replaced` where you expected `~` is the difference between a resize and an outage.
 
@@ -20,7 +20,7 @@ terraform plan               # and then actually read it
 Two things to know about the plan before you trust one:
 
 - **The instance is disposable and the plan will happily say so.** `aws_instance.app` carries `user_data_replace_on_change = true`, so anything that changes the boot script — a new image tag, a new `APP_URL`, a new bucket name — replaces the machine. That is two or three minutes of downtime and no data loss, because the rows are in RDS and the attachments are in S3.
-- **`aws_db_instance.main` being replaced is a different sentence entirely.** It means the live database is destroyed and a new empty one is created. Nothing in this recipe should ever produce that except [restoring from a snapshot](#5-restore-the-database-from-a-snapshot--infrastructurerdstf), and there it is the point. If you see it anywhere else, stop.
+- **`aws_db_instance.main` being replaced is a different sentence entirely.** It means the live database is destroyed and a new empty one is created. Nothing in this recipe should ever produce that except [restoring from a snapshot](#4-restore-the-database-from-a-snapshot--infrastructurerdstf), and there it is the point. If you see it anywhere else, stop.
 
 ---
 
@@ -64,28 +64,7 @@ db_allocated_storage = 50
 
 **The step people forget:** **storage only goes up.** RDS cannot shrink an allocated volume, so a `50` typed where you meant `20` is permanent short of a snapshot-restore into a new instance. And after a storage change RDS refuses another one for six hours; there is no way to hurry that. The same rule bites from the other side once autoscaling has fired: `rds.tf` lets the volume grow on its own up to 100 GB or twice `db_allocated_storage`, and after it has, a plan shows `allocated_storage` going _down_ to the variable — which RDS refuses at apply time. Raise `db_allocated_storage` to what the console says the instance actually has, then apply.
 
-## 3. Add the domain and TLS — `infrastructure/terraform.tfvars`
-
-```hcl
-domain          = "inventory.example.com"
-route53_zone_id = "Z0123456789ABCDEFGHIJ"
-```
-
-Both or neither — `variables.tf` has a validation that refuses half, because a certificate with nowhere to prove itself hangs for the whole of `aws_acm_certificate_validation`'s default create timeout (**75 minutes**) before failing.
-
-**What gets created** (everything in `infrastructure/dns.tf`, all of it `count = local.domain_enabled ? 1 : 0`): an ACM certificate validated over DNS, the Route53 record that validates it, an Application Load Balancer across both public subnets, a target group on the instance's port 80, a listener on 443 with a 301 from 80, and the A alias. Plus one rule on the instance's own security group that lets the balancer in.
-
-**What disappears at the same time:** `ec2.tf`'s two world-facing rules (`app_http`, `app_https`). With a balancer in front, the instance stops being reachable from the internet, and the plan will show both being destroyed. That is the design, not a gap.
-
-**Where `APP_URL` changes:** `local.app_url` in `ec2.tf` flips from `http://<eip>` to `https://<domain>`, and `TRUST_PROXY=<the VPC's CIDR>` joins the environment file so the sign-in rate limits key on the client's address rather than the balancer's. Both are inside `user_data`, so **the plan will replace the instance** — expected, and the reason the whole thing is one apply and not three.
-
-That CIDR names the balancer by where its addresses live, and it is not shorthand for `true`. The balancer appends the address it saw to `X-Forwarded-For` rather than replacing the header, and `true` tells the app to believe the left-most entry — the one the caller wrote for itself, before the balancer ever saw the request. A hop count (`1`), the old form, is refused at boot — fastify disabled numeric trust because a count cannot verify who connected.
-
-**The step people forget:** `APP_URL` is the origin guard's only input. Between the instance being replaced and DNS actually resolving to the balancer, anybody reaching the old address gets a 403 on every save, with no clue why. Have the record's TTL low before you start, and check `terraform output app_url` against your address bar afterwards — `www.` counts, the port counts, `http` versus `https` counts.
-
-And read the honest label in `dns.tf`: **this half has never been applied.** Watch the first one.
-
-## 4. Change region — `infrastructure/terraform.tfvars`
+## 3. Change region — `infrastructure/terraform.tfvars`
 
 ```hcl
 region = "eu-west-1"
@@ -101,7 +80,7 @@ To actually move regions: stand the new stack up beside the old one (`name_prefi
 
 **The step people forget:** the availability zone names change with the region, and `data.aws_availability_zones` filters out Local Zones for you — but a region with fewer than two usable zones cannot host the RDS subnet group at all. And if `app_image` points at ECR, the registry has its own region baked into its hostname: the pull still works from anywhere, but it is now cross-region data transfer on every instance replacement.
 
-## 5. Restore the database from a snapshot — `infrastructure/rds.tf`
+## 4. Restore the database from a snapshot — `infrastructure/rds.tf`
 
 Add one argument to `aws_db_instance.main`:
 
@@ -132,7 +111,7 @@ The container reads `/etc/inventory.env` and that file is written once, by `user
 
 **The step people forget:** **the bucket is not in the snapshot.** An RDS restore rolls the rows back to Tuesday and leaves every attachment where it is, so rows will reference objects that were deleted since and objects will exist that no row names. The app's nightly sweep removes the second kind after 24 hours — which means a restore you do not follow up on quietly destroys the orphans it created. Versioning is on for the bucket; use it, or take the two backups together in the first place.
 
-## 6. Rotate the database password
+## 5. Rotate the database password
 
 The password is generated by `random_password.db` (`rds.tf`) and exists in exactly two places: RDS itself, and the SSM SecureString at `/{name_prefix}/db-url`. Rotating it means moving both, and then making the instance re-read.
 
