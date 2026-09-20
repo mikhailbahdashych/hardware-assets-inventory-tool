@@ -197,16 +197,23 @@ describe('return reminders', () => {
     expect(await runReturnReminders(ctx.deps, MONDAY)).toEqual({ sent: 0, skipped: 0 });
   });
 
-  it('writes one row a day while the item stays out', async () => {
+  it('nags once as the date nears, once more when it slips, never daily', async () => {
     const admin = await withApp();
     await assetDueBack(admin, 1);
 
+    // Inside the lead window: one heads-up. A second run — even a day later,
+    // on the due date itself — is the same fact under the same key, and the
+    // unread row is still sitting in the inbox; there is nothing to repeat.
     expect((await runReturnReminders(ctx.deps, MONDAY)).sent).toBe(1);
     expect((await runReturnReminders(ctx.deps, MONDAY)).sent).toBe(0);
+    const dueDay = new Date(MONDAY.getTime() + 86_400_000);
+    expect((await runReturnReminders(ctx.deps, dueDay)).sent).toBe(0);
 
-    // Tomorrow is a new reminder: the item is still out, and more overdue.
-    const tomorrow = new Date(MONDAY.getTime() + 86_400_000);
-    expect((await runReturnReminders(ctx.deps, tomorrow)).sent).toBe(1);
+    // Slipping into overdue is a new fact: exactly one more row, then quiet.
+    const overdue = new Date(MONDAY.getTime() + 2 * 86_400_000);
+    expect((await runReturnReminders(ctx.deps, overdue)).sent).toBe(1);
+    const later = new Date(MONDAY.getTime() + 3 * 86_400_000);
+    expect((await runReturnReminders(ctx.deps, later)).sent).toBe(0);
   });
 
   it('says nothing about an assignment with no return date', async () => {

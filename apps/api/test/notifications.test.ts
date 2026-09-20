@@ -1,4 +1,8 @@
+import { eq } from 'drizzle-orm';
 import { afterEach, describe, expect, it } from 'vitest';
+import { members, notifications } from '@/db/schema.js';
+import { newId } from '@/lib/ids.js';
+import { nowIso } from '@/lib/dates.js';
 import { runReturnReminders, runWarrantyScan } from '@/services/jobs.js';
 import {
   buildTestApp,
@@ -104,6 +108,34 @@ describe('the inbox', () => {
       body: { employeeId, checkoutDate: '2026-09-20' },
     });
 
+    // A second linked inbox, to prove the gesture stays personal.
+    const omar = await inject(ctx.app, {
+      method: 'POST',
+      url: '/api/v1/employees',
+      cookie,
+      body: { firstName: 'Omar', lastName: 'Haddad', email: 'omar@acme.io' },
+    });
+    const omarId = newId();
+    const at = nowIso();
+    await ctx.db.insert(members).values({
+      id: omarId,
+      email: 'omar-member@acme.io',
+      displayName: 'Omar Haddad',
+      passwordHash: 'not-used',
+      role: 'viewer',
+      status: 'active',
+      employeeId: omar.json().employee.id as string,
+      createdAt: at,
+      updatedAt: at,
+    });
+    const second = await createAsset(cookie, { name: 'Second Dock' });
+    await inject(ctx.app, {
+      method: 'POST',
+      url: `/api/v1/assets/${second}/assign`,
+      cookie,
+      body: { employeeId: omar.json().employee.id, checkoutDate: '2026-09-20' },
+    });
+
     const read = await inject(ctx.app, {
       method: 'POST',
       url: '/api/v1/notifications/read',
@@ -117,6 +149,14 @@ describe('the inbox', () => {
     });
     expect(inbox.json().unreadCount).toBe(0);
     expect(inbox.json().notifications[0].readAt).not.toBeNull();
+
+    // Omar looked at nothing, so his row is exactly as it was.
+    const omarRows = await ctx.db
+      .select()
+      .from(notifications)
+      .where(eq(notifications.memberId, omarId));
+    expect(omarRows).toHaveLength(1);
+    expect(omarRows[0]!.readAt).toBeNull();
   });
 
   it('warranty alerts go to everyone whose role manages assets, exactly once per date', async () => {
@@ -124,16 +164,24 @@ describe('the inbox', () => {
     ctx = await buildTestApp({}, () => now);
     const cookie = await setupOrg(ctx.app);
     await createAsset(cookie, { name: 'Aging laptop', warrantyUntil: '2026-10-01' });
-    // A viewer holds no assets.manage and must hear nothing.
+    // A viewer holds no assets.edit and must hear nothing; a manager holds it
+    // by grant, not by name — which is what lets invented roles inherit this.
     const viewer = await memberCookie(ctx.db, 'viewer');
+    const manager = await memberCookie(ctx.db, 'manager');
 
     const first = await runWarrantyScan(ctx.deps, now);
-    expect(first.sent).toBe(1); // the admin
+    expect(first.sent).toBe(2); // the admin, and the manager by grant
     const again = await runWarrantyScan(ctx.deps, now);
     expect(again.sent).toBe(0); // deduped on asset + date
 
     const admin = await inject(ctx.app, { method: 'GET', url: '/api/v1/notifications', cookie });
     expect(admin.json().notifications[0]).toMatchObject({ kind: 'warranty.expiring' });
+    const heard = await inject(ctx.app, {
+      method: 'GET',
+      url: '/api/v1/notifications',
+      cookie: manager,
+    });
+    expect(heard.json().notifications[0]).toMatchObject({ kind: 'warranty.expiring' });
     const nothing = await inject(ctx.app, {
       method: 'GET',
       url: '/api/v1/notifications',
@@ -142,7 +190,7 @@ describe('the inbox', () => {
     expect(nothing.json().notifications).toHaveLength(0);
   });
 
-  it('reminds the linked member of a due return, daily, and nobody when no link exists', async () => {
+  it('reminds the linked member of a due return, again when it slips, and nobody unlinked', async () => {
     const now = new Date('2026-09-20T08:05:00Z');
     ctx = await buildTestApp({}, () => now);
     const cookie = await setupOrg(ctx.app);
@@ -183,9 +231,9 @@ describe('the inbox', () => {
     const kinds = inbox.json().notifications.map((n: { kind: string }) => n.kind);
     expect(kinds).toContain('return.due');
 
-    // The next day is a new reminder, not a swallowed one.
-    const tomorrow = new Date(now.getTime() + DAY);
-    const second = await runReturnReminders(ctx.deps, tomorrow);
-    expect(second.sent).toBe(1);
+    // The same fact repeats to nobody; the slip into overdue is one new row.
+    expect((await runReturnReminders(ctx.deps, now)).sent).toBe(0);
+    const slipped = new Date(now.getTime() + 2 * DAY);
+    expect((await runReturnReminders(ctx.deps, slipped)).sent).toBe(1);
   });
 });

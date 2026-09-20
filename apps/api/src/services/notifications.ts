@@ -1,6 +1,7 @@
 import { and, count, desc, eq, inArray, isNull, or } from 'drizzle-orm';
 import { ADMIN_ROLE, type Action, type NotificationParams } from '@inventory/shared';
 import type { NotificationsPayload } from '@inventory/shared';
+import type { NotifyInput } from '@/types/notifications.js';
 import type { DbOrTx } from '@/types/db.js';
 import { members, notifications, rolePermissions } from '@/db/schema.js';
 import { nowIso } from '@/lib/dates.js';
@@ -11,14 +12,6 @@ import { newId } from '@/lib/ids.js';
  * whatever caused it — the audit log's rule, for the same reason. Params are
  * snapshots; the shared renderer turns them into the sentence the bell shows.
  */
-
-interface NotifyInput {
-  memberId: string;
-  kind: string;
-  params: NotificationParams;
-  /** Set where a job must not repeat itself; unique per member. */
-  dedupeKey?: string;
-}
 
 /** Writes one row. False means the dedupe key already delivered this one. */
 export async function notify(db: DbOrTx, input: NotifyInput, now: Date): Promise<boolean> {

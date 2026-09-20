@@ -362,7 +362,6 @@ export const mfaRecoveryCodes = sqliteTable(
   (table) => [index('mfa_recovery_member_idx').on(table.memberId)],
 );
 
-/** Email idempotency — one row per notification actually sent. */
 /**
  * The inbox: one row per member per event, materialized at write time — no
  * shared read-state bookkeeping, and the unique (member, dedupe) pair is what

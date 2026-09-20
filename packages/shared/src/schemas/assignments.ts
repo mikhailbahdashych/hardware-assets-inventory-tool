@@ -32,7 +32,6 @@ export const checkinInput = z.object({
   newStatus: z.string().min(1),
   condition: z.enum(CHECKIN_CONDITIONS).nullable().default(null),
   notes: nullableText(1000).default(null),
-  /** The design's "Email confirmation to {holder}" checkbox. */
 });
 export type CheckinInput = z.infer<typeof checkinInput>;
 

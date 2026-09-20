@@ -95,8 +95,11 @@ export async function runWarrantyScan(deps: AppDeps, now: Date): Promise<JobResu
  * Returns due soon or overdue, one inbox row per assignment to the member
  * account linked to the holder — the personal half of the inbox. A holder with
  * no linked member hears nothing here; the dashboard's pending-returns widget
- * is the operational surface that still shows it. Keyed on the day, so the
- * reminder repeats daily while the item stays out.
+ * is the operational surface that still shows it. Keyed on the assignment, the
+ * date and which side of it today is: one heads-up as the date nears, one more
+ * when it slips, and editing the date re-arms both. Never daily — an unread
+ * row is still sitting in the inbox, and a drip of duplicates would push
+ * everything else off a 50-row panel.
  */
 export async function runReturnReminders(deps: AppDeps, now: Date): Promise<JobResult> {
   const settings = await getSettings(deps.db);
@@ -124,10 +127,13 @@ export async function runReturnReminders(deps: AppDeps, now: Date): Promise<JobR
   let sent = 0;
   let unheard = 0;
   for (const row of due) {
-    if (row.employeeId === null || row.expectedReturnDate === null) {
+    if (row.employeeId === null) {
       unheard += 1;
       continue;
     }
+    // The where clause holds isNotNull(expectedReturnDate); the ! names it.
+    const date = row.expectedReturnDate!;
+    const overdue = date < dayOf(now);
     const written = await notifyLinkedMember(
       deps.db,
       row.employeeId,
@@ -136,10 +142,10 @@ export async function runReturnReminders(deps: AppDeps, now: Date): Promise<JobR
         params: {
           assetName: row.assetName,
           assetTag: row.assetTag,
-          date: row.expectedReturnDate,
-          overdue: row.expectedReturnDate < dayOf(now),
+          date,
+          overdue,
         },
-        dedupeKey: `return:${row.assignmentId}:${dayOf(now)}`,
+        dedupeKey: `return:${row.assignmentId}:${date}:${overdue ? 'overdue' : 'due'}`,
       },
       now,
     );
@@ -152,7 +158,7 @@ export async function runReturnReminders(deps: AppDeps, now: Date): Promise<JobR
 /**
  * Nightly tidying, and the only place rows are ever removed without somebody
  * asking: expired sessions, spent or expired tokens, audit events past the
- * workspace's retention, the notification log past a year, and files on the
+ * workspace's retention, inbox rows older than ninety days, and files on the
  * volume that no attachment row names. Retention is opt-out — `null` months
  * means forever — but the last two are not: neither is the workspace's data.
  */

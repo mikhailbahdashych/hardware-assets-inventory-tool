@@ -9,6 +9,7 @@ import {
   auditEvents,
   employees,
   members,
+  notifications,
   rolePermissions,
   roles,
 } from '@/db/schema.js';
@@ -31,6 +32,13 @@ async function seeded(overrides: Record<string, unknown> = {}) {
 }
 
 describe('the demo seed', () => {
+  it('leaves something on the bell, for the members who hold things', async () => {
+    await seeded();
+    const rows = await ctx.db.select().from(notifications);
+    expect(rows.length).toBeGreaterThan(0);
+    expect(rows.map((row) => row.kind)).toContain('assignment.received');
+  });
+
   it('fills an empty workspace with enough to look at', async () => {
     const result = await seeded();
 

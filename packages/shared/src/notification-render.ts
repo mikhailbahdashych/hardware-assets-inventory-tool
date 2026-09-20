@@ -11,6 +11,8 @@ function day(value: unknown): string {
   return `${Number(date)} ${label} ${year}`;
 }
 
+// Snapshots are best-effort by design: a missing param renders as nothing
+// rather than throwing in the bell — an ugly sentence beats a dead inbox.
 const text = (params: NotificationParams, key: string): string => String(params[key] ?? '');
 const tagged = (params: NotificationParams): string =>
   `${text(params, 'assetTag')} · ${text(params, 'assetName')}`;

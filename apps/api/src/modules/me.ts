@@ -51,8 +51,8 @@ export function registerMeRoutes(app: FastifyInstance, deps: AppDeps): void {
 
   /**
    * The self-service half of password recovery: the signed-in change. The
-   * other half stays admin-issued reset links — `/auth/forgot-password` is
-   * deliberately inert, and this route is why a member who merely wants a new
+   * other half is admin-held — a copyable reset link or a password set
+   * outright — and this route is why a member who merely wants a new
    * password never needs an admin at all.
    */
   typed.post(

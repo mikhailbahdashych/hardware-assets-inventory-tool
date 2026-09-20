@@ -219,7 +219,7 @@ export function KitchenSink() {
   const [filter, setFilter] = useState('all');
   const [tab, setTab] = useState('activity');
   const [role, setRole] = useState('viewer');
-  const [toggles, setToggles] = useState({ warranty: true, digest: false });
+  const [toggles, setToggles] = useState({ warranty: true, returns: false });
   const [modal, setModal] = useState<'none' | 'plain' | 'scroll'>('none');
   const [category, setCategory] = useState('laptops');
   const [condition, setCondition] = useState('good');
@@ -595,8 +595,8 @@ export function KitchenSink() {
           />
           <span style={{ fontSize: 12.5 }}>Warranty alerts</span>
           <ToggleSwitch
-            checked={toggles.digest}
-            onChange={(v) => setToggles((t) => ({ ...t, digest: v }))}
+            checked={toggles.returns}
+            onChange={(v) => setToggles((t) => ({ ...t, returns: v }))}
             label="Return reminders"
           />
           <span style={{ fontSize: 12.5 }}>Return reminders</span>

@@ -1,4 +1,4 @@
-import { and, asc, eq, ne } from 'drizzle-orm';
+import { and, asc, eq, isNull, ne } from 'drizzle-orm';
 import { ADMIN_ROLE, type InviteInput, type MemberPatchInput } from '@inventory/shared';
 import type { Config } from '@/types/config.js';
 import type { AppDeps } from '@/types/app.js';
@@ -11,7 +11,7 @@ import type {
   MemberSummary,
   ResetLink,
 } from '@/types/members.js';
-import { employees, members, roles, sessions } from '@/db/schema.js';
+import { authTokens, employees, members, roles, sessions } from '@/db/schema.js';
 import { nowIso } from '@/lib/dates.js';
 import { AppError, invalidFields, notFound } from '@/lib/errors.js';
 import { DUPLICATE_MEMBER_EMAIL } from '@/lib/unique.js';
@@ -144,11 +144,6 @@ export async function resendInvite(deps: AppDeps, actor: Actor, id: string): Pro
 }
 
 /**
- * The polite recovery path: an admin copies this link and hands it over in
- * person. It is never given to an anonymous requester — which is why there is
- * no /auth/forgot-password endpoint at all.
- */
-/**
  * The other recovery door: an admin sets the password outright and hands it
  * over however the company already talks — a password manager, a hallway.
  * Refused on your own account on purpose: the self-service change requires the
@@ -185,6 +180,18 @@ export async function setMemberPassword(
       .set({ passwordHash, updatedAt: nowIso(now) })
       .where(eq(members.id, member.id));
     await tx.delete(sessions).where(eq(sessions.memberId, member.id));
+    // A pending admin-issued reset link must not outlive the set: whoever
+    // holds it could otherwise take the account straight back — the same rule
+    // the self-service change applies in modules/me.ts.
+    await tx
+      .delete(authTokens)
+      .where(
+        and(
+          eq(authTokens.memberId, member.id),
+          eq(authTokens.purpose, 'password_reset'),
+          isNull(authTokens.consumedAt),
+        ),
+      );
     await writeAudit(
       tx,
       {
@@ -200,6 +207,11 @@ export async function setMemberPassword(
   });
 }
 
+/**
+ * The polite recovery path: an admin copies this link and hands it over in
+ * person. It is never given to an anonymous requester — which is why there is
+ * no /auth/forgot-password endpoint at all.
+ */
 export async function issueResetLink(deps: AppDeps, actor: Actor, id: string): Promise<ResetLink> {
   const now = deps.now();
 

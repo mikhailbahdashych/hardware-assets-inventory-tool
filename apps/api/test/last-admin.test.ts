@@ -33,7 +33,7 @@ async function addMember(adminCookie: string, email: string, role: string) {
     method: 'POST',
     url: '/api/v1/members/invites',
     cookie: adminCookie,
-    body: { email, role, sendEmail: false },
+    body: { email, role },
   });
   const token = new URL(invite.json().inviteUrl).searchParams.get('token');
   const accepted = await inject(ctx.app, {
@@ -147,7 +147,7 @@ describe('a workspace always keeps an admin', () => {
       method: 'POST',
       url: '/api/v1/members/invites',
       cookie: admin,
-      body: { email: 'pending@acme.io', role: 'admin', sendEmail: false },
+      body: { email: 'pending@acme.io', role: 'admin' },
     });
 
     // Two admin rows, one usable account.

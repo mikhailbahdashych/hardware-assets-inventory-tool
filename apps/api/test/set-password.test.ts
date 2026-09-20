@@ -40,7 +40,39 @@ function login(email: string, password: string) {
   return inject(ctx.app, { method: 'POST', url: '/api/v1/auth/login', body: { email, password } });
 }
 
+// The red test for the review's finding: a pending admin-issued reset link
+// must die with the set, exactly as it dies with a self-service change —
+// whoever holds it could otherwise take the account straight back.
+
 describe('POST /api/v1/members/:id/password', () => {
+  it('kills a pending reset link — the set password is the newer word', async () => {
+    ctx = await buildTestApp();
+    const admin = await setupOrg(ctx.app);
+    const grace = await activeMember(admin);
+
+    const link = await inject(ctx.app, {
+      method: 'POST',
+      url: `/api/v1/members/${grace.id}/reset-link`,
+      cookie: admin,
+    });
+    const token = new URL(link.json().resetUrl as string).searchParams.get('token')!;
+
+    await inject(ctx.app, {
+      method: 'POST',
+      url: `/api/v1/members/${grace.id}/password`,
+      cookie: admin,
+      body: { newPassword: NEW_PASSWORD },
+    });
+
+    const res = await inject(ctx.app, {
+      method: 'POST',
+      url: '/api/v1/auth/reset-password',
+      body: { token, newPassword: 'Attacker-chosen-pass1' },
+    });
+    expect(res.statusCode).toBe(401);
+    expect((await login('grace@acme.io', NEW_PASSWORD)).statusCode).toBe(200);
+  });
+
   it('sets the password, signs the member out everywhere, and audits it by name', async () => {
     ctx = await buildTestApp();
     const admin = await setupOrg(ctx.app);

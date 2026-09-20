@@ -34,6 +34,8 @@ import { addDays, nowIso, todayDate } from '@/lib/dates.js';
 import { hashPassword } from '@/lib/password.js';
 import { writeAudit } from '@/services/audit.js';
 import { activeAssignment, closeAssignment, openAssignment } from '@/services/assignments.js';
+import { notifyLinkedMember } from '@/services/notifications.js';
+import { runReturnReminders, runWarrantyScan } from '@/services/jobs.js';
 import { updateMember } from '@/services/members.js';
 import { createRole, listRoles, replacePermissions, requireRole } from '@/services/roles.js';
 import { createStatus, replaceTransitions } from '@/services/workflow.js';
@@ -176,6 +178,11 @@ export async function seedDemo(deps: AppDeps, options: DemoSeedOptions): Promise
 
   await curateWorkflow(deps, actor);
   await curateRoles(deps, actor, { memberIds: demoMembers, signIn });
+
+  // The scans a real instance's first night would have run, so the bell shows
+  // what production code would put there — not rows a seeder invented.
+  await runWarrantyScan(deps, now);
+  await runReturnReminders(deps, now);
 
   return {
     orgName: ORG_NAME,
@@ -560,7 +567,23 @@ async function seedHoldings(tx: DbOrTx, at: Clock, ctx: HoldingSeedContext): Pro
       out,
     );
 
-    if (holding.untilDaysAgo === undefined) continue;
+    if (holding.untilDaysAgo === undefined) {
+      // Still out: the hand-over row the bell would have shown, stamped when
+      // it happened. Holders with no member account hear nothing, as ever.
+      const tagged = (
+        await tx.select({ assetTag: assets.assetTag }).from(assets).where(eq(assets.id, assetId))
+      )[0]!;
+      await notifyLinkedMember(
+        tx,
+        employeeId,
+        {
+          kind: 'assignment.received',
+          params: { assetName: asset.name, assetTag: tagged.assetTag },
+        },
+        out,
+      );
+      continue;
+    }
 
     const back = at(holding.untilDaysAgo, 15, 0);
     const open = await activeAssignment(tx, assetId);
