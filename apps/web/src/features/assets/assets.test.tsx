@@ -1,4 +1,4 @@
-import { screen, waitFor, within } from '@testing-library/react';
+import { cleanup, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
@@ -102,6 +102,34 @@ describe('asset list', () => {
     expect(api.calledAll('GET /assets').at(-1)!.search).toContain('offset=100');
   });
 
+  it('pages by the size the selector was left on, and remembers it', async () => {
+    const many = Array.from({ length: 120 }, (_, index) => ({
+      ...LAPTOP,
+      id: `asset-${index}`,
+      assetTag: `AST-9${String(index).padStart(3, '0')}`,
+      name: `Spare laptop ${index}`,
+    }));
+    const routes = { ...INVENTORY_ROUTES, 'GET /assets': assetsRoute(many) };
+    const api = renderApp(routes, '/assets');
+    await screen.findByText('Spare laptop 0');
+    expect(await rows()).toHaveLength(50);
+
+    await choose(screen, 'Rows per page', '10');
+    await waitFor(() => expect(api.calledAll('GET /assets').at(-1)!.search).toContain('limit=10'));
+    // A smaller page is a different list; page three of it is not where
+    // anybody meant to land.
+    expect(api.calledAll('GET /assets').at(-1)!.search).toContain('offset=0');
+    await waitFor(async () => expect(await rows()).toHaveLength(10));
+    // 120 rows, ten to a page.
+    expect(screen.getByRole('button', { name: '12' })).toBeInTheDocument();
+
+    cleanup();
+    const second = renderApp(routes, '/assets');
+    await screen.findByText('Spare laptop 0');
+    expect(second.called('GET /assets')!.search).toContain('limit=10');
+    expect(await rows()).toHaveLength(10);
+  });
+
   it('counts and pages the filtered rows, not the whole search', async () => {
     // 60 under the search, 10 under the pill: with a page size of 50 the
     // unfiltered list has two pages and the filtered one has none at all.
@@ -121,8 +149,10 @@ describe('asset list', () => {
     await userEvent.click(screen.getByRole('button', { name: 'In repair 10' }));
     await waitFor(() => expect(screen.getByText('10 assets')).toBeInTheDocument());
     expect(await rows()).toHaveLength(10);
-    // One page of ten needs no pager at all — and must never offer a second.
-    expect(screen.queryByRole('navigation', { name: 'Pagination' })).toBeNull();
+    // One page of ten needs no numbers at all — and must never offer a second.
+    // The rows-per-page selector stays: it is the way back to a smaller page.
+    expect(screen.queryByRole('button', { name: '2' })).toBeNull();
+    expect(screen.getByRole('combobox', { name: 'Rows per page' })).toBeInTheDocument();
     // The pills still describe the whole search, which is the other master.
     expect(screen.getByRole('button', { name: 'All 60' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Available 50' })).toBeInTheDocument();

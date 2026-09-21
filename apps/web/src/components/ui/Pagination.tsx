@@ -1,21 +1,38 @@
-import { Fragment } from 'react';
-import type { PaginationProps } from './types/pagination';
+import { Fragment, useId } from 'react';
+import { PAGE_SIZES } from '@/lib/usePageSize';
+import { Dropdown } from './Dropdown';
+import type { PagerProps, PaginationProps, RowsPerPageProps } from './types/pagination';
 import styles from './Pagination.module.css';
 
 /** How many pages flank the current one; the first and last are always drawn. */
 const WINDOW = 1;
 
 /**
- * Prev · numbered pages · Next, for the two lists long enough to need them.
- * One page needs no control at all, so it draws nothing rather than a dead row
- * of buttons.
+ * Prev · numbered pages · Next, with an optional "Rows per page" selector for
+ * the lists that let you choose — the choice itself is remembered per list by
+ * `usePageSize` in `lib/`, not by this control.
+ *
+ * One page needs no numbers, so it draws none rather than a dead row of
+ * buttons; the selector stays, because thirty rows at fifty a page would
+ * otherwise be a list with no way back to ten. No rows at all draws nothing
+ * whatever: an empty state is not a table, and has nothing to size.
  */
-export function Pagination({ page, pageCount, onChange }: PaginationProps) {
-  if (pageCount <= 1) return null;
-  const pages = visiblePages(page, pageCount);
+export function Pagination({ page, pageCount, onChange, rowsPerPage }: PaginationProps) {
+  if (pageCount < 1 || (pageCount === 1 && rowsPerPage === undefined)) return null;
 
   return (
     <nav aria-label="Pagination" className={styles.pagination}>
+      {rowsPerPage && <RowsPerPage {...rowsPerPage} />}
+      {pageCount > 1 && <Pager page={page} pageCount={pageCount} onChange={onChange} />}
+    </nav>
+  );
+}
+
+function Pager({ page, pageCount, onChange }: PagerProps) {
+  const pages = visiblePages(page, pageCount);
+
+  return (
+    <>
       <button
         type="button"
         className={styles.step}
@@ -49,7 +66,27 @@ export function Pagination({ page, pageCount, onChange }: PaginationProps) {
       >
         Next
       </button>
-    </nav>
+    </>
+  );
+}
+
+/** The design's own select, sized down to the two digits it usually holds. */
+function RowsPerPage({ size, options = PAGE_SIZES, onChange }: RowsPerPageProps) {
+  const id = useId();
+  return (
+    <span className={styles.rows}>
+      <label className={styles.rowsLabel} htmlFor={id}>
+        Rows per page
+      </label>
+      <span className={styles.rowsControl}>
+        <Dropdown
+          id={id}
+          value={String(size)}
+          options={options.map((option) => ({ value: String(option), label: String(option) }))}
+          onChange={(value) => onChange(Number(value))}
+        />
+      </span>
+    </span>
   );
 }
 

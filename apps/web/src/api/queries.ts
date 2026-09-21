@@ -54,7 +54,11 @@ export const queryKeys = {
   audit: (filter: AuditFilter) => ['audit', filter] as const,
 };
 
-/** One page of a whole-list screen, and the API's own default limit. */
+/**
+ * One page of a whole-list screen, and the API's own default limit — the size
+ * those pages start at until somebody picks another from the pager's selector,
+ * which `usePageSize` then remembers.
+ */
 export const LIST_PAGE = 50;
 
 /**
@@ -249,7 +253,7 @@ export function useDashboard() {
   });
 }
 
-/** The API's own default page size, and the one the inbox pages by. */
+/** The API's own default page size, and the one the inbox starts at. */
 export const INBOX_PAGE = 50;
 
 /**

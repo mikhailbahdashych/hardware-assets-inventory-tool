@@ -14,11 +14,12 @@ import { DataTable, EmptyState, FilterPills, Pagination, Pill, Spinner } from '@
 import type { FilterPillOption } from '@/components/ui';
 import { formatLogTime } from '@/lib/format';
 import { setParam } from '@/lib/searchParams';
+import { usePageSize } from '@/lib/usePageSize';
 import type { AuditLogItem } from '@/types/api';
 import type { TableColumn } from '@/types/table';
 import styles from './Admin.module.css';
 
-/** The API's own default page size, and the one the pager steps by. */
+/** The API's own default page size, and the one the log starts at. */
 const PAGE = 200;
 
 /** Time · Actor · Event · Type, on the design's grid. */
@@ -54,9 +55,11 @@ const COLUMNS: TableColumn<AuditLogItem>[] = [
 export function ActivityLogPanel() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [page, setPage] = useState(1);
+  // How many rows a page holds is the reader's choice, kept across visits.
+  const [pageSize, setPageSize] = usePageSize('activity', PAGE);
 
   const type = readType(searchParams.get('type'));
-  const log = useAuditLog({ type, limit: PAGE, offset: (page - 1) * PAGE });
+  const log = useAuditLog({ type, limit: pageSize, offset: (page - 1) * pageSize });
   const settings = useSettings();
 
   const counts = log.data?.typeCounts;
@@ -109,7 +112,20 @@ export function ActivityLogPanel() {
         />
       )}
 
-      <Pagination page={page} pageCount={Math.ceil(total / PAGE)} onChange={setPage} />
+      <Pagination
+        page={page}
+        pageCount={Math.ceil(total / pageSize)}
+        onChange={setPage}
+        rowsPerPage={{
+          size: pageSize,
+          onChange: (size) => {
+            setPageSize(size);
+            // A smaller page is a different log; page three of it is not where
+            // anybody meant to land.
+            setPage(1);
+          },
+        }}
+      />
     </div>
   );
 }

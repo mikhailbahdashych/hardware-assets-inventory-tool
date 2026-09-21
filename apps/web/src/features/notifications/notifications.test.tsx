@@ -101,10 +101,12 @@ describe('the notifications page', () => {
     expect(screen.getByRole('button', { name: 'Next' })).toBeDisabled();
   });
 
-  it('draws no pager when the whole inbox fits on one page', async () => {
+  it('draws no page numbers when the whole inbox fits on one page', async () => {
     renderApp(inboxRoutes(), '/notifications');
     await screen.findByText(/2 notifications/);
-    expect(screen.queryByRole('navigation', { name: 'Pagination' })).toBeNull();
+    expect(screen.queryByRole('button', { name: '1' })).toBeNull();
+    // The rows-per-page selector stays: it is the way to a smaller page.
+    expect(screen.getByRole('combobox', { name: 'Rows per page' })).toBeInTheDocument();
   });
 
   it('says when there is nothing at all', async () => {
