@@ -132,12 +132,16 @@ export interface AssetListParams extends ListParams {
 
 export interface AssetsPayload {
   assets: Asset[];
-  /** Assets matching `q` alone — what the pager divides and "All" counts. */
+  /**
+   * The rows behind this page — under `q` **and** the status pill. The footer
+   * names it and the pager divides it, so it has to narrow with the filter.
+   */
   total: number;
   /**
    * How many sit under each status, under `q` but ignoring the status filter,
-   * so switching a pill never moves the other numbers. A status nothing is
-   * under is absent rather than zero.
+   * so switching a pill never moves the other numbers. The "All" pill sums
+   * these rather than reading `total`, which is the narrower of the two. A
+   * status nothing is under is absent rather than zero.
    */
   statusCounts: Record<string, number>;
 }

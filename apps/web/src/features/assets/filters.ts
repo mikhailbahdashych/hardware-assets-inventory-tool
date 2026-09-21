@@ -17,16 +17,17 @@ export function parseStatusFilter(value: string | null, statuses: WorkflowStatus
 /**
  * "All 13 · Available 2 · …" — every status the workspace has is always
  * offered, including the ones at zero, so the row does not reflow as inventory
- * changes. Labels and order come from the workflow; the numbers come from the
- * payload, counted under the search but not under the pill you just pressed.
+ * changes. Labels and order come from the workflow; the numbers come from
+ * `statusCounts`, which is counted under the search but **not** under the pill
+ * you just pressed — so pressing one never moves the others.
+ *
+ * "All" is the sum of those, deliberately not the payload's `total`: that one
+ * narrows with the pill, because it is what the footer names and what the pager
+ * divides. Two numbers, two jobs.
  */
-export function assetStatusPills(
-  total: number,
-  counts: Record<string, number>,
-  statuses: WorkflowStatus[],
-) {
+export function assetStatusPills(counts: Record<string, number>, statuses: WorkflowStatus[]) {
   return [
-    { value: 'all', label: 'All', count: total },
+    { value: 'all', label: 'All', count: Object.values(counts).reduce((sum, n) => sum + n, 0) },
     ...[...statuses]
       .sort((a, b) => a.sortOrder - b.sortOrder)
       .map((status) => ({

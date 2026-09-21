@@ -140,7 +140,9 @@ export function assetsRoute(assets: StubRow[]): StubHandler {
       const key = String(asset.status);
       statusCounts[key] = (statusCounts[key] ?? 0) + 1;
     }
-    return { body: { assets: windowOf(rows, search), total: matched.length, statusCounts } };
+    // `statusCounts` ignores the pill and `total` obeys it, like the service:
+    // the pills describe the search, the total describes what is being paged.
+    return { body: { assets: windowOf(rows, search), total: rows.length, statusCounts } };
   };
 }
 

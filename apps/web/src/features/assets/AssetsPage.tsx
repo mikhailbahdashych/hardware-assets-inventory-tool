@@ -154,7 +154,7 @@ export function AssetsPage({ permissions }: AssetsPageProps) {
           aria-label="Filter assets"
         />
         <FilterPills
-          options={assetStatusPills(total, statusCounts, statuses)}
+          options={assetStatusPills(statusCounts, statuses)}
           value={status}
           onChange={(next) => setFilter({ status: next })}
         />

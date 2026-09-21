@@ -56,8 +56,11 @@ export const ASSET_SEARCH_FIELDS = [assets.name, assets.assetTag, assets.serialN
  * assets registered in the same millisecond would otherwise be free to swap
  * places between two requests — which, across a page boundary, loses a row.
  *
- * `total` and `statusCounts` are both taken under `q` alone: the pills say what
- * the search found, so switching one never moves the others.
+ * The two counts serve different masters, exactly as `auditPage` splits its
+ * `total` from its `typeCounts`. **`statusCounts` ignores the status filter**,
+ * so switching a pill never moves the other numbers; **`total` obeys it**,
+ * because `total` is what the footer names and what the pager divides — a
+ * search-wide total under a pill would offer pages the filter has no rows for.
  */
 export async function listAssets(db: Db, query: AssetListQuery): Promise<AssetListPage> {
   const search = containsAny(query.q ?? '', ASSET_SEARCH_FIELDS);
@@ -84,10 +87,16 @@ export async function listAssets(db: Db, query: AssetListQuery): Promise<AssetLi
     .where(scope)
     .groupBy(assets.status);
 
+  const statusCounts = Object.fromEntries(counts.map((row) => [row.status, row.count]));
+
   return {
     assets: rows.map((row) => serializeAsset(row.asset, row.holder)),
-    total: counts.reduce((sum, row) => sum + row.count, 0),
-    statusCounts: Object.fromEntries(counts.map((row) => [row.status, row.count])),
+    // Under a pill, the rows behind this page are that pill's own — and a
+    // status nothing is under is absent from the map, which is a genuine zero.
+    total: query.status
+      ? (statusCounts[query.status] ?? 0)
+      : counts.reduce((sum, row) => sum + row.count, 0),
+    statusCounts,
   };
 }
 

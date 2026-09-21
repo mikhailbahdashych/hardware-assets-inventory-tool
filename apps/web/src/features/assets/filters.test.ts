@@ -13,7 +13,7 @@ const COUNTS = { available: 1, in_repair: 1, assigned: 1 };
 
 describe('assetStatusPills', () => {
   it('always lists All plus every status the workspace has, in its order', () => {
-    const pills = assetStatusPills(3, COUNTS, STATUSES);
+    const pills = assetStatusPills(COUNTS, STATUSES);
     expect(pills.map((pill) => pill.value)).toEqual([
       'all',
       'available',
@@ -27,10 +27,16 @@ describe('assetStatusPills', () => {
     expect(pills.find((pill) => pill.value === 'available')!.count).toBe(1);
   });
 
+  it('adds All up from the counts, so a chosen pill does not shrink it', () => {
+    // `statusCounts` ignores the status filter, so All is still the whole
+    // search — the payload's narrower `total` belongs to the footer and pager.
+    expect(assetStatusPills(COUNTS, STATUSES)[0]!.count).toBe(3);
+  });
+
   it('reads a status the payload never mentions as the zero it is', () => {
-    expect(
-      assetStatusPills(3, COUNTS, STATUSES).find((pill) => pill.value === 'retired')!.count,
-    ).toBe(0);
+    expect(assetStatusPills(COUNTS, STATUSES).find((pill) => pill.value === 'retired')!.count).toBe(
+      0,
+    );
   });
 
   it('takes its labels and its order from the workspace, not from a code enum', () => {
@@ -38,13 +44,13 @@ describe('assetStatusPills', () => {
       { ...STATUSES[2]!, label: 'At the shop', sortOrder: 0 },
       { ...STATUSES[0]!, sortOrder: 1 },
     ];
-    const pills = assetStatusPills(3, COUNTS, renamed);
+    const pills = assetStatusPills(COUNTS, renamed);
     expect(pills.map((pill) => pill.label)).toEqual(['All', 'At the shop', 'Available']);
     expect(pills[1]!.count).toBe(1);
   });
 
   it('offers only All while the workflow is still loading', () => {
-    expect(assetStatusPills(3, COUNTS, []).map((pill) => pill.value)).toEqual(['all']);
+    expect(assetStatusPills(COUNTS, []).map((pill) => pill.value)).toEqual(['all']);
   });
 });
 

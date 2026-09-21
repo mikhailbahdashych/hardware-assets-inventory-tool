@@ -15,14 +15,18 @@ export interface AssetListQuery extends ListQuery {
 }
 
 export interface AssetListPage {
-  assets: SerializedAsset[];
-  /** Assets matching `q` alone — what the pager divides and "All" counts. */
+  /**
+   * The rows behind this page — under `q` **and** the status filter, because
+   * this is what the footer names and what the pager divides into pages.
+   */
   total: number;
+  assets: SerializedAsset[];
   /**
    * How many sit under each status, counted under `q` but **ignoring** the
-   * status filter, so switching a pill never moves the other numbers. A status
-   * nothing is under is absent rather than zero; the page draws its own row of
-   * pills from the workflow and reads a miss as the zero it is.
+   * status filter, so switching a pill never moves the other numbers. The
+   * "All" pill reads the sum of these rather than `total`, which is narrower.
+   * A status nothing is under is absent rather than zero; the page draws its
+   * own row of pills from the workflow and reads a miss as the zero it is.
    */
   statusCounts: Record<string, number>;
 }

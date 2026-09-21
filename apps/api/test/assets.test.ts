@@ -574,7 +574,6 @@ describe('asset list paging, search and counts', () => {
       cookie: admin,
     });
     expect(filtered.json().assets).toHaveLength(2);
-    expect(filtered.json().total).toBe(6);
     // Switching a pill must not move the other numbers.
     expect(filtered.json().statusCounts).toMatchObject({ available: 4, in_repair: 2 });
 
@@ -585,6 +584,40 @@ describe('asset list paging, search and counts', () => {
     });
     expect(searched.json().statusCounts).toMatchObject({ in_repair: 2 });
     expect(searched.json().statusCounts.available).toBeUndefined();
+  });
+
+  it('counts the filtered rows in `total`, because that is what the pager divides', async () => {
+    ctx = await buildTestApp();
+    const admin = await setupOrg(ctx.app);
+    await seedSix(admin);
+
+    const filtered = await inject(ctx.app, {
+      method: 'GET',
+      url: '/api/v1/assets?status=in_repair',
+      cookie: admin,
+    });
+    // The two counts serve different masters: `total` is the rows behind this
+    // page, `statusCounts` is every pill. A `total` of 6 here would offer three
+    // pages of two rows and render two of them empty.
+    expect(filtered.json().total).toBe(2);
+    expect(filtered.json().statusCounts).toMatchObject({ available: 4, in_repair: 2 });
+
+    const both = await inject(ctx.app, {
+      method: 'GET',
+      url: '/api/v1/assets?q=macbook&status=in_repair',
+      cookie: admin,
+    });
+    expect(both.json().total).toBe(2);
+
+    const emptyPill = await inject(ctx.app, {
+      method: 'GET',
+      url: '/api/v1/assets?status=retired',
+      cookie: admin,
+    });
+    expect(emptyPill.json().assets).toHaveLength(0);
+    expect(emptyPill.json().total).toBe(0);
+    // A pill at zero still knows what the others hold.
+    expect(emptyPill.json().statusCounts).toMatchObject({ available: 4, in_repair: 2 });
   });
 
   it('orders newest first with a tiebreaker, so a page boundary is stable', async () => {

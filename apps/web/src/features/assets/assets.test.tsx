@@ -102,6 +102,32 @@ describe('asset list', () => {
     expect(api.calledAll('GET /assets').at(-1)!.search).toContain('offset=100');
   });
 
+  it('counts and pages the filtered rows, not the whole search', async () => {
+    // 60 under the search, 10 under the pill: with a page size of 50 the
+    // unfiltered list has two pages and the filtered one has none at all.
+    const many = Array.from({ length: 60 }, (_, index) => ({
+      ...LAPTOP,
+      id: `asset-${index}`,
+      assetTag: `AST-9${String(index).padStart(3, '0')}`,
+      name: `Spare laptop ${index}`,
+      status: index < 10 ? 'in_repair' : 'available',
+    }));
+    renderApp({ ...INVENTORY_ROUTES, 'GET /assets': assetsRoute(many) }, '/assets');
+    await screen.findByText('Spare laptop 0');
+
+    expect(screen.getByText('60 assets')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '2' })).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole('button', { name: 'In repair 10' }));
+    await waitFor(() => expect(screen.getByText('10 assets')).toBeInTheDocument());
+    expect(await rows()).toHaveLength(10);
+    // One page of ten needs no pager at all — and must never offer a second.
+    expect(screen.queryByRole('navigation', { name: 'Pagination' })).toBeNull();
+    // The pills still describe the whole search, which is the other master.
+    expect(screen.getByRole('button', { name: 'All 60' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Available 50' })).toBeInTheDocument();
+  });
+
   it('goes back to page one when the filter changes under it', async () => {
     const many = Array.from({ length: 120 }, (_, index) => ({
       ...LAPTOP,
