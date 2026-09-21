@@ -9,7 +9,13 @@ import {
 } from '@inventory/shared';
 import { fieldErrors } from '@/api/formErrors';
 import { useCreateAsset, useDeleteAsset, useUpdateAsset } from '@/api/mutations';
-import { useCustomFields, useEmployees, useNextAssetTag, useWorkflow } from '@/api/queries';
+import {
+  DROPDOWN_LIMIT,
+  useCustomFields,
+  useEmployees,
+  useNextAssetTag,
+  useWorkflow,
+} from '@/api/queries';
 import type { Asset, CustomFieldValue } from '@/types/api';
 import { Button, Checkbox, Dropdown, Field, Input, Modal, Textarea } from '@/components/ui';
 import { useToast } from '@/providers/ToastProvider';
@@ -84,7 +90,9 @@ export function AssetFormModal({
   const toast = useToast();
   const defs = useCustomFields();
   const workflow = useWorkflow();
-  const employees = useEmployees();
+  // A dropdown has no search box, so it asks for as many people as the
+  // endpoint will give — see DROPDOWN_LIMIT for what happens past that.
+  const employees = useEmployees({ limit: DROPDOWN_LIMIT, offset: 0 });
   const nextTag = useNextAssetTag(!editing);
   const create = useCreateAsset();
   // In create mode there is no asset to update and this hook is never fired;
@@ -341,7 +349,7 @@ export function AssetFormModal({
                   options={[
                     { value: '', label: '— Choose an employee —' },
                     // People that have not loaded are no people to offer.
-                    ...(employees.data ?? [])
+                    ...(employees.data?.employees ?? [])
                       .filter((employee) => employee.status === 'active')
                       .map((employee) => ({
                         value: employee.id,

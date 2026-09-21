@@ -1,5 +1,5 @@
 import type { Action, WorkflowStatus } from '@inventory/shared';
-import type { Asset, Employee } from '@/types/api';
+import type { SearchPayload } from '@/types/api';
 import type { IconName } from '@/components/ui';
 import type { GlobalModal } from '@/types/modals';
 
@@ -31,12 +31,16 @@ export interface ActionDefinition {
   requires?: Action;
 }
 
-/** Everything `paletteGroups` needs: the query, the permissions, the loaded lists. */
+/**
+ * Everything `paletteGroups` needs: the query (for the command rows, which are
+ * still matched here), the permissions, and what the server found. The asset
+ * and employee rows arrive already searched and already capped — `/search` is
+ * the one that reads the tables now.
+ */
 export interface PaletteInput {
   query: string;
   permissions: Action[];
-  assets: Asset[];
-  employees: Employee[];
+  results: SearchPayload;
   /** The workspace's statuses, so an asset row can name the one it carries. */
   statuses: WorkflowStatus[];
 }

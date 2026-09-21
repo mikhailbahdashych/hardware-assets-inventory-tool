@@ -2,8 +2,9 @@ import { useMemo, useState, type FormEvent } from 'react';
 import type { AssignInput } from '@inventory/shared';
 import { fieldErrors } from '@/api/formErrors';
 import { useAssignAsset } from '@/api/mutations';
-import { useAssets, useEmployees, useWorkflow } from '@/api/queries';
+import { PICKER_PAGE, useAssets, useEmployees, useWorkflow } from '@/api/queries';
 import { Avatar, Button, Field, Input, Modal, SearchInput, Textarea } from '@/components/ui';
+import { useDebouncedValue } from '@/lib/useDebouncedValue';
 import { statusInfo, statusMap } from '@/lib/workflow';
 import { useToast } from '@/providers/ToastProvider';
 import type { AssignModalProps, Candidate } from './types/assignModal';
@@ -24,8 +25,22 @@ export function AssignModal(props: AssignModalProps) {
   const [notes, setNotes] = useState('');
 
   const toast = useToast();
-  const employees = useEmployees();
-  const assets = useAssets();
+  // The candidate list is searched on the server now — the lists are pages, so
+  // a modal that filtered whatever it happened to hold would offer a fraction
+  // of the people. One small page, refetched as the typing settles. Only the
+  // side this mode is picking from carries the needle; the other keeps a stable
+  // key and so is fetched once rather than on every keystroke.
+  const needle = useDebouncedValue(query).trim();
+  const picker = (side: boolean) => ({
+    q: side && needle !== '' ? needle : undefined,
+    limit: PICKER_PAGE,
+    offset: 0,
+  });
+  const employees = useEmployees(picker(mode === 'pick-employee'));
+  // `assignable` asks the API for only what a handover may start from — most of
+  // a healthy inventory is assigned, so a page of twenty taken first and
+  // filtered afterwards would usually be a page of nothing.
+  const assets = useAssets({ ...picker(mode === 'pick-asset'), assignable: true });
   const workflow = useWorkflow();
   // In pick-asset mode the chosen row *is* the asset, so the endpoint is only
   // known once something is selected — until then there is no asset to name,
@@ -35,44 +50,34 @@ export function AssignModal(props: AssignModalProps) {
   const errors = fieldErrors(assign.error);
 
   const candidates = useMemo<Candidate[]>(() => {
-    const needle = query.trim().toLowerCase();
-    // A list that has not arrived offers no candidates, and a person with no
-    // department recorded matches nothing rather than everything.
+    // A payload that has not arrived offers no candidates.
     if (mode === 'pick-employee') {
-      return (employees.data ?? [])
-        .filter((employee) => employee.status === 'active')
-        .filter((employee) =>
-          [employee.displayName, employee.department ?? '', employee.jobTitle ?? ''].some((field) =>
-            field.toLowerCase().includes(needle),
-          ),
-        )
-        .map((employee) => ({
-          id: employee.id,
-          title: employee.displayName,
-          subtitle: [employee.jobTitle, employee.location].filter(Boolean).join(' · ') || '—',
-          avatarKey: employee.id,
-        }));
+      return (
+        (employees.data?.employees ?? [])
+          // Employee status is not a filter the list endpoint takes, so this one
+          // stays here. It thins a page rather than emptying it: somebody
+          // offboarding is a small minority, unlike an assigned asset. Give the
+          // endpoint a status filter if that ever stops being true.
+          .filter((employee) => employee.status === 'active')
+          .map((employee) => ({
+            id: employee.id,
+            title: employee.displayName,
+            subtitle: [employee.jobTitle, employee.location].filter(Boolean).join(' · ') || '—',
+            avatarKey: employee.id,
+          }))
+      );
     }
-    // A workflow that has not arrived says of no status that it can be handed
-    // out, so the list waits for it rather than guessing at a slug.
+    // A workflow that has not arrived has no labels for the subtitle; the
+    // filtering itself is the API's, through `assignable` above.
     const byId = statusMap(workflow.data?.statuses ?? []);
-    return (
-      (assets.data ?? [])
-        // The same flag the API enforces, so the list cannot offer an asset the
-        // handover would then refuse.
-        .filter((asset) => byId.get(asset.status)?.assignableFrom === true)
-        .filter((asset) =>
-          [asset.name, asset.assetTag].some((field) => field.toLowerCase().includes(needle)),
-        )
-        .map((asset) => ({
-          id: asset.id,
-          title: asset.name,
-          subtitle: `${asset.assetTag} · ${statusInfo(byId, asset.status).label}`,
-          avatarKey: asset.id,
-          square: true as const,
-        }))
-    );
-  }, [mode, query, employees.data, assets.data, workflow.data]);
+    return (assets.data?.assets ?? []).map((asset) => ({
+      id: asset.id,
+      title: asset.name,
+      subtitle: `${asset.assetTag} · ${statusInfo(byId, asset.status).label}`,
+      avatarKey: asset.id,
+      square: true as const,
+    }));
+  }, [mode, employees.data, assets.data, workflow.data]);
 
   function submit(event: FormEvent) {
     event.preventDefault();

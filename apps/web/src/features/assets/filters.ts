@@ -1,10 +1,9 @@
 import type { WorkflowStatus } from '@inventory/shared';
-import type { Asset } from '@/types/api';
-import type { AssetFilters, StatusFilter } from '@/types/filters';
+import type { StatusFilter } from '@/types/filters';
 
-// Filtering is client-side over the full list the API returns, and the chosen
-// values live in the URL (`/assets?status=&q=`) so a filtered view is
-// shareable, survives a reload, and can be linked to from the dashboard.
+// The chosen values live in the URL (`/assets?status=&q=`) so a filtered view is
+// shareable, survives a reload, and can be linked to from the dashboard. The
+// matching itself is the server's — see `listAssets` in apps/api.
 
 /**
  * No `?status=` in the URL, or one this workspace has no status for, both mean
@@ -15,34 +14,27 @@ export function parseStatusFilter(value: string | null, statuses: WorkflowStatus
   return value !== null && statuses.some((status) => status.id === value) ? value : 'all';
 }
 
-/** The design's live filter: name, asset tag or serial, case-insensitive. */
-export function filterAssets(assets: Asset[], { status, query }: AssetFilters): Asset[] {
-  const needle = query.trim().toLowerCase();
-  return assets.filter((asset) => {
-    if (status !== 'all' && asset.status !== status) return false;
-    if (!needle) return true;
-    // An asset without a serial matches nothing rather than everything.
-    return [asset.name, asset.assetTag, asset.serialNumber ?? ''].some((field) =>
-      field.toLowerCase().includes(needle),
-    );
-  });
-}
-
 /**
  * "All 13 · Available 2 · …" — every status the workspace has is always
  * offered, including the ones at zero, so the row does not reflow as inventory
- * changes. Labels and order come from the workflow; counts from the unfiltered
- * list.
+ * changes. Labels and order come from the workflow; the numbers come from the
+ * payload, counted under the search but not under the pill you just pressed.
  */
-export function assetStatusPills(assets: Asset[], statuses: WorkflowStatus[]) {
+export function assetStatusPills(
+  total: number,
+  counts: Record<string, number>,
+  statuses: WorkflowStatus[],
+) {
   return [
-    { value: 'all', label: 'All', count: assets.length },
+    { value: 'all', label: 'All', count: total },
     ...[...statuses]
       .sort((a, b) => a.sortOrder - b.sortOrder)
       .map((status) => ({
         value: status.id,
         label: status.label,
-        count: assets.filter((asset) => asset.status === status.id).length,
+        // A status the payload does not mention has nothing under it — a miss
+        // that is a genuine zero, not a count that failed to arrive.
+        count: counts[status.id] ?? 0,
       })),
   ];
 }

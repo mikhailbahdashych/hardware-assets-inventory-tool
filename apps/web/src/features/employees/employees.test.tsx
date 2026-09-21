@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   ADMIN_MEMBER,
+  employeesRoute,
   INVENTORY_ROUTES,
   LAPTOP,
   MANAGER_ACTIONS,
@@ -34,7 +35,9 @@ const DANIEL = {
 
 const ROUTES = {
   ...INVENTORY_ROUTES,
-  'GET /employees': { body: { employees: [DANIEL, MAYA] } },
+  // The list is searched and paged on the server, so the stub answers the way
+  // the endpoint does rather than handing back the whole fixture every time.
+  'GET /employees': employeesRoute([DANIEL, MAYA]),
   'GET /employees/emp-1': { body: MAYA_DETAIL },
 };
 
@@ -51,13 +54,33 @@ describe('employee list', () => {
   });
 
   it('filters by name, email or department', async () => {
-    renderApp(ROUTES, '/employees');
+    const api = renderApp(ROUTES, '/employees');
     await screen.findByText('Maya Lindqvist');
 
     await userEvent.type(screen.getByLabelText(/filter employees/i), 'engineering');
     await waitFor(() => expect(screen.queryByText('Maya Lindqvist')).toBeNull());
     expect(screen.getByText('Daniel Okafor')).toBeInTheDocument();
     expect(screen.getByText('1 employee')).toBeInTheDocument();
+    // The matching is the server's; the browser only carries the needle there.
+    expect(api.calledAll('GET /employees').at(-1)!.search).toContain('q=engineering');
+  });
+
+  it('asks for one page at a time and pages through the rest', async () => {
+    const many = Array.from({ length: 120 }, (_, index) => ({
+      ...MAYA,
+      id: `emp-${index}`,
+      displayName: `Person ${String(index).padStart(3, '0')}`,
+      email: `person${index}@acme.io`,
+    }));
+    const api = renderApp({ ...ROUTES, 'GET /employees': employeesRoute(many) }, '/employees');
+    await screen.findByText('Person 000');
+
+    expect(screen.getByText('120 employees')).toBeInTheDocument();
+    expect(api.called('GET /employees')!.search).toContain('limit=50');
+
+    await userEvent.click(screen.getByRole('button', { name: '2' }));
+    await waitFor(() => expect(screen.getByText('Person 050')).toBeInTheDocument());
+    expect(api.calledAll('GET /employees').at(-1)!.search).toContain('offset=50');
   });
 
   it('offers no way to add people to a viewer', async () => {

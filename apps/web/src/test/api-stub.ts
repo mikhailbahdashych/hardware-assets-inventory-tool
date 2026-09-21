@@ -82,6 +82,107 @@ export function stubApi(routes: StubRoutes): ApiStub {
   };
 }
 
+/** Just enough of a fixture row for the stub to search and page it. */
+export interface StubRow {
+  [field: string]: unknown;
+}
+
+/**
+ * Assets, employees and members are searched and paged by the **server** now,
+ * so the stub does the same small amount of work: a route that answered the
+ * whole fixture whatever the query would make every filter test a lie.
+ *
+ * `q`, `limit` and `offset` are read the way the API reads them; the fields are
+ * named per list, mirroring what each endpoint matches.
+ */
+function found(rows: StubRow[], search: string, fields: string[]): StubRow[] {
+  const needle = (new URLSearchParams(search).get('q') ?? '').trim().toLowerCase();
+  if (needle === '') return rows;
+  return rows.filter((row) =>
+    // A null column is an empty string to a substring match, exactly as it was
+    // when this filtering lived in the browser.
+    fields.some((field) =>
+      String(row[field] ?? '')
+        .toLowerCase()
+        .includes(needle),
+    ),
+  );
+}
+
+function windowOf(rows: StubRow[], search: string): StubRow[] {
+  const params = new URLSearchParams(search);
+  // The API's own defaults, so a route asked without them answers alike.
+  const limit = Number(params.get('limit') ?? 50);
+  const offset = Number(params.get('offset') ?? 0);
+  return rows.slice(offset, offset + limit);
+}
+
+/** `GET /assets`: the page, the total behind `q`, and the counts per status. */
+export function assetsRoute(assets: StubRow[]): StubHandler {
+  return (_body, search) => {
+    const params = new URLSearchParams(search);
+    // `?assignable=true` is the assign modal asking for only what a handover
+    // may start from — the API reads the flag off the workspace's statuses,
+    // and the WORKFLOW fixture below is built from this same array.
+    const offered =
+      params.get('assignable') === 'true'
+        ? assets.filter((asset) =>
+            DEFAULT_ASSET_STATUSES.some(
+              (status) => status.id === asset.status && status.assignableFrom,
+            ),
+          )
+        : assets;
+    const matched = found(offered, search, ['name', 'assetTag', 'serialNumber']);
+    const status = params.get('status');
+    const rows = status === null ? matched : matched.filter((asset) => asset.status === status);
+    const statusCounts: Record<string, number> = {};
+    for (const asset of matched) {
+      const key = String(asset.status);
+      statusCounts[key] = (statusCounts[key] ?? 0) + 1;
+    }
+    return { body: { assets: windowOf(rows, search), total: matched.length, statusCounts } };
+  };
+}
+
+export function employeesRoute(employees: StubRow[]): StubHandler {
+  return (_body, search) => {
+    const matched = found(employees, search, ['displayName', 'email', 'department', 'jobTitle']);
+    return { body: { employees: windowOf(matched, search), total: matched.length } };
+  };
+}
+
+export function membersRoute(members: StubRow[]): StubHandler {
+  return (_body, search) => {
+    const matched = found(members, search, ['displayName', 'email']);
+    return { body: { members: windowOf(matched, search), total: matched.length } };
+  };
+}
+
+/** `GET /search`: what the command palette reads, capped at four of each. */
+export function searchRoute(assets: StubRow[], employees: StubRow[]): StubHandler {
+  return (_body, search) => ({
+    body: {
+      assets: found(assets, search, ['name', 'assetTag', 'serialNumber'])
+        .slice(0, 4)
+        .map((asset) => ({
+          id: asset.id,
+          name: asset.name,
+          assetTag: asset.assetTag,
+          status: asset.status,
+          category: asset.category,
+        })),
+      employees: found(employees, search, ['displayName', 'email', 'department', 'jobTitle'])
+        .slice(0, 4)
+        .map((employee) => ({
+          id: employee.id,
+          displayName: employee.displayName,
+          jobTitle: employee.jobTitle,
+          department: employee.department,
+        })),
+    },
+  });
+}
+
 export const ADMIN_MEMBER = {
   id: 'member-1',
   email: 'tomasz@acme.io',
@@ -456,8 +557,9 @@ export const DASHBOARD = {
 export const INVENTORY_ROUTES: StubRoutes = {
   'GET /meta': { body: READY_META },
   'GET /auth/me': session(),
-  'GET /assets': { body: { assets: [LAPTOP, MONITOR] } },
-  'GET /employees': { body: { employees: [MAYA] } },
+  'GET /assets': assetsRoute([LAPTOP, MONITOR]),
+  'GET /employees': employeesRoute([MAYA]),
+  'GET /search': searchRoute([LAPTOP, MONITOR], [MAYA]),
   'GET /custom-fields': { body: { customFields: CUSTOM_FIELDS } },
   'GET /assets/next-tag': { body: { assetTag: 'AST-0144' } },
   'GET /notifications': { body: { notifications: [], unreadCount: 0, total: 0 } },
@@ -481,8 +583,9 @@ export const DASHBOARD_ROUTES: StubRoutes = {
 export const ADMIN_ROUTES: StubRoutes = {
   'GET /meta': { body: READY_META },
   'GET /auth/me': session(),
-  'GET /employees': { body: { employees: [MAYA] } },
-  'GET /members': { body: { members: [ADMIN_SUMMARY, INVITED_SUMMARY, LINKED_SUMMARY] } },
+  'GET /employees': employeesRoute([MAYA]),
+  'GET /search': searchRoute([], [MAYA]),
+  'GET /members': membersRoute([ADMIN_SUMMARY, INVITED_SUMMARY, LINKED_SUMMARY]),
   'GET /settings': { body: { settings: SETTINGS, storageUsedBytes: 188_416 } },
   'GET /audit': { body: AUDIT_PAGE },
   'GET /notifications': { body: { notifications: [], unreadCount: 0, total: 0 } },
