@@ -220,6 +220,7 @@ export function KitchenSink() {
   const [filter, setFilter] = useState('all');
   const [tab, setTab] = useState('activity');
   const [logPage, setLogPage] = useState(1);
+  const [demoSize, setDemoSize] = useState(50);
   const [role, setRole] = useState('viewer');
   const [toggles, setToggles] = useState({ warranty: true, returns: false });
   const [modal, setModal] = useState<'none' | 'plain' | 'scroll'>('none');
@@ -493,7 +494,24 @@ export function KitchenSink() {
             to the ends and watch Prev and Next go dead. */}
         <Pagination page={logPage} pageCount={12} onChange={setLogPage} />
         <Pagination page={1} pageCount={3} onChange={() => {}} />
-        {/* One page draws nothing at all, which is why this row looks empty. */}
+        {/* Opted into the selector, which the five list screens all are. The
+            choice is remembered per list — this demo forgets it on reload. */}
+        <Pagination
+          page={logPage}
+          pageCount={12}
+          onChange={setLogPage}
+          rowsPerPage={{ size: demoSize, onChange: setDemoSize }}
+        />
+        {/* One page keeps the selector and drops the numbers: a short list is
+            still a list you can ask for less of. */}
+        <Pagination
+          page={1}
+          pageCount={1}
+          onChange={() => {}}
+          rowsPerPage={{ size: demoSize, onChange: setDemoSize }}
+        />
+        {/* Without it, one page draws nothing at all — which is why this row
+            looks empty. */}
         <Pagination page={1} pageCount={1} onChange={() => {}} />
       </Section>
 

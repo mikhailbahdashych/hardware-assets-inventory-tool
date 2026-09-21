@@ -20,6 +20,7 @@ import type { TableColumn } from '@/types/table';
 import { formatMonthYear } from '@/lib/format';
 import { setParam } from '@/lib/searchParams';
 import { useDebouncedValue } from '@/lib/useDebouncedValue';
+import { usePageSize } from '@/lib/usePageSize';
 import { statusInfo, statusMap } from '@/lib/workflow';
 import { assetStatusPills, parseStatusFilter } from './filters';
 import type { AssetFilterUpdate, AssetsPageProps } from './types/assetsPage';
@@ -93,6 +94,8 @@ const assetColumns = (statuses: WorkflowStatus[]): TableColumn<Asset>[] => {
 export function AssetsPage({ permissions }: AssetsPageProps) {
   const [searchParams, setSearchParams] = useSearchParams();
   const [page, setPage] = useState(1);
+  // How many rows a page holds is the reader's choice, kept across visits.
+  const [pageSize, setPageSize] = usePageSize('assets', LIST_PAGE);
   const navigate = useNavigate();
   const { openModal } = useModals();
   const workflow = useWorkflow();
@@ -127,8 +130,8 @@ export function AssetsPage({ permissions }: AssetsPageProps) {
     // An empty search is no search: the parameter is left out of the key.
     q: debounced.trim() === '' ? undefined : debounced.trim(),
     status: status === 'all' ? undefined : status,
-    limit: LIST_PAGE,
-    offset: (page - 1) * LIST_PAGE,
+    limit: pageSize,
+    offset: (page - 1) * pageSize,
   });
 
   // A payload that has not arrived has no rows and nothing to count.
@@ -181,7 +184,20 @@ export function AssetsPage({ permissions }: AssetsPageProps) {
         />
       )}
 
-      <Pagination page={page} pageCount={Math.ceil(total / LIST_PAGE)} onChange={setPage} />
+      <Pagination
+        page={page}
+        pageCount={Math.ceil(total / pageSize)}
+        onChange={setPage}
+        rowsPerPage={{
+          size: pageSize,
+          onChange: (size) => {
+            setPageSize(size);
+            // A smaller page is a different list; page three of it is not
+            // where anybody meant to land.
+            setPage(1);
+          },
+        }}
+      />
     </PageContainer>
   );
 }

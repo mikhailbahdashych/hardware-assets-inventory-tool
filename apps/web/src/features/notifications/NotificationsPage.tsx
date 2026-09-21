@@ -5,6 +5,7 @@ import { INBOX_PAGE, useNotifications } from '@/api/queries';
 import { PageContainer } from '@/components/app/PageContainer';
 import { Button, EmptyState, Pagination, Spinner } from '@/components/ui';
 import { formatRelativeTime } from '@/lib/format';
+import { usePageSize } from '@/lib/usePageSize';
 import styles from './Notifications.module.css';
 
 /**
@@ -15,7 +16,9 @@ import styles from './Notifications.module.css';
  */
 export function NotificationsPage() {
   const [page, setPage] = useState(1);
-  const inbox = useNotifications(INBOX_PAGE, (page - 1) * INBOX_PAGE);
+  // How many rows a page holds is the reader's choice, kept across visits.
+  const [pageSize, setPageSize] = usePageSize('notifications', INBOX_PAGE);
+  const inbox = useNotifications(pageSize, (page - 1) * pageSize);
   const markRead = useMarkNotificationsRead();
 
   // A payload that has not arrived yet has no rows and nothing to count.
@@ -64,7 +67,20 @@ export function NotificationsPage() {
         </>
       )}
 
-      <Pagination page={page} pageCount={Math.ceil(total / INBOX_PAGE)} onChange={setPage} />
+      <Pagination
+        page={page}
+        pageCount={Math.ceil(total / pageSize)}
+        onChange={setPage}
+        rowsPerPage={{
+          size: pageSize,
+          onChange: (size) => {
+            setPageSize(size);
+            // A smaller page is a different list; page three of it is not
+            // where anybody meant to land.
+            setPage(1);
+          },
+        }}
+      />
     </PageContainer>
   );
 }

@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { avatarColor } from '@/lib/avatar';
 import { ToastProvider, useToast } from '@/providers/ToastProvider';
+import { choose } from '@/test/dropdown';
 import { Avatar } from './Avatar';
 import { Button } from './Button';
 import { Checkbox } from './Checkbox';
@@ -210,6 +211,45 @@ describe('Pagination', () => {
 
   it('draws nothing at all when everything fits on one page', () => {
     const { container } = render(<Pagination page={1} pageCount={1} onChange={vi.fn()} />);
+    expect(container).toBeEmptyDOMElement();
+  });
+
+  it('offers the rows-per-page sizes and reports the one chosen', async () => {
+    const onChange = vi.fn();
+    render(
+      <Pagination page={1} pageCount={4} onChange={vi.fn()} rowsPerPage={{ size: 50, onChange }} />,
+    );
+
+    await choose(screen, 'Rows per page', '10');
+    expect(onChange).toHaveBeenCalledWith(10);
+  });
+
+  it('keeps the selector on a list short enough to need no numbers', async () => {
+    // Thirty rows at fifty a page is one page — and the only way back to ten.
+    render(
+      <Pagination
+        page={1}
+        pageCount={1}
+        onChange={vi.fn()}
+        rowsPerPage={{ size: 50, onChange: vi.fn() }}
+      />,
+    );
+
+    expect(screen.getByRole('combobox', { name: 'Rows per page' })).toHaveTextContent('50');
+    expect(screen.queryByRole('button', { name: 'Next' })).toBeNull();
+    expect(screen.queryByRole('button', { name: '1' })).toBeNull();
+  });
+
+  it('draws nothing for a list with no rows, selector or not', () => {
+    // Nothing to page is nothing to size: an empty state is not a table.
+    const { container } = render(
+      <Pagination
+        page={1}
+        pageCount={0}
+        onChange={vi.fn()}
+        rowsPerPage={{ size: 50, onChange: vi.fn() }}
+      />,
+    );
     expect(container).toBeEmptyDOMElement();
   });
 });
