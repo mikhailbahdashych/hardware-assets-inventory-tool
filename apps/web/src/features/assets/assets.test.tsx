@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   ADMIN_MEMBER,
+  assetsRoute,
   INVENTORY_ROUTES,
   LAPTOP,
   LAPTOP_DETAIL,
@@ -68,13 +69,87 @@ describe('asset list', () => {
   });
 
   it('filters live by text and records the query in the URL', async () => {
-    renderApp(INVENTORY_ROUTES, '/assets');
+    const api = renderApp(INVENTORY_ROUTES, '/assets');
     await screen.findByText('MacBook Pro 14"');
 
     await userEvent.type(screen.getByLabelText(/filter assets/i), 'dell');
     await waitFor(() => expect(screen.queryByText('MacBook Pro 14"')).toBeNull());
     expect(screen.getByText('Dell U2723QE')).toBeInTheDocument();
     expect(screen.getByText('1 asset')).toBeInTheDocument();
+    // The matching is the server's: the needle rides in the request, and the
+    // debounce means the word is one query rather than four.
+    const searches = api.calledAll('GET /assets').map((call) => call.search);
+    expect(searches.at(-1)).toContain('q=dell');
+    expect(searches).toHaveLength(2);
+  });
+
+  it('asks for one page at a time and pages through the rest', async () => {
+    const many = Array.from({ length: 120 }, (_, index) => ({
+      ...LAPTOP,
+      id: `asset-${index}`,
+      assetTag: `AST-9${String(index).padStart(3, '0')}`,
+      name: `Spare laptop ${index}`,
+    }));
+    const api = renderApp({ ...INVENTORY_ROUTES, 'GET /assets': assetsRoute(many) }, '/assets');
+    await screen.findByText('Spare laptop 0');
+
+    expect(await rows()).toHaveLength(50);
+    expect(screen.getByText('120 assets')).toBeInTheDocument();
+    expect(api.called('GET /assets')!.search).toContain('limit=50');
+
+    await userEvent.click(screen.getByRole('button', { name: '3' }));
+    await waitFor(() => expect(screen.getByText('Spare laptop 100')).toBeInTheDocument());
+    expect(api.calledAll('GET /assets').at(-1)!.search).toContain('offset=100');
+  });
+
+  it('counts and pages the filtered rows, not the whole search', async () => {
+    // 60 under the search, 10 under the pill: with a page size of 50 the
+    // unfiltered list has two pages and the filtered one has none at all.
+    const many = Array.from({ length: 60 }, (_, index) => ({
+      ...LAPTOP,
+      id: `asset-${index}`,
+      assetTag: `AST-9${String(index).padStart(3, '0')}`,
+      name: `Spare laptop ${index}`,
+      status: index < 10 ? 'in_repair' : 'available',
+    }));
+    renderApp({ ...INVENTORY_ROUTES, 'GET /assets': assetsRoute(many) }, '/assets');
+    await screen.findByText('Spare laptop 0');
+
+    expect(screen.getByText('60 assets')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '2' })).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole('button', { name: 'In repair 10' }));
+    await waitFor(() => expect(screen.getByText('10 assets')).toBeInTheDocument());
+    expect(await rows()).toHaveLength(10);
+    // One page of ten needs no pager at all — and must never offer a second.
+    expect(screen.queryByRole('navigation', { name: 'Pagination' })).toBeNull();
+    // The pills still describe the whole search, which is the other master.
+    expect(screen.getByRole('button', { name: 'All 60' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Available 50' })).toBeInTheDocument();
+  });
+
+  it('goes back to page one when the filter changes under it', async () => {
+    const many = Array.from({ length: 120 }, (_, index) => ({
+      ...LAPTOP,
+      id: `asset-${index}`,
+      assetTag: `AST-9${String(index).padStart(3, '0')}`,
+      name: `Spare laptop ${index}`,
+      status: index === 119 ? 'in_repair' : 'available',
+    }));
+    const api = renderApp({ ...INVENTORY_ROUTES, 'GET /assets': assetsRoute(many) }, '/assets');
+    await screen.findByText('Spare laptop 0');
+
+    await userEvent.click(screen.getByRole('button', { name: '3' }));
+    await waitFor(() =>
+      expect(api.calledAll('GET /assets').at(-1)!.search).toContain('offset=100'),
+    );
+
+    await userEvent.click(screen.getByRole('button', { name: 'In repair 1' }));
+    await waitFor(() =>
+      expect(api.calledAll('GET /assets').at(-1)!.search).toContain('status=in_repair'),
+    );
+    // Page three of a one-page list is not where anybody meant to land.
+    expect(api.calledAll('GET /assets').at(-1)!.search).toContain('offset=0');
   });
 
   it('filters by status pill, counting the whole inventory', async () => {
@@ -97,7 +172,7 @@ describe('asset list', () => {
   });
 
   it('says so when nothing matches, and when there is nothing at all', async () => {
-    renderApp({ ...INVENTORY_ROUTES, 'GET /assets': { body: { assets: [] } } }, '/assets');
+    renderApp({ ...INVENTORY_ROUTES, 'GET /assets': assetsRoute([]) }, '/assets');
     expect(await screen.findByText(/no assets yet/i)).toBeInTheDocument();
   });
 

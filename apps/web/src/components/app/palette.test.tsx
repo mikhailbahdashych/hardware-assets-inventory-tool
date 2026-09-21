@@ -6,6 +6,7 @@ import {
   DASHBOARD_ROUTES,
   LAPTOP,
   MAYA,
+  searchRoute,
   session,
   VIEWER_ACTIONS,
 } from '@/test/api-stub';
@@ -73,7 +74,11 @@ describe('what the palette finds', () => {
     await within(dialog).findByRole('option', { name: /MacBook Pro 14"/ });
 
     await userEvent.type(search(), 'maya');
-    expect(within(dialog).getByRole('option', { name: /Maya Lindqvist/ })).toBeInTheDocument();
+    // The search is the server's now, and debounced, so the rows arrive a beat
+    // after the keystroke rather than with it.
+    expect(
+      await within(dialog).findByRole('option', { name: /Maya Lindqvist/ }),
+    ).toBeInTheDocument();
     expect(within(dialog).queryByRole('option', { name: /MacBook Pro 14"/ })).toBeNull();
     expect(within(dialog).queryByText('Assets')).toBeNull();
   });
@@ -85,12 +90,24 @@ describe('what the palette finds', () => {
       assetTag: `AST-90${index}`,
       name: `Spare laptop ${index}`,
     }));
-    renderApp({ ...DASHBOARD_ROUTES, 'GET /assets': { body: { assets: many } } }, '/dashboard');
+    renderApp({ ...DASHBOARD_ROUTES, 'GET /search': searchRoute(many, []) }, '/dashboard');
     const dialog = await openPalette();
 
     await within(dialog).findByRole('option', { name: /Spare laptop 0/ });
     await userEvent.type(search(), 'spare');
-    expect(within(dialog).getAllByRole('option')).toHaveLength(4);
+    // The cap is the server's now, so this is what /search answered with.
+    await waitFor(() => expect(within(dialog).getAllByRole('option')).toHaveLength(4));
+  });
+
+  it('asks the server rather than the two lists it used to hold', async () => {
+    const api = renderApp(DASHBOARD_ROUTES, '/dashboard');
+    const dialog = await openPalette();
+    await within(dialog).findByRole('option', { name: /MacBook Pro 14"/ });
+
+    await userEvent.type(search(), 'maya');
+    await waitFor(() => expect(api.calledAll('GET /search').at(-1)!.search).toContain('q=maya'));
+    // Debounced: a four-letter word is one request, not four.
+    expect(api.calledAll('GET /search')).toHaveLength(2);
   });
 
   it('names the query when nothing matches', async () => {
@@ -142,9 +159,8 @@ describe('the keyboard', () => {
     await userEvent.keyboard('{ArrowDown}{ArrowDown}{ArrowDown}{ArrowDown}');
     await userEvent.type(search(), 'maya');
 
-    const options = within(dialog).getAllByRole('option');
-    expect(options).toHaveLength(1);
-    expect(options[0]).toHaveAttribute('aria-selected', 'true');
+    await waitFor(() => expect(within(dialog).getAllByRole('option')).toHaveLength(1));
+    expect(within(dialog).getAllByRole('option')[0]).toHaveAttribute('aria-selected', 'true');
   });
 });
 

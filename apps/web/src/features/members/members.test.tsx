@@ -9,6 +9,7 @@ import {
   INVITED_SUMMARY,
   LINKED_SUMMARY,
   MAYA,
+  membersRoute,
   ROLES,
   session,
   VIEWER_ACTIONS,
@@ -70,14 +71,31 @@ describe('the members list', () => {
     );
   });
 
+  it('asks for one page at a time and pages through the rest', async () => {
+    const many = Array.from({ length: 120 }, (_, index) => ({
+      ...LINKED_SUMMARY,
+      id: `member-${index}`,
+      displayName: `Person ${String(index).padStart(3, '0')}`,
+      email: `person${index}@acme.io`,
+      linkedEmployee: null,
+    }));
+    const api = renderApp({ ...ADMIN_ROUTES, 'GET /members': membersRoute(many) }, '/members');
+    await screen.findByText('person0@acme.io');
+
+    expect(screen.getByText(/^120 members/)).toBeInTheDocument();
+    expect(api.called('GET /members')!.search).toContain('limit=50');
+
+    await userEvent.click(screen.getByRole('button', { name: '2' }));
+    await waitFor(() => expect(screen.getByText('person50@acme.io')).toBeInTheDocument());
+    expect(api.calledAll('GET /members').at(-1)!.search).toContain('offset=50');
+  });
+
   it('draws a role the workspace invented, in the words and colour it chose', async () => {
     renderApp(
       {
         ...ADMIN_ROUTES,
         'GET /roles': { body: { roles: [...ROLES.roles, AUDITOR_ROLE] } },
-        'GET /members': {
-          body: { members: [{ ...LINKED_SUMMARY, role: 'auditor' }] },
-        },
+        'GET /members': membersRoute([{ ...LINKED_SUMMARY, role: 'auditor' }]),
       },
       '/members',
     );
@@ -90,7 +108,7 @@ describe('the members list', () => {
     renderApp(
       {
         ...ADMIN_ROUTES,
-        'GET /members': { body: { members: [{ ...LINKED_SUMMARY, role: 'auditor' }] } },
+        'GET /members': membersRoute([{ ...LINKED_SUMMARY, role: 'auditor' }]),
       },
       '/members',
     );

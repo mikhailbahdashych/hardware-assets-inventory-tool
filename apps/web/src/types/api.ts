@@ -111,6 +111,74 @@ export interface Asset {
   updatedAt: string;
 }
 
+/**
+ * What every whole-list endpoint takes. The lists are paged and searched on the
+ * server now — there is no upper bound on how big an adopting company is, and
+ * the browser can no longer be the thing that filters.
+ */
+export interface ListParams {
+  /** Absent means no search; the page keeps the typed text in `?q=` regardless. */
+  q?: string;
+  limit: number;
+  offset: number;
+}
+
+/** The asset list's own filters, on top of the page. */
+export interface AssetListParams extends ListParams {
+  status?: string;
+  /** Only what a handover may start from — the assign modal's candidate list. */
+  assignable?: boolean;
+}
+
+export interface AssetsPayload {
+  assets: Asset[];
+  /**
+   * The rows behind this page — under `q` **and** the status pill. The footer
+   * names it and the pager divides it, so it has to narrow with the filter.
+   */
+  total: number;
+  /**
+   * How many sit under each status, under `q` but ignoring the status filter,
+   * so switching a pill never moves the other numbers. The "All" pill sums
+   * these rather than reading `total`, which is the narrower of the two. A
+   * status nothing is under is absent rather than zero.
+   */
+  statusCounts: Record<string, number>;
+}
+
+export interface EmployeesPayload {
+  employees: Employee[];
+  total: number;
+}
+
+export interface MembersPayload {
+  members: MemberSummary[];
+  total: number;
+}
+
+/** One asset as the command palette draws it — four fields, nothing else. */
+export interface SearchAsset {
+  id: string;
+  name: string;
+  assetTag: string;
+  /** A status id, so the row can carry the workspace's own label. */
+  status: string;
+  category: AssetCategory;
+}
+
+/** One person as the palette draws them. No email: the row does not show one. */
+export interface SearchEmployee {
+  id: string;
+  displayName: string;
+  jobTitle: string | null;
+  department: string | null;
+}
+
+export interface SearchPayload {
+  assets: SearchAsset[];
+  employees: SearchEmployee[];
+}
+
 export interface CustomFieldDef {
   id: string;
   key: string;

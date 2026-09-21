@@ -1,7 +1,8 @@
-import { and, desc, eq, isNull, ne } from 'drizzle-orm';
+import { and, count, desc, eq, inArray, isNull, ne } from 'drizzle-orm';
 import { ASSIGNED_STATUS, type AssetCreateInput, type AssetPatchInput } from '@inventory/shared';
 import type { AppDeps } from '@/types/app.js';
 import type { Db, DbOrTx } from '@/types/db.js';
+import type { AssetListPage, AssetListQuery } from '@/types/assets.js';
 import {
   assetCustomValues,
   assets,
@@ -15,6 +16,7 @@ import { AppError, invalidFields, notFound } from '@/lib/errors.js';
 import { DUPLICATE_ASSET_TAG } from '@/lib/unique.js';
 import { nowIso, todayDate } from '@/lib/dates.js';
 import { newId } from '@/lib/ids.js';
+import { containsAny } from '@/lib/search.js';
 import { serializeAsset, serializeAssignment } from '@/lib/serialize.js';
 import type { Actor } from '@/types/audit.js';
 import type { StatusMove } from '@/types/assets.js';
@@ -22,7 +24,7 @@ import { writeAudit } from './audit.js';
 import { activeAssignment, assetHistory, openAssignment } from './assignments.js';
 import { listAttachments, storedNamesForAsset } from './attachments.js';
 import { computeNextTag } from './tag.js';
-import { requireStatus, transitionAllowed } from './workflow.js';
+import { assignableStatuses, requireStatus, transitionAllowed } from './workflow.js';
 
 export type AssetRow = typeof assets.$inferSelect;
 
@@ -41,18 +43,61 @@ const EDITABLE = [
   'notes',
 ] as const;
 
-/** Newest first: the asset you just registered is the one you want to see. */
-export async function listAssets(db: Db) {
-  return (
-    await db
-      .select({ asset: assets, holder: assignments })
-      .from(assets)
-      .leftJoin(
-        assignments,
-        and(eq(assignments.assetId, assets.id), isNull(assignments.returnedAt)),
-      )
-      .orderBy(desc(assets.createdAt))
-  ).map((row) => serializeAsset(row.asset, row.holder));
+/**
+ * The fields an asset is searched by — the three the filter row has always
+ * matched. Exported because the palette's `/search` matches the same ones, and
+ * two lists that disagree about what "found" means is a bug waiting to happen.
+ */
+export const ASSET_SEARCH_FIELDS = [assets.name, assets.assetTag, assets.serialNumber];
+
+/**
+ * One page of the inventory, newest first: the asset you just registered is the
+ * one you want to see. The order carries `id` as a tiebreaker because two
+ * assets registered in the same millisecond would otherwise be free to swap
+ * places between two requests — which, across a page boundary, loses a row.
+ *
+ * The two counts serve different masters, exactly as `auditPage` splits its
+ * `total` from its `typeCounts`. **`statusCounts` ignores the status filter**,
+ * so switching a pill never moves the other numbers; **`total` obeys it**,
+ * because `total` is what the footer names and what the pager divides — a
+ * search-wide total under a pill would offer pages the filter has no rows for.
+ */
+export async function listAssets(db: Db, query: AssetListQuery): Promise<AssetListPage> {
+  const search = containsAny(query.q ?? '', ASSET_SEARCH_FIELDS);
+  const assignableIds = query.assignable
+    ? (await assignableStatuses(db)).map((status) => status.id)
+    : null;
+  // A workspace with no assignable status can hand nothing out, and
+  // `inArray(col, [])` is a condition drizzle refuses to build.
+  const offered = assignableIds === null ? undefined : inArray(assets.status, assignableIds);
+  const scope = and(search, offered);
+
+  const rows = await db
+    .select({ asset: assets, holder: assignments })
+    .from(assets)
+    .leftJoin(assignments, and(eq(assignments.assetId, assets.id), isNull(assignments.returnedAt)))
+    .where(and(scope, query.status ? eq(assets.status, query.status) : undefined))
+    .orderBy(desc(assets.createdAt), desc(assets.id))
+    .limit(query.limit)
+    .offset(query.offset);
+
+  const counts = await db
+    .select({ status: assets.status, count: count() })
+    .from(assets)
+    .where(scope)
+    .groupBy(assets.status);
+
+  const statusCounts = Object.fromEntries(counts.map((row) => [row.status, row.count]));
+
+  return {
+    assets: rows.map((row) => serializeAsset(row.asset, row.holder)),
+    // Under a pill, the rows behind this page are that pill's own — and a
+    // status nothing is under is absent from the map, which is a genuine zero.
+    total: query.status
+      ? (statusCounts[query.status] ?? 0)
+      : counts.reduce((sum, row) => sum + row.count, 0),
+    statusCounts,
+  };
 }
 
 export async function getAssetDetail(db: Db, id: string) {

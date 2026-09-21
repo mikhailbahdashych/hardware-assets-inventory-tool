@@ -446,3 +446,200 @@ describe('deleting an asset', () => {
     expect(res.json().error.code).toBe('asset_assigned');
   });
 });
+
+describe('asset list paging, search and counts', () => {
+  /** Six assets, so a limit of two makes three pages with a stable order. */
+  async function seedSix(admin: string) {
+    for (const [index, name] of [
+      'MacBook Pro 14"',
+      'MacBook Air M2',
+      'Dell U2723QE',
+      'iPhone 15',
+      'Keyboard 100%',
+      'ThinkPad X1',
+    ].entries()) {
+      const res = await createAsset(admin, {
+        name,
+        serialNumber: `SER-${index}`,
+        status: index < 2 ? 'in_repair' : 'available',
+      });
+      if (res.statusCode !== 200) throw new Error(`asset create failed: ${res.body}`);
+    }
+  }
+
+  it('pages with limit and offset, and reports the total behind them', async () => {
+    ctx = await buildTestApp();
+    const admin = await setupOrg(ctx.app);
+    await seedSix(admin);
+
+    const first = await inject(ctx.app, {
+      method: 'GET',
+      url: '/api/v1/assets?limit=2&offset=0',
+      cookie: admin,
+    });
+    expect(first.statusCode).toBe(200);
+    expect(first.json().assets).toHaveLength(2);
+    expect(first.json().total).toBe(6);
+
+    const third = await inject(ctx.app, {
+      method: 'GET',
+      url: '/api/v1/assets?limit=2&offset=4',
+      cookie: admin,
+    });
+    const seen = [...first.json().assets, ...third.json().assets].map(
+      (asset: { id: string }) => asset.id,
+    );
+    expect(new Set(seen).size).toBe(4);
+  });
+
+  it('refuses a limit past the ceiling and a negative offset', async () => {
+    ctx = await buildTestApp();
+    const admin = await setupOrg(ctx.app);
+    const tooMany = await inject(ctx.app, {
+      method: 'GET',
+      url: '/api/v1/assets?limit=201',
+      cookie: admin,
+    });
+    expect(tooMany.statusCode).toBe(422);
+    const negative = await inject(ctx.app, {
+      method: 'GET',
+      url: '/api/v1/assets?offset=-1',
+      cookie: admin,
+    });
+    expect(negative.statusCode).toBe(422);
+  });
+
+  it('searches name, tag and serial without caring about case, on either engine', async () => {
+    ctx = await buildTestApp();
+    const admin = await setupOrg(ctx.app);
+    await seedSix(admin);
+
+    const byName = await inject(ctx.app, {
+      method: 'GET',
+      url: '/api/v1/assets?q=MACBOOK',
+      cookie: admin,
+    });
+    expect(byName.json().total).toBe(2);
+
+    const byTag = await inject(ctx.app, {
+      method: 'GET',
+      url: '/api/v1/assets?q=ast-0003',
+      cookie: admin,
+    });
+    expect(byTag.json().assets).toHaveLength(1);
+
+    const bySerial = await inject(ctx.app, {
+      method: 'GET',
+      url: '/api/v1/assets?q=ser-4',
+      cookie: admin,
+    });
+    expect(bySerial.json().assets[0].name).toBe('Keyboard 100%');
+  });
+
+  it('treats % and _ as characters somebody typed, not as wildcards', async () => {
+    ctx = await buildTestApp();
+    const admin = await setupOrg(ctx.app);
+    await seedSix(admin);
+
+    const percent = await inject(ctx.app, {
+      method: 'GET',
+      url: `/api/v1/assets?q=${encodeURIComponent('100%')}`,
+      cookie: admin,
+    });
+    expect(percent.json().total).toBe(1);
+
+    const wildcard = await inject(ctx.app, {
+      method: 'GET',
+      url: `/api/v1/assets?q=${encodeURIComponent('%')}`,
+      cookie: admin,
+    });
+    expect(wildcard.json().total).toBe(1);
+  });
+
+  it('counts every status under the search, ignoring the status filter', async () => {
+    ctx = await buildTestApp();
+    const admin = await setupOrg(ctx.app);
+    await seedSix(admin);
+
+    const unfiltered = await inject(ctx.app, {
+      method: 'GET',
+      url: '/api/v1/assets',
+      cookie: admin,
+    });
+    expect(unfiltered.json().statusCounts).toMatchObject({ available: 4, in_repair: 2 });
+
+    const filtered = await inject(ctx.app, {
+      method: 'GET',
+      url: '/api/v1/assets?status=in_repair',
+      cookie: admin,
+    });
+    expect(filtered.json().assets).toHaveLength(2);
+    // Switching a pill must not move the other numbers.
+    expect(filtered.json().statusCounts).toMatchObject({ available: 4, in_repair: 2 });
+
+    const searched = await inject(ctx.app, {
+      method: 'GET',
+      url: '/api/v1/assets?q=macbook',
+      cookie: admin,
+    });
+    expect(searched.json().statusCounts).toMatchObject({ in_repair: 2 });
+    expect(searched.json().statusCounts.available).toBeUndefined();
+  });
+
+  it('counts the filtered rows in `total`, because that is what the pager divides', async () => {
+    ctx = await buildTestApp();
+    const admin = await setupOrg(ctx.app);
+    await seedSix(admin);
+
+    const filtered = await inject(ctx.app, {
+      method: 'GET',
+      url: '/api/v1/assets?status=in_repair',
+      cookie: admin,
+    });
+    // The two counts serve different masters: `total` is the rows behind this
+    // page, `statusCounts` is every pill. A `total` of 6 here would offer three
+    // pages of two rows and render two of them empty.
+    expect(filtered.json().total).toBe(2);
+    expect(filtered.json().statusCounts).toMatchObject({ available: 4, in_repair: 2 });
+
+    const both = await inject(ctx.app, {
+      method: 'GET',
+      url: '/api/v1/assets?q=macbook&status=in_repair',
+      cookie: admin,
+    });
+    expect(both.json().total).toBe(2);
+
+    const emptyPill = await inject(ctx.app, {
+      method: 'GET',
+      url: '/api/v1/assets?status=retired',
+      cookie: admin,
+    });
+    expect(emptyPill.json().assets).toHaveLength(0);
+    expect(emptyPill.json().total).toBe(0);
+    // A pill at zero still knows what the others hold.
+    expect(emptyPill.json().statusCounts).toMatchObject({ available: 4, in_repair: 2 });
+  });
+
+  it('orders newest first with a tiebreaker, so a page boundary is stable', async () => {
+    // Assets created inside one millisecond share a createdAt, which is what
+    // the tiebreaker is for: the order has to be total, not merely sorted.
+    ctx = await buildTestApp({}, () => new Date('2026-05-01T10:00:00.000Z'));
+    const admin = await setupOrg(ctx.app);
+    await seedSix(admin);
+
+    const page = (offset: number) =>
+      inject(ctx.app, {
+        method: 'GET',
+        url: `/api/v1/assets?limit=3&offset=${offset}`,
+        cookie: admin,
+      });
+    const ids = async () =>
+      [...(await page(0)).json().assets, ...(await page(3)).json().assets].map(
+        (asset: { id: string }) => asset.id,
+      );
+
+    const first = await ids();
+    expect(new Set(first).size).toBe(6);
+    expect(await ids()).toEqual(first);
+  });
+});

@@ -41,6 +41,12 @@ export interface MemberSummary {
   createdAt: string;
 }
 
+/** One page of the member list, plus how many accounts the search matched. */
+export interface MemberListPage {
+  members: MemberSummary[];
+  total: number;
+}
+
 /**
  * A fresh invitation link, returned in full and exactly once — only its hash is
  * stored. This is what `/members/:id/resend-invite` answers with; an invite

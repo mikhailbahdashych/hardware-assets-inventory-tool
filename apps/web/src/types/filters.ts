@@ -5,9 +5,3 @@
  * a URL against the workspace's own list.
  */
 export type StatusFilter = string;
-
-/** The asset list's two filters, both mirrored into the query string. */
-export interface AssetFilters {
-  status: StatusFilter;
-  query: string;
-}

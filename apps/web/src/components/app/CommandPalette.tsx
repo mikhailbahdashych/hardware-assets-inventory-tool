@@ -1,21 +1,27 @@
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router';
-import { useAssets, useEmployees, useWorkflow } from '@/api/queries';
+import { useSearch, useWorkflow } from '@/api/queries';
 import { Icon, Kbd } from '@/components/ui';
+import { useDebouncedValue } from '@/lib/useDebouncedValue';
 import { useModals } from '@/providers/ModalProvider';
 import { useThemeControls } from './useThemeControls';
 import { paletteGroups, paletteRows } from './palette';
+import type { SearchPayload } from '@/types/api';
 import type { CommandPaletteProps } from './types/commandPalette';
 import type { PaletteEffect } from './types/palette';
 import styles from './CommandPalette.module.css';
+
+/** No results yet is no rows — the same shape the endpoint answers with. */
+const NOTHING_YET: SearchPayload = { assets: [], employees: [] };
 
 /**
  * ⌘K. The footer promises "↑↓ navigate · ↵ open · esc close", so all three
  * work: one flat roving index over the grouped rows, wrapping at both ends.
  *
- * Everything is filtered client-side from the lists the app has already loaded.
- * At this scale that is instant and adds no search endpoint to defend.
+ * Assets and people come from `GET /search`, debounced, because the two lists
+ * this used to read are pages now — a palette that searched only the page you
+ * were on would find less than the app knows. The commands are still local.
  */
 export function CommandPalette({ permissions, onClose }: CommandPaletteProps) {
   const [query, setQuery] = useState('');
@@ -25,22 +31,30 @@ export function CommandPalette({ permissions, onClose }: CommandPaletteProps) {
   const navigate = useNavigate();
   const { openModal } = useModals();
   const { toggleTheme } = useThemeControls();
-  const assets = useAssets();
-  const employees = useEmployees();
+  // The palette only exists while it is open, so the query is always enabled.
+  const settled = useDebouncedValue(query);
+  const results = useSearch(settled, true);
   const workflow = useWorkflow();
   const listRef = useRef<HTMLDivElement>(null);
 
+  /**
+   * Rows for a query nobody is typing any more are not results, they are the
+   * last ones — and ↵ lands on whichever is first. So while the debounce is
+   * still holding the needle, or the request for it is still out, the two
+   * server-backed groups are empty rather than stale. The commands are matched
+   * here and stay, which is what keeps typing "invite" and hitting ↵ honest.
+   */
+  const stale = settled !== query || results.isPlaceholderData;
+
   const groups = useMemo(
-    // Lists that have not arrived are no rows to search yet.
     () =>
       paletteGroups({
         query,
         permissions,
-        assets: assets.data ?? [],
-        employees: employees.data ?? [],
+        results: stale ? NOTHING_YET : (results.data ?? NOTHING_YET),
         statuses: workflow.data?.statuses ?? [],
       }),
-    [query, permissions, assets.data, employees.data, workflow.data],
+    [query, permissions, stale, results.data, workflow.data],
   );
   const rows = useMemo(() => paletteRows(groups), [groups]);
   // `active` is an index this component maintains across renders while the

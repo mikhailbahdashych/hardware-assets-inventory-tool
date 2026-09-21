@@ -1,14 +1,24 @@
+import { useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router';
 import { can, EMPLOYEE_STATUS_COLORS, EMPLOYEE_STATUS_LABELS } from '@inventory/shared';
-import { useEmployees } from '@/api/queries';
+import { LIST_PAGE, useEmployees } from '@/api/queries';
 import type { Employee } from '@/types/api';
 import { ListToolbar } from '@/components/app/ListToolbar';
 import { useModals } from '@/providers/ModalProvider';
 import { PageContainer } from '@/components/app/PageContainer';
-import { Avatar, Button, DataTable, EmptyState, Pill, SearchInput, Spinner } from '@/components/ui';
+import {
+  Avatar,
+  Button,
+  DataTable,
+  EmptyState,
+  Pagination,
+  Pill,
+  SearchInput,
+  Spinner,
+} from '@/components/ui';
 import type { TableColumn } from '@/types/table';
 import { setParam } from '@/lib/searchParams';
-import { filterEmployees } from './filters';
+import { useDebouncedValue } from '@/lib/useDebouncedValue';
 import type { EmployeesPageProps } from './types/employeesPage';
 import styles from './Employees.module.css';
 
@@ -57,21 +67,33 @@ const COLUMNS: TableColumn<Employee>[] = [
 
 export function EmployeesPage({ permissions }: EmployeesPageProps) {
   const [searchParams, setSearchParams] = useSearchParams();
+  const [page, setPage] = useState(1);
   const navigate = useNavigate();
   const { openModal } = useModals();
-  const employees = useEmployees();
 
   // No `?q=` in the URL legitimately means "no filter".
   const query = searchParams.get('q') ?? '';
+  // The input stays instant; the request waits for the typing to stop.
+  const debounced = useDebouncedValue(query);
   const setQuery = (value: string) => {
     const params = new URLSearchParams(searchParams);
     setParam(params, 'q', value);
     setSearchParams(params, { replace: true });
+    // A different search is a different list; page three of it is not where
+    // anybody meant to land.
+    setPage(1);
   };
 
-  // A list that has not arrived has no rows; the empty state renders below.
-  const all = employees.data ?? [];
-  const rows = filterEmployees(all, query);
+  const employees = useEmployees({
+    // An empty search is no search: the parameter is left out of the key.
+    q: debounced.trim() === '' ? undefined : debounced.trim(),
+    limit: LIST_PAGE,
+    offset: (page - 1) * LIST_PAGE,
+  });
+
+  // A payload that has not arrived has no rows and nothing to count.
+  const rows = employees.data?.employees ?? [];
+  const total = employees.data?.total ?? 0;
 
   return (
     <PageContainer maxWidth={1060}>
@@ -100,16 +122,18 @@ export function EmployeesPage({ permissions }: EmployeesPageProps) {
           rows={rows}
           rowKey={(employee) => employee.id}
           onRowClick={(employee) => navigate(`/employees/${employee.id}`)}
-          footer={`${rows.length} ${rows.length === 1 ? 'employee' : 'employees'}`}
+          footer={`${total} ${total === 1 ? 'employee' : 'employees'}`}
           empty={
             <EmptyState>
-              {all.length === 0
+              {query === ''
                 ? 'No employees yet — add the people who will hold your assets.'
                 : 'No employees match that filter.'}
             </EmptyState>
           }
         />
       )}
+
+      <Pagination page={page} pageCount={Math.ceil(total / LIST_PAGE)} onChange={setPage} />
     </PageContainer>
   );
 }

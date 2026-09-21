@@ -4,6 +4,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ATTACHMENT_ACCEPT } from '@inventory/shared';
 import {
   ADMIN_MEMBER,
+  assetsRoute,
+  employeesRoute,
   INVENTORY_ROUTES,
   LAPTOP,
   LAPTOP_DETAIL,
@@ -113,25 +115,21 @@ describe('assigning from an asset', () => {
     renderApp(
       {
         ...freeAsset,
-        'GET /employees': {
-          body: {
-            employees: [
-              MAYA_DETAIL.employee,
-              {
-                ...MAYA_DETAIL.employee,
-                id: 'emp-2',
-                displayName: 'Daniel Okafor',
-                department: 'Engineering',
-              },
-              {
-                ...MAYA_DETAIL.employee,
-                id: 'emp-3',
-                displayName: 'Leaving Person',
-                status: 'offboarding',
-              },
-            ],
+        'GET /employees': employeesRoute([
+          MAYA_DETAIL.employee,
+          {
+            ...MAYA_DETAIL.employee,
+            id: 'emp-2',
+            displayName: 'Daniel Okafor',
+            department: 'Engineering',
           },
-        },
+          {
+            ...MAYA_DETAIL.employee,
+            id: 'emp-3',
+            displayName: 'Leaving Person',
+            status: 'offboarding',
+          },
+        ]),
       },
       '/assets/asset-1',
     );
@@ -418,7 +416,7 @@ describe('the employee side', () => {
     const api = renderApp(
       {
         ...detailRoutes,
-        'GET /assets': { body: { assets: [LAPTOP, spare] } },
+        'GET /assets': assetsRoute([LAPTOP, spare]),
         'POST /assets/asset-2/assign': { body: { asset: spare } },
       },
       '/employees/emp-1',

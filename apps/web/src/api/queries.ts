@@ -7,43 +7,70 @@ import type {
 } from '@inventory/shared';
 import { ApiError, apiFetch } from './client';
 import type {
-  Asset,
   Session,
   AssetDetail,
+  AssetListParams,
+  AssetsPayload,
   AuditPage,
   CustomFieldDef,
   DashboardPayload,
-  Employee,
   EmployeeDetail,
+  EmployeesPayload,
   InviteDetails,
-  MemberSummary,
+  ListParams,
+  MembersPayload,
   Meta,
   OrgMeta,
+  SearchPayload,
   SettingsPayload,
 } from '@/types/api';
 
 /**
  * The query-key catalog. Every cached read is listed here so invalidation
  * after a mutation is a lookup rather than a guess (see api/invalidate.ts).
+ *
+ * **A parameterized key carries every parameter**, and always under the same
+ * first element: the three list pages cache one entry per page and per search,
+ * and `invalidateInventory`/`invalidateAdmin` still reach all of them because
+ * `['assets']` is a prefix of `['assets', {…}]`.
  */
 export const queryKeys = {
   meta: ['meta'] as const,
   me: ['me'] as const,
   invite: (token: string) => ['invite', token] as const,
-  assets: ['assets'] as const,
+  assets: (params: AssetListParams) => ['assets', params] as const,
   asset: (id: string) => ['asset', id] as const,
   nextAssetTag: ['assets', 'next-tag'] as const,
-  employees: ['employees'] as const,
+  employees: (params: ListParams) => ['employees', params] as const,
   employee: (id: string) => ['employee', id] as const,
+  search: (q: string) => ['search', q] as const,
   customFields: ['custom-fields'] as const,
   workflow: ['workflow'] as const,
   roles: ['roles'] as const,
-  members: ['members'] as const,
+  members: (params: ListParams) => ['members', params] as const,
   notifications: (limit: number, offset: number) => ['notifications', limit, offset] as const,
   settings: ['settings'] as const,
   dashboard: ['dashboard'] as const,
   audit: (filter: AuditFilter) => ['audit', filter] as const,
 };
+
+/** One page of a whole-list screen, and the API's own default limit. */
+export const LIST_PAGE = 50;
+
+/**
+ * A modal's searchable candidate list. Smaller than a page because it is a
+ * list you pick from, not one you read, and it is searched as you type.
+ */
+export const PICKER_PAGE = 20;
+
+/**
+ * What a dropdown of employees asks for. A `Dropdown` has no search box, so it
+ * cannot narrow a list it was never given — this is the endpoint's own ceiling,
+ * and a workspace with more people than this picks the person on the Employees
+ * page and links the account from there. Give the control a search field before
+ * raising it.
+ */
+export const DROPDOWN_LIMIT = 200;
 
 /** What the activity log is currently showing: the filter and the page of it. */
 export interface AuditFilter {
@@ -105,11 +132,19 @@ export function useInvite(token: string) {
   });
 }
 
-/** The whole inventory in one payload — filtering and counting are local. */
-export function useAssets() {
+/**
+ * One page of the inventory. Searching, filtering and counting all happen on
+ * the server — there is no ceiling on how big an inventory gets, so the whole
+ * list is never in the browser and nothing here filters an array.
+ *
+ * `placeholderData` keeps the previous page on screen while the next one loads,
+ * so typing in the search box does not blank the table between keystrokes.
+ */
+export function useAssets(params: AssetListParams) {
   return useQuery({
-    queryKey: queryKeys.assets,
-    queryFn: async () => (await apiFetch<{ assets: Asset[] }>('/assets')).assets,
+    queryKey: queryKeys.assets(params),
+    queryFn: () => apiFetch<AssetsPayload>(`/assets?${listParams(params)}`),
+    placeholderData: (previous) => previous,
   });
 }
 
@@ -133,10 +168,26 @@ export function useNextAssetTag(enabled: boolean) {
   });
 }
 
-export function useEmployees() {
+/** One page of the employee list — searched on the server, like the assets. */
+export function useEmployees(params: ListParams) {
   return useQuery({
-    queryKey: queryKeys.employees,
-    queryFn: async () => (await apiFetch<{ employees: Employee[] }>('/employees')).employees,
+    queryKey: queryKeys.employees(params),
+    queryFn: () => apiFetch<EmployeesPayload>(`/employees?${listParams(params)}`),
+    placeholderData: (previous) => previous,
+  });
+}
+
+/**
+ * What the command palette runs on. One endpoint rather than the two whole-list
+ * caches it used to read: those lists are pages now, and a palette that only
+ * searched the page you happened to be on would be a worse palette.
+ */
+export function useSearch(q: string, enabled: boolean) {
+  return useQuery({
+    queryKey: queryKeys.search(q),
+    queryFn: () => apiFetch<SearchPayload>(`/search?q=${encodeURIComponent(q)}`),
+    enabled,
+    placeholderData: (previous) => previous,
   });
 }
 
@@ -215,11 +266,27 @@ export function useNotifications(limit: number = INBOX_PAGE, offset = 0) {
 }
 
 /** Everyone can read the member list; only admins can change anything on it. */
-export function useMembers() {
+export function useMembers(params: ListParams) {
   return useQuery({
-    queryKey: queryKeys.members,
-    queryFn: async () => (await apiFetch<{ members: MemberSummary[] }>('/members')).members,
+    queryKey: queryKeys.members(params),
+    queryFn: () => apiFetch<MembersPayload>(`/members?${listParams(params)}`),
+    placeholderData: (previous) => previous,
   });
+}
+
+/**
+ * The query string the three list endpoints share. A blank `q` is left out
+ * entirely rather than sent empty, so the key for "no search" is one key.
+ */
+export function listParams(params: AssetListParams): string {
+  const search = new URLSearchParams({
+    limit: String(params.limit),
+    offset: String(params.offset),
+  });
+  if (params.q) search.set('q', params.q);
+  if (params.status) search.set('status', params.status);
+  if (params.assignable) search.set('assignable', 'true');
+  return search.toString();
 }
 
 /**

@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from 'react';
 import { fieldErrors } from '@/api/formErrors';
 import { useInviteMember } from '@/api/mutations';
-import { useEmployees, useRoles } from '@/api/queries';
+import { DROPDOWN_LIMIT, useEmployees, useRoles } from '@/api/queries';
 import { leastPrivileged } from '@/lib/roles';
 import { Button, Dropdown, Field, Input, Modal } from '@/components/ui';
 import formStyles from '@/components/ui/FormModal.module.css';
@@ -20,7 +20,9 @@ export function InviteMemberModal({ onClose }: InviteMemberModalProps) {
   const [chosenRole, setChosenRole] = useState('');
   const [inviteUrl, setInviteUrl] = useState<string | null>(null);
 
-  const employees = useEmployees();
+  // A dropdown has no search box, so it asks for as many people as the
+  // endpoint will give — see DROPDOWN_LIMIT for what happens past that.
+  const employees = useEmployees({ limit: DROPDOWN_LIMIT, offset: 0 });
   const roles = useRoles();
   const invite = useInviteMember();
   const errors = fieldErrors(invite.error);
@@ -98,7 +100,7 @@ export function InviteMemberModal({ onClose }: InviteMemberModalProps) {
               options={[
                 { value: '', label: '— No link —' },
                 // Employees that have not loaded are no employees to offer.
-                ...(employees.data ?? []).map((employee) => ({
+                ...(employees.data?.employees ?? []).map((employee) => ({
                   value: employee.id,
                   label: employee.displayName,
                 })),

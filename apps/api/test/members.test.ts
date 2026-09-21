@@ -461,3 +461,54 @@ describe('removing a member', () => {
     expect(created?.actorMemberId).toBeNull();
   });
 });
+
+describe('member list paging and search', () => {
+  it('pages with limit and offset and reports the total', async () => {
+    ctx = await buildTestApp();
+    const admin = await setupOrg(ctx.app);
+    await invite(admin, { email: 'grace@acme.io' });
+    await invite(admin, { email: 'hugo@acme.io' });
+
+    const res = await inject(ctx.app, {
+      method: 'GET',
+      url: '/api/v1/members?limit=2&offset=0',
+      cookie: admin,
+    });
+    expect(res.statusCode).toBe(200);
+    expect(res.json().members).toHaveLength(2);
+    expect(res.json().total).toBe(3);
+  });
+
+  it('searches display name and email, whatever the case', async () => {
+    ctx = await buildTestApp();
+    const admin = await setupOrg(ctx.app);
+    await invite(admin, { email: 'grace@acme.io' });
+
+    const byEmail = await inject(ctx.app, {
+      method: 'GET',
+      url: '/api/v1/members?q=GRACE',
+      cookie: admin,
+    });
+    expect(byEmail.json().total).toBe(1);
+    expect(byEmail.json().members[0].email).toBe('grace@acme.io');
+
+    const byName = await inject(ctx.app, {
+      method: 'GET',
+      url: '/api/v1/members?q=kowalski',
+      cookie: admin,
+    });
+    expect(byName.json().total).toBe(1);
+    expect(byName.json().members[0].email).toBe('tomasz@acme.io');
+  });
+
+  it('refuses a limit past the ceiling', async () => {
+    ctx = await buildTestApp();
+    const admin = await setupOrg(ctx.app);
+    const res = await inject(ctx.app, {
+      method: 'GET',
+      url: '/api/v1/members?limit=201',
+      cookie: admin,
+    });
+    expect(res.statusCode).toBe(422);
+  });
+});

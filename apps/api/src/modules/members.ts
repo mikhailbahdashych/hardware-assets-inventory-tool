@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { ADMIN_ROLE, inviteInput, memberPatchInput, setPasswordInput } from '@inventory/shared';
 import type { AppDeps } from '@/types/app.js';
 import { requireAction, requireAuth } from '@/plugins/rbac.js';
+import { listQuery } from '@/lib/search.js';
 import {
   assertAdminActor,
   inviteMember,
@@ -28,9 +29,11 @@ const idParam = z.object({ id: z.string().min(1) });
 export function registerMemberRoutes(app: FastifyInstance, deps: AppDeps): void {
   const typed = app.withTypeProvider<ZodTypeProvider>();
 
-  typed.get('/api/v1/members', { preHandler: requireAuth }, async () => ({
-    members: await listMembers(deps.db),
-  }));
+  typed.get(
+    '/api/v1/members',
+    { schema: { querystring: listQuery }, preHandler: requireAuth },
+    async (request) => listMembers(deps.db, request.query),
+  );
 
   typed.post(
     '/api/v1/members/invites',

@@ -2,11 +2,13 @@ import { ASSET_CATEGORY_LABELS, can } from '@inventory/shared';
 import { statusInfo, statusMap } from '@/lib/workflow';
 import type { ActionDefinition, PaletteGroup, PaletteInput, PaletteRow } from './types/palette';
 
-// The palette's contents, as data. Pure so the grouping, the cap and the
-// permission filtering are testable without a keyboard.
-
-/** Four of each: past that the list stops being scannable and starts being a table. */
-const PER_GROUP = 4;
+// The palette's contents, as data. Pure so the grouping and the permission
+// filtering are testable without a keyboard.
+//
+// Assets and people are searched and capped by `GET /search` — four of each,
+// because past that the list stops being scannable and starts being a table.
+// The commands stay here and are still matched locally: they are seven strings
+// this build already knows, and a round trip to filter them would be silly.
 
 const ACTIONS: ActionDefinition[] = [
   {
@@ -48,8 +50,8 @@ const ACTIONS: ActionDefinition[] = [
   },
 ];
 
-const matches = (query: string, ...fields: (string | null)[]): boolean =>
-  query === '' || fields.some((field) => field !== null && field.toLowerCase().includes(query));
+const matches = (query: string, title: string): boolean =>
+  query === '' || title.toLowerCase().includes(query);
 
 /**
  * The grouped result list. Groups with nothing in them are left out entirely
@@ -62,30 +64,24 @@ export function paletteGroups(input: PaletteInput): PaletteGroup[] {
   // list every pill does rather than a label map of its own.
   const byId = statusMap(input.statuses);
 
-  const assets = input.assets
-    .filter((asset) => matches(query, asset.name, asset.assetTag, asset.serialNumber))
-    .slice(0, PER_GROUP)
-    .map((asset): PaletteRow => ({
-      id: `asset-${asset.id}`,
-      icon: 'cube',
-      title: asset.name,
-      subtitle: `${asset.assetTag} · ${statusInfo(byId, asset.status).label}`,
-      hint: ASSET_CATEGORY_LABELS[asset.category],
-      effect: { kind: 'navigate', to: `/assets/${asset.id}` },
-    }));
+  const assets = input.results.assets.map((asset): PaletteRow => ({
+    id: `asset-${asset.id}`,
+    icon: 'cube',
+    title: asset.name,
+    subtitle: `${asset.assetTag} · ${statusInfo(byId, asset.status).label}`,
+    hint: ASSET_CATEGORY_LABELS[asset.category],
+    effect: { kind: 'navigate', to: `/assets/${asset.id}` },
+  }));
 
-  const employees = input.employees
-    .filter((employee) => matches(query, employee.displayName, employee.email, employee.department))
-    .slice(0, PER_GROUP)
-    .map((employee): PaletteRow => ({
-      id: `employee-${employee.id}`,
-      icon: 'user',
-      title: employee.displayName,
-      // Both halves are nullable columns; an em dash is the design's blank.
-      subtitle: `${employee.jobTitle ?? '—'} · ${employee.department ?? '—'}`,
-      hint: 'Employee',
-      effect: { kind: 'navigate', to: `/employees/${employee.id}` },
-    }));
+  const employees = input.results.employees.map((employee): PaletteRow => ({
+    id: `employee-${employee.id}`,
+    icon: 'user',
+    title: employee.displayName,
+    // Both halves are nullable columns; an em dash is the design's blank.
+    subtitle: `${employee.jobTitle ?? '—'} · ${employee.department ?? '—'}`,
+    hint: 'Employee',
+    effect: { kind: 'navigate', to: `/employees/${employee.id}` },
+  }));
 
   const actions = ACTIONS.filter(
     (action) => action.requires === undefined || can(input.permissions, action.requires),

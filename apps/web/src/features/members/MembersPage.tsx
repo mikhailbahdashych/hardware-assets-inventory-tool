@@ -13,9 +13,18 @@ import {
   useResetMemberMfa,
   useResetRecoveryCodes,
 } from '@/api/mutations';
-import { useMembers, useRoles } from '@/api/queries';
+import { LIST_PAGE, useMembers, useRoles } from '@/api/queries';
 import { PageContainer } from '@/components/app/PageContainer';
-import { Avatar, Button, DataTable, EmptyState, Menu, Pill, Spinner } from '@/components/ui';
+import {
+  Avatar,
+  Button,
+  DataTable,
+  EmptyState,
+  Menu,
+  Pagination,
+  Pill,
+  Spinner,
+} from '@/components/ui';
 import type { MenuItem } from '@/components/ui';
 import { formatRelativeTime } from '@/lib/format';
 import { roleInfo, roleMap } from '@/lib/roles';
@@ -32,9 +41,10 @@ import styles from './Members.module.css';
 
 export function MembersPage({ permissions, memberId, viewerRole }: MembersPageProps) {
   const [dialog, setDialog] = useState<MembersDialog | null>(null);
+  const [page, setPage] = useState(1);
   const toast = useToast();
   const { openModal } = useModals();
-  const members = useMembers();
+  const members = useMembers({ limit: LIST_PAGE, offset: (page - 1) * LIST_PAGE });
   // A role pill has words and a colour only because a row says so.
   const roles = useRoles();
   const resend = useResendInvite();
@@ -43,8 +53,9 @@ export function MembersPage({ permissions, memberId, viewerRole }: MembersPagePr
   const resetCodes = useResetRecoveryCodes();
   const manages = can(permissions, 'members.manage');
 
-  // A list that has not arrived has no rows; the empty state renders below.
-  const rows = members.data ?? [];
+  // A payload that has not arrived has no rows and nothing to count.
+  const rows = members.data?.members ?? [];
+  const total = members.data?.total ?? 0;
   const roleRows = roles.data === undefined ? [] : roles.data.roles;
   const byRoleId = roleMap(roleRows);
 
@@ -267,10 +278,12 @@ export function MembersPage({ permissions, memberId, viewerRole }: MembersPagePr
           rowKey={(member) => member.id}
           // The roles are the workspace's own, so the footer names the ones it
           // has rather than the three this build used to ship with.
-          footer={`${rows.length} ${rows.length === 1 ? 'member' : 'members'} · roles: ${roleRows.map((role) => role.label).join(', ')}`}
+          footer={`${total} ${total === 1 ? 'member' : 'members'} · roles: ${roleRows.map((role) => role.label).join(', ')}`}
           empty={<EmptyState>Nobody can sign in yet — invite your first member.</EmptyState>}
         />
       )}
+
+      <Pagination page={page} pageCount={Math.ceil(total / LIST_PAGE)} onChange={setPage} />
 
       {dialog?.kind === 'role' && (
         <ChangeRoleModal member={dialog.member} onClose={() => setDialog(null)} />

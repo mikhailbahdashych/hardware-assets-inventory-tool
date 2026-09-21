@@ -12,14 +12,21 @@ import type { QueryClient } from '@tanstack/react-query';
  *
  * At this scale a refetch is cheap; correctness is not. Extend this function
  * rather than invalidating ad hoc inside a mutation hook.
+ *
+ * These are **prefixes**, which is what makes them survive paging: the list
+ * keys are `['assets', {q, status, limit, offset}]`, so one entry here still
+ * invalidates every page and every search the cache is holding.
  */
 // `notifications` is here because assigning or checking in writes the linked
 // holder's inbox — and the person doing it may be that holder.
+// `search` is here because the command palette reads assets and employees
+// through it — the two lists it used to hold whole.
 const INVENTORY_PREFIXES = [
   ['assets'],
   ['asset'],
   ['employees'],
   ['employee'],
+  ['search'],
   ['dashboard'],
   ['notifications'],
 ];
