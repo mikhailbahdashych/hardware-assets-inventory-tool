@@ -1,12 +1,9 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { panelPosition } from './dropdownPosition';
 import { Icon } from './Icon';
 import type { DropdownProps, PanelPosition } from './types/dropdown';
 import styles from './Dropdown.module.css';
-
-const GAP = 4;
-/** Below this there is not enough room to be worth opening downward. */
-const MIN_ROOM = 160;
 
 /**
  * The design's own select. A native `<select>` renders its list with the
@@ -61,17 +58,15 @@ export function Dropdown<V extends string>({
   function openList(): void {
     const rect = trigger.current?.getBoundingClientRect();
     if (!rect) return;
-    const below = window.innerHeight - rect.bottom - GAP * 2;
-    const above = rect.top - GAP * 2;
-    // Open upward when the room below is too small to be usable and there is
-    // more of it above — a dropdown near the bottom of a modal is normal.
-    const upward = below < MIN_ROOM && above > below;
-    setPosition({
-      top: upward ? GAP * 2 : rect.bottom + GAP,
-      left: rect.left,
-      width: rect.width,
-      maxHeight: upward ? rect.top - GAP * 3 : below,
-    });
+    setPosition(
+      panelPosition({
+        top: rect.top,
+        bottom: rect.bottom,
+        left: rect.left,
+        width: rect.width,
+        viewportHeight: window.innerHeight,
+      }),
+    );
     // Start where the value already is, so a stray Enter changes nothing.
     setActive(selectedIndex === -1 ? 0 : selectedIndex);
   }
@@ -179,7 +174,10 @@ export function Dropdown<V extends string>({
             aria-label={ariaLabel}
             className={styles.panel}
             style={{
+              // One of the two is set: a downward panel hangs from its top, an
+              // upward one stands on its bottom.
               top: position.top,
+              bottom: position.bottom,
               left: position.left,
               minWidth: position.width,
               maxHeight: position.maxHeight,

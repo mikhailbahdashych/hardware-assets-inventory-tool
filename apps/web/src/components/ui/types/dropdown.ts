@@ -5,9 +5,25 @@ export interface DropdownOption<V extends string> {
   description?: string;
 }
 
+/** The trigger's rect and the viewport it opens into — `panelPosition`'s input. */
+export interface PanelAnchor {
+  top: number;
+  bottom: number;
+  left: number;
+  width: number;
+  viewportHeight: number;
+}
+
 /** Where the panel sits, measured from the trigger when the list opens. */
 export interface PanelPosition {
-  top: number;
+  /** Set when the panel opens downward: the distance from the viewport's top. */
+  top?: number;
+  /**
+   * Set when it opens upward: the distance from the viewport's *bottom*, which
+   * is what keeps the panel against the trigger whatever height its options
+   * turn out to have — a top computed here could not know it.
+   */
+  bottom?: number;
   left: number;
   width: number;
   maxHeight: number;
