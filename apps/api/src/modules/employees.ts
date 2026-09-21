@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { employeeCreateInput, employeePatchInput } from '@inventory/shared';
 import type { AppDeps } from '@/types/app.js';
 import { requireAction, requireAuth } from '@/plugins/rbac.js';
+import { listQuery } from '@/lib/search.js';
 import {
   createEmployee,
   deleteEmployee,
@@ -18,9 +19,12 @@ const idParam = z.object({ id: z.string().min(1) });
 export function registerEmployeeRoutes(app: FastifyInstance, deps: AppDeps): void {
   const typed = app.withTypeProvider<ZodTypeProvider>();
 
-  typed.get('/api/v1/employees', { preHandler: requireAuth }, async () => ({
-    employees: await listEmployees(deps.db),
-  }));
+  // Paged and searched on the server, like the other two whole lists.
+  typed.get(
+    '/api/v1/employees',
+    { schema: { querystring: listQuery }, preHandler: requireAuth },
+    async (request) => listEmployees(deps.db, request.query),
+  );
 
   typed.get(
     '/api/v1/employees/:id',

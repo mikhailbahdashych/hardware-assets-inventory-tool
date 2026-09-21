@@ -1,12 +1,14 @@
-import { and, asc, eq, isNull, ne } from 'drizzle-orm';
+import { and, asc, count, eq, isNull, ne } from 'drizzle-orm';
 import { ADMIN_ROLE, type InviteInput, type MemberPatchInput } from '@inventory/shared';
 import type { Config } from '@/types/config.js';
 import type { AppDeps } from '@/types/app.js';
 import type { Db, DbOrTx } from '@/types/db.js';
 import type { Actor } from '@/types/audit.js';
+import type { ListQuery } from '@/types/list.js';
 import type {
   InviteLink,
   InviteResult,
+  MemberListPage,
   MemberRow,
   MemberSummary,
   ResetLink,
@@ -17,6 +19,7 @@ import { AppError, invalidFields, notFound } from '@/lib/errors.js';
 import { DUPLICATE_MEMBER_EMAIL } from '@/lib/unique.js';
 import { newId } from '@/lib/ids.js';
 import { hashPassword } from '@/lib/password.js';
+import { containsAny } from '@/lib/search.js';
 import { serializeMemberSummary } from '@/lib/serialize.js';
 import { writeAudit } from './audit.js';
 import { issueAuthToken } from './auth-tokens.js';
@@ -39,24 +42,39 @@ function tokenUrl(config: Config, path: string, raw: string): string {
   return url.toString();
 }
 
-export async function listMembers(db: Db): Promise<MemberSummary[]> {
+/** What the list searches: the two things a member is known by on that page. */
+const SEARCHABLE = [members.displayName, members.email];
+
+/**
+ * One page of the member list, alphabetical, with `id` as the tiebreaker so two
+ * accounts sharing a display name cannot swap across a page boundary.
+ */
+export async function listMembers(db: Db, query: ListQuery): Promise<MemberListPage> {
+  const search = containsAny(query.q ?? '', SEARCHABLE);
+  const rows = await db
+    .select({ member: members, employee: employees })
+    .from(members)
+    .leftJoin(employees, eq(members.employeeId, employees.id))
+    .where(search)
+    .orderBy(asc(members.displayName), asc(members.id))
+    .limit(query.limit)
+    .offset(query.offset);
+
   // One grouped count for the whole page rather than a query per row.
   const codesLeft = await unusedRecoveryCodeCounts(db);
-  return (
-    (
-      await db
-        .select({ member: members, employee: employees })
-        .from(members)
-        .leftJoin(employees, eq(members.employeeId, employees.id))
-        .orderBy(asc(members.displayName))
-    )
-      // A member with no row in that map has spent every code (or never had
-      // any): a Map miss that is a genuine zero, which is the one shape of `??`
-      // this codebase keeps.
-      .map((row) =>
-        serializeMemberSummary(row.member, row.employee, codesLeft.get(row.member.id) ?? 0),
-      )
-  );
+  const [total] = await db.select({ value: count() }).from(members).where(search);
+
+  return {
+    // A member with no row in that map has spent every code (or never had
+    // any): a Map miss that is a genuine zero, which is the one shape of `??`
+    // this codebase keeps.
+    members: rows.map((row) =>
+      serializeMemberSummary(row.member, row.employee, codesLeft.get(row.member.id) ?? 0),
+    ),
+    // A count query always answers with exactly one row; no row would be the
+    // driver breaking its own contract.
+    total: total!.value,
+  };
 }
 
 export async function inviteMember(

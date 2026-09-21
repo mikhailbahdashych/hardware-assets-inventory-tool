@@ -285,3 +285,107 @@ describe('employee detail', () => {
     expect(res.statusCode).toBe(404);
   });
 });
+
+describe('employee list paging and search', () => {
+  /** Four people whose names, emails and departments differ on purpose. */
+  async function seedFour(admin: string) {
+    const people = [
+      { firstName: 'Maya', lastName: 'Lindqvist', email: 'maya@acme.io', department: 'Design' },
+      {
+        firstName: 'Daniel',
+        lastName: 'Okafor',
+        email: 'daniel@acme.io',
+        department: 'Engineering',
+      },
+      { firstName: 'Sofia', lastName: 'Reyes', email: 'sofia@acme.io', jobTitle: 'Controller' },
+      { firstName: 'Anna', lastName: 'Novak', email: 'anna@acme.io', department: 'Finance' },
+    ];
+    for (const person of people) {
+      const res = await createEmployee(admin, person);
+      if (res.statusCode !== 200) throw new Error(`employee create failed: ${res.body}`);
+    }
+  }
+
+  it('pages with limit and offset and reports the total', async () => {
+    ctx = await buildTestApp();
+    const admin = await setupOrg(ctx.app);
+    await seedFour(admin);
+
+    const res = await inject(ctx.app, {
+      method: 'GET',
+      url: '/api/v1/employees?limit=2&offset=0',
+      cookie: admin,
+    });
+    expect(res.statusCode).toBe(200);
+    expect(res.json().employees).toHaveLength(2);
+    expect(res.json().total).toBe(4);
+    // Alphabetical by name, as the page has always shown them.
+    expect(res.json().employees[0].displayName).toBe('Anna Novak');
+  });
+
+  it('refuses a limit past the ceiling', async () => {
+    ctx = await buildTestApp();
+    const admin = await setupOrg(ctx.app);
+    const res = await inject(ctx.app, {
+      method: 'GET',
+      url: '/api/v1/employees?limit=201',
+      cookie: admin,
+    });
+    expect(res.statusCode).toBe(422);
+  });
+
+  it('searches name, email, department and job title, whatever the case', async () => {
+    ctx = await buildTestApp();
+    const admin = await setupOrg(ctx.app);
+    await seedFour(admin);
+
+    const byName = await inject(ctx.app, {
+      method: 'GET',
+      url: '/api/v1/employees?q=LINDQVIST',
+      cookie: admin,
+    });
+    expect(byName.json().total).toBe(1);
+    expect(byName.json().employees[0].displayName).toBe('Maya Lindqvist');
+
+    const byFullName = await inject(ctx.app, {
+      method: 'GET',
+      url: `/api/v1/employees?q=${encodeURIComponent('daniel ok')}`,
+      cookie: admin,
+    });
+    expect(byFullName.json().total).toBe(1);
+
+    const byDepartment = await inject(ctx.app, {
+      method: 'GET',
+      url: '/api/v1/employees?q=engineering',
+      cookie: admin,
+    });
+    expect(byDepartment.json().total).toBe(1);
+
+    const byJobTitle = await inject(ctx.app, {
+      method: 'GET',
+      url: '/api/v1/employees?q=controller',
+      cookie: admin,
+    });
+    expect(byJobTitle.json().total).toBe(1);
+
+    const byEmail = await inject(ctx.app, {
+      method: 'GET',
+      url: '/api/v1/employees?q=anna@',
+      cookie: admin,
+    });
+    expect(byEmail.json().total).toBe(1);
+  });
+
+  it('matches nothing at all rather than everything for an underscore', async () => {
+    ctx = await buildTestApp();
+    const admin = await setupOrg(ctx.app);
+    await seedFour(admin);
+
+    const res = await inject(ctx.app, {
+      method: 'GET',
+      url: '/api/v1/employees?q=_',
+      cookie: admin,
+    });
+    expect(res.json().total).toBe(0);
+  });
+});

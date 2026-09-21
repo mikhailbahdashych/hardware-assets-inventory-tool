@@ -5,6 +5,7 @@ import { assetCreateInput, assetPatchInput, assignInput, checkinInput } from '@i
 import type { AppDeps } from '@/types/app.js';
 import type { AssignRequest, CheckinRequest } from '@/types/assets.js';
 import { requireAction, requireAuth } from '@/plugins/rbac.js';
+import { listQuery } from '@/lib/search.js';
 import {
   createAsset,
   deleteAsset,
@@ -18,13 +19,29 @@ import { removeStoredFiles } from '@/services/attachments.js';
 
 const idParam = z.object({ id: z.string().min(1) });
 
-/** The whole list is returned in one payload — see the ~10k ceiling in /CLAUDE.md. */
+/**
+ * The list is paged and searched here, not in the browser — see `listQuery`
+ * below and the pagination note in apps/api/CLAUDE.md. `status` filters the
+ * page; `assignable` is the assign modal asking for only what it may offer.
+ */
+const assetListQuery = listQuery.extend({
+  status: z.string().optional(),
+  // Spelled out rather than coerced: `z.coerce.boolean()` reads the string
+  // "false" as true, which is the wrong answer to a query somebody wrote.
+  assignable: z
+    .enum(['true', 'false'])
+    .optional()
+    .transform((value) => value === 'true'),
+});
+
 export function registerAssetRoutes(app: FastifyInstance, deps: AppDeps): void {
   const typed = app.withTypeProvider<ZodTypeProvider>();
 
-  typed.get('/api/v1/assets', { preHandler: requireAuth }, async () => ({
-    assets: await listAssets(deps.db),
-  }));
+  typed.get(
+    '/api/v1/assets',
+    { schema: { querystring: assetListQuery }, preHandler: requireAuth },
+    async (request) => listAssets(deps.db, request.query),
+  );
 
   typed.get(
     '/api/v1/assets/next-tag',

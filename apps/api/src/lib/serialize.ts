@@ -118,3 +118,13 @@ export function serializeEmployee(
     activeAssetCount,
   };
 }
+
+// Both stay here rather than in `src/types/`: they are derived from the
+// serializers above, so moving them would drag the functions along or invert
+// the dependency. The list payloads in `src/types/` name them.
+
+/** One asset exactly as every payload that carries one sends it. */
+export type SerializedAsset = ReturnType<typeof serializeAsset>;
+
+/** One employee, likewise — the row plus the two fields the page reads. */
+export type SerializedEmployee = ReturnType<typeof serializeEmployee>;

@@ -1,12 +1,15 @@
-import { and, asc, count, eq, isNull, ne } from 'drizzle-orm';
+import { and, asc, count, eq, inArray, isNull, ne, sql } from 'drizzle-orm';
 import type { EmployeeCreateInput, EmployeePatchInput } from '@inventory/shared';
 import type { AppDeps } from '@/types/app.js';
 import type { Db, DbOrTx } from '@/types/db.js';
+import type { EmployeeListPage } from '@/types/employees.js';
+import type { ListQuery } from '@/types/list.js';
 import { assignments, employees } from '@/db/schema.js';
 import { AppError, invalidFields, notFound } from '@/lib/errors.js';
 import { DUPLICATE_EMPLOYEE_EMAIL } from '@/lib/unique.js';
 import { nowIso } from '@/lib/dates.js';
 import { newId } from '@/lib/ids.js';
+import { containsAny } from '@/lib/search.js';
 import { serializeEmployee, serializeHolding } from '@/lib/serialize.js';
 import type { Actor } from '@/types/audit.js';
 import { writeAudit } from './audit.js';
@@ -23,24 +26,63 @@ const EDITABLE = [
   'startDate',
 ] as const;
 
-/** How many assets each person currently holds, keyed by employee id. */
-async function activeCounts(db: DbOrTx): Promise<Map<string, number>> {
+/**
+ * How many assets each person on this page currently holds, keyed by employee
+ * id. Scoped to the page rather than the workspace: the whole open-assignment
+ * table is exactly the thing a paged list exists not to read.
+ */
+async function activeCounts(db: DbOrTx, employeeIds: string[]): Promise<Map<string, number>> {
+  if (employeeIds.length === 0) return new Map();
   const rows = await db
     .select({ employeeId: assignments.employeeId, count: count() })
     .from(assignments)
-    .where(isNull(assignments.returnedAt))
+    .where(and(isNull(assignments.returnedAt), inArray(assignments.employeeId, employeeIds)))
     .groupBy(assignments.employeeId);
   return new Map(rows.filter((row) => row.employeeId).map((row) => [row.employeeId!, row.count]));
 }
 
-/** Alphabetical: an employee list is scanned for a person, not for recency. */
-export async function listEmployees(db: Db) {
+/**
+ * The fields the filter row has always matched. The full name is matched as one
+ * string rather than each half, so "daniel ok" finds Daniel Okafor the way it
+ * did when the browser was comparing against `displayName`. Exported because
+ * the palette's `/search` matches the same ones.
+ */
+export const EMPLOYEE_SEARCH_FIELDS = [
+  sql`${employees.firstName} || ' ' || ${employees.lastName}`,
+  employees.email,
+  employees.department,
+  employees.jobTitle,
+];
+
+/**
+ * One page of the employee list, alphabetical: a list of people is scanned for
+ * a person, not for recency. `id` is the tiebreaker, so two namesakes cannot
+ * swap places across a page boundary.
+ */
+export async function listEmployees(db: Db, query: ListQuery): Promise<EmployeeListPage> {
+  const search = containsAny(query.q ?? '', EMPLOYEE_SEARCH_FIELDS);
+  const rows = await db
+    .select()
+    .from(employees)
+    .where(search)
+    .orderBy(asc(employees.firstName), asc(employees.lastName), asc(employees.id))
+    .limit(query.limit)
+    .offset(query.offset);
+
   // activeCounts only has rows for people who hold something, so a miss below
   // is a genuine zero rather than a missing count.
-  const counts = await activeCounts(db);
-  return (
-    await db.select().from(employees).orderBy(asc(employees.firstName), asc(employees.lastName))
-  ).map((employee) => serializeEmployee(employee, counts.get(employee.id) ?? 0));
+  const counts = await activeCounts(
+    db,
+    rows.map((employee) => employee.id),
+  );
+  const [total] = await db.select({ value: count() }).from(employees).where(search);
+
+  return {
+    employees: rows.map((employee) => serializeEmployee(employee, counts.get(employee.id) ?? 0)),
+    // A count query always answers with exactly one row; no row would be the
+    // driver breaking its own contract, which is what the throw would say.
+    total: total!.value,
+  };
 }
 
 /**

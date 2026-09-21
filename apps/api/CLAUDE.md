@@ -34,6 +34,17 @@ REST API under `/api/v1`, one process, one SQLite file — or one PostgreSQL ser
 - **No `WriteGate` on Postgres, deliberately.** The gate exists because one SQLite file has one writer; Postgres has a lock manager and MVCC, concurrent writers are the normal case, and serializing every statement in the process would throw away the engine. What the gate was quietly also doing — closing the gap between a uniqueness pre-check and its insert — is done there by the index and `lib/unique.ts` below.
 - **`npm run test:pg` runs the whole api suite on Postgres**, against a local server (`docker run -d --name pg-phase4 -e POSTGRES_PASSWORD=test -p 5433:5432 postgres:17` is the one the script's default URL expects). CI runs it as its own job, `api-tests-postgres`. Both engines are green at the same count, and that equality is the phase's real assertion.
 - **Write dialect-neutral queries.** The sqlite-only terminals (`.all()`, `.get()`, `.run()`) do not exist on pg-core and would compile and then throw — await the builder, and take `[0]` for a single row. Counts and sums come back as strings from node-postgres, so use drizzle's `count()` or `.mapWith(Number)` rather than a bare `sql<number>` fragment. A delete's row count is `rowsAffected` on one driver and `rowCount` on the other, so count what `.returning()` gives back instead.
+- **`LIKE` is the trap this file exists for.** SQLite's is ASCII-case-insensitive; PostgreSQL's is case-sensitive, so a search written against one silently finds nothing on the other — and `ILIKE` does not exist on SQLite. `src/lib/search.ts` is the one answer: `contains(column, q)` lowers **both** sides and escapes `%`, `_` and `\` in what the person typed, so a needle of "100%" is a hundred-percent rather than the whole table. Never write a raw `LIKE` outside that file.
+
+## The three whole lists are paged here
+
+Assets, Employees and Members used to answer with every row, and the browser filtered. There is no upper bound on how big an adopting company is, so all three take `q`, `limit` (default 50, max 200) and `offset` — the inbox's shape, validated by the shared `listQuery` in `src/lib/search.ts`, which is where the two numbers live. Assets additionally takes `status` and `assignable`.
+
+- **The payload grew rather than changed shape.** The rows stay under `assets` / `employees` / `members`; `total` rides beside them, counted under `q` alone.
+- **`statusCounts` ignores the status filter**, exactly as `typeCounts` ignores the audit log's type filter and for the same reason: switching a pill must not move the other numbers. A status nothing is under is absent from the map rather than zero — the page draws its own pills from the workflow and reads a miss as the zero it is.
+- **The server owns the sort order, and it is total.** `orderBy(desc(at), desc(id))` and its siblings: two rows created in the same millisecond that were free to swap places would, across a page boundary, lose one and repeat another.
+- **Search fields are exported from their services** (`ASSET_SEARCH_FIELDS`, `EMPLOYEE_SEARCH_FIELDS`), because `GET /search` — the command palette's endpoint, in `src/modules/search.ts` — has to match the same ones. Two lists that disagreed about what "found" means is the bug that rule prevents.
+- `GET /search` is open to any authenticated member like every other read, capped at four per group (what the palette draws) and answers narrow rows: enough for a palette line, no serial numbers and no email addresses.
 
 ## A duplicate has two doors
 
@@ -45,7 +56,7 @@ The registry has one entry that is not a form error. **The open-ownership index 
 
 ## Inventory endpoints
 
-- `GET /assets` returns the whole list with each asset's `currentHolder`, read through a LEFT JOIN on the open assignment — there is no denormalized holder column, so it is never stale. Newest first; the client filters and counts locally.
+- `GET /assets` returns **one page** of the list with each asset's `currentHolder`, read through a LEFT JOIN on the open assignment — there is no denormalized holder column, so it is never stale. Newest first, with `id` as the tiebreaker. See "The three whole lists are paged here" below.
 - `POST /assets` may start an asset out as `assigned`, which opens its first ownership record in the same transaction via `openAssignment` (`src/services/assignments.ts`). **That function is the only place allowed to pair `status='assigned'` with a new assignment row** — the assign and check-in endpoints call it too.
 - `PATCH /assets/:id` diffs against the stored row: unchanged fields write no audit event, and a status move is audited separately as `asset.status_changed`. It refuses (409 `status_locked`) any move into or out of `assigned`, and asks `transitionAllowed` in `src/services/workflow.ts` about every other one — a move the workspace's graph has no edge for is 409 `transition_not_allowed`. Creating an asset is **not** a transition: any existing status is a legal starting point, which is what keeps CSV import insert-only.
 - Uniqueness (asset tag, employee email) is checked **inside** the transaction and raised as a 422 with a `fields` entry, so the form can point at the offending input — but the check is the courtesy and **the index is the truth**. See "A duplicate has two doors" below.
