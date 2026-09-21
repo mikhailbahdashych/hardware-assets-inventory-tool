@@ -2,7 +2,7 @@
 
 Worked example: a `macAddress` column, visible on the form, the detail page, the CSV import and the export.
 
-**First ask whether it should be a custom field instead.** The _Manage fields_ link on any asset's detail page adds a text, yes/no, date or number field with no code at all, and it appears on every asset form immediately. Do this recipe only when the field needs to be _queryable_, appear in the assets **table**, or take part in validation — a MAC address that must be unique, say, rather than one somebody types into a note.
+**First ask whether it should be a custom field instead.** The **Custom fields** page (`/custom-fields`, in the sidebar's Workspace half) adds a text, yes/no, date or number field with no code at all, and it appears on every asset form immediately. Do this recipe only when the field needs to be _queryable_, appear in the assets **table**, or take part in validation — a MAC address that must be unique, say, rather than one somebody types into a note.
 
 ---
 

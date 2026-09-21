@@ -43,6 +43,14 @@ const ACTIONS: ActionDefinition[] = [
   },
   { title: 'Toggle theme', icon: 'moon', effect: { kind: 'theme' } },
   {
+    // Its own page now, and one nobody lands on by accident — so the palette
+    // is how most people will reach it.
+    title: 'Custom fields',
+    icon: 'tag',
+    effect: { kind: 'navigate', to: '/custom-fields' },
+    requires: 'custom_fields.manage',
+  },
+  {
     title: 'Admin settings',
     icon: 'gear',
     effect: { kind: 'navigate', to: '/admin/settings' },

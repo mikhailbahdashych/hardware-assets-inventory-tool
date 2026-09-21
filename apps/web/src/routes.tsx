@@ -9,6 +9,7 @@ import { AdminPage } from './features/admin/AdminPage';
 import { AssetDetailPage } from './features/assets/AssetDetailPage';
 import { AssetsPage } from './features/assets/AssetsPage';
 import { AcceptInvitePage } from './features/auth/AcceptInvitePage';
+import { CustomFieldsPage } from './features/custom-fields/CustomFieldsPage';
 import { ForgotPasswordPage } from './features/auth/ForgotPasswordPage';
 import { LoginPage } from './features/auth/LoginPage';
 import { MfaEnrollPage } from './features/auth/MfaEnrollPage';
@@ -167,6 +168,18 @@ export function AppRoutes() {
           element={
             can(permissions, 'workflow.manage') ? (
               <WorkflowPage />
+            ) : (
+              <Navigate to="/dashboard" replace />
+            )
+          }
+        />
+        {/* What this workspace tracks on every asset. Editing it from one
+            asset's page read as editing that asset, so it is its own page. */}
+        <Route
+          path="/custom-fields"
+          element={
+            can(permissions, 'custom_fields.manage') ? (
+              <CustomFieldsPage />
             ) : (
               <Navigate to="/dashboard" replace />
             )
