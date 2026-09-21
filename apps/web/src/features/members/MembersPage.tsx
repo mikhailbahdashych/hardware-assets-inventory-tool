@@ -27,6 +27,7 @@ import {
 } from '@/components/ui';
 import type { MenuItem } from '@/components/ui';
 import { formatRelativeTime } from '@/lib/format';
+import { usePageSize } from '@/lib/usePageSize';
 import { roleInfo, roleMap } from '@/lib/roles';
 import { useModals } from '@/providers/ModalProvider';
 import { useToast } from '@/providers/ToastProvider';
@@ -42,9 +43,11 @@ import styles from './Members.module.css';
 export function MembersPage({ permissions, memberId, viewerRole }: MembersPageProps) {
   const [dialog, setDialog] = useState<MembersDialog | null>(null);
   const [page, setPage] = useState(1);
+  // How many rows a page holds is the reader's choice, kept across visits.
+  const [pageSize, setPageSize] = usePageSize('members', LIST_PAGE);
   const toast = useToast();
   const { openModal } = useModals();
-  const members = useMembers({ limit: LIST_PAGE, offset: (page - 1) * LIST_PAGE });
+  const members = useMembers({ limit: pageSize, offset: (page - 1) * pageSize });
   // A role pill has words and a colour only because a row says so.
   const roles = useRoles();
   const resend = useResendInvite();
@@ -283,7 +286,20 @@ export function MembersPage({ permissions, memberId, viewerRole }: MembersPagePr
         />
       )}
 
-      <Pagination page={page} pageCount={Math.ceil(total / LIST_PAGE)} onChange={setPage} />
+      <Pagination
+        page={page}
+        pageCount={Math.ceil(total / pageSize)}
+        onChange={setPage}
+        rowsPerPage={{
+          size: pageSize,
+          onChange: (size) => {
+            setPageSize(size);
+            // A smaller page is a different list; page three of it is not
+            // where anybody meant to land.
+            setPage(1);
+          },
+        }}
+      />
 
       {dialog?.kind === 'role' && (
         <ChangeRoleModal member={dialog.member} onClose={() => setDialog(null)} />

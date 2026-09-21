@@ -17,6 +17,12 @@ const WORKSPACE_ITEMS: GatedNavItem[] = [
   { label: 'Members', to: '/members', icon: 'shieldCheck' },
   { label: 'Activity log', to: '/activity', icon: 'activity', requires: 'audit.view' },
   { label: 'Workflow', to: '/workflow', icon: 'workflow', requires: 'workflow.manage' },
+  {
+    label: 'Custom fields',
+    to: '/custom-fields',
+    icon: 'tag',
+    requires: 'custom_fields.manage',
+  },
   { label: 'Roles', to: '/roles', icon: 'key', requires: 'roles.manage' },
   { label: 'Admin', to: '/admin', icon: 'gear', requires: 'settings.manage' },
 ];
@@ -53,6 +59,7 @@ const SECTION_LABELS: Record<string, string> = {
   notifications: 'Notifications',
   activity: 'Activity log',
   workflow: 'Workflow',
+  'custom-fields': 'Custom fields',
   roles: 'Roles',
   admin: 'Admin',
 };

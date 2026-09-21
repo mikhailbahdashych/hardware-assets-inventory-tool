@@ -129,16 +129,19 @@ test('adds a custom field, which then appears on every asset form', async ({ pag
   await signIn(page);
   await openAsset(page);
 
-  await page.getByRole('button', { name: 'Manage fields' }).click();
-  const dialog = page.getByRole('dialog');
-  await dialog.getByLabel('New field').fill('Warranty provider');
-  await choose(page, dialog, 'Type', 'Text');
-  await dialog.getByRole('button', { name: 'Add field' }).click();
+  // The definitions live on their own workspace page now; the asset's card
+  // only signposts it, because a schema change is not an edit to one asset.
+  await page.getByRole('link', { name: 'Manage fields' }).click();
+  await expect(page.getByRole('heading', { name: 'Custom fields', level: 1 })).toBeVisible();
+
+  await page.getByLabel('New field').fill('Warranty provider');
+  await choose(page, page, 'Type', 'Text');
+  await page.getByRole('button', { name: 'Add field' }).click();
 
   // The key is derived from the label, because values hang off the key.
-  await expect(dialog.getByText('warranty_provider')).toBeVisible();
-  await dialog.getByRole('button', { name: 'Done' }).click();
+  await expect(page.getByText('warranty_provider')).toBeVisible();
 
+  await openAsset(page);
   await expect(page.getByText('Warranty provider', { exact: true })).toBeVisible();
   await page.goto('/assets');
   await page.getByRole('button', { name: 'New asset' }).click();

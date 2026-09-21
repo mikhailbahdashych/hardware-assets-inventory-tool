@@ -126,15 +126,11 @@
   gap: 12px;
 }
 
+/* A link now, not a button: base.css already gives it the accent and drops
+   the underline, so only the weight and size are this card's business. */
 .cardLink {
-  border: none;
-  background: none;
-  color: var(--accent);
-  font: inherit;
   font-size: 12px;
   font-weight: 500;
-  cursor: pointer;
-  padding: 0;
 }
 
 /* Per-asset audit trail: mono date column, sentence, actor. */

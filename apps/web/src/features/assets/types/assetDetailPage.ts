@@ -1,6 +1,6 @@
 import type { Action } from '@inventory/shared';
 
-export type OpenModal = 'edit' | 'assign' | 'checkin' | 'status' | 'fields' | null;
+export type OpenModal = 'edit' | 'assign' | 'checkin' | 'status' | null;
 
 export interface PrimaryAction {
   label: string;

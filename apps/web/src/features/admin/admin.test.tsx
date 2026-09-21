@@ -137,10 +137,12 @@ describe('the activity log', () => {
     expect(screen.getByRole('button', { name: '1' })).toHaveAttribute('aria-current', 'page');
   });
 
-  it('has no pager at all when the log fits on one page', async () => {
+  it('has no page numbers when the log fits on one page', async () => {
     renderApp(ADMIN_ROUTES, '/activity');
     await screen.findByText('Assigned MacBook Pro 14" to Maya Lindqvist');
-    expect(screen.queryByRole('navigation', { name: 'Pagination' })).toBeNull();
+    expect(screen.queryByRole('button', { name: '1' })).toBeNull();
+    // The rows-per-page selector stays: it is the way to a smaller page.
+    expect(screen.getByRole('combobox', { name: 'Rows per page' })).toBeInTheDocument();
   });
 });
 

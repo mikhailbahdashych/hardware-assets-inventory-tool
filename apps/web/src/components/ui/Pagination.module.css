@@ -38,6 +38,26 @@
   color: var(--accent);
 }
 
+/* The selector sits to the left of the numbers, its own words apart from them. */
+.rows {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-right: 10px;
+}
+
+.rowsLabel {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+/* The design's Dropdown fills its box, and two digits need very little of one. */
+.rowsControl {
+  width: 72px;
+}
+
 .gap {
   padding: 0 2px;
   color: var(--faint);

@@ -73,6 +73,13 @@ const ICONS = {
       <path d="M7.5 12h3M10.5 12L17 7M10.5 12L17 17" />
     </>
   ),
+  // A label tied to a thing: the custom fields a workspace hangs on an asset.
+  tag: (
+    <>
+      <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z" />
+      <path d="M7 7h.01" />
+    </>
+  ),
   logOut: <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9" />,
   x: <path d="M18 6L6 18M6 6l12 12" />,
   bell: <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 0 1-3.46 0" />,
