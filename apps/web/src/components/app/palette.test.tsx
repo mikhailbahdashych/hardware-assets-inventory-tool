@@ -177,6 +177,7 @@ describe('the actions', () => {
       'Import CSV',
       'Change password',
       'Toggle theme',
+      'Custom fields',
       'Admin settings',
     ]) {
       expect(within(dialog).getByRole('option', { name: new RegExp(action) })).toBeInTheDocument();
@@ -199,6 +200,7 @@ describe('the actions', () => {
     expect(within(dialog).getByRole('option', { name: /Change password/ })).toBeInTheDocument();
     expect(within(dialog).queryByRole('option', { name: /New asset/ })).toBeNull();
     expect(within(dialog).queryByRole('option', { name: /Invite member/ })).toBeNull();
+    expect(within(dialog).queryByRole('option', { name: /Custom fields/ })).toBeNull();
     expect(within(dialog).queryByRole('option', { name: /Admin settings/ })).toBeNull();
   });
 

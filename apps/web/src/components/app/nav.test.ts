@@ -14,6 +14,7 @@ describe('navSectionsFor', () => {
       'Members',
       'Activity log',
       'Workflow',
+      'Custom fields',
       'Roles',
       'Admin',
     ]);
@@ -71,6 +72,7 @@ describe('breadcrumbForPath', () => {
     expect(breadcrumbForPath('/admin')).toBe('Admin');
     expect(breadcrumbForPath('/activity')).toBe('Activity log');
     expect(breadcrumbForPath('/workflow')).toBe('Workflow');
+    expect(breadcrumbForPath('/custom-fields')).toBe('Custom fields');
     expect(breadcrumbForPath('/roles')).toBe('Roles');
   });
 

@@ -19,7 +19,6 @@ import { AssignModal } from './AssignModal';
 import { AttachmentsCard } from './AttachmentsCard';
 import { ChangeStatusModal } from './ChangeStatusModal';
 import { CheckInModal } from './CheckInModal';
-import { ManageFieldsModal } from './ManageFieldsModal';
 import { OwnershipTimeline } from './OwnershipTimeline';
 import type { AssetDetailPageProps, OpenModal, PrimaryAction } from './types/assetDetailPage';
 import styles from './Assets.module.css';
@@ -142,14 +141,12 @@ export function AssetDetailPage({ permissions }: AssetDetailPageProps) {
               title={
                 <span className={styles.cardHeader}>
                   Custom fields
+                  {/* A signpost, not an editor: the values below belong to this
+                      asset, the definitions behind them to the workspace. */}
                   {can(permissions, 'custom_fields.manage') && (
-                    <button
-                      type="button"
-                      className={styles.cardLink}
-                      onClick={() => setOpen('fields')}
-                    >
+                    <Link to="/custom-fields" className={styles.cardLink}>
                       Manage fields
-                    </button>
+                    </Link>
                   )}
                 </span>
               }
@@ -259,7 +256,6 @@ export function AssetDetailPage({ permissions }: AssetDetailPageProps) {
       )}
       {open === 'checkin' && <CheckInModal asset={asset} onClose={() => setOpen(null)} />}
       {open === 'status' && <ChangeStatusModal asset={asset} onClose={() => setOpen(null)} />}
-      {open === 'fields' && <ManageFieldsModal onClose={() => setOpen(null)} />}
     </PageContainer>
   );
 }

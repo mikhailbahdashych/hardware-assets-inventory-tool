@@ -138,6 +138,7 @@ const ICON_NAMES: IconName[] = [
   'check',
   'activity',
   'workflow',
+  'tag',
   'logOut',
   'x',
   'bell',

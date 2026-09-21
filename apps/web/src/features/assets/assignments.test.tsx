@@ -451,46 +451,27 @@ describe('the employee side', () => {
   });
 });
 
-describe('managing custom fields', () => {
-  it('adds a field and says which key values will hang off', async () => {
-    const api = renderApp(
-      { ...detailRoutes, 'POST /custom-fields': { body: { customField: {} } } },
-      '/assets/asset-1',
-    );
+// The values stay editable here; the definitions they hang off moved to
+// /custom-fields, because changing one asset and changing every asset's shape
+// should not be the same affordance on the same page.
+describe('the custom values card', () => {
+  it('reads this asset’s values without offering to edit the definitions', async () => {
+    renderApp(detailRoutes, '/assets/asset-1');
     await screen.findByRole('heading', { name: 'MacBook Pro 14"' });
-    await userEvent.click(screen.getByRole('button', { name: 'Manage fields' }));
 
-    const dialog = await screen.findByRole('dialog');
-    expect(dialog).toHaveTextContent('mdm_enrolled');
-    await userEvent.type(within(dialog).getByLabelText(/new field/i), 'Warranty provider');
-    await choose(within(dialog), /type/i, 'Text');
-    await userEvent.click(within(dialog).getByRole('button', { name: 'Add field' }));
-
-    await waitFor(() => expect(api.called('POST /custom-fields')).toBeDefined());
-    expect(api.called('POST /custom-fields')!.body).toEqual({
-      label: 'Warranty provider',
-      type: 'text',
-    });
+    expect(screen.getByText('MDM enrolled')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Manage fields' })).toBeNull();
   });
 
-  it('warns that deleting takes the values, and only then deletes', async () => {
-    const api = renderApp(
-      { ...detailRoutes, 'DELETE /custom-fields/cf-2': { status: 204 } },
-      '/assets/asset-1',
-    );
+  it('signposts the workspace page to somebody who may manage the fields', async () => {
+    renderApp(detailRoutes, '/assets/asset-1');
     await screen.findByRole('heading', { name: 'MacBook Pro 14"' });
-    await userEvent.click(screen.getByRole('button', { name: 'Manage fields' }));
 
-    const dialog = await screen.findByRole('dialog');
-    const row = within(dialog).getByText('hostname').closest('div')!.parentElement!.parentElement!;
-    await userEvent.click(within(row).getByRole('button', { name: 'Delete' }));
-    expect(api.called('DELETE /custom-fields/cf-2')).toBeUndefined();
-
-    await userEvent.click(within(row).getByRole('button', { name: 'Delete values too' }));
-    await waitFor(() => expect(api.called('DELETE /custom-fields/cf-2')).toBeDefined());
+    await userEvent.click(screen.getByRole('link', { name: 'Manage fields' }));
+    expect(await screen.findByRole('heading', { name: 'Custom fields' })).toBeInTheDocument();
   });
 
-  it('is not offered to a manager', async () => {
+  it('shows a manager no signpost at all', async () => {
     renderApp(
       {
         ...detailRoutes,
@@ -499,6 +480,6 @@ describe('managing custom fields', () => {
       '/assets/asset-1',
     );
     await screen.findByRole('heading', { name: 'MacBook Pro 14"' });
-    expect(screen.queryByRole('button', { name: 'Manage fields' })).toBeNull();
+    expect(screen.queryByRole('link', { name: 'Manage fields' })).toBeNull();
   });
 });

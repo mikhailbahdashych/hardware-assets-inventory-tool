@@ -1,0 +1,73 @@
+/* The page header, in the shape Workflow and Roles use. */
+.title {
+  font-size: 18px;
+  font-weight: 600;
+  margin: 0;
+}
+
+.summary {
+  color: var(--muted);
+  font-size: 12.5px;
+  margin: 2px 0 0;
+}
+
+.loading {
+  display: flex;
+  justify-content: center;
+  padding: 40px 0;
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.row:first-child {
+  padding-top: 0;
+}
+
+.text {
+  flex: 1;
+  min-width: 0;
+}
+
+.label {
+  font-size: 12.5px;
+  font-weight: 500;
+}
+
+.meta {
+  font-size: 11px;
+  color: var(--muted);
+  margin-top: 1px;
+}
+
+.key {
+  font-family: var(--font-mono);
+}
+
+/* A workspace that has defined none: the card still holds the add row below,
+   so this says what is missing rather than drawing an empty-state illustration
+   over the form that fixes it. */
+.empty {
+  font-size: 12.5px;
+  color: var(--muted);
+  margin: 0 0 12px;
+}
+
+/* The add row sits below the list, aligned on the control baseline. */
+.add {
+  display: grid;
+  grid-template-columns: 1fr 130px auto;
+  gap: 10px;
+  align-items: end;
+  padding-top: 12px;
+}

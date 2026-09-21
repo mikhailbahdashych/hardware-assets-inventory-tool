@@ -6,6 +6,5 @@ export type { AssignModalProps, Candidate } from './assignModal';
 export type { AttachmentsCardProps } from './attachmentsCard';
 export type { ChangeStatusModalProps } from './changeStatusModal';
 export type { CheckInModalProps, CheckinSubject } from './checkInModal';
-export type { ManageFieldsModalProps } from './manageFieldsModal';
 export type { OwnershipTimelineProps } from './ownershipTimeline';
 export type { TimelineEntry } from './timeline';
