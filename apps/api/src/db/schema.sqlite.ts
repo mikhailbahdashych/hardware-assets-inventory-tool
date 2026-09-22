@@ -165,6 +165,32 @@ export const authTokens = sqliteTable(
   (table) => [index('auth_tokens_member_idx').on(table.memberId, table.purpose)],
 );
 
+/**
+ * Server-to-server credentials an admin mints: named, scoped, optionally
+ * expiring. Hashed like every other token here — the raw value exists once, in
+ * the response that created it, which is why revoking means deleting the row
+ * rather than marking it.
+ */
+export const apiTokens = sqliteTable('api_tokens', {
+  id: text('id').primaryKey(),
+  /** What the token is for, as the admin who made it would say it. */
+  name: text('name').notNull(),
+  /** sha256(raw), and unique because it is the only thing a request is found by. */
+  tokenHash: text('token_hash').notNull().unique(),
+  /** A JSON array of scope slugs — plain text like every other enum column. */
+  scopes: text('scopes').notNull(),
+  /** Null is the "Unlimited" an admin picked, not an expiry nobody set. */
+  expiresAt: text('expires_at'),
+  createdByMemberId: text('created_by_member_id').references(() => members.id, {
+    onDelete: 'set null',
+  }),
+  /** Snapshot, so a removed member still says who minted it. */
+  createdByName: text('created_by_name').notNull(),
+  createdAt: text('created_at').notNull(),
+  /** Stamped on use, throttled to a minute: a read must not become a write. */
+  lastUsedAt: text('last_used_at'),
+});
+
 export const assets = sqliteTable(
   'assets',
   {

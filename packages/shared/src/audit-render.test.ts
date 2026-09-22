@@ -255,6 +255,24 @@ describe('renderAuditEvent', () => {
     expect(renderAuditEvent({ action: 'role.reordered', params: {} })).toBe('Reordered the roles');
   });
 
+  it('renders an API token’s whole life: minted with a reach, then revoked', () => {
+    expect(
+      renderAuditEvent({
+        action: 'token.created',
+        params: { name: 'Deploy bot', scopeCount: 3, expiry: '90 days' },
+      }),
+    ).toBe('Created the API token Deploy bot · 3 scopes · 90 days');
+    expect(
+      renderAuditEvent({
+        action: 'token.created',
+        params: { name: 'Deploy bot', scopeCount: 1, expiry: 'Unlimited' },
+      }),
+    ).toBe('Created the API token Deploy bot · 1 scope · Unlimited');
+    expect(renderAuditEvent({ action: 'token.revoked', params: { name: 'Deploy bot' } })).toBe(
+      'Revoked the API token Deploy bot',
+    );
+  });
+
   it('says which settings an admin touched', () => {
     expect(
       renderAuditEvent({
@@ -292,6 +310,10 @@ describe('auditTypeForAction', () => {
     // than under System with the workspace's other settings.
     expect(auditTypeForAction('role.created')).toBe('auth');
     expect(auditTypeForAction('role.permissions_changed')).toBe('auth');
+    // An API token is a credential that acts on the workspace, so it files
+    // beside the other access-control events rather than under System.
+    expect(auditTypeForAction('token.created')).toBe('auth');
+    expect(auditTypeForAction('token.revoked')).toBe('auth');
     expect(auditTypeForAction('system.settings_updated')).toBe('system');
     expect(auditTypeForAction('system.setup_completed')).toBe('system');
     expect(auditTypeForAction('custom_field.created')).toBe('system');
