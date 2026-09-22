@@ -1,6 +1,5 @@
-import type { FastifyInstance, InjectOptions } from 'fastify';
 import { afterEach, describe, expect, it } from 'vitest';
-import { buildTestApp, setupOrg, type TestApp } from './helpers.js';
+import { buildTestApp, publicRoutes, registeredRoutes, setupOrg, type TestApp } from './helpers.js';
 
 // `public-api.test.ts` fences the doors; this fences the *set* of doors.
 //
@@ -20,68 +19,36 @@ afterEach(async () => {
   await ctx?.close();
 });
 
-const PUBLIC_PREFIX = '/api/public/';
-
 /**
  * Public routes that are meant to answer without a credential, each mapped to
- * why. Integrators read the documentation before they hold a token, so PR 3's
- * `/api/public/docs` and `/api/public/openapi.json` belong here when they land
- * — the spec leaks shapes, not data.
+ * why — and every entry is a decision somebody typed. The third test below
+ * refuses to carry one that no longer names a registered route, so this cannot
+ * rot into a blanket excuse.
  *
- * It is empty today, and that is the point: every entry is a decision somebody
- * typed, and the fence below refuses to carry one that no longer names a
- * registered route, so this cannot rot into a blanket excuse.
- */
-const DELIBERATELY_OPEN: Record<string, string> = {};
-
-interface RegisteredRoute {
-  /**
-   * Taken off `inject` itself rather than fastify's `HTTPMethods`: the two are
-   * different unions, and this one is the one the sweep has to hand back.
-   */
-  method: NonNullable<InjectOptions['method']>;
-  /** As registered, `:id` params and all. */
-  path: string;
-}
-
-/**
- * Every route the built app actually has, read out of fastify's own tree.
+ * The documentation is the whole of it. An integrator reads the manual before
+ * they hold a token, so the OpenAPI document and the UI that renders it answer
+ * anybody: the spec leaks shapes, not data. `/api/public/docs` is a subtree
+ * rather than a page — swagger-ui serves its own bundle — and each of those
+ * doors is written out here rather than covered by a prefix, so a swagger-ui
+ * upgrade that adds one fails this file and asks somebody to look.
  *
- * `printRoutes` draws a tree: four columns of box-drawing per level, then the
- * path segment this node adds, then its methods in brackets if it serves any.
- * Reassembling a full path is therefore concatenating the segments on the stack
- * down to this line's depth. A node with no methods is a branch — it still goes
- * on the stack, it just contributes no route of its own.
+ * One key is not a URL. `printRoutes` draws a wildcard as a bare `*` under the
+ * nearest node above it, dropping the `static/` the route actually carries, so
+ * the sweep reconstructs `/api/public/docs/*` for a route that really serves
+ * `/api/public/docs/static/*`. The key is what the discovery reports, because
+ * that is what the sweep would otherwise go and knock on.
  */
-function registeredRoutes(app: FastifyInstance): RegisteredRoute[] {
-  const found: RegisteredRoute[] = [];
-  const segments: string[] = [];
-
-  for (const line of app.printRoutes({ commonPrefix: false }).split('\n')) {
-    const marker = line.trimEnd().indexOf('── ');
-    if (marker === -1) continue;
-    // The path starts at column `marker + 3`, and each level is four columns
-    // wide, so that column *is* the depth. Top level starts at column 4.
-    const depth = (marker + 3) / 4 - 1;
-    const rest = line.trimEnd().slice(marker + 3);
-
-    const methodsAt = rest.lastIndexOf(' (');
-    segments[depth] = methodsAt === -1 ? rest : rest.slice(0, methodsAt);
-    segments.length = depth + 1;
-    if (methodsAt === -1) continue;
-
-    const path = segments.join('');
-    for (const method of rest.slice(methodsAt + 2, -1).split(', ')) {
-      // Fastify printed them, so they are methods fastify serves; the cast
-      // says that rather than widening the field to a bare string.
-      found.push({ method: method as RegisteredRoute['method'], path });
-    }
-  }
-  return found;
-}
-
-const publicRoutes = (app: FastifyInstance) =>
-  registeredRoutes(app).filter((route) => route.path.startsWith(PUBLIC_PREFIX));
+const WHY_THE_MANUAL_IS_OPEN = 'the manual is read before a token is held';
+const DELIBERATELY_OPEN: Record<string, string> = {
+  '/api/public/openapi.json': WHY_THE_MANUAL_IS_OPEN,
+  '/api/public/docs': WHY_THE_MANUAL_IS_OPEN,
+  '/api/public/docs/': WHY_THE_MANUAL_IS_OPEN,
+  '/api/public/docs/json': WHY_THE_MANUAL_IS_OPEN,
+  '/api/public/docs/yaml': WHY_THE_MANUAL_IS_OPEN,
+  '/api/public/docs/static/index.html': WHY_THE_MANUAL_IS_OPEN,
+  '/api/public/docs/static/swagger-initializer.js': WHY_THE_MANUAL_IS_OPEN,
+  '/api/public/docs/*': WHY_THE_MANUAL_IS_OPEN,
+};
 
 /** A param has to be *something*; a guard that runs first never looks at it. */
 const probeUrl = (path: string) => path.replace(/:[^/]+/g, 'fence-probe');
@@ -107,8 +74,11 @@ describe('the set of public doors', () => {
     expect(paths).toContain('/api/public/v1/assets/:id/checkin');
     expect(paths).toContain('/api/public/v1/audit/export');
     // Not a census of the surface — a floor, so this file can never pass by
-    // having found nothing at all.
-    expect(publicRoutes(ctx.app).length).toBeGreaterThanOrEqual(16);
+    // having found nothing at all. Counted over the *guarded* doors, because
+    // the documentation subtree below would otherwise hold the number up on
+    // its own.
+    const guarded = publicRoutes(ctx.app).filter((route) => !(route.path in DELIBERATELY_OPEN));
+    expect(guarded.length).toBeGreaterThanOrEqual(16);
   });
 
   it('refuses an anonymous caller at every one of them', async () => {

@@ -11,7 +11,8 @@ Self-hosted, MIT licensed, and small enough that the whole install is one contai
    3. [Full scale](#full-scale)
 3. [Configuration](#configuration)
    1. [Invitations and recovery](#invitations-and-recovery)
-   2. [Backup and restore](#backup-and-restore)
+   2. [Integrating](#integrating)
+   3. [Backup and restore](#backup-and-restore)
 4. [Security](#security)
    1. [Two-factor authentication](#two-factor-authentication)
 5. [Development](#development)
@@ -146,6 +147,10 @@ Nothing here waits on a mail server, deliberately — a self-hosted tool should 
 - **Password resets** are the same: an admin issues a link from the Members page — or sets a new password outright and hands it over, for the workspace whose people live in a password manager anyway. Either way every session the member had is signed out. The login page's "Forgot your password?" says exactly this: ask an admin.
 - **Merely wanting a different password needs no admin at all** — the key button beside Sign out changes it, and signs out every other browser.
 - **Notifications live on the bell.** Warranty alerts go to everyone whose role may edit assets, return reminders and hand-over notices to the member linked to the employee holding the asset. Two switches on the Settings page turn the scheduled ones off.
+
+### Integrating
+
+Other software talks to the instance over a second, curated API at `/api/public/v1` — assets, employees, the workflow, the custom fields and the activity log, and deliberately nothing about accounts or security. An admin mints a named token, ticks the scopes it may use (`assets:write`, `audit:read` and six more), optionally gives it an expiry, and copies it once; it goes on the wire as `Authorization: Bearer invt_…` and never in a cookie, and whatever it then does lands in the activity log under the name it was given. The reference is on the instance itself: **`/api/public/docs`** is a browsable OpenAPI page generated from the running routes — so it describes that version, not a version a document somewhere used to describe — with the raw document at `/api/public/openapi.json`. Both are readable without a token, because you read the manual before you hold one.
 
 ### Backup and restore
 
