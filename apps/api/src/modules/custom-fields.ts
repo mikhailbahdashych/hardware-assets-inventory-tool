@@ -10,16 +10,9 @@ import { nowIso } from '@/lib/dates.js';
 import { newId } from '@/lib/ids.js';
 import { requireAction, requireAuth } from '@/plugins/rbac.js';
 import { writeAudit } from '@/services/audit.js';
+import { listCustomFields, serializeCustomField as serialize } from '@/services/custom-fields.js';
 
 const idParam = z.object({ id: z.string().min(1) });
-
-const serialize = (def: typeof customFieldDefs.$inferSelect) => ({
-  id: def.id,
-  key: def.key,
-  label: def.label,
-  type: def.type,
-  sortOrder: def.sortOrder,
-});
 
 /**
  * The fields an adopting team adds to describe their own hardware. Everyone
@@ -30,9 +23,7 @@ export function registerCustomFieldRoutes(app: FastifyInstance, deps: AppDeps): 
   const typed = app.withTypeProvider<ZodTypeProvider>();
 
   typed.get('/api/v1/custom-fields', { preHandler: requireAuth }, async () => ({
-    customFields: (
-      await deps.db.select().from(customFieldDefs).orderBy(customFieldDefs.sortOrder)
-    ).map(serialize),
+    customFields: await listCustomFields(deps.db),
   }));
 
   typed.post(

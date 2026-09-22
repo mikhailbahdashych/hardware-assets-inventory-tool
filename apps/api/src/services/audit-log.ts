@@ -1,4 +1,5 @@
 import { count, desc, eq } from 'drizzle-orm';
+import { z } from 'zod';
 import {
   AUDIT_TYPE_LABELS,
   AUDIT_TYPES,
@@ -17,6 +18,23 @@ import { AppError } from '@/lib/errors.js';
 
 export const DEFAULT_AUDIT_LIMIT = 200;
 export const MAX_AUDIT_LIMIT = 500;
+
+/**
+ * The querystrings the two log endpoints take, beside the bounds they enforce
+ * — same reasoning as `listQuery` in `lib/search.ts`. They live here rather
+ * than in `modules/admin.ts` because the public surface serves the same two
+ * routes: one schema, so screen, file and integrator cannot disagree about
+ * what a filter means.
+ */
+export const auditTypeFilter = z.enum(AUDIT_TYPES).optional();
+
+export const auditQuery = z.object({
+  type: auditTypeFilter,
+  limit: z.coerce.number().int().min(1).max(MAX_AUDIT_LIMIT).default(DEFAULT_AUDIT_LIMIT),
+  offset: z.coerce.number().int().min(0).default(0),
+});
+
+export const auditExportQuery = z.object({ type: auditTypeFilter });
 
 /**
  * One page of the activity log, newest first, plus a count behind every filter

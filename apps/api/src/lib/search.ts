@@ -15,12 +15,30 @@ export const MAX_LIST_LIMIT = 200;
 /**
  * The querystring all three whole-list endpoints take, mirroring the inbox's.
  * It lives beside the bounds it enforces so the number and the refusal cannot
- * drift apart; the assets route extends it with its own two filters.
+ * drift apart.
  */
 export const listQuery = z.object({
   q: z.string().optional(),
   limit: z.coerce.number().int().min(1).max(MAX_LIST_LIMIT).default(DEFAULT_LIST_LIMIT),
   offset: z.coerce.number().int().min(0).default(0),
+});
+
+/**
+ * The asset list's own two filters on top of the page: `status` is the pill
+ * row, `assignable` is the assign modal asking for only what it may offer.
+ *
+ * It sits beside `listQuery` rather than inside `modules/assets.ts` because the
+ * internal route and its public twin must take the identical querystring — one
+ * schema, so the two lists cannot answer differently to the same request.
+ */
+export const assetListQuery = listQuery.extend({
+  status: z.string().optional(),
+  // Spelled out rather than coerced: `z.coerce.boolean()` reads the string
+  // "false" as true, which is the wrong answer to a query somebody wrote.
+  assignable: z
+    .enum(['true', 'false'])
+    .optional()
+    .transform((value) => value === 'true'),
 });
 
 /** The escape character named by the ESCAPE clause in `contains` below. */

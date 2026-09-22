@@ -5,6 +5,7 @@ import Fastify, { type FastifyInstance, type FastifyServerOptions } from 'fastif
 import { serializerCompiler, validatorCompiler } from 'fastify-type-provider-zod';
 import type { AppDeps, BuildAppOptions } from './types/app.js';
 import { loggerOptions } from './lib/logging.js';
+import { registerBearerAuth } from './plugins/bearer.js';
 import { registerErrorHandler } from './plugins/error-handler.js';
 import { registerOriginGuard } from './plugins/origin-guard.js';
 import { registerSessionAuth } from './plugins/session.js';
@@ -23,6 +24,7 @@ import { registerMemberRoutes } from './modules/members.js';
 import { registerMeRoutes } from './modules/me.js';
 import { registerMetaRoutes } from './modules/meta.js';
 import { registerNotificationRoutes } from './modules/notifications.js';
+import { registerPublicRoutes } from './modules/public.js';
 import { registerRoleRoutes } from './modules/roles.js';
 import { registerSearchRoutes } from './modules/search.js';
 import { registerSetupRoutes } from './modules/setup.js';
@@ -63,6 +65,9 @@ export async function buildApp(opts: BuildAppOptions): Promise<FastifyInstance> 
   await app.register(fastifyCookie);
   registerOriginGuard(app, deps.config); // before session/rate-limit: cheapest rejection first
   registerSessionAuth(app, deps);
+  // The other door, and it only ever opens under /api/public/ — the two
+  // authentications never meet on one request.
+  registerBearerAuth(app, deps);
   await app.register(fastifyRateLimit, { global: false });
   await app.register(fastifyMultipart, { limits: { fileSize: MAX_ATTACHMENT_BYTES, files: 1 } });
 
@@ -82,6 +87,7 @@ export async function buildApp(opts: BuildAppOptions): Promise<FastifyInstance> 
   registerApiTokenRoutes(app, deps);
   registerAdminRoutes(app, deps);
   registerDataRoutes(app, deps);
+  registerPublicRoutes(app, deps);
 
   await registerStaticSpa(app, deps.config.webDist);
 

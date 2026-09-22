@@ -1,22 +1,13 @@
 import type { FastifyInstance } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
-import { z } from 'zod';
-import { AUDIT_TYPES, settingsPatchInput, workspaceDeleteInput } from '@inventory/shared';
+import { settingsPatchInput, workspaceDeleteInput } from '@inventory/shared';
 import type { AppDeps } from '@/types/app.js';
 import { requireAction } from '@/plugins/rbac.js';
 import { clearSessionCookie } from '@/services/sessions.js';
 import { storageUsedBytes } from '@/services/attachments.js';
-import { auditCsv, auditPage, DEFAULT_AUDIT_LIMIT, MAX_AUDIT_LIMIT } from '@/services/audit-log.js';
+import { auditCsv, auditExportQuery, auditPage, auditQuery } from '@/services/audit-log.js';
 import { getSettings, updateSettings } from '@/services/settings.js';
 import { deleteWorkspace } from '@/services/workspace.js';
-
-const typeFilter = z.enum(AUDIT_TYPES).optional();
-
-const auditQuery = z.object({
-  type: typeFilter,
-  limit: z.coerce.number().int().min(1).max(MAX_AUDIT_LIMIT).default(DEFAULT_AUDIT_LIMIT),
-  offset: z.coerce.number().int().min(0).default(0),
-});
 
 /** The Admin section: the activity log, workspace settings and the danger zone. */
 export function registerAdminRoutes(app: FastifyInstance, deps: AppDeps): void {
@@ -31,7 +22,7 @@ export function registerAdminRoutes(app: FastifyInstance, deps: AppDeps): void {
   typed.get(
     '/api/v1/audit/export',
     {
-      schema: { querystring: z.object({ type: typeFilter }) },
+      schema: { querystring: auditExportQuery },
       preHandler: requireAction('export.run'),
     },
     async (request, reply) => {
