@@ -87,7 +87,10 @@ export async function buildApp(opts: BuildAppOptions): Promise<FastifyInstance> 
   registerApiTokenRoutes(app, deps);
   registerAdminRoutes(app, deps);
   registerDataRoutes(app, deps);
-  registerPublicRoutes(app, deps);
+  // Awaited, unlike every module above it: the public surface is a plugin
+  // context of its own (so swagger sees only it), and a context has to be
+  // loaded before the SPA's catch-all is registered behind it.
+  await registerPublicRoutes(app, deps);
 
   await registerStaticSpa(app, deps.config.webDist);
 

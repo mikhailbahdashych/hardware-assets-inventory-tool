@@ -179,6 +179,61 @@ export function sessionCookie(res: { cookies: { name: string; value: string }[] 
   return `inv_session=${cookie.value}`;
 }
 
+interface RegisteredRoute {
+  /**
+   * Taken off `inject` itself rather than fastify's `HTTPMethods`: the two are
+   * different unions, and this one is the one the sweep has to hand back.
+   */
+  method: NonNullable<InjectOptions['method']>;
+  /** As registered, `:id` params and all. */
+  path: string;
+}
+
+/**
+ * Every route the built app actually has, read out of fastify's own tree. Two
+ * files ask: `public-surface-fence.test.ts`, which requires every door to
+ * refuse, and `openapi.test.ts`, which requires every door to be described —
+ * and they have to be asking about the same set for either to mean anything.
+ *
+ * `printRoutes` draws a tree: four columns of box-drawing per level, then the
+ * path segment this node adds, then its methods in brackets if it serves any.
+ * Reassembling a full path is therefore concatenating the segments on the stack
+ * down to this line's depth. A node with no methods is a branch — it still goes
+ * on the stack, it just contributes no route of its own.
+ */
+export function registeredRoutes(app: FastifyInstance): RegisteredRoute[] {
+  const found: RegisteredRoute[] = [];
+  const segments: string[] = [];
+
+  for (const line of app.printRoutes({ commonPrefix: false }).split('\n')) {
+    const marker = line.trimEnd().indexOf('── ');
+    if (marker === -1) continue;
+    // The path starts at column `marker + 3`, and each level is four columns
+    // wide, so that column *is* the depth. Top level starts at column 4.
+    const depth = (marker + 3) / 4 - 1;
+    const rest = line.trimEnd().slice(marker + 3);
+
+    const methodsAt = rest.lastIndexOf(' (');
+    segments[depth] = methodsAt === -1 ? rest : rest.slice(0, methodsAt);
+    segments.length = depth + 1;
+    if (methodsAt === -1) continue;
+
+    const path = segments.join('');
+    for (const method of rest.slice(methodsAt + 2, -1).split(', ')) {
+      // Fastify printed them, so they are methods fastify serves; the cast
+      // says that rather than widening the field to a bare string.
+      found.push({ method: method as RegisteredRoute['method'], path });
+    }
+  }
+  return found;
+}
+
+/** Everything behind the Bearer door, documentation included. */
+export const PUBLIC_PREFIX = '/api/public/';
+
+export const publicRoutes = (app: FastifyInstance): RegisteredRoute[] =>
+  registeredRoutes(app).filter((route) => route.path.startsWith(PUBLIC_PREFIX));
+
 export function inject(app: FastifyInstance, options: InjectOptions & { cookie?: string }) {
   const { cookie, ...rest } = options;
   return app.inject({
