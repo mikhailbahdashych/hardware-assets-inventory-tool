@@ -30,6 +30,7 @@ import * as sqlite from './schema.sqlite.js';
 const tables = ENGINE === 'postgres' ? (pg as unknown as typeof sqlite) : sqlite;
 
 export const {
+  apiTokens,
   assets,
   assetCustomValues,
   assetStatuses,

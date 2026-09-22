@@ -12,6 +12,7 @@ import { registerStaticSpa } from './plugins/static-spa.js';
 import { MAX_ATTACHMENT_BYTES } from './services/attachments.js';
 import { makeStorage } from './services/storage.js';
 import { registerAdminRoutes } from './modules/admin.js';
+import { registerApiTokenRoutes } from './modules/api-tokens.js';
 import { registerAssetRoutes } from './modules/assets.js';
 import { registerAttachmentRoutes } from './modules/attachments.js';
 import { registerAuthRoutes } from './modules/auth.js';
@@ -78,6 +79,7 @@ export async function buildApp(opts: BuildAppOptions): Promise<FastifyInstance> 
   registerRoleRoutes(app, deps);
   registerMemberRoutes(app, deps);
   registerNotificationRoutes(app, deps);
+  registerApiTokenRoutes(app, deps);
   registerAdminRoutes(app, deps);
   registerDataRoutes(app, deps);
 

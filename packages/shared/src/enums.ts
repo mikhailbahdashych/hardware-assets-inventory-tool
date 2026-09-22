@@ -205,6 +205,68 @@ export const AUDIT_TYPE_COLORS: Record<AuditType, SemanticColor> = {
 export const MIN_WARRANTY_LEAD_DAYS = 1;
 export const MAX_WARRANTY_LEAD_DAYS = 365;
 
+/**
+ * What an API token may reach on the public surface — coarse `area:verb` pairs,
+ * compiled in because which areas exist is a product decision, exactly like
+ * `ACTIONS`.
+ *
+ * It is deliberately **not** `ACTIONS`. That vocabulary is about members, where
+ * reads are open to every authenticated role and only mutations are declared; a
+ * token holds no such baseline, so every read it may perform has to be granted
+ * by name. Members, roles, settings and two-factor appear nowhere here on
+ * purpose: accounts and security stay humans-only.
+ */
+export const API_SCOPES = [
+  'assets:read',
+  'assets:write',
+  'assignments:write',
+  'employees:read',
+  'employees:write',
+  'workflow:read',
+  'custom-fields:read',
+  'audit:read',
+] as const;
+export type ApiScope = (typeof API_SCOPES)[number];
+
+/** The copy the scope grid puts on each checkbox. */
+export const API_SCOPE_LABELS: Record<ApiScope, string> = {
+  'assets:read': 'Read assets',
+  'assets:write': 'Write assets',
+  'assignments:write': 'Assign and check in',
+  'employees:read': 'Read employees',
+  'employees:write': 'Write employees',
+  'workflow:read': 'Read the workflow',
+  'custom-fields:read': 'Read custom fields',
+  'audit:read': 'Read the activity log',
+};
+
+/** The line under each checkbox: what granting it actually hands over. */
+export const API_SCOPE_DESCRIPTIONS: Record<ApiScope, string> = {
+  'assets:read': 'List and read assets.',
+  'assets:write': 'Create, edit and delete assets.',
+  'assignments:write': 'Hand assets out and take them back.',
+  'employees:read': 'List and read employee records.',
+  'employees:write': 'Create, edit and delete employee records.',
+  'workflow:read': 'Read the asset statuses and the moves between them.',
+  'custom-fields:read': 'Read the custom field definitions.',
+  'audit:read': 'Read and export the activity log.',
+};
+
+/**
+ * How long a new API token is good for, in days; `null` is "Unlimited" — a
+ * choice an admin makes rather than an expiry nobody set. Same shape as
+ * `LOG_RETENTION_OPTIONS` below, label map keyed by the template literal so
+ * `null` becomes the string `"null"` and the compiler still checks completeness.
+ */
+export const TOKEN_TTL_OPTIONS = [30, 90, 180, null] as const;
+export type TokenTtl = (typeof TOKEN_TTL_OPTIONS)[number];
+export const TOKEN_TTL_LABELS: Record<`${TokenTtl}`, string> = {
+  30: '30 days',
+  90: '90 days',
+  180: '180 days',
+  null: 'Unlimited',
+};
+
 /** Activity-log retention in months; `null` is the design's "Forever". */
 export const LOG_RETENTION_OPTIONS = [12, 24, null] as const;
 export type LogRetention = (typeof LOG_RETENTION_OPTIONS)[number];

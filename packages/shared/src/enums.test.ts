@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
+  API_SCOPES,
+  API_SCOPE_DESCRIPTIONS,
+  API_SCOPE_LABELS,
   ASSET_CATEGORIES,
   ASSET_CATEGORY_LABELS,
   ASSIGNED_STATUS,
@@ -23,6 +26,8 @@ import {
   MEMBER_STATUS_LABELS,
   SEMANTIC_COLORS,
   SEMANTIC_COLOR_LABELS,
+  TOKEN_TTL_LABELS,
+  TOKEN_TTL_OPTIONS,
 } from './enums.js';
 
 /**
@@ -139,6 +144,55 @@ describe('audit types', () => {
       people: 'info',
       auth: 'neut',
       system: 'warn',
+    });
+  });
+});
+
+describe('API token scopes', () => {
+  it('carves the public surface into eight coarse areas', () => {
+    expect(API_SCOPES).toEqual([
+      'assets:read',
+      'assets:write',
+      'assignments:write',
+      'employees:read',
+      'employees:write',
+      'workflow:read',
+      'custom-fields:read',
+      'audit:read',
+    ]);
+  });
+
+  it('labels and describes every one of them, because a grid of them has to read', () => {
+    for (const scope of API_SCOPES) {
+      expect(API_SCOPE_LABELS[scope], scope).toMatch(/\S/);
+      expect(API_SCOPE_DESCRIPTIONS[scope], scope).toMatch(/\S/);
+    }
+    expect(API_SCOPE_LABELS['assets:write']).toBe('Write assets');
+    expect(API_SCOPE_DESCRIPTIONS['assets:write']).toBe('Create, edit and delete assets.');
+  });
+
+  /**
+   * Deliberately not the member `ACTIONS`: that vocabulary leaves reads open to
+   * every authenticated member, and a token's reads must be granted one at a
+   * time. Accounts and security are not on the list at all.
+   */
+  it('grants nothing over members, roles, settings or two-factor', () => {
+    const areas = API_SCOPES.map((scope) => scope.split(':')[0]);
+    expect(areas).not.toContain('members');
+    expect(areas).not.toContain('roles');
+    expect(areas).not.toContain('settings');
+    expect(areas).not.toContain('mfa');
+  });
+});
+
+describe('API token expiry', () => {
+  it('offers three windows and Unlimited, keyed like the log retention list', () => {
+    expect(TOKEN_TTL_OPTIONS).toEqual([30, 90, 180, null]);
+    expect(TOKEN_TTL_LABELS).toEqual({
+      30: '30 days',
+      90: '90 days',
+      180: '180 days',
+      null: 'Unlimited',
     });
   });
 });

@@ -186,6 +186,16 @@ const RENDERERS: Record<string, (params: AuditParams) => string> = {
     `Reset the recovery codes for ${text(p, 'memberName', 'a member')}`,
   'member.mfa_codes_regenerated': (p) =>
     `${text(p, 'memberName', 'A member')}’s recovery codes were reissued`,
+  // The token's reach is recorded as a count and the expiry as the label the
+  // admin picked, snapshotted at write time like every other label in here.
+  // What is never recorded is the token itself: it exists once, in the response
+  // that created it.
+  'token.created': (p) => {
+    const scopes = typeof p.scopeCount === 'number' ? p.scopeCount : 0;
+    const reach = `${scopes} ${scopes === 1 ? 'scope' : 'scopes'}`;
+    return `Created the API token ${text(p, 'name', 'a token')} · ${reach} · ${text(p, 'expiry', 'Unlimited')}`;
+  },
+  'token.revoked': (p) => `Revoked the API token ${text(p, 'name', 'a token')}`,
   'auth.login': () => 'Signed in',
   'auth.password_reset': () => 'Reset their password',
   'auth.password_changed': () => 'Changed their password',
@@ -209,9 +219,14 @@ export function renderAuditEvent(event: RenderableAuditEvent): string {
 export function auditTypeForAction(action: string): AuditType {
   if (action.startsWith('asset.')) return 'assets';
   if (action.startsWith('employee.')) return 'people';
-  // Roles are access control, so they file beside the member events rather
-  // than under System with the workspace's other settings.
-  if (action.startsWith('auth.') || action.startsWith('member.') || action.startsWith('role.')) {
+  // Roles and API tokens are access control, so they file beside the member
+  // events rather than under System with the workspace's other settings.
+  if (
+    action.startsWith('auth.') ||
+    action.startsWith('member.') ||
+    action.startsWith('role.') ||
+    action.startsWith('token.')
+  ) {
     return 'auth';
   }
   return 'system';
