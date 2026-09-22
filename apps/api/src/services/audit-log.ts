@@ -1,9 +1,12 @@
 import { count, desc, eq } from 'drizzle-orm';
+import { z } from 'zod';
 import {
+  AUDIT_ACTOR_KINDS,
   AUDIT_TYPE_LABELS,
   AUDIT_TYPES,
   renderAuditEvent,
   toCsv,
+  type AuditActorKind,
   type AuditParams,
   type AuditType,
 } from '@inventory/shared';
@@ -17,6 +20,27 @@ import { AppError } from '@/lib/errors.js';
 
 export const DEFAULT_AUDIT_LIMIT = 200;
 export const MAX_AUDIT_LIMIT = 500;
+
+/**
+ * The querystrings the two log endpoints take, beside the bounds they enforce
+ * — same reasoning as `listQuery` in `lib/search.ts`. They live here rather
+ * than in `modules/admin.ts` because the public surface serves the same two
+ * routes: one schema, so screen, file and integrator cannot disagree about
+ * what a filter means.
+ */
+export const auditTypeFilter = z.enum(AUDIT_TYPES).optional();
+
+export const auditQuery = z.object({
+  type: auditTypeFilter,
+  // An `actorKind` filter belongs here, beside `type`, and deliberately is not
+  // here yet: every row carries the kind and `AuditItem` sends it, but nothing
+  // asks to narrow by it until PR 4 draws the pill that would. A query
+  // parameter no client passes is a contract with nobody.
+  limit: z.coerce.number().int().min(1).max(MAX_AUDIT_LIMIT).default(DEFAULT_AUDIT_LIMIT),
+  offset: z.coerce.number().int().min(0).default(0),
+});
+
+export const auditExportQuery = z.object({ type: auditTypeFilter });
 
 /**
  * One page of the activity log, newest first, plus a count behind every filter
@@ -84,6 +108,7 @@ export function toAuditItem(row: typeof auditEvents.$inferSelect): AuditItem {
     at: row.at,
     type: auditTypeOf(row.type),
     action: row.action,
+    actorKind: actorKindOf(row),
     actorName: row.actorName,
     assetId: row.assetId,
     employeeId: row.employeeId,
@@ -100,6 +125,28 @@ export function toAuditItem(row: typeof auditEvents.$inferSelect): AuditItem {
  * the list means a row nothing can file under a pill or colour, so it says so
  * instead of rendering an event under a colour that does not exist.
  */
+/**
+ * What kind of actor a stored row belongs to.
+ *
+ * `actor_kind` is NULL exactly on rows written before the column existed, the
+ * way `attachments.sha256` is NULL on files uploaded before checksums — so the
+ * coalescing below is the meaning of that NULL and not a rescue. No token could
+ * write a row back then, which makes "a member id or nobody" the whole truth
+ * those rows ever carried; the derivation recovers precisely that and invents
+ * nothing. Every row written from here on says so itself.
+ */
+function actorKindOf(row: typeof auditEvents.$inferSelect): AuditActorKind {
+  if (row.actorKind === null) return row.actorMemberId === null ? 'system' : 'member';
+  if (!(AUDIT_ACTOR_KINDS as readonly string[]).includes(row.actorKind)) {
+    throw new AppError(
+      500,
+      'unknown_actor_kind',
+      `An audit event is stored under the unknown actor kind "${row.actorKind}".`,
+    );
+  }
+  return row.actorKind as AuditActorKind;
+}
+
 function auditTypeOf(value: string): AuditType {
   if (!(AUDIT_TYPES as readonly string[]).includes(value)) {
     throw new AppError(

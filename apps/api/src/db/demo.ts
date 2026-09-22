@@ -81,10 +81,12 @@ export async function seedDemo(deps: AppDeps, options: DemoSeedOptions): Promise
 
   const founder = PEOPLE.find((person) => person.account?.role === 'admin');
   if (!founder) throw new Error('The demo dataset has no admin to attribute its history to.');
-  const actor: Actor = {
-    id: newId(),
-    displayName: `${founder.firstName} ${founder.lastName}`,
-  };
+  // Kept as a plain string beside the actor rather than read back off it: the
+  // demo's founder is a real member row that everything below hangs off, and
+  // `Actor.id` is nullable because an API token has no row at all.
+  const founderId = newId();
+  const founderName = `${founder.firstName} ${founder.lastName}`;
+  const actor: Actor = { id: founderId, displayName: founderName };
 
   // The member ids come back out because the curation below promotes one of
   // them, and that has to happen after this transaction closes.
@@ -99,9 +101,6 @@ export async function seedDemo(deps: AppDeps, options: DemoSeedOptions): Promise
     };
 
     await seedSettings(tx, now);
-
-    const founderId = actor.id;
-    const founderName = actor.displayName;
 
     const employeeIds = await seedPeople(tx, at);
     const memberIds = await seedMembers(tx, at, {

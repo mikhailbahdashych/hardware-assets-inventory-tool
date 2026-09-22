@@ -1,5 +1,6 @@
 import type { AppDeps } from '@/types/app.js';
 import {
+  apiTokens,
   assetCustomValues,
   assets,
   assetStatuses,
@@ -11,6 +12,7 @@ import {
   customFieldDefs,
   employees,
   members,
+  mfaRecoveryCodes,
   notifications,
   orgSettings,
   rolePermissions,
@@ -69,7 +71,19 @@ export async function emptyWorkspace(deps: AppDeps): Promise<void> {
     await tx.delete(assetStatuses);
     await tx.delete(customFieldDefs);
     await tx.delete(authTokens);
+    // A credential for a workspace that no longer exists must die with it.
+    // Nothing recalls the raw value once it is minted — deleting the row is the
+    // only revocation there is — so a token left behind would go on opening the
+    // public surface onto whatever the next workspace puts in these tables.
+    // After `audit_events`, which points at it, and before `members`, which it
+    // points at: the children-first rule reads in both directions.
+    await tx.delete(apiTokens);
     await tx.delete(sessions);
+    // Cascades from `members` below, so this line changes nothing today — it is
+    // here because the rule at the top of this block is "never depend on which
+    // cascades are enabled", and a hashed one-time password is the last row to
+    // make an exception for.
+    await tx.delete(mfaRecoveryCodes);
     await tx.delete(members);
     // The roles go with the members that held them, so the seed below lays the
     // default three back down — a workspace that edited its roles is not what a

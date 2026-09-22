@@ -441,10 +441,13 @@ async function readMember(tx: DbOrTx, id: string): Promise<MemberSummary> {
  * so a demotion bites on the demoted member's very next request.
  */
 export async function assertAdminActor(db: DbOrTx, actor: Actor): Promise<void> {
-  const [row] = await db
-    .select({ role: members.role })
-    .from(members)
-    .where(eq(members.id, actor.id));
+  // An actor with no member row is an API token, and a token is never an
+  // admin: no member surface appears on the public API at all, so this is the
+  // right answer rather than a guard against a case that could arise.
+  const row =
+    actor.id === null
+      ? undefined
+      : (await db.select({ role: members.role }).from(members).where(eq(members.id, actor.id)))[0];
   if (!row || row.role !== ADMIN_ROLE) {
     throw new AppError(403, 'admin_shield', 'Only an admin can manage an admin account.');
   }

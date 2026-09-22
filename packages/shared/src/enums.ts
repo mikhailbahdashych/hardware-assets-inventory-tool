@@ -179,6 +179,24 @@ export const CUSTOM_FIELD_TYPE_LABELS: Record<CustomFieldType, string> = {
   number: 'Number',
 };
 
+/**
+ * What kind of thing performed an audited action. A product decision, so an
+ * enum here — and a **snapshot** in the column rather than something inferred
+ * from the actor columns at read time, because both of those are nullable FKs
+ * that go NULL when the member is removed or the token revoked. A row that
+ * still names "Deploy bot" must not start reading as `system` the day somebody
+ * revokes the token; `assignments.holder_name_snapshot` keeps a deleted
+ * person's name beside a nulled `employee_id` for exactly the same reason.
+ */
+export const AUDIT_ACTOR_KINDS = ['member', 'token', 'system'] as const;
+export type AuditActorKind = (typeof AUDIT_ACTOR_KINDS)[number];
+/** The copy the activity log's actor filter will put on each pill. */
+export const AUDIT_ACTOR_KIND_LABELS: Record<AuditActorKind, string> = {
+  member: 'People',
+  token: 'API tokens',
+  system: 'System',
+};
+
 export const AUDIT_TYPES = ['assets', 'people', 'auth', 'system'] as const;
 export type AuditType = (typeof AUDIT_TYPES)[number];
 export const AUDIT_TYPE_LABELS: Record<AuditType, string> = {

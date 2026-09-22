@@ -14,6 +14,12 @@ import { nowIso } from '@/lib/dates.js';
  * columns are nullable because an event need not be about an asset, a person
  * and a member at once, an anonymous flow really is attributed to 'system',
  * and an event with nothing to add stores an empty params object.
+ *
+ * `actorKind` is written rather than worked out at read time, and that is the
+ * whole reason the column exists: `actor_member_id` and `actor_api_token_id`
+ * are both nulled when the row they point at goes, so a removed member's
+ * history would quietly become the system's and a revoked token's would too.
+ * The id says *who*, while it is there; the kind says *what*, for good.
  */
 export async function writeAudit(
   db: DbOrTx,
@@ -26,6 +32,11 @@ export async function writeAudit(
     type: entry.type,
     action: entry.action,
     actorMemberId: entry.actorMemberId ?? null,
+    actorApiTokenId: entry.actorApiTokenId ?? null,
+    // Derived here and nowhere else, so the three kinds cannot be spelled
+    // differently by forty call sites. A token beats a member because only one
+    // of the two ids is ever set; neither is the anonymous flow above.
+    actorKind: entry.actorApiTokenId ? 'token' : entry.actorMemberId ? 'member' : 'system',
     actorName: entry.actorName ?? 'system',
     assetId: entry.assetId ?? null,
     employeeId: entry.employeeId ?? null,

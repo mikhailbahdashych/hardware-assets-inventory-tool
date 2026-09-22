@@ -375,6 +375,24 @@ export const auditEvents = pgTable(
     type: text('type').notNull(),
     action: text('action').notNull(),
     actorMemberId: text('actor_member_id').references(() => members.id, { onDelete: 'set null' }),
+    /**
+     * The token behind the action, on the public surface. Symmetric with
+     * `actor_member_id` and nulled the same way when the row it names goes —
+     * revoking a token is deleting it. It answers "everything THIS token did"
+     * while the token exists; `actor_kind` is what survives the revocation.
+     */
+    actorApiTokenId: text('actor_api_token_id').references(() => apiTokens.id, {
+      onDelete: 'set null',
+    }),
+    /**
+     * Snapshot of what kind of actor wrote the row — `member`, `token` or
+     * `system`. Deliberately stored rather than derived from the two ids above,
+     * because both go NULL when their row is deleted and a removed member's
+     * history would otherwise silently become the system's. **NULL means
+     * written before this column existed**; `toAuditItem` reads that as the
+     * derivation those rows were always worth, and nothing backfills it.
+     */
+    actorKind: text('actor_kind'),
     actorName: text('actor_name').notNull(),
     assetId: text('asset_id'),
     employeeId: text('employee_id'),
