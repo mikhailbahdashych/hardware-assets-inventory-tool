@@ -1,7 +1,16 @@
 import { eq } from 'drizzle-orm';
 import { afterEach, describe, expect, it } from 'vitest';
 import { MAX_UPLOAD_QUOTA_MB } from '@inventory/shared';
-import { assets, attachments, auditEvents, employees, members, orgSettings } from '@/db/schema.js';
+import {
+  apiTokens,
+  assets,
+  attachments,
+  auditEvents,
+  employees,
+  members,
+  mfaRecoveryCodes,
+  orgSettings,
+} from '@/db/schema.js';
 import { nowIso } from '@/lib/dates.js';
 import {
   buildTestApp,
@@ -391,6 +400,56 @@ describe('deleting the workspace', () => {
     expect(await ctx.db.select().from(orgSettings)).toHaveLength(1);
   });
 
+  /**
+   * A credential for a workspace that no longer exists must not still open a
+   * door. Nothing recalls the raw value once it is minted, so deleting the row
+   * is the only revocation there is — and the danger zone's promise is that it
+   * deletes everything.
+   */
+  it('takes the API tokens with it, so no raw value outlives the workspace', async () => {
+    ctx = await buildTestApp();
+    const admin = await setupOrg(ctx.app);
+
+    const minted = await inject(ctx.app, {
+      method: 'POST',
+      url: '/api/v1/api-tokens',
+      cookie: admin,
+      body: { name: 'Deploy bot', scopes: ['assets:read'], expiresInDays: null },
+    });
+    expect(minted.statusCode).toBe(201);
+    const raw: string = minted.json().token;
+    // It opens the door before the wipe, so the 401 afterwards means something.
+    expect(
+      (
+        await ctx.app.inject({
+          method: 'GET',
+          url: '/api/public/v1/assets',
+          headers: { authorization: `Bearer ${raw}` },
+        })
+      ).statusCode,
+    ).toBe(200);
+
+    expect(
+      (
+        await inject(ctx.app, {
+          method: 'POST',
+          url: '/api/v1/workspace/delete',
+          cookie: admin,
+          body: { confirmText: 'Acme Corp' },
+        })
+      ).statusCode,
+    ).toBe(204);
+
+    expect(await ctx.db.select().from(apiTokens)).toEqual([]);
+    const after = await ctx.app.inject({
+      method: 'GET',
+      url: '/api/public/v1/assets',
+      headers: { authorization: `Bearer ${raw}` },
+    });
+    expect(after.statusCode).toBe(401);
+    expect(after.json().error.code).toBe('invalid_token');
+  });
+
   it('wipes every table and leaves an instance that asks to be set up again', async () => {
     ctx = await buildTestApp();
     const admin = await setupOrg(ctx.app);
@@ -415,6 +474,10 @@ describe('deleting the workspace', () => {
     expect(await ctx.db.select().from(assets)).toEqual([]);
     expect(await ctx.db.select().from(employees)).toEqual([]);
     expect(await ctx.db.select().from(auditEvents)).toEqual([]);
+    // Both credential tables go too — one by its own line, one by the cascade
+    // that line does not rely on.
+    expect(await ctx.db.select().from(apiTokens)).toEqual([]);
+    expect(await ctx.db.select().from(mfaRecoveryCodes)).toEqual([]);
 
     expect((await ctx.app.inject({ method: 'GET', url: '/api/v1/meta' })).json().needsSetup).toBe(
       true,
