@@ -1,4 +1,4 @@
-import type { AuditParams, AuditType } from '@inventory/shared';
+import type { AuditActorKind, AuditParams, AuditType } from '@inventory/shared';
 
 /** One activity-log row, rendered to a sentence by the shared renderer. */
 export interface AuditItem {
@@ -6,6 +6,12 @@ export interface AuditItem {
   at: string;
   type: AuditType;
   action: string;
+  /**
+   * Whether a person, an API token or the system itself did this. The ids
+   * behind it are deliberately not sent: `actorName` is what a line reads, and
+   * the kind is what a filter groups by. PR 4 draws the pill.
+   */
+  actorKind: AuditActorKind;
   actorName: string;
   assetId: string | null;
   employeeId: string | null;

@@ -12,6 +12,13 @@ export interface Actor {
    */
   id: string | null;
   displayName: string;
+  /**
+   * Set exactly when this actor is an API token, and then `id` is null — the
+   * two are the same fact from both sides. Optional rather than required
+   * because every member-shaped actor in the app is a `MemberRow`, which has no
+   * such field and must stay assignable here without gaining one.
+   */
+  apiTokenId?: string;
 }
 
 /**
@@ -24,6 +31,16 @@ export interface AuditEntry {
   action: string;
   /** null for anonymous flows; `actorName` then reads 'system'. */
   actorMemberId?: string | null;
+  /**
+   * The API token behind the mutation, on the public surface only. **A service
+   * a public route can reach must pass `actor.apiTokenId` here** — `writeAudit`
+   * derives `actorKind` from it, so a service that drops it writes a row
+   * carrying the token's name attributed to nobody, which reads as `system`.
+   * The assets, employees and assignments services are the ones that can be
+   * reached today, and `test/public-api.test.ts` sweeps every mutating public
+   * route to hold them to it.
+   */
+  actorApiTokenId?: string | null;
   actorName?: string;
   assetId?: string | null;
   employeeId?: string | null;

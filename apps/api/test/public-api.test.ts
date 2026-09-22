@@ -2,7 +2,8 @@ import { eq } from 'drizzle-orm';
 import { afterEach, describe, expect, it } from 'vitest';
 import type { ApiScope, ApiTokenCreateInput } from '@inventory/shared';
 import { apiTokens, assets, auditEvents, members } from '@/db/schema.js';
-import { mintApiToken } from '@/services/api-tokens.js';
+import { mintApiToken, revokeApiToken } from '@/services/api-tokens.js';
+import { writeAudit } from '@/services/audit.js';
 import { buildTestApp, inject, setupOrg, type TestApp } from './helpers.js';
 
 // The door: `/api/public/v1` is reachable with a Bearer token and with nothing
@@ -40,6 +41,11 @@ async function mint(
   return minted.token;
 }
 
+/** The row behind a minted token, which only its name identifies from out here. */
+async function tokenId(name: string): Promise<string> {
+  return (await ctx.db.select().from(apiTokens).where(eq(apiTokens.name, name)))[0]!.id;
+}
+
 /** A workspace with one asset and one person in it, plus a token for the caller. */
 async function workspace(scopes: ApiScope[] = ['assets:read']) {
   const cookie = await setupOrg(ctx.app);
@@ -54,7 +60,9 @@ async function workspace(scopes: ApiScope[] = ['assets:read']) {
   const asset = (
     await inject(ctx.app, { method: 'POST', url: '/api/v1/assets', cookie, body: LAPTOP })
   ).json().asset as { id: string };
-  return { cookie, employee, asset, raw: await mint(scopes) };
+  // Named apart from the default, so a test that mints its own 'Deploy bot'
+  // and then looks the row up by name finds the one it meant.
+  return { cookie, employee, asset, raw: await mint(scopes, 90, 'Fixture token') };
 }
 
 describe('the Bearer door', () => {
@@ -429,12 +437,126 @@ describe('a token is an actor with no member row', () => {
       .where(eq(auditEvents.action, 'asset.assigned'));
     expect(event!.actorMemberId).toBe(null);
     expect(event!.actorName).toBe('Deploy bot');
+    // Which token, not merely "a token" — the column answers "everything this
+    // one did" while it exists, and `actorKind` answers the filter forever.
+    expect(event!.actorApiTokenId).toBe(await tokenId('Deploy bot'));
+    expect(event!.actorKind).toBe('token');
 
     const log = await inject(ctx.app, { method: 'GET', url: '/api/v1/audit?type=assets', cookie });
-    const rendered = (log.json().items as { action: string; actorName: string }[]).find(
-      (item) => item.action === 'asset.assigned',
-    );
+    const rendered = (
+      log.json().items as { action: string; actorName: string; actorKind: string }[]
+    ).find((item) => item.action === 'asset.assigned');
     expect(rendered!.actorName).toBe('Deploy bot');
+    expect(rendered!.actorKind).toBe('token');
+  });
+
+  /**
+   * The fence under the threading. `Actor.apiTokenId` has to reach `writeAudit`
+   * from inside whichever service a public route calls, and a service that drops
+   * it writes a row that claims the token's *name* with nobody behind it. So
+   * rather than checking one action, this drives every mutating route on the
+   * surface and requires that nothing written along the way is attributed to
+   * anything but the token — side-effect rows included.
+   */
+  it('attributes every row a mutating route writes, on every route it has', async () => {
+    ctx = await buildTestApp();
+    const { asset, employee } = await workspace();
+    const raw = await mint(
+      ['assets:write', 'assignments:write', 'employees:write'],
+      90,
+      'Deploy bot',
+    );
+    const before = (await ctx.db.select().from(auditEvents)).length;
+
+    const created = await inject(ctx.app, {
+      method: 'POST',
+      url: `${P}/assets`,
+      headers: bearer(raw),
+      body: { ...LAPTOP, name: 'ThinkPad X1' },
+    });
+    const person = await inject(ctx.app, {
+      method: 'POST',
+      url: `${P}/employees`,
+      headers: bearer(raw),
+      body: { firstName: 'Tomas', lastName: 'Novak', email: 'tomas@acme.io' },
+    });
+    const calls = [
+      { method: 'PATCH' as const, url: `${P}/assets/${created.json().asset.id}`, body: { name: 'X1 Carbon' } }, // prettier-ignore
+      { method: 'DELETE' as const, url: `${P}/assets/${created.json().asset.id}` },
+      { method: 'POST' as const, url: `${P}/assets/${asset.id}/assign`, body: { employeeId: employee.id, checkoutDate: '2026-03-01' } }, // prettier-ignore
+      { method: 'POST' as const, url: `${P}/assets/${asset.id}/checkin`, body: { returnDate: '2026-03-08', newStatus: 'available' } }, // prettier-ignore
+      { method: 'PATCH' as const, url: `${P}/employees/${person.json().employee.id}`, body: { department: 'Design' } }, // prettier-ignore
+      { method: 'DELETE' as const, url: `${P}/employees/${person.json().employee.id}` },
+    ];
+    for (const call of calls) {
+      const res = await inject(ctx.app, { ...call, headers: bearer(raw) });
+      expect(`${call.method} ${call.url} → ${res.statusCode}`).toBe(
+        `${call.method} ${call.url} → ${call.method === 'DELETE' ? 204 : 200}`,
+      );
+    }
+
+    const id = await tokenId('Deploy bot');
+    const written = (await ctx.db.select().from(auditEvents)).slice(before);
+    expect(written.length).toBeGreaterThanOrEqual(8);
+    for (const row of written) {
+      expect(`${row.action}: ${row.actorKind} ${row.actorApiTokenId} ${row.actorName}`).toBe(
+        `${row.action}: token ${id} Deploy bot`,
+      );
+    }
+  });
+
+  it('keeps the kind when the token it names is revoked away', async () => {
+    ctx = await buildTestApp();
+    const { asset, employee } = await workspace();
+    const raw = await mint(['assignments:write'], 90, 'Deploy bot');
+    await inject(ctx.app, {
+      method: 'POST',
+      url: `${P}/assets/${asset.id}/assign`,
+      headers: bearer(raw),
+      body: { employeeId: employee.id, checkoutDate: '2026-03-01' },
+    });
+
+    const admin = (await ctx.db.select().from(members).where(eq(members.role, 'admin')))[0]!;
+    await revokeApiToken(
+      ctx.deps,
+      { id: admin.id, displayName: admin.displayName },
+      await tokenId('Deploy bot'),
+    );
+
+    const [event] = await ctx.db
+      .select()
+      .from(auditEvents)
+      .where(eq(auditEvents.action, 'asset.assigned'));
+    // The pointer goes, exactly like `assignments.employee_id` when a person is
+    // deleted — and, exactly like `holder_name_snapshot`, what the row *said*
+    // stays. A revoked token's history still reads as a token's.
+    expect(event!.actorApiTokenId).toBe(null);
+    expect(event!.actorKind).toBe('token');
+    expect(event!.actorName).toBe('Deploy bot');
+  });
+
+  it('calls a member a member and an actorless write system', async () => {
+    ctx = await buildTestApp();
+    const cookie = await setupOrg(ctx.app);
+
+    await inject(ctx.app, { method: 'POST', url: '/api/v1/assets', cookie, body: LAPTOP });
+    const [byMember] = await ctx.db
+      .select()
+      .from(auditEvents)
+      .where(eq(auditEvents.action, 'asset.created'));
+    expect(byMember!.actorKind).toBe('member');
+    expect(byMember!.actorApiTokenId).toBe(null);
+
+    // Nothing over HTTP writes an actorless row today, so this goes at the
+    // service the way `last-admin.test.ts` does: the 'system' arm is the
+    // default `writeAudit` has always carried, and it must keep its meaning.
+    await writeAudit(ctx.db, { type: 'system', action: 'system.settings_updated' });
+    const [anonymous] = await ctx.db
+      .select()
+      .from(auditEvents)
+      .where(eq(auditEvents.action, 'system.settings_updated'));
+    expect(anonymous!.actorName).toBe('system');
+    expect(anonymous!.actorKind).toBe('system');
   });
 
   it('stamps last used the moment the door opens', async () => {

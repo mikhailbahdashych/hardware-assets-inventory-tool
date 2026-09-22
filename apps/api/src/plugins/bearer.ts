@@ -51,9 +51,18 @@ export function registerBearerAuth(app: FastifyInstance, deps: AppDeps): void {
 }
 
 /**
- * Route preHandler: a request carrying a live token that holds this scope. The
- * mirror of `requireAction` one layer over — same shape, different vocabulary,
- * because a token's reach is granted by name where a member's reads are open.
+ * Route **`preValidation`**: a request carrying a live token that holds this
+ * scope. The mirror of `requireAction` one layer over — same shape, different
+ * vocabulary, because a token's reach is granted by name where a member's reads
+ * are open.
+ *
+ * The lifecycle slot is load-bearing and is the one difference from
+ * `requireAction`, which sits on `preHandler`. `preHandler` runs *after* schema
+ * validation, so a guard there lets an anonymous caller POST junk and read back
+ * 422 with the zod field errors — the request shape of a door they cannot open,
+ * and a refusal that says more than "no". Attached at `preValidation` the
+ * refusal lands first, and every public route answers 401 identically whatever
+ * its method carries.
  */
 export function requireScope(scope: ApiScope) {
   return async (request: FastifyRequest, _reply: FastifyReply): Promise<void> => {

@@ -54,6 +54,15 @@ import { getWorkflow } from '@/services/workflow.js';
  *    it may perform is granted by name.
  * 3. **The actor is the token.** See {@link actorOf} — an API token is an actor
  *    with no member row.
+ *
+ * And one mechanical rule that is easy to get wrong: the guard is attached as
+ * **`preValidation`, never `preHandler`**. A route-level `preHandler` runs
+ * *after* schema validation, so an anonymous caller posting junk to a guarded
+ * route would read 422 with the field errors rather than 401 — the request
+ * shapes of a door they cannot open. `preValidation` runs before a word of the
+ * request is validated, so every route here refuses the same way whatever its
+ * method carries. `test/public-surface-fence.test.ts` sweeps the registered
+ * route table and fails if any door answers anything but 401.
  */
 const V1 = '/api/public/v1';
 
@@ -66,11 +75,17 @@ const idParam = z.object({ id: z.string().min(1) });
  * reads the way an activity log should.
  *
  * `request.apiToken!` for the same reason routes write `request.member!`: the
- * preHandler on every one of these routes is `requireScope`, which throws
+ * preValidation on every one of these routes is `requireScope`, which throws
  * unless it is there.
  */
 function actorOf(request: FastifyRequest): Actor {
-  return { id: null, displayName: request.apiToken!.name };
+  return {
+    id: null,
+    displayName: request.apiToken!.name,
+    // Which token, so the log can answer "everything this one did" and, through
+    // the kind derived from it, "everything any token did" forever after.
+    apiTokenId: request.apiToken!.id,
+  };
 }
 
 export function registerPublicRoutes(app: FastifyInstance, deps: AppDeps): void {
@@ -80,13 +95,13 @@ export function registerPublicRoutes(app: FastifyInstance, deps: AppDeps): void 
 
   typed.get(
     `${V1}/assets`,
-    { schema: { querystring: assetListQuery }, preHandler: requireScope('assets:read') },
+    { schema: { querystring: assetListQuery }, preValidation: requireScope('assets:read') },
     async (request) => listAssets(deps.db, request.query),
   );
 
   typed.get(
     `${V1}/assets/:id`,
-    { schema: { params: idParam }, preHandler: requireScope('assets:read') },
+    { schema: { params: idParam }, preValidation: requireScope('assets:read') },
     async (request) => getAssetDetail(deps.db, request.params.id),
   );
 
@@ -94,7 +109,7 @@ export function registerPublicRoutes(app: FastifyInstance, deps: AppDeps): void 
 
   typed.post(
     `${V1}/assets`,
-    { schema: { body: assetCreateInput }, preHandler: requireScope('assets:write') },
+    { schema: { body: assetCreateInput }, preValidation: requireScope('assets:write') },
     async (request) => ({ asset: await createAsset(deps, actorOf(request), request.body) }),
   );
 
@@ -102,7 +117,7 @@ export function registerPublicRoutes(app: FastifyInstance, deps: AppDeps): void 
     `${V1}/assets/:id`,
     {
       schema: { params: idParam, body: assetPatchInput },
-      preHandler: requireScope('assets:write'),
+      preValidation: requireScope('assets:write'),
     },
     async (request) => ({
       asset: await updateAsset(deps, actorOf(request), request.params.id, request.body),
@@ -111,7 +126,7 @@ export function registerPublicRoutes(app: FastifyInstance, deps: AppDeps): void 
 
   typed.delete(
     `${V1}/assets/:id`,
-    { schema: { params: idParam }, preHandler: requireScope('assets:write') },
+    { schema: { params: idParam }, preValidation: requireScope('assets:write') },
     async (request, reply) => {
       const storedNames = await deleteAsset(deps, actorOf(request), request.params.id);
       await removeStoredFiles(deps, storedNames);
@@ -125,7 +140,7 @@ export function registerPublicRoutes(app: FastifyInstance, deps: AppDeps): void 
     `${V1}/assets/:id/assign`,
     {
       schema: { params: idParam, body: assignInput },
-      preHandler: requireScope('assignments:write'),
+      preValidation: requireScope('assignments:write'),
     },
     async (request) => ({
       asset: await assignAsset(deps, actorOf(request), request.params.id, request.body),
@@ -136,7 +151,7 @@ export function registerPublicRoutes(app: FastifyInstance, deps: AppDeps): void 
     `${V1}/assets/:id/checkin`,
     {
       schema: { params: idParam, body: checkinInput },
-      preHandler: requireScope('assignments:write'),
+      preValidation: requireScope('assignments:write'),
     },
     async (request) => ({
       asset: await checkinAsset(deps, actorOf(request), request.params.id, request.body),
@@ -147,13 +162,13 @@ export function registerPublicRoutes(app: FastifyInstance, deps: AppDeps): void 
 
   typed.get(
     `${V1}/employees`,
-    { schema: { querystring: listQuery }, preHandler: requireScope('employees:read') },
+    { schema: { querystring: listQuery }, preValidation: requireScope('employees:read') },
     async (request) => listEmployees(deps.db, request.query),
   );
 
   typed.get(
     `${V1}/employees/:id`,
-    { schema: { params: idParam }, preHandler: requireScope('employees:read') },
+    { schema: { params: idParam }, preValidation: requireScope('employees:read') },
     async (request) => getEmployeeDetail(deps.db, request.params.id),
   );
 
@@ -161,7 +176,7 @@ export function registerPublicRoutes(app: FastifyInstance, deps: AppDeps): void 
 
   typed.post(
     `${V1}/employees`,
-    { schema: { body: employeeCreateInput }, preHandler: requireScope('employees:write') },
+    { schema: { body: employeeCreateInput }, preValidation: requireScope('employees:write') },
     async (request) => ({ employee: await createEmployee(deps, actorOf(request), request.body) }),
   );
 
@@ -169,7 +184,7 @@ export function registerPublicRoutes(app: FastifyInstance, deps: AppDeps): void 
     `${V1}/employees/:id`,
     {
       schema: { params: idParam, body: employeePatchInput },
-      preHandler: requireScope('employees:write'),
+      preValidation: requireScope('employees:write'),
     },
     async (request) => ({
       employee: await updateEmployee(deps, actorOf(request), request.params.id, request.body),
@@ -178,7 +193,7 @@ export function registerPublicRoutes(app: FastifyInstance, deps: AppDeps): void 
 
   typed.delete(
     `${V1}/employees/:id`,
-    { schema: { params: idParam }, preHandler: requireScope('employees:write') },
+    { schema: { params: idParam }, preValidation: requireScope('employees:write') },
     async (request, reply) => {
       await deleteEmployee(deps, actorOf(request), request.params.id);
       return reply.status(204).send();
@@ -187,13 +202,13 @@ export function registerPublicRoutes(app: FastifyInstance, deps: AppDeps): void 
 
   // ---- workflow:read and custom-fields:read ----
 
-  typed.get(`${V1}/workflow`, { preHandler: requireScope('workflow:read') }, async () =>
+  typed.get(`${V1}/workflow`, { preValidation: requireScope('workflow:read') }, async () =>
     getWorkflow(deps.db),
   );
 
   typed.get(
     `${V1}/custom-fields`,
-    { preHandler: requireScope('custom-fields:read') },
+    { preValidation: requireScope('custom-fields:read') },
     async () => ({ customFields: await listCustomFields(deps.db) }),
   );
 
@@ -201,13 +216,13 @@ export function registerPublicRoutes(app: FastifyInstance, deps: AppDeps): void 
 
   typed.get(
     `${V1}/audit`,
-    { schema: { querystring: auditQuery }, preHandler: requireScope('audit:read') },
+    { schema: { querystring: auditQuery }, preValidation: requireScope('audit:read') },
     async (request) => auditPage(deps.db, request.query),
   );
 
   typed.get(
     `${V1}/audit/export`,
-    { schema: { querystring: auditExportQuery }, preHandler: requireScope('audit:read') },
+    { schema: { querystring: auditExportQuery }, preValidation: requireScope('audit:read') },
     async (request, reply) => {
       const day = deps.now().toISOString().slice(0, 10);
       return reply
