@@ -7,8 +7,10 @@ import styles from './Admin.module.css';
  * changing how the workspace behaves are different jobs, done at different
  * times, and a tab made the log something you found by going somewhere else.
  *
- * Admins only — the route guard in routes.tsx enforces that, and `GET /audit`
- * guards itself independently.
+ * Behind `audit.view` — the route guard in routes.tsx enforces that, and
+ * `GET /audit` guards itself independently. That is an action a workspace can
+ * grant to a role of its own (the seeded Auditor is exactly that), so the
+ * subtitle says what gates the page rather than naming a role.
  */
 export function ActivityLogPage() {
   return (
@@ -16,7 +18,7 @@ export function ActivityLogPage() {
       <div>
         <h1 className={styles.title}>Activity log</h1>
         <p className={styles.summary}>
-          Everything that has happened in this workspace · visible to Admins only
+          Everything that has happened in this workspace · visible to anyone whose role may read it
         </p>
       </div>
       <ActivityLogPanel />

@@ -8,7 +8,10 @@ import { Avatar } from './Avatar';
 import { Button } from './Button';
 import { Checkbox } from './Checkbox';
 import { DataTable } from './DataTable';
+import { Dropdown } from './Dropdown';
+import { Field } from './Field';
 import { FilterPills } from './FilterPills';
+import { Input } from './Input';
 import { Menu } from './Menu';
 import { Modal } from './Modal';
 import { Pagination } from './Pagination';
@@ -302,6 +305,55 @@ describe('Checkbox', () => {
     render(<Checkbox label="Create another" checked={false} onChange={onChange} />);
     await userEvent.click(screen.getByLabelText('Create another'));
     expect(onChange).toHaveBeenCalled();
+  });
+});
+
+describe('Field', () => {
+  it('ties a server field message to the input it is about', () => {
+    render(
+      <Field label="Name" error="Give the token a name.">
+        {(id) => <Input id={id} defaultValue="" />}
+      </Field>,
+    );
+
+    // The message is rendered — but a reader who never sees the red line needs
+    // the input itself to say it is wrong, and to point at the words.
+    const input = screen.getByRole('textbox', { name: 'Name' });
+    expect(input).toHaveAttribute('aria-invalid', 'true');
+    const describedBy = input.getAttribute('aria-describedby');
+    expect(describedBy).toBeTruthy();
+    expect(document.getElementById(describedBy!)).toHaveTextContent('Give the token a name.');
+  });
+
+  it('says nothing of the sort while the field is fine', () => {
+    render(
+      <Field label="Name" hint="What holds it">
+        {(id) => <Input id={id} defaultValue="" />}
+      </Field>,
+    );
+    const input = screen.getByRole('textbox', { name: 'Name' });
+    expect(input).not.toHaveAttribute('aria-invalid');
+    expect(input).not.toHaveAttribute('aria-describedby');
+  });
+
+  it('does the same for the app’s only select', () => {
+    render(
+      <Field label="Expires" error="Pick a lifetime.">
+        {(id) => (
+          <Dropdown
+            id={id}
+            value="30"
+            options={[{ value: '30', label: '30 days' }]}
+            onChange={() => {}}
+          />
+        )}
+      </Field>,
+    );
+    const control = screen.getByRole('combobox', { name: 'Expires' });
+    expect(control).toHaveAttribute('aria-invalid', 'true');
+    expect(document.getElementById(control.getAttribute('aria-describedby')!)).toHaveTextContent(
+      'Pick a lifetime.',
+    );
   });
 });
 

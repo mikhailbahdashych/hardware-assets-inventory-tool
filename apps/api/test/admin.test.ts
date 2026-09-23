@@ -148,7 +148,9 @@ describe('exporting the activity log', () => {
     expect(res.headers['content-disposition']).toMatch(/^attachment; filename="activity-log-/);
 
     const lines = res.body.trim().split('\n');
-    expect(lines[0]).toBe('Time,Actor,Event,Type');
+    // The kind rides beside the name, or a token called "Priya Sharma" and the
+    // person of that name are one row each and indistinguishable in the file.
+    expect(lines[0]).toBe('Time,Actor,Actor kind,Event,Type');
     // A quote inside an asset name must not tear the row in half.
     expect(lines[1]).toContain('"Added MacBook Pro 14"", ""Space Black"" to the inventory"');
     expect(lines[1]).toMatch(/,Assets$/);
@@ -267,6 +269,8 @@ describe('filtering the activity log by who acted', () => {
     const lines = res.body.trim().split('\n');
     expect(lines).toHaveLength(2);
     expect(lines[1]).toContain('Deploy bot');
+    // And says what kind of actor that is, in the words the filter uses.
+    expect(lines[1]).toContain('API tokens');
   });
 
   it('refuses an actor kind it does not have', async () => {

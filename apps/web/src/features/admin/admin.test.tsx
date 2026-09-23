@@ -19,6 +19,9 @@ describe('the activity log', () => {
     renderApp(ADMIN_ROUTES, '/activity');
 
     expect(await screen.findByRole('heading', { name: 'Activity log' })).toBeInTheDocument();
+    // It is gated on `audit.view`, which any role can be granted — so the
+    // page must not tell an Auditor reading it that it is for Admins only.
+    expect(screen.getByText(/visible to anyone whose role may read it/i)).toBeInTheDocument();
     expect(screen.queryByRole('tab')).toBeNull();
     // Settings live next door, and neither page carries the other's controls.
     expect(screen.queryByLabelText(/company name/i)).toBeNull();

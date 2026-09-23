@@ -22,6 +22,8 @@ export function Dropdown<V extends string>({
   id,
   disabled = false,
   'aria-label': ariaLabel,
+  'aria-invalid': ariaInvalid,
+  'aria-describedby': ariaDescribedBy,
 }: DropdownProps<V>) {
   const [position, setPosition] = useState<PanelPosition | null>(null);
   const [active, setActive] = useState(0);
@@ -148,6 +150,10 @@ export function Dropdown<V extends string>({
         type="button"
         role="combobox"
         aria-label={ariaLabel}
+        // Set by `Field` when it is showing an error, the same way it reaches
+        // an `Input` — the trigger is what a reader lands on.
+        aria-invalid={ariaInvalid}
+        aria-describedby={ariaDescribedBy}
         aria-haspopup="listbox"
         aria-expanded={open}
         aria-controls={open ? listboxId : undefined}

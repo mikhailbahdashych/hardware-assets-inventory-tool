@@ -1,6 +1,7 @@
 import { and, count, desc, eq, isNotNull, isNull, or, type SQL } from 'drizzle-orm';
 import { z } from 'zod';
 import {
+  AUDIT_ACTOR_KIND_LABELS,
   AUDIT_ACTOR_KINDS,
   AUDIT_TYPE_LABELS,
   AUDIT_TYPES,
@@ -117,10 +118,14 @@ export async function auditCsv(db: Db, query: AuditExportQuery): Promise<string>
   ).map(toAuditItem);
 
   return toCsv(
-    ['Time', 'Actor', 'Event', 'Type'],
+    // The kind rides beside the name because a name alone does not carry it:
+    // a token is called whatever an admin called it, so in a file a person and
+    // a token of the same name would be two identical-looking rows.
+    ['Time', 'Actor', 'Actor kind', 'Event', 'Type'],
     rows.map((item) => [
       item.at,
       item.actorName,
+      AUDIT_ACTOR_KIND_LABELS[item.actorKind],
       renderAuditEvent(item),
       AUDIT_TYPE_LABELS[item.type],
     ]),
