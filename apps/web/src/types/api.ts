@@ -1,7 +1,9 @@
 import type {
   Action,
+  ApiScope,
   AssetCategory,
   AssignmentOutcome,
+  AuditActorKind,
   AuditType,
   CheckinCondition,
   Currency,
@@ -347,9 +349,32 @@ export interface SettingsPayload {
 /** One activity-log row. `AuditEntry` is the same event on an asset's own trail. */
 export interface AuditLogItem extends AuditEntry {
   type: AuditType;
+  /** Whether a person, an API token or the system itself did it. */
+  actorKind: AuditActorKind;
   assetId: string | null;
   employeeId: string | null;
   memberId: string | null;
+}
+
+/**
+ * One API token as the page reads it. The raw value is not here and never will
+ * be: it exists once, in the response that minted it.
+ */
+export interface ApiTokenSummary {
+  id: string;
+  name: string;
+  scopes: ApiScope[];
+  /** Null is the "Unlimited" an admin picked, not an expiry nobody set. */
+  expiresAt: string | null;
+  createdByName: string;
+  createdAt: string;
+  lastUsedAt: string | null;
+}
+
+/** What `POST /api-tokens` answers: the raw token, once, beside its row. */
+export interface MintedApiToken {
+  token: string;
+  apiToken: ApiTokenSummary;
 }
 
 export interface AuditPage {

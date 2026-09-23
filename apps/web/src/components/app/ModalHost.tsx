@@ -21,7 +21,7 @@ export function ModalHost({ member, permissions }: ModalHostProps) {
 
   switch (open) {
     case 'palette':
-      return <CommandPalette permissions={permissions} onClose={closeModal} />;
+      return <CommandPalette permissions={permissions} role={member.role} onClose={closeModal} />;
     case 'newAsset':
       return <AssetFormModal permissions={permissions} onClose={closeModal} />;
     case 'addEmployee':

@@ -12,7 +12,7 @@ export function Sidebar({ member, permissions, orgName, onSignOut }: SidebarProp
   const { pathname } = useLocation();
   // The same call the palette's action makes — one modal, two doors.
   const { openModal } = useModals();
-  const sections = navSectionsFor(permissions);
+  const sections = navSectionsFor(permissions, member.role);
   // The role under the member's name is a row's label, not a word this build
   // knows — the same lookup the Members page's pills go through.
   const roles = useRoles();

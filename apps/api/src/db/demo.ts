@@ -1,5 +1,5 @@
 import { eq } from 'drizzle-orm';
-import { ADMIN_ROLE, deriveOutcome } from '@inventory/shared';
+import { ADMIN_ROLE, assetCreateInput, deriveOutcome } from '@inventory/shared';
 import type { AppDeps } from '@/types/app.js';
 import type { Actor } from '@/types/audit.js';
 import type { DbOrTx } from '@/types/db.js';
@@ -20,6 +20,9 @@ import {
   ASSETS,
   DEMO_ROLE,
   DEMO_STATUS,
+  DEMO_TOKEN,
+  DEMO_TOKEN_DELIVERY,
+  DEMO_TOKEN_SERIAL,
   DEMO_TRANSITIONS,
   EMAIL_DOMAIN,
   HISTORY_DAYS,
@@ -32,6 +35,8 @@ import { AppError } from '@/lib/errors.js';
 import { newId } from '@/lib/ids.js';
 import { addDays, nowIso, todayDate } from '@/lib/dates.js';
 import { hashPassword } from '@/lib/password.js';
+import { mintApiToken, resolveApiToken } from '@/services/api-tokens.js';
+import { createAsset, updateAsset } from '@/services/assets.js';
 import { writeAudit } from '@/services/audit.js';
 import { activeAssignment, closeAssignment, openAssignment } from '@/services/assignments.js';
 import { notifyLinkedMember } from '@/services/notifications.js';
@@ -177,6 +182,7 @@ export async function seedDemo(deps: AppDeps, options: DemoSeedOptions): Promise
 
   await curateWorkflow(deps, actor);
   await curateRoles(deps, actor, { memberIds: demoMembers, signIn });
+  await seedApiToken(deps, actor);
 
   // The scans a real instance's first night would have run, so the bell shows
   // what production code would put there — not rows a seeder invented.
@@ -188,6 +194,31 @@ export async function seedDemo(deps: AppDeps, options: DemoSeedOptions): Promise
     signIn,
     counts: await countRows(deps.db),
   };
+}
+
+/**
+ * The company's own integration, minted and then used — because a token that
+ * has never called anything leaves an empty "Last used" column and an activity
+ * log with nothing for its actor filter to separate.
+ *
+ * It goes through the real services like everything else here: the token is
+ * minted by the admin (so the log carries their `token.created` line), resolved
+ * exactly as the Bearer door resolves it, and then does what a provisioning
+ * bot does — files a delivery and writes the serial back. Those two rows are
+ * attributed to the token, with no member behind them, which is the whole
+ * point of the kind column.
+ *
+ * The raw value goes out of scope here and exists nowhere else, so the row on
+ * the page opens nothing.
+ */
+async function seedApiToken(deps: AppDeps, actor: Actor): Promise<void> {
+  const { token } = await mintApiToken(deps, actor, DEMO_TOKEN);
+  const resolved = await resolveApiToken(deps.db, token, deps.now());
+  if (!resolved) throw new Error('The demo API token was refused by the resolver that minted it.');
+
+  const bot: Actor = { id: null, displayName: resolved.name, apiTokenId: resolved.id };
+  const delivery = await createAsset(deps, bot, assetCreateInput.parse(DEMO_TOKEN_DELIVERY));
+  await updateAsset(deps, bot, delivery.id, { serialNumber: DEMO_TOKEN_SERIAL });
 }
 
 /**

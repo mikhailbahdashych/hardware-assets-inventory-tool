@@ -30,6 +30,11 @@
   gap: 8px;
 }
 
+.actorFilter {
+  flex: none;
+  width: 140px;
+}
+
 .export {
   margin-left: auto;
   height: 27px;
@@ -57,6 +62,10 @@
 }
 
 .actor {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
   font-size: 12.5px;
   white-space: nowrap;
   overflow: hidden;

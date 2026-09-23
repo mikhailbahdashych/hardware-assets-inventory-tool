@@ -1,4 +1,5 @@
 import { can, type Action } from '@inventory/shared';
+import { isAdmin } from '@/lib/roles';
 import type { GatedNavItem, NavItem, NavSections } from './types/nav';
 
 // What the workspace exists for: everybody's half.
@@ -24,25 +25,30 @@ const WORKSPACE_ITEMS: GatedNavItem[] = [
     requires: 'custom_fields.manage',
   },
   { label: 'Roles', to: '/roles', icon: 'key', requires: 'roles.manage' },
+  { label: 'API tokens', to: '/api-tokens', icon: 'terminal', adminOnly: true },
   { label: 'Admin', to: '/admin', icon: 'gear', requires: 'settings.manage' },
 ];
 
-function allowed(items: GatedNavItem[], permissions: Action[]): NavItem[] {
+function allowed(items: GatedNavItem[], permissions: Action[], role: string): NavItem[] {
   return items
-    .filter((item) => !item.requires || can(permissions, item.requires))
-    .map(({ requires: _requires, ...item }) => item);
+    .filter((item) =>
+      item.adminOnly ? isAdmin(role) : !item.requires || can(permissions, item.requires),
+    ) // prettier-ignore
+    .map(({ requires: _requires, adminOnly: _adminOnly, ...item }) => item);
 }
 
 /**
  * The sections this member may see, split into the sidebar's two halves.
- * Every gated item names an action rather than a role, so a workspace that
- * grants `audit.view` to its own "Auditor" gets the Activity log without
- * anybody teaching this file about the role.
+ * Almost every gated item names an action rather than a role, so a workspace
+ * that grants `audit.view` to its own "Auditor" gets the Activity log without
+ * anybody teaching this file about the role. API tokens is the exception and
+ * takes the role itself — `isAdmin` in `lib/roles.ts` says why — which is why
+ * this function is asked about the member rather than only their permissions.
  */
-export function navSectionsFor(permissions: Action[]): NavSections {
+export function navSectionsFor(permissions: Action[], role: string): NavSections {
   return {
-    inventory: allowed(INVENTORY_ITEMS, permissions),
-    workspace: allowed(WORKSPACE_ITEMS, permissions),
+    inventory: allowed(INVENTORY_ITEMS, permissions, role),
+    workspace: allowed(WORKSPACE_ITEMS, permissions, role),
   };
 }
 
@@ -61,6 +67,7 @@ const SECTION_LABELS: Record<string, string> = {
   workflow: 'Workflow',
   'custom-fields': 'Custom fields',
   roles: 'Roles',
+  'api-tokens': 'API tokens',
   admin: 'Admin',
 };
 

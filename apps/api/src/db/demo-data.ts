@@ -1,4 +1,4 @@
-import type { WorkflowTransition } from '@inventory/shared';
+import type { ApiTokenCreateInput, WorkflowTransition } from '@inventory/shared';
 import type {
   DemoAsset,
   DemoHolding,
@@ -648,3 +648,33 @@ export const DEMO_TRANSITIONS: readonly WorkflowTransition[] = [
   { from: 'lost_stolen', to: 'available' },
   { from: 'lost_stolen', to: 'retired' },
 ];
+
+/**
+ * The integration this company runs: a script in the IT team's provisioning
+ * pipeline, holding a token an admin minted for it on the API tokens page.
+ *
+ * Nothing keeps the raw value — `mintApiToken` returns it once and the seeder
+ * drops it — so the row demonstrates the page and the activity log's actor
+ * filter without being a credential anybody could use.
+ */
+export const DEMO_TOKEN: ApiTokenCreateInput = {
+  name: 'Provisioning bot',
+  scopes: ['assets:read', 'assets:write'],
+  expiresInDays: 180,
+};
+
+/**
+ * The delivery it filed this morning, and the serial it wrote back once the
+ * imaging job had read it off the device — two lines in the log with a machine
+ * rather than a person behind them. The rest of the fields are the schema's
+ * own defaults, exactly as they would be over the wire.
+ */
+export const DEMO_TOKEN_DELIVERY = {
+  name: 'ThinkPad X1 Carbon Gen 12',
+  category: 'laptops',
+  status: 'ordered',
+  model: '21KC',
+  supplier: 'Insight EMEA',
+};
+
+export const DEMO_TOKEN_SERIAL = 'PF4X9K2TQ';

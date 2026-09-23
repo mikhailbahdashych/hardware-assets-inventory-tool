@@ -29,6 +29,8 @@ export interface ActionDefinition {
   effect: PaletteEffect;
   /** Omitted for the actions everybody may take (there is one: the theme). */
   requires?: Action;
+  /** The nav's own flag: see `isAdmin` in `lib/roles.ts` for why it is a role. */
+  adminOnly?: true;
 }
 
 /**
@@ -40,6 +42,8 @@ export interface ActionDefinition {
 export interface PaletteInput {
   query: string;
   permissions: Action[];
+  /** The role this member holds, for the one command gated on it. */
+  role: string;
   results: SearchPayload;
   /** The workspace's statuses, so an asset row can name the one it carries. */
   statuses: WorkflowStatus[];

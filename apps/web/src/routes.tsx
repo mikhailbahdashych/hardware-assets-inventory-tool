@@ -4,8 +4,10 @@ import { can } from '@inventory/shared';
 import { orgMeta, useMe, useMeta } from './api/queries';
 import { AppShell } from './components/app/AppShell';
 import { Spinner } from './components/ui';
+import { isAdmin } from './lib/roles';
 import { ActivityLogPage } from './features/admin/ActivityLogPage';
 import { AdminPage } from './features/admin/AdminPage';
+import { ApiTokensPage } from './features/api-tokens/ApiTokensPage';
 import { AssetDetailPage } from './features/assets/AssetDetailPage';
 import { AssetsPage } from './features/assets/AssetsPage';
 import { AcceptInvitePage } from './features/auth/AcceptInvitePage';
@@ -196,6 +198,14 @@ export function AppRoutes() {
               <Navigate to="/dashboard" replace />
             )
           }
+        />
+        {/* The one page gated on the role itself rather than on an action:
+            minting a token that may write assets is workspace power by proxy,
+            so it is deliberately not a grant a workspace can hand out. See
+            `isAdmin` in lib/roles.ts, and the API's own guard. */}
+        <Route
+          path="/api-tokens"
+          element={isAdmin(member.role) ? <ApiTokensPage /> : <Navigate to="/dashboard" replace />}
         />
         <Route
           path="/admin"

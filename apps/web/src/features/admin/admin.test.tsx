@@ -79,10 +79,10 @@ describe('the activity log', () => {
   it('counts every pill and keeps the chosen one in the URL', async () => {
     const api = renderApp(ADMIN_ROUTES, '/activity');
 
-    expect(await screen.findByRole('button', { name: 'All 3' })).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: 'All 4' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'System 0' })).toBeInTheDocument();
 
-    await userEvent.click(screen.getByRole('button', { name: 'Assets 1' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Assets 2' }));
     await waitFor(() =>
       expect(api.calledAll('GET /audit').some((call) => call.search.includes('type=assets'))).toBe(
         true,
@@ -98,7 +98,7 @@ describe('the activity log', () => {
 
   it('says how long events are kept, using the workspace setting', async () => {
     renderApp(ADMIN_ROUTES, '/activity');
-    expect(await screen.findByText('3 events · retained for 12 months')).toBeInTheDocument();
+    expect(await screen.findByText('4 events · retained for 12 months')).toBeInTheDocument();
   });
 
   it('walks the log by numbered pages, asking for the offset it lands on', async () => {
@@ -127,7 +127,7 @@ describe('the activity log', () => {
     );
 
     await userEvent.click(await screen.findByRole('button', { name: '2' }));
-    await userEvent.click(screen.getByRole('button', { name: 'Assets 1' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Assets 2' }));
 
     await waitFor(() =>
       expect(
@@ -135,6 +135,62 @@ describe('the activity log', () => {
       ).toBe(true),
     );
     expect(screen.getByRole('button', { name: '1' })).toHaveAttribute('aria-current', 'page');
+  });
+
+  it('marks the lines a token wrote, so one is never read as a person’s', async () => {
+    renderApp(ADMIN_ROUTES, '/activity');
+
+    const byToken = (await screen.findByText('Added Dell U2723QE to the inventory')).closest(
+      '[role="row"]',
+    ) as HTMLElement;
+    expect(within(byToken).getByText('Deploy bot')).toBeInTheDocument();
+    expect(within(byToken).getByText('API')).toBeInTheDocument();
+
+    // A person's line carries no such mark.
+    const byPerson = (await screen.findByText('Invited grace@acme.io as a Manager')).closest(
+      '[role="row"]',
+    ) as HTMLElement;
+    expect(within(byPerson).queryByText('API')).toBeNull();
+  });
+
+  it('narrows the log to one kind of actor, and keeps the choice in the URL', async () => {
+    const api = renderApp(
+      { ...ADMIN_ROUTES, 'GET /audit': { body: { ...AUDIT_PAGE, total: 440 } } },
+      '/activity',
+    );
+
+    // Page two first: a different log is not somewhere page two exists.
+    await userEvent.click(await screen.findByRole('button', { name: '2' }));
+    await choose(screen, /who acted/i, 'API tokens');
+
+    await waitFor(() =>
+      expect(
+        api
+          .calledAll('GET /audit')
+          .some((call) => call.search.includes('offset=0&actorKind=token')),
+      ).toBe(true),
+    );
+    expect(screen.getByRole('button', { name: '1' })).toHaveAttribute('aria-current', 'page');
+    // And the file matches the screen, filter for filter.
+    expect(screen.getByRole('link', { name: /export log/i })).toHaveAttribute(
+      'href',
+      '/api/v1/audit/export?actorKind=token',
+    );
+  });
+
+  it('is a filtered view worth sharing: the URL brings the filter back', async () => {
+    const api = renderApp(ADMIN_ROUTES, '/activity?actorKind=token&type=assets');
+    await screen.findByRole('heading', { name: 'Activity log' });
+
+    await waitFor(() =>
+      expect(
+        api.calledAll('GET /audit').some((call) => call.search.includes('actorKind=token')),
+      ).toBe(true),
+    );
+    expect(screen.getByRole('link', { name: /export log/i })).toHaveAttribute(
+      'href',
+      '/api/v1/audit/export?type=assets&actorKind=token',
+    );
   });
 
   it('has no page numbers when the log fits on one page', async () => {

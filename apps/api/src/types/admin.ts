@@ -29,8 +29,17 @@ export interface AuditPage {
   total: number;
 }
 
-export interface AuditQuery {
+/**
+ * What narrows the log. Both endpoints take the pair — the export renders the
+ * rows the screen is showing, so it has to be asked the same question.
+ */
+export interface AuditExportQuery {
   type?: AuditType;
+  /** Whether a person, an API token or the system itself did it. */
+  actorKind?: AuditActorKind;
+}
+
+export interface AuditQuery extends AuditExportQuery {
   limit: number;
   offset: number;
 }

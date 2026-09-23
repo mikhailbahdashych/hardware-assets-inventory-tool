@@ -1,4 +1,4 @@
-import type { WorkspaceRole } from '@inventory/shared';
+import { ADMIN_ROLE, type WorkspaceRole } from '@inventory/shared';
 import type { RoleInfo } from './types/roles';
 
 // Roles are rows an admin edits, not an enum this build knows, so every screen
@@ -32,4 +32,19 @@ export function roleInfo(map: Map<string, WorkspaceRole>, id: string): RoleInfo 
  */
 export function leastPrivileged(roles: WorkspaceRole[]): WorkspaceRole | undefined {
   return [...roles].sort((a, b) => a.permissions.length - b.permissions.length)[0];
+}
+
+/**
+ * Whether this member holds the system role. **The one gate in the app that
+ * asks about a role rather than an action**, and it exists for one page: API
+ * tokens. A grantable `tokens.manage` would rebuild the ladder the admin
+ * shield closed — a custom role that can mint an `assets:write` token holds
+ * workspace power by proxy, through a credential no session check ever looks
+ * at again — so it is deliberately not in `ACTIONS`, and the API's own guard
+ * (`requireAdminRole` in `modules/api-tokens.ts`) asks the same question of
+ * the member row it resolved. Named here so the nav item, the route guard and
+ * the palette command read one sentence rather than three comparisons.
+ */
+export function isAdmin(role: string): boolean {
+  return role === ADMIN_ROLE;
 }
