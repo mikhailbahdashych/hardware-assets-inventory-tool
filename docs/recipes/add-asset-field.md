@@ -24,7 +24,9 @@ export const assetPatchInput = z.object({
 
 `nullableText` from `./common.js` trims and turns `""` into `null`, so a blank input never reaches a column as an empty string. That distinction between `.default(null)` and `.optional()` is what lets a patch tell "don't touch this" apart from "clear it" — the API relies on it.
 
-## 2. The column — `apps/api/src/db/schema.ts`
+## 2. The column — `apps/api/src/db/schema.sqlite.ts` **and** `schema.pg.ts`
+
+One logical schema, written twice — `schema.ts` is what services import, not what you edit, and `test/schema-parity.test.ts` fails if you change one and forget the other.
 
 ```ts
 export const assets = sqliteTable('assets', {
@@ -33,13 +35,14 @@ export const assets = sqliteTable('assets', {
 });
 ```
 
-Then generate the migration and **check it in**:
+Then generate **both** migrations and check them in:
 
 ```bash
-npm run db:generate -w apps/api
+npm run db:generate -w apps/api      # → src/migrations/
+npm run db:generate:pg -w apps/api   # → src/migrations-pg/
 ```
 
-Read the SQL it wrote. Never edit a migration that has been merged — add another.
+Read the SQL each wrote. Never edit a migration that has been merged — add another.
 
 ## 3. The service — `apps/api/src/services/assets.ts`
 

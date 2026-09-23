@@ -1,3 +1,16 @@
+CREATE TABLE "api_tokens" (
+	"id" text PRIMARY KEY NOT NULL,
+	"name" text NOT NULL,
+	"token_hash" text NOT NULL,
+	"scopes" text NOT NULL,
+	"expires_at" text,
+	"created_by_member_id" text,
+	"created_by_name" text NOT NULL,
+	"created_at" text NOT NULL,
+	"last_used_at" text,
+	CONSTRAINT "api_tokens_token_hash_unique" UNIQUE("token_hash")
+);
+--> statement-breakpoint
 CREATE TABLE "asset_custom_values" (
 	"asset_id" text NOT NULL,
 	"field_def_id" text NOT NULL,
@@ -77,6 +90,8 @@ CREATE TABLE "audit_events" (
 	"type" text NOT NULL,
 	"action" text NOT NULL,
 	"actor_member_id" text,
+	"actor_api_token_id" text,
+	"actor_kind" text,
 	"actor_name" text NOT NULL,
 	"asset_id" text,
 	"employee_id" text,
@@ -146,12 +161,14 @@ CREATE TABLE "mfa_recovery_codes" (
 	"created_at" text NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "notification_log" (
+CREATE TABLE "notifications" (
 	"id" text PRIMARY KEY NOT NULL,
+	"member_id" text NOT NULL,
 	"kind" text NOT NULL,
-	"dedupe_key" text NOT NULL,
-	"sent_at" text NOT NULL,
-	CONSTRAINT "notification_log_dedupe_key_unique" UNIQUE("dedupe_key")
+	"params" text DEFAULT '{}' NOT NULL,
+	"dedupe_key" text,
+	"created_at" text NOT NULL,
+	"read_at" text
 );
 --> statement-breakpoint
 CREATE TABLE "org_settings" (
@@ -163,8 +180,6 @@ CREATE TABLE "org_settings" (
 	"log_retention_months" integer,
 	"email_warranty_alerts" boolean DEFAULT true NOT NULL,
 	"email_return_reminders" boolean DEFAULT true NOT NULL,
-	"email_invites" boolean DEFAULT true NOT NULL,
-	"email_weekly_digest" boolean DEFAULT false NOT NULL,
 	"mfa_required" boolean DEFAULT false NOT NULL,
 	"upload_quota_mb" integer DEFAULT 2048 NOT NULL,
 	"created_at" text NOT NULL,
@@ -196,6 +211,7 @@ CREATE TABLE "sessions" (
 	"created_at" text NOT NULL
 );
 --> statement-breakpoint
+ALTER TABLE "api_tokens" ADD CONSTRAINT "api_tokens_created_by_member_id_members_id_fk" FOREIGN KEY ("created_by_member_id") REFERENCES "public"."members"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "asset_custom_values" ADD CONSTRAINT "asset_custom_values_asset_id_assets_id_fk" FOREIGN KEY ("asset_id") REFERENCES "public"."assets"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "asset_custom_values" ADD CONSTRAINT "asset_custom_values_field_def_id_custom_field_defs_id_fk" FOREIGN KEY ("field_def_id") REFERENCES "public"."custom_field_defs"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "asset_status_transitions" ADD CONSTRAINT "asset_status_transitions_from_status_asset_statuses_id_fk" FOREIGN KEY ("from_status") REFERENCES "public"."asset_statuses"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
@@ -205,9 +221,11 @@ ALTER TABLE "assignments" ADD CONSTRAINT "assignments_employee_id_employees_id_f
 ALTER TABLE "attachments" ADD CONSTRAINT "attachments_asset_id_assets_id_fk" FOREIGN KEY ("asset_id") REFERENCES "public"."assets"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "attachments" ADD CONSTRAINT "attachments_uploaded_by_member_id_members_id_fk" FOREIGN KEY ("uploaded_by_member_id") REFERENCES "public"."members"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "audit_events" ADD CONSTRAINT "audit_events_actor_member_id_members_id_fk" FOREIGN KEY ("actor_member_id") REFERENCES "public"."members"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "audit_events" ADD CONSTRAINT "audit_events_actor_api_token_id_api_tokens_id_fk" FOREIGN KEY ("actor_api_token_id") REFERENCES "public"."api_tokens"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "auth_tokens" ADD CONSTRAINT "auth_tokens_member_id_members_id_fk" FOREIGN KEY ("member_id") REFERENCES "public"."members"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "members" ADD CONSTRAINT "members_employee_id_employees_id_fk" FOREIGN KEY ("employee_id") REFERENCES "public"."employees"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "mfa_recovery_codes" ADD CONSTRAINT "mfa_recovery_codes_member_id_members_id_fk" FOREIGN KEY ("member_id") REFERENCES "public"."members"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "notifications" ADD CONSTRAINT "notifications_member_id_members_id_fk" FOREIGN KEY ("member_id") REFERENCES "public"."members"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "role_permissions" ADD CONSTRAINT "role_permissions_role_id_roles_id_fk" FOREIGN KEY ("role_id") REFERENCES "public"."roles"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "sessions" ADD CONSTRAINT "sessions_member_id_members_id_fk" FOREIGN KEY ("member_id") REFERENCES "public"."members"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 CREATE INDEX "assets_status_idx" ON "assets" USING btree ("status");--> statement-breakpoint
@@ -225,5 +243,7 @@ CREATE INDEX "auth_tokens_member_idx" ON "auth_tokens" USING btree ("member_id",
 CREATE INDEX "employees_status_idx" ON "employees" USING btree ("status");--> statement-breakpoint
 CREATE INDEX "members_employee_idx" ON "members" USING btree ("employee_id");--> statement-breakpoint
 CREATE INDEX "mfa_recovery_member_idx" ON "mfa_recovery_codes" USING btree ("member_id");--> statement-breakpoint
+CREATE INDEX "notifications_member_idx" ON "notifications" USING btree ("member_id","created_at");--> statement-breakpoint
+CREATE UNIQUE INDEX "notifications_dedupe_idx" ON "notifications" USING btree ("member_id","dedupe_key");--> statement-breakpoint
 CREATE INDEX "sessions_member_idx" ON "sessions" USING btree ("member_id");--> statement-breakpoint
 CREATE INDEX "sessions_expires_idx" ON "sessions" USING btree ("expires_at");

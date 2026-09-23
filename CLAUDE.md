@@ -40,7 +40,7 @@ docker compose -f docker-compose.dev.yml up          # → http://localhost:5173
 
 Same two processes, same ports, your checkout bind-mounted so hot reload still works. It exists because contributing should not require a Node toolchain — and because the npm scripts set env vars inline, which `cmd.exe` cannot parse, so it is also the Windows answer. Don't confuse it with `docker-compose.yml`, which is the deployment: the built image, no toolchain, no source.
 
-**Dev data lives in `./data` at the repo root** — `apps/api`'s `dev` and `seed:demo` scripts both default `DATA_DIR` to it, and they have to agree or the seed lands somewhere the server never reads. Delete the directory to start over. In dev the API binds `127.0.0.1` and Vite binds `localhost`: both are reached through the proxy, and a dev box handing an un-set-up workspace to the local network is not a feature.
+**Dev data lives in `./data` at the repo root** — `apps/api`'s `dev` and `seed:demo` scripts both default `DATA_DIR` to it, and they have to agree or the seed lands somewhere the server never reads. Delete the directory to start over — and note that **a `./data` from before v0.3.0 has to go**: the migration history was collapsed into a single `0000_init` per engine for that release, so the migrator finds nothing in an older database's journal that matches it, replays it over tables that already exist, and the boot dies saying `api_tokens` already exists. Delete the directory and reseed. In dev the API binds `127.0.0.1` and Vite binds `localhost`: both are reached through the proxy, and a dev box handing an un-set-up workspace to the local network is not a feature.
 
 ## Non-negotiable conventions
 
