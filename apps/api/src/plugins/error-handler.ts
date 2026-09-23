@@ -3,7 +3,7 @@ import { hasZodFastifySchemaValidationErrors } from 'fastify-type-provider-zod';
 import type { ApiErrorEnvelope } from '@inventory/shared';
 import { AppError } from '@/lib/errors.js';
 import { translateUniqueViolation } from '@/lib/unique.js';
-import type { HttpErrorLike, ZodValidationParams } from '@/types/errors.js';
+import type { HttpErrorLike } from '@/types/errors.js';
 
 /** The one envelope shape, built in one place so no route can invent another. */
 const envelope = (
@@ -31,8 +31,14 @@ export function registerErrorHandler(app: FastifyInstance): void {
     if (hasZodFastifySchemaValidationErrors(error)) {
       const fields: Record<string, string> = {};
       for (const validation of error.validation) {
-        const { issue } = validation.params as ZodValidationParams;
-        if (issue?.path && issue.message) fields[issue.path.join('.')] = issue.message;
+        // `instancePath` is the JSON pointer the provider builds from the zod
+        // issue's own path — "/name", "/scopes/0" — and it is the only place
+        // that path survives: `params` carries the issue with `path`, `code`
+        // and `message` stripped out. A refusal about the body as a whole has
+        // no path and so no input to sit under; the form's general error line
+        // is where that one belongs.
+        const field = validation.instancePath.split('/').filter(Boolean).join('.');
+        if (field && validation.message) fields[field] = validation.message;
       }
       return reply.status(422).send(envelope('validation', 'Request validation failed.', fields));
     }
