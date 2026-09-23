@@ -95,6 +95,23 @@ describe('the SPA document carries a content security policy', () => {
     expect(asset.headers['content-security-policy']).toBeUndefined();
   });
 
+  it('serves the app for a client route that merely begins with those letters', async () => {
+    ctx = await buildTestApp({ WEB_DIST: writeDist(withInlineScript) });
+
+    // `/api-tokens` is a page. A prefix check without the slash swallowed it
+    // and answered a bookmark, a hard reload or a pasted link with the JSON
+    // 404 envelope — the app opened it fine, so only the URL bar found out.
+    const page = await ctx.app.inject({ method: 'GET', url: '/api-tokens' });
+    expect(page.statusCode).toBe(200);
+    expect(page.body).toContain('<div id="root">');
+
+    // The namespace itself is still the API's, and an unknown route under it
+    // answers as the API rather than handing a client a page.
+    const missing = await ctx.app.inject({ method: 'GET', url: '/api/v1/nope' });
+    expect(missing.statusCode).toBe(404);
+    expect(missing.json().error.code).toBe('not_found');
+  });
+
   it('adds no headers at all to an instance serving no SPA', async () => {
     ctx = await buildTestApp();
     const res = await ctx.app.inject({ method: 'GET', url: '/anything' });
