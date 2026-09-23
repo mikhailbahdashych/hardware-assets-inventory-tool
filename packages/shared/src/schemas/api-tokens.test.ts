@@ -18,6 +18,32 @@ describe('apiTokenCreateSchema', () => {
     expect(apiTokenCreateSchema.safeParse({ ...valid, name: 'x'.repeat(100) }).success).toBe(true);
   });
 
+  /**
+   * Every one of these reaches a person now: 422 field messages land under the
+   * input that caused them, so a refusal has to be a sentence rather than
+   * zod's own "Too big: expected string to have <=100 characters".
+   */
+  it('says what is wrong in words a person can act on', () => {
+    const messages = (input: unknown): string[] => {
+      const result = apiTokenCreateSchema.safeParse(input);
+      return result.success ? [] : result.error.issues.map((issue) => issue.message);
+    };
+
+    expect(messages({ ...valid, name: '  ' })).toEqual(['Give the token a name.']);
+    expect(messages({ ...valid, name: 'x'.repeat(101) })).toEqual([
+      'Keep the name to 100 characters or fewer.',
+    ]);
+    expect(messages({ ...valid, scopes: [] })).toEqual([
+      'Choose at least one scope — a token that may do nothing has no purpose.',
+    ]);
+    for (const message of [
+      ...messages({ ...valid, name: '' }),
+      ...messages({ ...valid, scopes: [] }),
+    ]) {
+      expect(message, message).not.toMatch(/expected|invalid_type|Too (big|small)/i);
+    }
+  });
+
   /** A token that may do nothing is a credential with no purpose. */
   it('refuses an empty scope list and a scope from no vocabulary of ours', () => {
     expect(apiTokenCreateSchema.safeParse({ ...valid, scopes: [] }).success).toBe(false);

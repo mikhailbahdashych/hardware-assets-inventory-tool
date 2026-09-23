@@ -1,6 +1,7 @@
-import { count, desc, eq } from 'drizzle-orm';
+import { and, count, desc, eq, isNotNull, isNull, or, type SQL } from 'drizzle-orm';
 import { z } from 'zod';
 import {
+  AUDIT_ACTOR_KIND_LABELS,
   AUDIT_ACTOR_KINDS,
   AUDIT_TYPE_LABELS,
   AUDIT_TYPES,
@@ -11,7 +12,13 @@ import {
   type AuditType,
 } from '@inventory/shared';
 import type { Db } from '@/types/db.js';
-import type { AuditItem, AuditPage, AuditQuery, AuditTypeCounts } from '@/types/admin.js';
+import type {
+  AuditExportQuery,
+  AuditItem,
+  AuditPage,
+  AuditQuery,
+  AuditTypeCounts,
+} from '@/types/admin.js';
 import { auditEvents } from '@/db/schema.js';
 import { AppError } from '@/lib/errors.js';
 
@@ -29,34 +36,70 @@ export const MAX_AUDIT_LIMIT = 500;
  * what a filter means.
  */
 export const auditTypeFilter = z.enum(AUDIT_TYPES).optional();
+export const auditActorKindFilter = z.enum(AUDIT_ACTOR_KINDS).optional();
 
 export const auditQuery = z.object({
   type: auditTypeFilter,
-  // An `actorKind` filter belongs here, beside `type`, and deliberately is not
-  // here yet: every row carries the kind and `AuditItem` sends it, but nothing
-  // asks to narrow by it until PR 4 draws the pill that would. A query
-  // parameter no client passes is a contract with nobody.
+  actorKind: auditActorKindFilter,
   limit: z.coerce.number().int().min(1).max(MAX_AUDIT_LIMIT).default(DEFAULT_AUDIT_LIMIT),
   offset: z.coerce.number().int().min(0).default(0),
 });
 
-export const auditExportQuery = z.object({ type: auditTypeFilter });
+export const auditExportQuery = z.object({
+  type: auditTypeFilter,
+  actorKind: auditActorKindFilter,
+});
+
+/**
+ * The two filters as one condition. Kept together so the page, its counts and
+ * the export cannot read the same querystring differently.
+ */
+function where(query: AuditExportQuery): SQL | undefined {
+  return and(query.type ? eq(auditEvents.type, query.type) : undefined, actorWhere(query));
+}
+
+/**
+ * The actor filter, in SQL. It has to mirror `actorKindOf` exactly rather than
+ * compare the column, because **NULL there means "written before the column
+ * existed"** and nothing backfills it: a literal `actor_kind = 'member'` would
+ * hide an upgraded instance's entire history from the filter that is supposed
+ * to be showing it. No token could have written one of those rows, which is
+ * why `token` is the one kind the column alone answers for.
+ */
+function actorWhere(query: AuditExportQuery): SQL | undefined {
+  const kind = query.actorKind;
+  if (kind === undefined) return undefined;
+  if (kind === 'token') return eq(auditEvents.actorKind, 'token');
+  return or(
+    eq(auditEvents.actorKind, kind),
+    and(
+      isNull(auditEvents.actorKind),
+      kind === 'member' ? isNotNull(auditEvents.actorMemberId) : isNull(auditEvents.actorMemberId),
+    ),
+  );
+}
 
 /**
  * One page of the activity log, newest first, plus a count behind every filter
- * pill. The counts are taken over the whole log rather than the page, so
- * switching pills never makes the other numbers move.
+ * pill.
+ *
+ * The two numbers serve different masters. **`total` obeys every filter**,
+ * because it is what the pager divides — a wider number under a narrower view
+ * offers pages the filter has no rows for. **`typeCounts` obeys the actor
+ * filter and ignores the type one**, so switching a pill never moves the other
+ * pills' numbers, while picking an actor does: it is the log's shape for that
+ * actor. `listAssets` splits its `total` from its `statusCounts` the same way.
  */
 export async function auditPage(db: Db, query: AuditQuery): Promise<AuditPage> {
   const rows = await db
     .select()
     .from(auditEvents)
-    .where(query.type ? eq(auditEvents.type, query.type) : undefined)
+    .where(where(query))
     .orderBy(desc(auditEvents.at), desc(auditEvents.id))
     .limit(query.limit)
     .offset(query.offset);
 
-  const counts = await typeCounts(db);
+  const counts = await typeCounts(db, actorWhere(query));
   return {
     items: rows.map(toAuditItem),
     typeCounts: counts,
@@ -65,30 +108,35 @@ export async function auditPage(db: Db, query: AuditQuery): Promise<AuditPage> {
 }
 
 /** The same rows the screen shows, as a file — one renderer, so they agree. */
-export async function auditCsv(db: Db, type?: AuditType): Promise<string> {
+export async function auditCsv(db: Db, query: AuditExportQuery): Promise<string> {
   const rows = (
     await db
       .select()
       .from(auditEvents)
-      .where(type ? eq(auditEvents.type, type) : undefined)
+      .where(where(query))
       .orderBy(desc(auditEvents.at), desc(auditEvents.id))
   ).map(toAuditItem);
 
   return toCsv(
-    ['Time', 'Actor', 'Event', 'Type'],
+    // The kind rides beside the name because a name alone does not carry it:
+    // a token is called whatever an admin called it, so in a file a person and
+    // a token of the same name would be two identical-looking rows.
+    ['Time', 'Actor', 'Actor kind', 'Event', 'Type'],
     rows.map((item) => [
       item.at,
       item.actorName,
+      AUDIT_ACTOR_KIND_LABELS[item.actorKind],
       renderAuditEvent(item),
       AUDIT_TYPE_LABELS[item.type],
     ]),
   );
 }
 
-async function typeCounts(db: Db): Promise<AuditTypeCounts> {
+async function typeCounts(db: Db, actor: SQL | undefined): Promise<AuditTypeCounts> {
   const rows = await db
     .select({ type: auditEvents.type, count: count() })
     .from(auditEvents)
+    .where(actor)
     .groupBy(auditEvents.type);
 
   // Every pill needs a number even when nothing of that kind has happened, so

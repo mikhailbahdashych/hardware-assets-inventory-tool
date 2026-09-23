@@ -19,7 +19,13 @@ export default defineConfig({
     // boundary is what a request has to cross to arrive at all.
     host: process.env.VITE_HOST ?? 'localhost',
     proxy: {
-      '/api': 'http://localhost:3000',
+      // The slash is load-bearing: a proxy key matches by prefix, so `/api`
+      // also caught `/api-tokens` — a client route that merely begins with the
+      // same letters — and handed a reload of that page to the API, which
+      // answered 404 JSON. The API's namespace is everything under `/api/`,
+      // and nothing else. (`plugins/static-spa.ts` is the same rule server-side;
+      // there is no test harness for this file, so this comment is the net.)
+      '/api/': 'http://localhost:3000',
     },
   },
   test: {

@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import type {
+  AuditActorKind,
   AuditType,
   NotificationsPayload,
   RolesPayload,
@@ -8,6 +9,7 @@ import type {
 import { ApiError, apiFetch } from './client';
 import type {
   Session,
+  ApiTokenSummary,
   AssetDetail,
   AssetListParams,
   AssetsPayload,
@@ -52,6 +54,7 @@ export const queryKeys = {
   settings: ['settings'] as const,
   dashboard: ['dashboard'] as const,
   audit: (filter: AuditFilter) => ['audit', filter] as const,
+  apiTokens: ['api-tokens'] as const,
 };
 
 /**
@@ -76,9 +79,11 @@ export const PICKER_PAGE = 20;
  */
 export const DROPDOWN_LIMIT = 200;
 
-/** What the activity log is currently showing: the filter and the page of it. */
+/** What the activity log is currently showing: the filters and the page of them. */
 export interface AuditFilter {
   type?: AuditType;
+  /** Whether to show only what people, tokens or the system itself did. */
+  actorKind?: AuditActorKind;
   limit: number;
   offset: number;
 }
@@ -314,6 +319,19 @@ export function useSettings() {
  * numbered pages you can navigate are worth more here than a snapshot that
  * never shifts, and nothing on this screen is read as a sequence.
  */
+/**
+ * Every API token this workspace has minted. Admin-only, like the page —
+ * deliberately unpaged: a workspace holds a handful of integrations, not a
+ * list anybody scrolls.
+ */
+export function useApiTokens() {
+  return useQuery({
+    queryKey: queryKeys.apiTokens,
+    queryFn: async () =>
+      (await apiFetch<{ apiTokens: ApiTokenSummary[] }>('/api-tokens')).apiTokens,
+  });
+}
+
 export function useAuditLog(filter: AuditFilter) {
   return useQuery({
     queryKey: queryKeys.audit(filter),
@@ -330,5 +348,6 @@ export function auditParams(filter: AuditFilter): string {
     offset: String(filter.offset),
   });
   if (filter.type) params.set('type', filter.type);
+  if (filter.actorKind) params.set('actorKind', filter.actorKind);
   return params.toString();
 }

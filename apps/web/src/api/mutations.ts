@@ -1,6 +1,7 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import type {
   AcceptInviteInput,
+  ApiTokenCreateInput,
   AssetCreateInput,
   AssetPatchInput,
   ChangePasswordInput,
@@ -34,6 +35,7 @@ import { apiFetch, apiUpload } from './client';
 import { invalidateAdmin, invalidateInventory } from './invalidate';
 import { queryKeys } from './queries';
 import type {
+  ApiTokenSummary,
   Asset,
   Attachment,
   Employee,
@@ -565,6 +567,24 @@ export const useUpdateMember = () =>
 
 export const useRemoveMember = () =>
   useAdminMutation((id: string) => apiFetch(member(id), { method: 'DELETE' }));
+
+// API tokens. Both writes are audited, so they go through the admin
+// invalidator like every other one — which also refreshes the list itself.
+
+/** The one response that ever carries a raw token; nothing caches it. */
+export const useCreateApiToken = () =>
+  useAdminMutation((input: ApiTokenCreateInput) =>
+    apiFetch<{ token: string; apiToken: ApiTokenSummary }>('/api-tokens', {
+      method: 'POST',
+      body: input,
+    }),
+  );
+
+/** Revoking is deleting: nothing recalls a raw value once it is out there. */
+export const useRevokeApiToken = () =>
+  useAdminMutation((id: string) =>
+    apiFetch(`/api-tokens/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+  );
 
 /**
  * The dry run. It writes nothing, so it is a mutation only in the sense that it

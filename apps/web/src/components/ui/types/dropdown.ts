@@ -37,4 +37,7 @@ export interface DropdownProps<V extends string> {
   id?: string;
   disabled?: boolean;
   'aria-label'?: string;
+  /** Both set by `Field` when it has an error to announce; see `FieldErrorAria`. */
+  'aria-invalid'?: boolean;
+  'aria-describedby'?: string;
 }

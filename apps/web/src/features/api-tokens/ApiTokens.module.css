@@ -1,0 +1,92 @@
+/* The page header, in the shape Members uses: intro on the left, action right. */
+.header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.intro {
+  min-width: 0;
+}
+
+.title {
+  font-size: 18px;
+  font-weight: 600;
+  margin: 0;
+}
+
+.summary {
+  color: var(--muted);
+  font-size: 12.5px;
+  margin: 2px 0 0;
+  max-width: 640px;
+}
+
+.loading {
+  display: flex;
+  justify-content: center;
+  padding: 40px 0;
+}
+
+.name {
+  font-size: 12.5px;
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.meta {
+  font-size: 11px;
+  color: var(--muted);
+  margin-top: 1px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* A token's reach is a handful of pills, wrapping inside its own cell. */
+.scopes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.muted {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+/* The scope grid in the create modal: two bands, two columns each. */
+.bands {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.bandLabel {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: 6px;
+}
+
+.scopeGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px 12px;
+}
+
+.scope {
+  align-items: flex-start;
+}
+
+.scopeHint {
+  display: block;
+  font-size: 11px;
+  color: var(--muted);
+  margin-top: 1px;
+}

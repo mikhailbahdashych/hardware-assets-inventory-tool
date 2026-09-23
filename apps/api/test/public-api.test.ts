@@ -413,7 +413,7 @@ describe('the public surface answers what its internal twin answers', () => {
     expect(file.headers['content-disposition']).toMatch(
       /^attachment; filename="activity-log-\d{4}-\d{2}-\d{2}\.csv"$/,
     );
-    expect(file.body.split('\n')[0]).toBe('Time,Actor,Event,Type');
+    expect(file.body.split('\n')[0]).toBe('Time,Actor,Actor kind,Event,Type');
   });
 });
 

@@ -47,7 +47,16 @@ export function invalidateInventory(queryClient: QueryClient): void {
  * write changes the member counts the Roles page reads. Splitting them would
  * mean inviting somebody left "2 members" on screen under the role they joined.
  */
-const ADMIN_PREFIXES = [['members'], ['roles'], ['settings'], ['audit'], ['meta']];
+const ADMIN_PREFIXES = [
+  ['members'],
+  ['roles'],
+  ['settings'],
+  ['audit'],
+  ['meta'],
+  // Minting and revoking are audited too, and the page that lists them is the
+  // only screen that would still be showing the row that has just gone.
+  ['api-tokens'],
+];
 
 export function invalidateAdmin(queryClient: QueryClient): void {
   for (const queryKey of ADMIN_PREFIXES) {

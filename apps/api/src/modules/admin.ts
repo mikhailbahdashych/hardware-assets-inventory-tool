@@ -30,7 +30,7 @@ export function registerAdminRoutes(app: FastifyInstance, deps: AppDeps): void {
       return reply
         .header('content-type', 'text/csv; charset=utf-8')
         .header('content-disposition', `attachment; filename="activity-log-${day}.csv"`)
-        .send(await auditCsv(deps.db, request.query.type));
+        .send(await auditCsv(deps.db, request.query));
     },
   );
 

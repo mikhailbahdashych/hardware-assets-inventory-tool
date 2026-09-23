@@ -1,4 +1,5 @@
 import { ASSET_CATEGORY_LABELS, can } from '@inventory/shared';
+import { isAdmin } from '@/lib/roles';
 import { statusInfo, statusMap } from '@/lib/workflow';
 import type { ActionDefinition, PaletteGroup, PaletteInput, PaletteRow } from './types/palette';
 
@@ -7,7 +8,7 @@ import type { ActionDefinition, PaletteGroup, PaletteInput, PaletteRow } from '.
 //
 // Assets and people are searched and capped by `GET /search` — four of each,
 // because past that the list stops being scannable and starts being a table.
-// The commands stay here and are still matched locally: they are seven strings
+// The commands stay here and are still matched locally: they are nine strings
 // this build already knows, and a round trip to filter them would be silly.
 
 const ACTIONS: ActionDefinition[] = [
@@ -51,6 +52,14 @@ const ACTIONS: ActionDefinition[] = [
     requires: 'custom_fields.manage',
   },
   {
+    // Another page nobody lands on by accident, and the sidebar's bottom is a
+    // long way from wherever an admin is when they remember it.
+    title: 'API tokens',
+    icon: 'terminal',
+    effect: { kind: 'navigate', to: '/api-tokens' },
+    adminOnly: true,
+  },
+  {
     title: 'Admin settings',
     icon: 'gear',
     effect: { kind: 'navigate', to: '/admin/settings' },
@@ -91,8 +100,10 @@ export function paletteGroups(input: PaletteInput): PaletteGroup[] {
     effect: { kind: 'navigate', to: `/employees/${employee.id}` },
   }));
 
-  const actions = ACTIONS.filter(
-    (action) => action.requires === undefined || can(input.permissions, action.requires),
+  const actions = ACTIONS.filter((action) =>
+    action.adminOnly
+      ? isAdmin(input.role)
+      : action.requires === undefined || can(input.permissions, action.requires),
   )
     .filter((action) => matches(query, action.title))
     .map((action): PaletteRow => ({

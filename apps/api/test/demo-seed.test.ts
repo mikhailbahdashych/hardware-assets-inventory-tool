@@ -2,6 +2,7 @@ import { and, asc, eq, isNull } from 'drizzle-orm';
 import { afterEach, describe, expect, it } from 'vitest';
 import { AUDIT_TYPES } from '@inventory/shared';
 import {
+  apiTokens,
   assets,
   assetStatuses,
   assetStatusTransitions,
@@ -147,6 +148,28 @@ describe('the demo seed', () => {
     for (const row of rows) {
       expect(new Date(row.at).getTime(), row.action).toBeLessThanOrEqual(NOW.getTime());
     }
+  });
+
+  it('leaves an API token behind, with lines in the log that it wrote', async () => {
+    await seeded();
+
+    // The page this demonstrates would otherwise be the one empty screen in
+    // the app, and the log's actor filter would have nothing to filter. No raw
+    // value exists anywhere, so the token opens nothing.
+    const tokens = await ctx.db.select().from(apiTokens);
+    expect(tokens).toHaveLength(1);
+    expect(tokens[0]!.lastUsedAt).not.toBeNull();
+
+    const rows = await ctx.db.select().from(auditEvents);
+    const byToken = rows.filter((row) => row.actorKind === 'token');
+    expect(byToken.length).toBeGreaterThan(0);
+    for (const row of byToken) {
+      expect(row.actorName).toBe(tokens[0]!.name);
+      expect(row.actorApiTokenId).toBe(tokens[0]!.id);
+      expect(row.actorMemberId).toBeNull();
+    }
+    // And the minting itself is a person's line, not the token's.
+    expect(rows.find((row) => row.action === 'token.created')!.actorKind).toBe('member');
   });
 
   it('dates itself from the clock, so the dashboard is never empty', async () => {

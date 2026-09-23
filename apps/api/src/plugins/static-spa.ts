@@ -12,9 +12,20 @@ import type { FastifyInstance } from 'fastify';
 const INLINE_SCRIPT = /<script(?![^>]*\bsrc=)[^>]*>([\s\S]*?)<\/script>/g;
 
 /**
+ * The API's namespace is `/api/` — **with the trailing slash**, and that is
+ * the whole of it. A bare `startsWith('/api')` also swallowed `/api-tokens`,
+ * a *client* route that merely begins with the same letters, so a bookmark, a
+ * hard reload or a pasted link to that page was answered with the JSON 404
+ * envelope while in-app navigation worked fine. A sibling path is not inside
+ * the namespace; only what is under the slash is. (`plugins/bearer.ts` gets
+ * this right for `/api/public/`; the Vite proxy's key needed the same slash.)
+ */
+const isApiRequest = (url: string): boolean => url === '/api' || url.startsWith('/api/');
+
+/**
  * In production the API serves the built SPA: static assets plus an
- * index.html fallback for any non-/api GET (client-side routing). Unknown
- * /api routes always get the JSON 404 envelope.
+ * index.html fallback for any GET outside the API namespace (client-side
+ * routing). Unknown /api/ routes always get the JSON 404 envelope.
  *
  * The document also carries the Content-Security-Policy. It lives here rather
  * than in a plugin of its own because it is a policy *about this build*: the
@@ -45,7 +56,7 @@ export async function registerStaticSpa(app: FastifyInstance, webDist?: string):
   }
 
   app.setNotFoundHandler((request, reply) => {
-    if (html !== null && request.method === 'GET' && !request.url.startsWith('/api')) {
+    if (html !== null && request.method === 'GET' && !isApiRequest(request.url)) {
       return reply.sendFile('index.html');
     }
     return reply.status(404).send({ error: { code: 'not_found', message: 'Not found.' } });

@@ -467,13 +467,64 @@ export const SETTINGS = {
   updatedAt: '2026-01-01T00:00:00.000Z',
 };
 
+/**
+ * The tokens the API tokens page reads. One live, one whose expiry has passed
+ * (still listed until somebody revokes it) and one that never expires and has
+ * never been used — the three states the Expires and Last used columns draw.
+ */
+export const LIVE_TOKEN = {
+  id: 'token-1',
+  name: 'Deploy bot',
+  scopes: ['assets:read', 'assets:write'],
+  expiresAt: '2099-03-01T00:00:00.000Z',
+  createdByName: 'Tomasz Kowalski',
+  createdAt: '2026-08-01T09:00:00.000Z',
+  lastUsedAt: '2026-08-16T09:00:00.000Z',
+};
+
+export const EXPIRED_TOKEN = {
+  id: 'token-2',
+  name: 'Old importer',
+  scopes: ['employees:read'],
+  expiresAt: '2020-01-01T00:00:00.000Z',
+  createdByName: 'Tomasz Kowalski',
+  createdAt: '2019-10-01T09:00:00.000Z',
+  lastUsedAt: null,
+};
+
+export const UNLIMITED_TOKEN = {
+  id: 'token-3',
+  name: 'Warehouse sync',
+  scopes: ['assets:read'],
+  expiresAt: null,
+  createdByName: 'Tomasz Kowalski',
+  createdAt: '2026-07-01T09:00:00.000Z',
+  lastUsedAt: null,
+};
+
+export const API_TOKENS = [LIVE_TOKEN, EXPIRED_TOKEN, UNLIMITED_TOKEN];
+
 export const AUDIT_PAGE = {
   items: [
+    {
+      id: 'audit-4',
+      at: '2026-08-16T10:02:00.000Z',
+      type: 'assets',
+      action: 'asset.created',
+      // A token, not a person: the row the actor pill exists to mark.
+      actorKind: 'token',
+      actorName: 'Deploy bot',
+      assetId: 'asset-2',
+      employeeId: null,
+      memberId: null,
+      params: { assetName: 'Dell U2723QE', assetTag: 'AST-0143' },
+    },
     {
       id: 'audit-3',
       at: '2026-08-16T09:41:00.000Z',
       type: 'assets',
       action: 'asset.assigned',
+      actorKind: 'member',
       actorName: 'Tomasz Kowalski',
       assetId: 'asset-1',
       employeeId: 'emp-1',
@@ -485,6 +536,7 @@ export const AUDIT_PAGE = {
       at: '2026-08-16T08:12:00.000Z',
       type: 'auth',
       action: 'member.invited',
+      actorKind: 'member',
       actorName: 'Tomasz Kowalski',
       assetId: null,
       employeeId: null,
@@ -496,6 +548,7 @@ export const AUDIT_PAGE = {
       at: '2026-08-15T17:03:00.000Z',
       type: 'people',
       action: 'employee.offboarding_started',
+      actorKind: 'member',
       actorName: 'Priya Sharma',
       assetId: null,
       employeeId: 'emp-2',
@@ -503,8 +556,8 @@ export const AUDIT_PAGE = {
       params: { employeeName: "Liam O'Connor", scheduledReturns: 2 },
     },
   ],
-  typeCounts: { all: 3, assets: 1, people: 1, auth: 1, system: 0 },
-  total: 3,
+  typeCounts: { all: 4, assets: 2, people: 1, auth: 1, system: 0 },
+  total: 4,
 };
 
 export const DASHBOARD = {
@@ -590,6 +643,7 @@ export const ADMIN_ROUTES: StubRoutes = {
   'GET /members': membersRoute([ADMIN_SUMMARY, INVITED_SUMMARY, LINKED_SUMMARY]),
   'GET /settings': { body: { settings: SETTINGS, storageUsedBytes: 188_416 } },
   'GET /audit': { body: AUDIT_PAGE },
+  'GET /api-tokens': { body: { apiTokens: API_TOKENS } },
   'GET /notifications': { body: { notifications: [], unreadCount: 0, total: 0 } },
   'GET /workflow': { body: WORKFLOW },
   'GET /roles': { body: ROLES },

@@ -23,7 +23,7 @@ const NOTHING_YET: SearchPayload = { assets: [], employees: [] };
  * this used to read are pages now — a palette that searched only the page you
  * were on would find less than the app knows. The commands are still local.
  */
-export function CommandPalette({ permissions, onClose }: CommandPaletteProps) {
+export function CommandPalette({ permissions, role, onClose }: CommandPaletteProps) {
   const [query, setQuery] = useState('');
   const [active, setActive] = useState(0);
   const listId = useId();
@@ -51,10 +51,11 @@ export function CommandPalette({ permissions, onClose }: CommandPaletteProps) {
       paletteGroups({
         query,
         permissions,
+        role,
         results: stale ? NOTHING_YET : (results.data ?? NOTHING_YET),
         statuses: workflow.data?.statuses ?? [],
       }),
-    [query, permissions, stale, results.data, workflow.data],
+    [query, permissions, role, stale, results.data, workflow.data],
   );
   const rows = useMemo(() => paletteRows(groups), [groups]);
   // `active` is an index this component maintains across renders while the

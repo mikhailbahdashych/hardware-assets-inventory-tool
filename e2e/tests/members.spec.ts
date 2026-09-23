@@ -107,7 +107,7 @@ test('exports the log as a CSV attachment whose rows match the screen', async ({
   expect(response.headers()['content-disposition']).toContain('attachment');
 
   const csv = await response.text();
-  expect(csv.split('\n')[0]).toBe('Time,Actor,Event,Type');
+  expect(csv.split('\n')[0]).toBe('Time,Actor,Actor kind,Event,Type');
   expect(csv).toContain(`Invited ${GRACE.email} as a Viewer`);
   expect(csv).toContain('Tomasz Kowalski');
 });

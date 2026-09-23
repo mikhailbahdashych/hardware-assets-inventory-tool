@@ -12,6 +12,7 @@ import {
   orgSettings,
 } from '@/db/schema.js';
 import { nowIso } from '@/lib/dates.js';
+import { mintApiToken } from '@/services/api-tokens.js';
 import {
   buildTestApp,
   inject,
@@ -147,7 +148,9 @@ describe('exporting the activity log', () => {
     expect(res.headers['content-disposition']).toMatch(/^attachment; filename="activity-log-/);
 
     const lines = res.body.trim().split('\n');
-    expect(lines[0]).toBe('Time,Actor,Event,Type');
+    // The kind rides beside the name, or a token called "Priya Sharma" and the
+    // person of that name are one row each and indistinguishable in the file.
+    expect(lines[0]).toBe('Time,Actor,Actor kind,Event,Type');
     // A quote inside an asset name must not tear the row in half.
     expect(lines[1]).toContain('"Added MacBook Pro 14"", ""Space Black"" to the inventory"');
     expect(lines[1]).toMatch(/,Assets$/);
@@ -165,6 +168,121 @@ describe('exporting the activity log', () => {
       cookie: admin,
     });
     expect(res.body.trim().split('\n')).toHaveLength(2);
+  });
+});
+
+/**
+ * A workspace where a person and a token have both written to the log, plus one
+ * row from before `actor_kind` existed. Returns the admin's cookie.
+ */
+async function actedOnByBoth(): Promise<string> {
+  const admin = await setupOrg(ctx.app);
+  await createAsset(admin);
+
+  const adminRow = (await ctx.db.select().from(members).where(eq(members.role, 'admin')))[0]!;
+  const { token } = await mintApiToken(
+    ctx.deps,
+    { id: adminRow.id, displayName: adminRow.displayName },
+    { name: 'Deploy bot', scopes: ['assets:write'], expiresInDays: 90 },
+  );
+  const created = await ctx.app.inject({
+    method: 'POST',
+    url: '/api/public/v1/assets',
+    headers: { authorization: `Bearer ${token}` },
+    body: { name: 'Dell U2723QE', category: 'monitors', status: 'available' },
+  });
+  if (created.statusCode !== 200) throw new Error(`public create failed: ${created.body}`);
+  return admin;
+}
+
+describe('filtering the activity log by who acted', () => {
+  it('tells a token’s lines apart from a person’s', async () => {
+    ctx = await buildTestApp();
+    const admin = await actedOnByBoth();
+
+    const byToken = (
+      await inject(ctx.app, { method: 'GET', url: '/api/v1/audit?actorKind=token', cookie: admin })
+    ).json() as { items: { action: string; actorName: string }[]; total: number };
+    expect(byToken.items.map((item) => item.action)).toEqual(['asset.created']);
+    expect(byToken.items[0]!.actorName).toBe('Deploy bot');
+    expect(byToken.total).toBe(1);
+
+    const byPeople = (
+      await inject(ctx.app, { method: 'GET', url: '/api/v1/audit?actorKind=member', cookie: admin })
+    ).json() as { items: { action: string }[]; total: number };
+    expect(byPeople.items.map((item) => item.action)).toEqual([
+      'token.created',
+      'asset.created',
+      'system.setup_completed',
+    ]);
+    expect(byPeople.total).toBe(3);
+  });
+
+  it('counts a row written before the column as the member who wrote it', async () => {
+    ctx = await buildTestApp();
+    const admin = await actedOnByBoth();
+    // What an upgraded instance's whole history looks like: nothing backfills
+    // the column, so a filter that read it literally would hide every row.
+    await ctx.db.update(auditEvents).set({ actorKind: null }).where(eq(auditEvents.type, 'assets'));
+
+    const byPeople = (
+      await inject(ctx.app, { method: 'GET', url: '/api/v1/audit?actorKind=member', cookie: admin })
+    ).json() as { items: { action: string }[] };
+    // The member's asset is back among their rows; the token's is not, because
+    // a nulled kind on a row with no member id is the system's.
+    expect(byPeople.items.filter((item) => item.action === 'asset.created')).toHaveLength(1);
+  });
+
+  it('keeps the pager and the pills on their own filters', async () => {
+    ctx = await buildTestApp();
+    const admin = await actedOnByBoth();
+
+    const both = (
+      await inject(ctx.app, {
+        method: 'GET',
+        url: '/api/v1/audit?actorKind=member&type=assets',
+        cookie: admin,
+      })
+    ).json() as { items: unknown[]; total: number; typeCounts: Record<string, number> };
+    // `total` is what the pager divides, so it obeys both filters…
+    expect(both.items).toHaveLength(1);
+    expect(both.total).toBe(1);
+    // …while the pills count the actor's whole log, or switching one pill
+    // would move the numbers on the others.
+    expect(both.typeCounts).toEqual({ all: 3, assets: 1, people: 0, auth: 1, system: 1 });
+
+    const actorOnly = (
+      await inject(ctx.app, { method: 'GET', url: '/api/v1/audit?actorKind=member', cookie: admin })
+    ).json() as { typeCounts: Record<string, number> };
+    expect(actorOnly.typeCounts).toEqual(both.typeCounts);
+  });
+
+  it('exports what the screen is showing, actor filter and all', async () => {
+    ctx = await buildTestApp();
+    const admin = await actedOnByBoth();
+
+    const res = await inject(ctx.app, {
+      method: 'GET',
+      url: '/api/v1/audit/export?actorKind=token',
+      cookie: admin,
+    });
+    const lines = res.body.trim().split('\n');
+    expect(lines).toHaveLength(2);
+    expect(lines[1]).toContain('Deploy bot');
+    // And says what kind of actor that is, in the words the filter uses.
+    expect(lines[1]).toContain('API tokens');
+  });
+
+  it('refuses an actor kind it does not have', async () => {
+    ctx = await buildTestApp();
+    const admin = await setupOrg(ctx.app);
+
+    const res = await inject(ctx.app, {
+      method: 'GET',
+      url: '/api/v1/audit?actorKind=robot',
+      cookie: admin,
+    });
+    expect(res.statusCode).toBe(422);
   });
 });
 

@@ -119,6 +119,18 @@ describe('creating an asset', () => {
     expect(clash.json().error.fields).toMatchObject({ assetTag: expect.any(String) });
   });
 
+  it('names the field a schema refused, so the form can put it under the input', async () => {
+    ctx = await buildTestApp();
+    const admin = await setupOrg(ctx.app);
+
+    // A zod refusal, not a service one: every form in the app reads
+    // `error.fields` for its per-input messages, and a 422 that names nothing
+    // leaves a red line at the top of the form and none where the mistake is.
+    const res = await createAsset(admin, { name: '' });
+    expect(res.statusCode).toBe(422);
+    expect(res.json().error.fields).toMatchObject({ name: expect.any(String) });
+  });
+
   it('stores money as cents, dates as date-only, and audits the creation', async () => {
     ctx = await buildTestApp();
     const admin = await setupOrg(ctx.app);
