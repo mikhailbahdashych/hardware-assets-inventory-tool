@@ -1,3 +1,17 @@
+CREATE TABLE `api_tokens` (
+	`id` text PRIMARY KEY NOT NULL,
+	`name` text NOT NULL,
+	`token_hash` text NOT NULL,
+	`scopes` text NOT NULL,
+	`expires_at` text,
+	`created_by_member_id` text,
+	`created_by_name` text NOT NULL,
+	`created_at` text NOT NULL,
+	`last_used_at` text,
+	FOREIGN KEY (`created_by_member_id`) REFERENCES `members`(`id`) ON UPDATE no action ON DELETE set null
+);
+--> statement-breakpoint
+CREATE UNIQUE INDEX `api_tokens_token_hash_unique` ON `api_tokens` (`token_hash`);--> statement-breakpoint
 CREATE TABLE `asset_custom_values` (
 	`asset_id` text NOT NULL,
 	`field_def_id` text NOT NULL,
@@ -7,6 +21,27 @@ CREATE TABLE `asset_custom_values` (
 	FOREIGN KEY (`field_def_id`) REFERENCES `custom_field_defs`(`id`) ON UPDATE no action ON DELETE cascade
 );
 --> statement-breakpoint
+CREATE TABLE `asset_status_transitions` (
+	`from_status` text NOT NULL,
+	`to_status` text NOT NULL,
+	PRIMARY KEY(`from_status`, `to_status`),
+	FOREIGN KEY (`from_status`) REFERENCES `asset_statuses`(`id`) ON UPDATE no action ON DELETE cascade,
+	FOREIGN KEY (`to_status`) REFERENCES `asset_statuses`(`id`) ON UPDATE no action ON DELETE cascade
+);
+--> statement-breakpoint
+CREATE TABLE `asset_statuses` (
+	`id` text PRIMARY KEY NOT NULL,
+	`label` text NOT NULL,
+	`color` text NOT NULL,
+	`is_system` integer DEFAULT false NOT NULL,
+	`assignable_from` integer DEFAULT false NOT NULL,
+	`checkin_target` integer DEFAULT false NOT NULL,
+	`sort_order` integer NOT NULL,
+	`created_at` text NOT NULL,
+	`updated_at` text NOT NULL
+);
+--> statement-breakpoint
+CREATE UNIQUE INDEX `asset_statuses_label_unique` ON `asset_statuses` (`label`);--> statement-breakpoint
 CREATE TABLE `assets` (
 	`id` text PRIMARY KEY NOT NULL,
 	`asset_tag` text NOT NULL,
@@ -57,6 +92,7 @@ CREATE TABLE `attachments` (
 	`filename` text NOT NULL,
 	`stored_name` text NOT NULL,
 	`size_bytes` integer NOT NULL,
+	`sha256` text,
 	`mime` text,
 	`uploaded_by_member_id` text,
 	`created_at` text NOT NULL,
@@ -71,12 +107,15 @@ CREATE TABLE `audit_events` (
 	`type` text NOT NULL,
 	`action` text NOT NULL,
 	`actor_member_id` text,
+	`actor_api_token_id` text,
+	`actor_kind` text,
 	`actor_name` text NOT NULL,
 	`asset_id` text,
 	`employee_id` text,
 	`member_id` text,
 	`params` text DEFAULT '{}' NOT NULL,
-	FOREIGN KEY (`actor_member_id`) REFERENCES `members`(`id`) ON UPDATE no action ON DELETE set null
+	FOREIGN KEY (`actor_member_id`) REFERENCES `members`(`id`) ON UPDATE no action ON DELETE set null,
+	FOREIGN KEY (`actor_api_token_id`) REFERENCES `api_tokens`(`id`) ON UPDATE no action ON DELETE set null
 );
 --> statement-breakpoint
 CREATE INDEX `audit_at_idx` ON `audit_events` (`at`);--> statement-breakpoint
@@ -129,6 +168,8 @@ CREATE TABLE `members` (
 	`status` text NOT NULL,
 	`employee_id` text,
 	`last_active_at` text,
+	`mfa_secret` text,
+	`mfa_confirmed_at` text,
 	`theme` text DEFAULT 'light' NOT NULL,
 	`density` text DEFAULT 'comfortable' NOT NULL,
 	`widgets_json` text DEFAULT '{}' NOT NULL,
@@ -139,14 +180,29 @@ CREATE TABLE `members` (
 --> statement-breakpoint
 CREATE UNIQUE INDEX `members_email_unique` ON `members` (`email`);--> statement-breakpoint
 CREATE INDEX `members_employee_idx` ON `members` (`employee_id`);--> statement-breakpoint
-CREATE TABLE `notification_log` (
+CREATE TABLE `mfa_recovery_codes` (
 	`id` text PRIMARY KEY NOT NULL,
-	`kind` text NOT NULL,
-	`dedupe_key` text NOT NULL,
-	`sent_at` text NOT NULL
+	`member_id` text NOT NULL,
+	`code_hash` text NOT NULL,
+	`used_at` text,
+	`created_at` text NOT NULL,
+	FOREIGN KEY (`member_id`) REFERENCES `members`(`id`) ON UPDATE no action ON DELETE cascade
 );
 --> statement-breakpoint
-CREATE UNIQUE INDEX `notification_log_dedupe_key_unique` ON `notification_log` (`dedupe_key`);--> statement-breakpoint
+CREATE INDEX `mfa_recovery_member_idx` ON `mfa_recovery_codes` (`member_id`);--> statement-breakpoint
+CREATE TABLE `notifications` (
+	`id` text PRIMARY KEY NOT NULL,
+	`member_id` text NOT NULL,
+	`kind` text NOT NULL,
+	`params` text DEFAULT '{}' NOT NULL,
+	`dedupe_key` text,
+	`created_at` text NOT NULL,
+	`read_at` text,
+	FOREIGN KEY (`member_id`) REFERENCES `members`(`id`) ON UPDATE no action ON DELETE cascade
+);
+--> statement-breakpoint
+CREATE INDEX `notifications_member_idx` ON `notifications` (`member_id`,`created_at`);--> statement-breakpoint
+CREATE UNIQUE INDEX `notifications_dedupe_idx` ON `notifications` (`member_id`,`dedupe_key`);--> statement-breakpoint
 CREATE TABLE `org_settings` (
 	`id` integer PRIMARY KEY NOT NULL,
 	`org_name` text NOT NULL,
@@ -156,12 +212,31 @@ CREATE TABLE `org_settings` (
 	`log_retention_months` integer,
 	`email_warranty_alerts` integer DEFAULT true NOT NULL,
 	`email_return_reminders` integer DEFAULT true NOT NULL,
-	`email_invites` integer DEFAULT true NOT NULL,
-	`email_weekly_digest` integer DEFAULT false NOT NULL,
+	`mfa_required` integer DEFAULT false NOT NULL,
+	`upload_quota_mb` integer DEFAULT 2048 NOT NULL,
 	`created_at` text NOT NULL,
 	`updated_at` text NOT NULL
 );
 --> statement-breakpoint
+CREATE TABLE `role_permissions` (
+	`role_id` text NOT NULL,
+	`action` text NOT NULL,
+	PRIMARY KEY(`role_id`, `action`),
+	FOREIGN KEY (`role_id`) REFERENCES `roles`(`id`) ON UPDATE no action ON DELETE cascade
+);
+--> statement-breakpoint
+CREATE TABLE `roles` (
+	`id` text PRIMARY KEY NOT NULL,
+	`label` text NOT NULL,
+	`description` text,
+	`color` text NOT NULL,
+	`is_system` integer DEFAULT false NOT NULL,
+	`sort_order` integer NOT NULL,
+	`created_at` text NOT NULL,
+	`updated_at` text NOT NULL
+);
+--> statement-breakpoint
+CREATE UNIQUE INDEX `roles_label_unique` ON `roles` (`label`);--> statement-breakpoint
 CREATE TABLE `sessions` (
 	`id` text PRIMARY KEY NOT NULL,
 	`member_id` text NOT NULL,

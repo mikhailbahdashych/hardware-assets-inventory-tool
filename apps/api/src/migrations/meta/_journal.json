@@ -5,57 +5,8 @@
     {
       "idx": 0,
       "version": "6",
-      "when": 1786893023984,
+      "when": 1790166027836,
       "tag": "0000_init",
-      "breakpoints": true
-    },
-    {
-      "idx": 1,
-      "version": "6",
-      "when": 1786977239176,
-      "tag": "0001_chubby_shatterstar",
-      "breakpoints": true
-    },
-    {
-      "idx": 2,
-      "version": "6",
-      "when": 1786992066519,
-      "tag": "0002_loud_gargoyle",
-      "breakpoints": true
-    },
-    {
-      "idx": 3,
-      "version": "6",
-      "when": 1787040846246,
-      "tag": "0003_cloudy_patch",
-      "breakpoints": true
-    },
-    {
-      "idx": 4,
-      "version": "6",
-      "when": 1787423568371,
-      "tag": "0004_fat_bromley",
-      "breakpoints": true
-    },
-    {
-      "idx": 5,
-      "version": "6",
-      "when": 1789908928708,
-      "tag": "0005_burly_warhawk",
-      "breakpoints": true
-    },
-    {
-      "idx": 6,
-      "version": "6",
-      "when": 1790067415280,
-      "tag": "0006_fuzzy_spitfire",
-      "breakpoints": true
-    },
-    {
-      "idx": 7,
-      "version": "6",
-      "when": 1790072876361,
-      "tag": "0007_certain_betty_ross",
       "breakpoints": true
     }
   ]

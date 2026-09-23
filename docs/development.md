@@ -73,6 +73,8 @@ Every date is relative to the moment you ran it, so warranties are always about 
 
 **Starting over completely:** delete `./data` natively, or `docker compose -f docker-compose.dev.yml down -v` in Docker. Both leave you at `/setup` again.
 
+**A checkout from before v0.3.0 has to do exactly that once.** The incremental migration history was collapsed into a single `0000_init` per engine for that release — there were no installs anywhere to bring forward. An older `./data` carries the hashes of the migrations it actually applied, none of which is `0000_init`'s, so the migrator replays it over tables that already exist and the boot dies on ``table `api_tokens` already exists``. Delete the directory and reseed; there is nothing in a dev workspace that `npm run seed:demo` does not put back.
+
 ---
 
 ## Everything else you can run
