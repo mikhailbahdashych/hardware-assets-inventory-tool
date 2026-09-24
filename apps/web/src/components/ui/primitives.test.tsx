@@ -1,6 +1,7 @@
 import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { ApiError, HttpError, MalformedApiResponse } from '@/api/client';
 import { avatarColor } from '@/lib/avatar';
 import { ToastProvider, useToast } from '@/providers/ToastProvider';
 import { choose } from '@/test/dropdown';
@@ -9,6 +10,7 @@ import { Button } from './Button';
 import { Checkbox } from './Checkbox';
 import { DataTable } from './DataTable';
 import { Dropdown } from './Dropdown';
+import { ErrorState } from './ErrorState';
 import { Field } from './Field';
 import { FilterPills } from './FilterPills';
 import { Input } from './Input';
@@ -391,6 +393,80 @@ describe('DataTable', () => {
     );
     await userEvent.click(screen.getByText('MacBook Pro'));
     expect(onRowClick).toHaveBeenCalledWith({ name: 'MacBook Pro' });
+  });
+});
+
+describe('ErrorState', () => {
+  it('announces itself, names what failed and quotes the server', () => {
+    render(
+      <ErrorState
+        error={new ApiError(500, 'internal_error', 'The database is unavailable.')}
+        onRetry={() => {}}
+      >
+        The member list could not be loaded.
+      </ErrorState>,
+    );
+
+    const panel = screen.getByRole('alert');
+    expect(within(panel).getByText('The member list could not be loaded.')).toBeInTheDocument();
+    expect(within(panel).getByText('The database is unavailable.')).toBeInTheDocument();
+  });
+
+  it('reports a bodiless failure as the status it was, inventing no cause', () => {
+    render(
+      <ErrorState error={new HttpError(502)} onRetry={() => {}}>
+        The member list could not be loaded.
+      </ErrorState>,
+    );
+    expect(screen.getByText('The request failed with HTTP 502.')).toBeInTheDocument();
+  });
+
+  it('passes on what a malformed answer actually contained', () => {
+    render(
+      <ErrorState
+        error={
+          new MalformedApiResponse('The API answered 200 with a body that is not JSON: <html>')
+        }
+        onRetry={() => {}}
+      >
+        The member list could not be loaded.
+      </ErrorState>,
+    );
+    expect(screen.getByText(/body that is not JSON: <html>/)).toBeInTheDocument();
+  });
+
+  it('hints at a dead server only when the server itself said nothing', () => {
+    const { rerender } = render(
+      <ErrorState error={new HttpError(502)} onRetry={() => {}}>
+        The member list could not be loaded.
+      </ErrorState>,
+    );
+    expect(
+      screen.getByText(/usually means the server is unreachable or still starting/i),
+    ).toBeInTheDocument();
+
+    // The server spoke, so the panel quotes it and adds nothing: a hint here
+    // would second-guess the sentence the API chose to send.
+    rerender(
+      <ErrorState
+        error={new ApiError(500, 'internal_error', 'The database is unavailable.')}
+        onRetry={() => {}}
+      >
+        The member list could not be loaded.
+      </ErrorState>,
+    );
+    expect(screen.queryByText(/usually means/i)).not.toBeInTheDocument();
+  });
+
+  it('retries through a real button', async () => {
+    const onRetry = vi.fn();
+    render(
+      <ErrorState error={new HttpError(503)} onRetry={onRetry}>
+        The member list could not be loaded.
+      </ErrorState>,
+    );
+    await userEvent.click(screen.getByRole('button', { name: 'Try again' }));
+    expect(onRetry).toHaveBeenCalledOnce();
   });
 });
 

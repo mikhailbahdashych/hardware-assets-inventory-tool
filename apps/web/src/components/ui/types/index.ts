@@ -10,6 +10,7 @@ export type { DataTableProps } from './dataTable';
 export type { DropdownOption, DropdownProps, PanelPosition } from './dropdown';
 export type { DropzoneProps } from './dropzone';
 export type { EmptyStateProps } from './emptyState';
+export type { ErrorStateProps } from './errorState';
 export type { FieldProps } from './field';
 export type { FilterPillOption, FilterPillsProps } from './filterPills';
 export type { IconProps } from './icon';

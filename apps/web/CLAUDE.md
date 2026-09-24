@@ -47,9 +47,44 @@ The alias is declared in **three** places that must agree, or you get a green ty
 
 ## When a `??` is legitimate here
 
-Keep it when absence is the answer: a nullable column becoming an empty form input, `searchParams.get('q') ?? ''` (no parameter means no filter), `?? '—'` where the design specifies an em dash, `query.data ?? []` (a list that has not arrived has no rows), an optional prop's default. Say why in a comment.
+Keep it when absence is the answer: a nullable column becoming an empty form input, `searchParams.get('q') ?? ''` (no parameter means no filter), `?? '—'` where the design specifies an em dash, an optional prop's default. Say why in a comment.
 
 Remove it when a value should have been there. `meta.data?.orgName ?? 'Inventory'` was the example: `orgName` is a NOT NULL column written by `/setup`, so the fallback quietly renamed the workspace whenever `/meta` misbehaved. Reads of it go through `orgMeta()` in `api/queries.ts`, which throws and names the missing field. Best of all, remove it by tightening a type — `AssignModal`'s props became a union discriminated on `mode` and four fallbacks went with it.
+
+**`query.data ?? []` used to be on the first list and is now on the second** — see the next section for why, and for what replaced it.
+
+## A query has three states, and a page draws all three
+
+A read is **failing**, **not here yet**, or **done**, and two of those used to collapse into one. `query.data ?? []` drew a failed fetch as an empty list: the Members page said _"Nobody can sign in yet — invite your first member"_ while `/members` was answering 500. That is the app lying about the workspace, to somebody who might act on it. Writes have always failed honestly, through a toast carrying the server's message; reads now do too.
+
+So a page that reads queries branches in this order, and `MembersPage` is the worked example:
+
+```tsx
+// The first failure among the queries this page reads.
+const failure = members.isError ? members.error : roles.isError ? roles.error : null;
+
+{failure !== null ? (
+  <Card padding={false}>
+    <ErrorState error={failure} onRetry={retry}>The member list could not be loaded.</ErrorState>
+  </Card>
+) : !members.isSuccess || !roles.isSuccess ? (
+  <Spinner size={18} />
+) : (
+  …members.data.members…
+)}
+```
+
+- **Failed first**, because a failure is the most specific thing the page knows.
+- **Then `isSuccess`, not `isPending`.** `isPending` leaves TanStack's refetch-error result in the union, so `data` stays `T | undefined` and the `??` grows straight back. `isSuccess` is the check that makes `data` defined — which is the whole point: **in the last branch there is nothing to coalesce.** `query.data ?? []` is a bug there, and so is a `?.` on a read you have already branched on.
+- **A page's failure is the failure of _any_ query it reads.** Not "required" versus "secondary": which queries are optional is a judgement per page, and thirty judgement calls is a sweep nobody can review. A page asks for a query because it needs it — Members reads `useRoles()` only so the role pills carry the words and colours this workspace chose, and letting it degrade to `roleInfo`'s slug fallback would print a vocabulary the workspace never wrote. That fallback exists for _historical_ data (an account whose role was deleted), not for a query that did not answer. If a query's failure genuinely changes nothing on screen, the page did not need the query.
+- **Retry refetches all of them**, for the same reason.
+- A failed _refetch_ replaces the rows too. The list on screen is the last one that arrived, and after a failure the page cannot say it is still true.
+
+`ErrorState` (`components/ui/`, beside `EmptyState` and sized like it) is the panel: `children` name what failed in the page's words, `error` is the thrown value itself, and the second line is **never ours** — an `ApiError` shows the server's own sentence, an `HttpError` the sentence the client read off a bodiless response (`The request failed with HTTP 502.`), a `MalformedApiResponse` what actually arrived. It announces itself with `role="alert"` and the retry is a real button.
+
+**The bodiless case, and only that one, gets a third line**: `AppErrorBoundary`'s own hedged hint, word for word — _"This usually means the server is unreachable or still starting. Check the container logs if it keeps happening."_ Nothing answered, so there is no sentence to defer to and a bare status code is all a self-hoster would otherwise be handed; the two panels describe the same dead server and should not do it in two dialects. An `ApiError` gets no hint, because second-guessing a sentence the API deliberately sent is how a guess starts.
+
+It is not `AppErrorBoundary`: that catches a throw nothing recovers from and ends the app, in the same voice. `ErrorState` is a read that failed and can simply be read again.
 
 ## Data and auth
 
