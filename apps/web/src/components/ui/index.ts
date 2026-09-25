@@ -7,6 +7,7 @@ export { DataTable } from './DataTable';
 export { Dropdown } from './Dropdown';
 export { Dropzone } from './Dropzone';
 export { EmptyState } from './EmptyState';
+export { ErrorState } from './ErrorState';
 export { Field } from './Field';
 export { FilterPills } from './FilterPills';
 export { Icon, type IconName } from './Icon';

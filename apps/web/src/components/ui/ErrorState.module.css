@@ -1,0 +1,35 @@
+/*
+ * EmptyState's measure and padding in the error pair, so a failed read sits
+ * exactly where an empty one would and the shell around it does not move.
+ */
+.state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 22px;
+  text-align: center;
+}
+
+.what {
+  margin: 0;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--err);
+}
+
+/* The server's sentence: quoted, not shouted — it is evidence, not a verdict. */
+.reason {
+  margin: 0;
+  max-width: 420px;
+  font-size: 12.5px;
+  color: var(--muted);
+}
+
+/* Fainter again, because it is the only line here nobody vouched for. */
+.hint {
+  margin: 0;
+  max-width: 420px;
+  font-size: 11.5px;
+  color: var(--faint);
+}

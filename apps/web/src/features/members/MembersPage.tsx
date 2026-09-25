@@ -6,6 +6,7 @@ import {
   MEMBER_STATUS_COLORS,
   MEMBER_STATUS_LABELS,
   RECOVERY_CODE_COUNT,
+  type WorkspaceRole,
 } from '@inventory/shared';
 import {
   useIssueResetLink,
@@ -18,8 +19,10 @@ import { PageContainer } from '@/components/app/PageContainer';
 import {
   Avatar,
   Button,
+  Card,
   DataTable,
   EmptyState,
+  ErrorState,
   Menu,
   Pagination,
   Pill,
@@ -56,11 +59,17 @@ export function MembersPage({ permissions, memberId, viewerRole }: MembersPagePr
   const resetCodes = useResetRecoveryCodes();
   const manages = can(permissions, 'members.manage');
 
-  // A payload that has not arrived has no rows and nothing to count.
-  const rows = members.data?.members ?? [];
-  const total = members.data?.total ?? 0;
-  const roleRows = roles.data === undefined ? [] : roles.data.roles;
-  const byRoleId = roleMap(roleRows);
+  /**
+   * Every query this page reads is one it needs — without the roles, the pills
+   * would name a vocabulary the workspace never wrote — so the first failure
+   * among them is the page's. One rule for every page: see apps/web/CLAUDE.md.
+   */
+  const failure = members.isError ? members.error : roles.isError ? roles.error : null;
+
+  function retry(): void {
+    void members.refetch();
+    void roles.refetch();
+  }
 
   function rowActions(member: MemberSummary): MenuItem[] {
     // Nobody below admin acts on an admin — the API refuses every one of these
@@ -169,89 +178,93 @@ export function MembersPage({ permissions, memberId, viewerRole }: MembersPagePr
    * (that clip is what gives the cells their ellipsis), and a seventh column
    * that did not fit would take the `···` button off the right-hand edge.
    */
-  const columns: TableColumn<MemberSummary>[] = [
-    {
-      header: 'Member',
-      width: 'minmax(200px, 1.5fr)',
-      render: (member) => (
-        <div className={styles.person}>
-          <Avatar name={member.displayName} colorKey={member.id} size={26} />
-          <div style={{ minWidth: 0 }}>
-            <div className={styles.name}>{member.displayName}</div>
-            <div className={styles.email}>{member.email}</div>
+  function columnsFor(byRoleId: Map<string, WorkspaceRole>): TableColumn<MemberSummary>[] {
+    return [
+      {
+        header: 'Member',
+        width: 'minmax(200px, 1.5fr)',
+        render: (member) => (
+          <div className={styles.person}>
+            <Avatar name={member.displayName} colorKey={member.id} size={26} />
+            <div style={{ minWidth: 0 }}>
+              <div className={styles.name}>{member.displayName}</div>
+              <div className={styles.email}>{member.email}</div>
+            </div>
           </div>
-        </div>
-      ),
-    },
-    {
-      header: 'Role',
-      width: '100px',
-      render: (member) => {
-        const role = roleInfo(byRoleId, member.role);
-        return <Pill sv={role.color}>{role.label}</Pill>;
-      },
-    },
-    {
-      header: 'Linked employee',
-      width: '120px',
-      render: (member) =>
-        member.linkedEmployee ? (
-          <Link to={`/employees/${member.linkedEmployee.id}`} className={styles.linkCell}>
-            {member.linkedEmployee.displayName}
-          </Link>
-        ) : (
-          // The design's em dash for an empty cell.
-          <span className={styles.muted}>—</span>
         ),
-    },
-    {
-      header: 'Last active',
-      width: '95px',
-      render: (member) => (
-        <span className={styles.muted}>{formatRelativeTime(member.lastActiveAt)}</span>
-      ),
-    },
-    {
-      header: 'Status',
-      width: '100px',
-      render: (member) => (
-        <Pill sv={MEMBER_STATUS_COLORS[member.status]}>{MEMBER_STATUS_LABELS[member.status]}</Pill>
-      ),
-    },
-    ...(manages
-      ? [
-          {
-            header: 'Two-factor',
-            width: '130px',
-            render: (member: MemberSummary) =>
-              // A null count and "not enrolled" are the same fact from two
-              // sides: no authenticator, so no set of codes to count. The
-              // design's em dash says it.
-              member.recoveryCodesLeft === null ? (
-                <span className={styles.muted}>—</span>
-              ) : (
-                <div className={styles.twoFactor}>
-                  <Pill sv="ok">Enrolled</Pill>
-                  <span className={styles.codesLeft}>
-                    {member.recoveryCodesLeft} of {RECOVERY_CODE_COUNT} codes left
-                  </span>
-                </div>
-              ),
-          },
-        ]
-      : []),
-    {
-      header: '',
-      width: '40px',
-      render: (member) => {
-        if (!manages) return null;
-        const items = rowActions(member);
-        return items.length > 0 ? (
-          <Menu label={`Actions for ${member.displayName}`} items={items} />
-        ) : null;
       },
-    },
-  ];
+      {
+        header: 'Role',
+        width: '100px',
+        render: (member) => {
+          const role = roleInfo(byRoleId, member.role);
+          return <Pill sv={role.color}>{role.label}</Pill>;
+        },
+      },
+      {
+        header: 'Linked employee',
+        width: '120px',
+        render: (member) =>
+          member.linkedEmployee ? (
+            <Link to={`/employees/${member.linkedEmployee.id}`} className={styles.linkCell}>
+              {member.linkedEmployee.displayName}
+            </Link>
+          ) : (
+            // The design's em dash for an empty cell.
+            <span className={styles.muted}>—</span>
+          ),
+      },
+      {
+        header: 'Last active',
+        width: '95px',
+        render: (member) => (
+          <span className={styles.muted}>{formatRelativeTime(member.lastActiveAt)}</span>
+        ),
+      },
+      {
+        header: 'Status',
+        width: '100px',
+        render: (member) => (
+          <Pill sv={MEMBER_STATUS_COLORS[member.status]}>
+            {MEMBER_STATUS_LABELS[member.status]}
+          </Pill>
+        ),
+      },
+      ...(manages
+        ? [
+            {
+              header: 'Two-factor',
+              width: '130px',
+              render: (member: MemberSummary) =>
+                // A null count and "not enrolled" are the same fact from two
+                // sides: no authenticator, so no set of codes to count. The
+                // design's em dash says it.
+                member.recoveryCodesLeft === null ? (
+                  <span className={styles.muted}>—</span>
+                ) : (
+                  <div className={styles.twoFactor}>
+                    <Pill sv="ok">Enrolled</Pill>
+                    <span className={styles.codesLeft}>
+                      {member.recoveryCodesLeft} of {RECOVERY_CODE_COUNT} codes left
+                    </span>
+                  </div>
+                ),
+            },
+          ]
+        : []),
+      {
+        header: '',
+        width: '40px',
+        render: (member) => {
+          if (!manages) return null;
+          const items = rowActions(member);
+          return items.length > 0 ? (
+            <Menu label={`Actions for ${member.displayName}`} items={items} />
+          ) : null;
+        },
+      },
+    ];
+  }
 
   return (
     <PageContainer maxWidth={960}>
@@ -270,36 +283,46 @@ export function MembersPage({ permissions, memberId, viewerRole }: MembersPagePr
         )}
       </div>
 
-      {members.isPending ? (
+      {/* Failed, then not yet here, then the rows — three states, three
+          branches, and `data` is defined in the last one. */}
+      {failure !== null ? (
+        <Card padding={false}>
+          <ErrorState error={failure} onRetry={retry}>
+            The member list could not be loaded.
+          </ErrorState>
+        </Card>
+      ) : !members.isSuccess || !roles.isSuccess ? (
         <div className={styles.loading}>
           <Spinner size={18} />
         </div>
       ) : (
-        <DataTable
-          columns={columns}
-          rows={rows}
-          rowKey={(member) => member.id}
-          // The roles are the workspace's own, so the footer names the ones it
-          // has rather than the three this build used to ship with.
-          footer={`${total} ${total === 1 ? 'member' : 'members'} · roles: ${roleRows.map((role) => role.label).join(', ')}`}
-          empty={<EmptyState>Nobody can sign in yet — invite your first member.</EmptyState>}
-        />
-      )}
+        <>
+          <DataTable
+            columns={columnsFor(roleMap(roles.data.roles))}
+            rows={members.data.members}
+            rowKey={(member) => member.id}
+            // The roles are the workspace's own, so the footer names the ones
+            // it has rather than the three this build used to ship with.
+            footer={`${members.data.total} ${members.data.total === 1 ? 'member' : 'members'} · roles: ${roles.data.roles.map((role) => role.label).join(', ')}`}
+            empty={<EmptyState>Nobody can sign in yet — invite your first member.</EmptyState>}
+          />
 
-      <Pagination
-        page={page}
-        pageCount={Math.ceil(total / pageSize)}
-        onChange={setPage}
-        rowsPerPage={{
-          size: pageSize,
-          onChange: (size) => {
-            setPageSize(size);
-            // A smaller page is a different list; page three of it is not
-            // where anybody meant to land.
-            setPage(1);
-          },
-        }}
-      />
+          <Pagination
+            page={page}
+            pageCount={Math.ceil(members.data.total / pageSize)}
+            onChange={setPage}
+            rowsPerPage={{
+              size: pageSize,
+              onChange: (size) => {
+                setPageSize(size);
+                // A smaller page is a different list; page three of it is not
+                // where anybody meant to land.
+                setPage(1);
+              },
+            }}
+          />
+        </>
+      )}
 
       {dialog?.kind === 'role' && (
         <ChangeRoleModal member={dialog.member} onClose={() => setDialog(null)} />

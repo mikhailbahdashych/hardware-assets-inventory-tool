@@ -7,6 +7,7 @@ import {
   DEFAULT_ROLES,
   SEMANTIC_COLORS,
 } from '@inventory/shared';
+import { ApiError, HttpError } from '@/api/client';
 import {
   Avatar,
   BackLink,
@@ -17,6 +18,7 @@ import {
   Dropdown,
   Dropzone,
   EmptyState,
+  ErrorState,
   Field,
   FilterPills,
   Icon,
@@ -564,6 +566,34 @@ export function KitchenSink() {
         <Card padding={false}>
           <EmptyState>No assets match the current filter.</EmptyState>
         </Card>
+      </Section>
+
+      <Section title="A read that failed">
+        {/* EmptyState's sibling, and the pair is the point: the panel above
+            says the workspace has nothing, these say this request got nothing.
+            Both live where the rows would be. The second line is never ours —
+            it is the server's own sentence when there was a body, and what the
+            client read off the response when there was not. Only the bodiless
+            one earns a third line, the hedged hint AppErrorBoundary already
+            gives, because nothing answered to be quoted. */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+          <Card padding={false}>
+            <ErrorState
+              error={new ApiError(500, 'internal_error', 'The database is unavailable.')}
+              onRetry={() => show('Would read it again', 'info')}
+            >
+              The asset list could not be loaded.
+            </ErrorState>
+          </Card>
+          <Card padding={false}>
+            <ErrorState
+              error={new HttpError(502)}
+              onRetry={() => show('Would read it again', 'info')}
+            >
+              The asset list could not be loaded.
+            </ErrorState>
+          </Card>
+        </div>
       </Section>
 
       <Section title="Forms">

@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   ADMIN_MEMBER,
   ADMIN_ROUTES,
+  ADMIN_SUMMARY,
   MANAGER_ACTIONS,
   AUDITOR_ROLE,
   INVITED_SUMMARY,
@@ -159,6 +160,53 @@ describe('the members list', () => {
     await screen.findByRole('heading', { name: 'Members' });
     expect(screen.queryByRole('button', { name: /invite member/i })).toBeNull();
     expect(screen.queryByRole('button', { name: /actions for/i })).toBeNull();
+  });
+});
+
+describe('a read that failed', () => {
+  const DB_DOWN = {
+    status: 500,
+    body: { error: { code: 'internal_error', message: 'The database is unavailable.' } },
+  };
+
+  it('says so in the server’s own words instead of an empty workspace', async () => {
+    renderApp({ ...ADMIN_ROUTES, 'GET /members': DB_DOWN }, '/members');
+
+    const panel = await screen.findByRole('alert');
+    expect(within(panel).getByText(/could not be loaded/i)).toBeInTheDocument();
+    expect(within(panel).getByText('The database is unavailable.')).toBeInTheDocument();
+    // The lie this page used to tell: a failed read drawn as a workspace
+    // nobody has joined yet, one click away from inviting everybody twice.
+    expect(screen.queryByText(/nobody can sign in yet/i)).not.toBeInTheDocument();
+    expect(screen.queryByRole('table')).not.toBeInTheDocument();
+  });
+
+  it('reads the list again when the panel’s retry is pressed', async () => {
+    let attempts = 0;
+    const api = renderApp(
+      {
+        ...ADMIN_ROUTES,
+        'GET /members': () =>
+          attempts++ === 0 ? DB_DOWN : { body: { members: [ADMIN_SUMMARY], total: 1 } },
+      },
+      '/members',
+    );
+
+    await screen.findByRole('alert');
+    await userEvent.click(screen.getByRole('button', { name: 'Try again' }));
+
+    expect(await screen.findByText('tomasz@acme.io')).toBeInTheDocument();
+    expect(api.calledAll('GET /members')).toHaveLength(2);
+  });
+
+  it('fails the whole page when the roles that name the pills fail', async () => {
+    renderApp({ ...ADMIN_ROUTES, 'GET /roles': DB_DOWN }, '/members');
+
+    const panel = await screen.findByRole('alert');
+    expect(within(panel).getByText('The database is unavailable.')).toBeInTheDocument();
+    // Not a table of pills falling back to the slug: that would be this
+    // workspace's vocabulary invented by the browser.
+    expect(screen.queryByText('tomasz@acme.io')).not.toBeInTheDocument();
   });
 });
 
