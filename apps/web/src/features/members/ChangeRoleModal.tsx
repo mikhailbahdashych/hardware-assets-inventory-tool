@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useUpdateMember } from '@/api/mutations';
 import { useRoles } from '@/api/queries';
-import { Button, Modal } from '@/components/ui';
+import { Button, ErrorState, Modal } from '@/components/ui';
 import { roleInfo, roleMap } from '@/lib/roles';
 import { useToast } from '@/providers/ToastProvider';
 import { RoleCards } from './RoleCards';
@@ -14,7 +14,7 @@ export function ChangeRoleModal({ member, onClose }: ChangeRoleModalProps) {
   const update = useUpdateMember();
   // The toast says what the role is called, not the slug stored on the row.
   const roles = useRoles();
-  const byId = roleMap(roles.data === undefined ? [] : roles.data.roles);
+  const byId = roleMap(roles.isSuccess ? roles.data.roles : []);
 
   return (
     <Modal
@@ -29,7 +29,7 @@ export function ChangeRoleModal({ member, onClose }: ChangeRoleModalProps) {
             Cancel
           </Button>
           <Button
-            disabled={update.isPending || role === member.role}
+            disabled={update.isPending || roles.isError || role === member.role}
             onClick={() =>
               update.mutate(
                 { id: member.id, role },
@@ -48,7 +48,18 @@ export function ChangeRoleModal({ member, onClose }: ChangeRoleModalProps) {
         </>
       }
     >
-      <RoleCards name="change-role" value={role} onChange={setRole} />
+      {/* The cards are this modal's whole body, so a read that did not answer
+          fills it. Reachable only through a failed *refetch* — the Members
+          page gates its table on the same query, so the row this opens from
+          cannot be on screen otherwise — but a card list that never arrives is
+          a modal nobody can close except by cancelling. */}
+      {roles.isError ? (
+        <ErrorState error={roles.error} onRetry={() => void roles.refetch()}>
+          The roles to choose from could not be loaded.
+        </ErrorState>
+      ) : (
+        <RoleCards name="change-role" value={role} onChange={setRole} />
+      )}
     </Modal>
   );
 }

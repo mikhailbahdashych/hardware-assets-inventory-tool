@@ -206,6 +206,52 @@ describe('a read that failed', () => {
   });
 });
 
+describe('a modal whose options could not be loaded', () => {
+  it('says so where the invite form’s choices would be, instead of hanging', async () => {
+    renderApp({ ...ADMIN_ROUTES, 'GET /roles': DB_DOWN }, '/members');
+
+    await userEvent.click(await screen.findByRole('button', { name: /invite member/i }));
+    const dialog = await screen.findByRole('dialog', { name: /invite member/i });
+
+    expect(within(dialog).getByRole('alert')).toHaveTextContent('The database is unavailable.');
+    // The hang this replaces: a spinner where the Role field should be, and a
+    // Send invite nobody could ever press, one click from a panel that said
+    // exactly what went wrong.
+    expect(within(dialog).queryByRole('status', { name: 'Loading' })).toBeNull();
+    expect(within(dialog).getByRole('button', { name: /send invite/i })).toBeDisabled();
+  });
+
+  it('offers no employees to link to when that list is the one that failed', async () => {
+    renderApp({ ...ADMIN_ROUTES, 'GET /employees': DB_DOWN }, '/members');
+
+    await userEvent.click(await screen.findByRole('button', { name: /invite member/i }));
+    const dialog = await screen.findByRole('dialog', { name: /invite member/i });
+
+    expect(within(dialog).getByRole('alert')).toHaveTextContent('The database is unavailable.');
+    // Not a dropdown holding only "— No link —", which reads as a workspace
+    // with nobody on file.
+    expect(within(dialog).queryByLabelText(/link to employee/i)).toBeNull();
+    expect(within(dialog).getByRole('button', { name: /send invite/i })).toBeDisabled();
+  });
+
+  it('reads the options again when the panel’s retry is pressed', async () => {
+    // Twice: the page's own read, then the one the modal's mount retries.
+    let attempts = 0;
+    const api = renderApp(
+      { ...ADMIN_ROUTES, 'GET /roles': () => (attempts++ < 2 ? DB_DOWN : { body: ROLES }) },
+      '/members',
+    );
+
+    await userEvent.click(await screen.findByRole('button', { name: /invite member/i }));
+    const dialog = await screen.findByRole('dialog', { name: /invite member/i });
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Try again' }));
+
+    expect(await within(dialog).findByText('Viewer')).toBeInTheDocument();
+    expect(within(dialog).getByRole('button', { name: /send invite/i })).toBeEnabled();
+    expect(api.calledAll('GET /roles').length).toBeGreaterThan(1);
+  });
+});
+
 describe('inviting a member', () => {
   it('sends the form the design draws, then hands back a copyable link', async () => {
     const api = renderApp(

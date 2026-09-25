@@ -5,6 +5,7 @@ import { ATTACHMENT_ACCEPT } from '@inventory/shared';
 import {
   ADMIN_MEMBER,
   assetsRoute,
+  DB_DOWN,
   employeesRoute,
   INVENTORY_ROUTES,
   LAPTOP,
@@ -481,5 +482,118 @@ describe('the custom values card', () => {
     );
     await screen.findByRole('heading', { name: 'MacBook Pro 14"' });
     expect(screen.queryByRole('link', { name: 'Manage fields' })).toBeNull();
+  });
+});
+
+describe('a picker whose candidates could not be loaded', () => {
+  const freeAsset = {
+    ...detailRoutes,
+    'GET /assets/asset-1': {
+      body: { ...LAPTOP_DETAIL, asset: { ...LAPTOP, status: 'available', currentHolder: null } },
+    },
+  };
+
+  it('says so where the people would be, not “no active employee matches that”', async () => {
+    renderApp({ ...freeAsset, 'GET /employees': DB_DOWN }, '/assets/asset-1');
+    await userEvent.click(await screen.findByRole('button', { name: 'Assign' }));
+    const dialog = await screen.findByRole('dialog');
+
+    expect(within(dialog).getByRole('alert')).toHaveTextContent('The database is unavailable.');
+    // The lie: a read that failed drawn as a workspace where nobody matches.
+    expect(within(dialog).queryByText(/no active employee matches/i)).toBeNull();
+    expect(within(dialog).getByRole('button', { name: 'Assign asset' })).toBeDisabled();
+  });
+
+  it('keeps the search box, because it is how you ask again', async () => {
+    renderApp({ ...freeAsset, 'GET /employees': DB_DOWN }, '/assets/asset-1');
+    await userEvent.click(await screen.findByRole('button', { name: 'Assign' }));
+    const dialog = await screen.findByRole('dialog');
+
+    expect(within(dialog).getByLabelText(/search people/i)).toBeInTheDocument();
+  });
+
+  it('says so from the other side too, where the assets would be', async () => {
+    renderApp({ ...detailRoutes, 'GET /assets': DB_DOWN }, '/employees/emp-1');
+    await userEvent.click(await screen.findByRole('button', { name: 'Assign asset' }));
+    const dialog = await screen.findByRole('dialog');
+
+    expect(within(dialog).getByRole('alert')).toHaveTextContent('The database is unavailable.');
+    expect(within(dialog).queryByText(/nothing available to hand out/i)).toBeNull();
+  });
+
+  it('fails the asset picker when the workflow naming their statuses fails', async () => {
+    renderApp({ ...detailRoutes, 'GET /workflow': DB_DOWN }, '/employees/emp-1');
+    await userEvent.click(await screen.findByRole('button', { name: 'Assign asset' }));
+    const dialog = await screen.findByRole('dialog');
+
+    // Not rows whose subtitle prints the stored slug: that would be this
+    // workspace's vocabulary invented by the browser.
+    expect(within(dialog).getByRole('alert')).toHaveTextContent('The database is unavailable.');
+    expect(within(dialog).queryByRole('option')).toBeNull();
+  });
+
+  /**
+   * Everything the node has said since this was hung, not only what it says
+   * when the assertion runs. A sentence that flashes for one commit is still a
+   * sentence somebody reads, and the frame between a failed search and its
+   * failed replacement is exactly where this one lived.
+   */
+  function everythingShown(node: HTMLElement): { text: () => string; stop: () => void } {
+    const frames = [node.textContent];
+    const observer = new MutationObserver(() => frames.push(node.textContent));
+    observer.observe(node, { subtree: true, childList: true, characterData: true });
+    return { text: () => frames.join('\n'), stop: () => observer.disconnect() };
+  }
+
+  it('never says nothing matches while a retyped search is in flight', async () => {
+    const api = renderApp({ ...freeAsset, 'GET /employees': DB_DOWN }, '/assets/asset-1');
+    await userEvent.click(await screen.findByRole('button', { name: 'Assign' }));
+    const dialog = await screen.findByRole('dialog');
+    await within(dialog).findByRole('alert');
+
+    const shown = everythingShown(dialog);
+    await userEvent.type(within(dialog).getByLabelText(/search people/i), 'maya');
+    await waitFor(() => expect(api.calledAll('GET /employees').length).toBeGreaterThan(1));
+    await within(dialog).findByRole('alert');
+    shown.stop();
+
+    // A new needle is a new read, and `placeholderData` has nothing to carry
+    // forward from one that failed — so the list is plainly pending, and
+    // "nothing matches" is a fact about the workspace that nobody has checked.
+    expect(shown.text()).not.toMatch(/no active employee matches/i);
+  });
+
+  it('never says nothing is available while a retyped asset search is in flight', async () => {
+    const api = renderApp({ ...detailRoutes, 'GET /assets': DB_DOWN }, '/employees/emp-1');
+    await userEvent.click(await screen.findByRole('button', { name: 'Assign asset' }));
+    const dialog = await screen.findByRole('dialog');
+    await within(dialog).findByRole('alert');
+
+    const shown = everythingShown(dialog);
+    await userEvent.type(within(dialog).getByLabelText(/search assets/i), 'macbook');
+    await waitFor(() => expect(api.calledAll('GET /assets').length).toBeGreaterThan(1));
+    await within(dialog).findByRole('alert');
+    shown.stop();
+
+    expect(shown.text()).not.toMatch(/nothing available to hand out/i);
+  });
+
+  it('reads the candidates again when the panel’s retry is pressed', async () => {
+    let attempts = 0;
+    renderApp(
+      {
+        ...freeAsset,
+        'GET /employees': (body, search) =>
+          attempts++ === 0 ? DB_DOWN : employeesRoute([MAYA_DETAIL.employee])(body, search),
+      },
+      '/assets/asset-1',
+    );
+    await userEvent.click(await screen.findByRole('button', { name: 'Assign' }));
+    const dialog = await screen.findByRole('dialog');
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Try again' }));
+
+    expect(
+      await within(dialog).findByRole('option', { name: /Maya Lindqvist/ }),
+    ).toBeInTheDocument();
   });
 });

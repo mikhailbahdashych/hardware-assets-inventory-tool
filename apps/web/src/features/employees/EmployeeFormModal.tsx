@@ -13,7 +13,7 @@ import {
   useUpdateEmployee,
 } from '@/api/mutations';
 import { useRoles } from '@/api/queries';
-import { Button, Checkbox, Dropdown, Field, Input, Modal } from '@/components/ui';
+import { Button, Checkbox, Dropdown, ErrorState, Field, Input, Modal } from '@/components/ui';
 import { leastPrivileged } from '@/lib/roles';
 // Inviting is a members concern; this form borrows it rather than growing a
 // second way to show a one-time link.
@@ -90,9 +90,19 @@ export function EmployeeFormModal({
   const invite = useInviteMember();
 
   const roles = useRoles();
-  const roleOptions = roles.data === undefined ? [] : roles.data.roles;
+  const roleOptions = roles.isSuccess ? roles.data.roles : [];
   const suggestedRole = leastPrivileged(roleOptions);
   const inviteRole = chosenRole === '' && suggestedRole ? suggestedRole.id : chosenRole;
+
+  /**
+   * The one read this form makes, and it feeds one optional control: the role a
+   * new employee would be invited with. Failing the whole form over it would
+   * refuse to file a person because a list that person does not need went
+   * missing — so it fails where it is drawn, and only while the invitation is
+   * actually being asked for. That is the clause apps/web/CLAUDE.md's own rule
+   * allows: unticked, this query changes nothing on screen.
+   */
+  const rolesFailure = inviting && roles.isError ? roles.error : null;
 
   const pending = create.isPending || update.isPending || remove.isPending || invite.isPending;
   // Whichever of the three ran is the one that can have failed.
@@ -211,7 +221,9 @@ export function EmployeeFormModal({
           <Button variant="ghost" onClick={onClose} disabled={pending}>
             Cancel
           </Button>
-          <Button type="submit" form="employee-form" disabled={pending}>
+          {/* An invitation that cannot name a role is one nobody should be
+              able to send, and this form would send it in the same breath. */}
+          <Button type="submit" form="employee-form" disabled={pending || rolesFailure !== null}>
             {editing ? 'Save changes' : 'Add employee'}
           </Button>
         </>
@@ -349,26 +361,33 @@ export function EmployeeFormModal({
               onChange={(event) => setInviting(event.target.checked)}
               label="Also invite as a member of this app"
             />
-            {inviting && (
-              <Field
-                label="Role"
-                hint="They get an invitation link straight after the record is created"
-              >
-                {(id) => (
-                  <Dropdown
-                    id={id}
-                    value={inviteRole}
-                    options={roleOptions.map((option) => ({
-                      value: option.id,
-                      label: option.label,
-                      // A nullable column: no description is no second line.
-                      description: option.description ?? undefined,
-                    }))}
-                    onChange={setChosenRole}
-                  />
-                )}
-              </Field>
-            )}
+            {inviting &&
+              (rolesFailure !== null ? (
+                /* Not a select holding nothing, which would invite somebody
+                   with no role at all. */
+                <ErrorState error={rolesFailure} onRetry={() => void roles.refetch()}>
+                  The roles this invitation could use could not be loaded.
+                </ErrorState>
+              ) : (
+                <Field
+                  label="Role"
+                  hint="They get an invitation link straight after the record is created"
+                >
+                  {(id) => (
+                    <Dropdown
+                      id={id}
+                      value={inviteRole}
+                      options={roleOptions.map((option) => ({
+                        value: option.id,
+                        label: option.label,
+                        // A nullable column: no description is no second line.
+                        description: option.description ?? undefined,
+                      }))}
+                      onChange={setChosenRole}
+                    />
+                  )}
+                </Field>
+              ))}
           </div>
         )}
 

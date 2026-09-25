@@ -317,3 +317,41 @@ describe('a read that failed', () => {
     expect(screen.getAllByRole('link', { name: 'Employees' })).toHaveLength(2);
   });
 });
+
+describe('a form whose optional choices could not be loaded', () => {
+  async function openAddEmployee() {
+    renderApp({ ...ROUTES, 'GET /roles': DB_DOWN }, '/employees');
+    await screen.findByText('Maya Lindqvist');
+    await userEvent.click(screen.getByRole('button', { name: /add employee/i }));
+    return screen.findByRole('dialog');
+  }
+
+  it('still adds a person, because the roles are not what a record needs', async () => {
+    const dialog = await openAddEmployee();
+
+    expect(within(dialog).queryByRole('alert')).toBeNull();
+    expect(within(dialog).getByRole('button', { name: /add employee/i })).toBeEnabled();
+  });
+
+  it('says so where the role would be once the invitation is asked for', async () => {
+    const dialog = await openAddEmployee();
+    await userEvent.click(within(dialog).getByRole('checkbox', { name: /also invite/i }));
+
+    expect(within(dialog).getByRole('alert')).toHaveTextContent('The database is unavailable.');
+    // Not a select holding nothing, which would invite somebody with no role
+    // at all — and not a form that looks ready to submit.
+    expect(within(dialog).queryByLabelText(/^role$/i)).toBeNull();
+    expect(within(dialog).getByRole('button', { name: /add employee/i })).toBeDisabled();
+  });
+
+  it('lets the form go again when the invitation is unticked', async () => {
+    const dialog = await openAddEmployee();
+    const invite = within(dialog).getByRole('checkbox', { name: /also invite/i });
+
+    await userEvent.click(invite);
+    await userEvent.click(invite);
+
+    expect(within(dialog).queryByRole('alert')).toBeNull();
+    expect(within(dialog).getByRole('button', { name: /add employee/i })).toBeEnabled();
+  });
+});

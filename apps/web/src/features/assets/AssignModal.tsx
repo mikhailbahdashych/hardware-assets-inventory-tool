@@ -3,7 +3,17 @@ import type { AssignInput } from '@inventory/shared';
 import { fieldErrors } from '@/api/formErrors';
 import { useAssignAsset } from '@/api/mutations';
 import { PICKER_PAGE, useAssets, useEmployees, useWorkflow } from '@/api/queries';
-import { Avatar, Button, Field, Input, Modal, SearchInput, Textarea } from '@/components/ui';
+import {
+  Avatar,
+  Button,
+  ErrorState,
+  Field,
+  Input,
+  Modal,
+  SearchInput,
+  Spinner,
+  Textarea,
+} from '@/components/ui';
 import { useDebouncedValue } from '@/lib/useDebouncedValue';
 import { statusInfo, statusMap } from '@/lib/workflow';
 import { useToast } from '@/providers/ToastProvider';
@@ -49,11 +59,49 @@ export function AssignModal(props: AssignModalProps) {
   const assign = useAssignAsset(targetAssetId);
   const errors = fieldErrors(assign.error);
 
-  const candidates = useMemo<Candidate[]>(() => {
-    // A payload that has not arrived offers no candidates.
+  /**
+   * The picker's own failure. Only the side this mode picks from is drawn, so
+   * only its reads can fail it — the other list is never rendered, and the
+   * rule's own clause covers that: a query whose failure changes nothing on
+   * screen is not this surface's failure. The workflow counts on the asset
+   * side, where it writes every row's status into the subtitle.
+   */
+  const failure = (() => {
+    if (mode === 'pick-employee') return employees.isError ? employees.error : null;
+    if (assets.isError) return assets.error;
+    return workflow.isError ? workflow.error : null;
+  })();
+
+  function retry(): void {
     if (mode === 'pick-employee') {
+      void employees.refetch();
+      return;
+    }
+    void assets.refetch();
+    void workflow.refetch();
+  }
+
+  /**
+   * Whether the list below is showing an answer at all. **A retyped needle is a
+   * new read**, and `placeholderData` has nothing to carry forward from one
+   * that failed — so the list goes plainly pending between a failed search and
+   * its failed replacement, and "nothing matches" is a fact about the workspace
+   * that nobody has checked yet. Three states here too, and the empty sentence
+   * belongs to exactly one of them.
+   */
+  const answered =
+    mode === 'pick-employee' ? employees.isSuccess : assets.isSuccess && workflow.isSuccess;
+
+  const candidates = useMemo<Candidate[]>(() => {
+    // Failed, then not here yet — and in the last branch `data` is defined, so
+    // there is nothing left to coalesce. After a failure the rows that arrived
+    // last are not an answer either: this modal cannot say they are still
+    // assignable, and the panel below is what says so instead.
+    if (failure !== null) return [];
+    if (mode === 'pick-employee') {
+      if (!employees.isSuccess) return [];
       return (
-        (employees.data?.employees ?? [])
+        employees.data.employees
           // Employee status is not a filter the list endpoint takes, so this one
           // stays here. It thins a page rather than emptying it: somebody
           // offboarding is a small minority, unlike an assigned asset. Give the
@@ -67,17 +115,26 @@ export function AssignModal(props: AssignModalProps) {
           }))
       );
     }
-    // A workflow that has not arrived has no labels for the subtitle; the
-    // filtering itself is the API's, through `assignable` above.
-    const byId = statusMap(workflow.data?.statuses ?? []);
-    return (assets.data?.assets ?? []).map((asset) => ({
+    if (!assets.isSuccess || !workflow.isSuccess) return [];
+    // The filtering itself is the API's, through `assignable` above.
+    const byId = statusMap(workflow.data.statuses);
+    return assets.data.assets.map((asset) => ({
       id: asset.id,
       title: asset.name,
       subtitle: `${asset.assetTag} · ${statusInfo(byId, asset.status).label}`,
       avatarKey: asset.id,
       square: true as const,
     }));
-  }, [mode, employees.data, assets.data, workflow.data]);
+  }, [
+    mode,
+    failure,
+    employees.data,
+    employees.isSuccess,
+    assets.data,
+    assets.isSuccess,
+    workflow.data,
+    workflow.isSuccess,
+  ]);
 
   function submit(event: FormEvent) {
     event.preventDefault();
@@ -145,13 +202,28 @@ export function AssignModal(props: AssignModalProps) {
               width="100%"
               aria-label={mode === 'pick-employee' ? 'Search people' : 'Search assets'}
             />
+            {/* The search box stays above whichever of these it is — it is
+                how you ask again — but "nothing matches" is a fact about the
+                workspace and may not stand in for a read that never answered. */}
             <div className={styles.list} role="listbox" aria-label="Candidates">
-              {candidates.length === 0 && (
-                <div className={styles.empty}>
+              {failure !== null ? (
+                <ErrorState error={failure} onRetry={retry}>
                   {mode === 'pick-employee'
-                    ? 'No active employee matches that.'
-                    : 'Nothing available to hand out.'}
+                    ? 'The people this asset could go to could not be loaded.'
+                    : 'The assets available to hand out could not be loaded.'}
+                </ErrorState>
+              ) : !answered ? (
+                <div className={styles.empty}>
+                  <Spinner size={16} />
                 </div>
+              ) : (
+                candidates.length === 0 && (
+                  <div className={styles.empty}>
+                    {mode === 'pick-employee'
+                      ? 'No active employee matches that.'
+                      : 'Nothing available to hand out.'}
+                  </div>
+                )
               )}
               {candidates.map((candidate) => (
                 <button

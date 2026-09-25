@@ -3,7 +3,7 @@ import { fieldErrors } from '@/api/formErrors';
 import { useInviteMember } from '@/api/mutations';
 import { DROPDOWN_LIMIT, useEmployees, useRoles } from '@/api/queries';
 import { leastPrivileged } from '@/lib/roles';
-import { Button, Dropdown, Field, Input, Modal } from '@/components/ui';
+import { Button, Dropdown, ErrorState, Field, Input, Modal } from '@/components/ui';
 import formStyles from '@/components/ui/FormModal.module.css';
 import { CopyLinkModal } from './CopyLinkModal';
 import { RoleCards } from './RoleCards';
@@ -27,11 +27,24 @@ export function InviteMemberModal({ onClose }: InviteMemberModalProps) {
   const invite = useInviteMember();
   const errors = fieldErrors(invite.error);
 
+  /**
+   * Both reads fill a control on this form, so the first failure among them is
+   * the form's — the same rule a page follows (apps/web/CLAUDE.md). It replaces
+   * the two fields rather than the whole body: the email above it is typed, not
+   * fetched, and a panel is no reason to throw it away.
+   */
+  const failure = roles.isError ? roles.error : employees.isError ? employees.error : null;
+
+  function retry(): void {
+    void roles.refetch();
+    void employees.refetch();
+  }
+
   // Until the admin picks one it is the least a new member can be given —
   // which is a question about the workspace's rows, not a slug this build can
   // name. Empty only while the roles are still on their way, and Send is
   // disabled until then: an invitation has to name a role that exists.
-  const suggested = leastPrivileged(roles.data === undefined ? [] : roles.data.roles);
+  const suggested = leastPrivileged(roles.isSuccess ? roles.data.roles : []);
   const role = chosenRole === '' && suggested ? suggested.id : chosenRole;
 
   function submit(event: FormEvent) {
@@ -68,7 +81,14 @@ export function InviteMemberModal({ onClose }: InviteMemberModalProps) {
           <Button variant="ghost" onClick={onClose}>
             Cancel
           </Button>
-          <Button type="submit" form="invite-member" disabled={invite.isPending || role === ''}>
+          {/* An invitation that cannot name a role is one nobody should be
+              able to send — and it cannot, until the workspace's own rows say
+              what the roles are. */}
+          <Button
+            type="submit"
+            form="invite-member"
+            disabled={invite.isPending || failure !== null || role === ''}
+          >
             Send invite
           </Button>
         </>
@@ -88,31 +108,42 @@ export function InviteMemberModal({ onClose }: InviteMemberModalProps) {
           )}
         </Field>
 
-        <Field
-          label="Link to employee"
-          hint="Optional — connects the account to an employee record"
-          error={errors.employeeId}
-        >
-          {(id) => (
-            <Dropdown
-              id={id}
-              value={employeeId}
-              options={[
-                { value: '', label: '— No link —' },
-                // Employees that have not loaded are no employees to offer.
-                ...(employees.data?.employees ?? []).map((employee) => ({
-                  value: employee.id,
-                  label: employee.displayName,
-                })),
-              ]}
-              onChange={setEmployeeId}
-            />
-          )}
-        </Field>
+        {/* Failed, then the controls — and in the second branch there is
+            nothing to coalesce: a dropdown holding only "— No link —" reads as
+            a workspace with nobody on file, and a role card list that never
+            arrives is the spinner this panel replaces. */}
+        {failure !== null ? (
+          <ErrorState error={failure} onRetry={retry}>
+            The roles and people this invitation offers could not be loaded.
+          </ErrorState>
+        ) : (
+          <>
+            <Field
+              label="Link to employee"
+              hint="Optional — connects the account to an employee record"
+              error={errors.employeeId}
+            >
+              {(id) => (
+                <Dropdown
+                  id={id}
+                  value={employeeId}
+                  options={[
+                    { value: '', label: '— No link —' },
+                    ...(employees.isSuccess ? employees.data.employees : []).map((employee) => ({
+                      value: employee.id,
+                      label: employee.displayName,
+                    })),
+                  ]}
+                  onChange={setEmployeeId}
+                />
+              )}
+            </Field>
 
-        <Field label="Role" required>
-          <RoleCards name="invite-role" value={role} onChange={setChosenRole} />
-        </Field>
+            <Field label="Role" required>
+              <RoleCards name="invite-role" value={role} onChange={setChosenRole} />
+            </Field>
+          </>
+        )}
 
         {invite.error && !errors.email && !errors.employeeId && (
           <div className={formStyles.formError}>{invite.error.message}</div>
