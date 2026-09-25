@@ -5,6 +5,7 @@ import {
   ADMIN_MEMBER,
   ADMIN_ROUTES,
   ADMIN_SUMMARY,
+  DB_DOWN,
   MANAGER_ACTIONS,
   AUDITOR_ROLE,
   INVITED_SUMMARY,
@@ -164,11 +165,6 @@ describe('the members list', () => {
 });
 
 describe('a read that failed', () => {
-  const DB_DOWN = {
-    status: 500,
-    body: { error: { code: 'internal_error', message: 'The database is unavailable.' } },
-  };
-
   it('says so in the server’s own words instead of an empty workspace', async () => {
     renderApp({ ...ADMIN_ROUTES, 'GET /members': DB_DOWN }, '/members');
 

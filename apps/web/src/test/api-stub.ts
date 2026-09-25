@@ -10,7 +10,13 @@ import {
 } from '@inventory/shared';
 
 export type StubResponse = { status?: number; body?: unknown };
-export type StubHandler = StubResponse | ((body: unknown, search: string) => StubResponse);
+/**
+ * The callable half of a handler: a route that answers from the request. Named
+ * so a test can wrap one — "fail once, then answer properly" is how the retry
+ * assertions are written, and that needs the fixture route to be callable.
+ */
+export type StubRoute = (body: unknown, search: string) => StubResponse;
+export type StubHandler = StubResponse | StubRoute;
 /**
  * Keyed by "METHOD /path", e.g. "POST /auth/login". A key may carry a query
  * string ("GET /audit?type=assets") to answer only that exact request; the
@@ -82,6 +88,16 @@ export function stubApi(routes: StubRoutes): ApiStub {
   };
 }
 
+/**
+ * A read that fails, in the envelope `client.ts` parses: one 500 every page
+ * test can point at whichever route it wants dead, so a failure fixture is not
+ * re-declared in a dozen files with a dozen different sentences.
+ */
+export const DB_DOWN: StubResponse = {
+  status: 500,
+  body: { error: { code: 'internal_error', message: 'The database is unavailable.' } },
+};
+
 /** Just enough of a fixture row for the stub to search and page it. */
 export interface StubRow {
   [field: string]: unknown;
@@ -118,7 +134,7 @@ function windowOf(rows: StubRow[], search: string): StubRow[] {
 }
 
 /** `GET /assets`: the page, the total behind `q`, and the counts per status. */
-export function assetsRoute(assets: StubRow[]): StubHandler {
+export function assetsRoute(assets: StubRow[]): StubRoute {
   return (_body, search) => {
     const params = new URLSearchParams(search);
     // `?assignable=true` is the assign modal asking for only what a handover
@@ -146,14 +162,14 @@ export function assetsRoute(assets: StubRow[]): StubHandler {
   };
 }
 
-export function employeesRoute(employees: StubRow[]): StubHandler {
+export function employeesRoute(employees: StubRow[]): StubRoute {
   return (_body, search) => {
     const matched = found(employees, search, ['displayName', 'email', 'department', 'jobTitle']);
     return { body: { employees: windowOf(matched, search), total: matched.length } };
   };
 }
 
-export function membersRoute(members: StubRow[]): StubHandler {
+export function membersRoute(members: StubRow[]): StubRoute {
   return (_body, search) => {
     const matched = found(members, search, ['displayName', 'email']);
     return { body: { members: windowOf(matched, search), total: matched.length } };
@@ -161,7 +177,7 @@ export function membersRoute(members: StubRow[]): StubHandler {
 }
 
 /** `GET /search`: what the command palette reads, capped at four of each. */
-export function searchRoute(assets: StubRow[], employees: StubRow[]): StubHandler {
+export function searchRoute(assets: StubRow[], employees: StubRow[]): StubRoute {
   return (_body, search) => ({
     body: {
       assets: found(assets, search, ['name', 'assetTag', 'serialNumber'])
