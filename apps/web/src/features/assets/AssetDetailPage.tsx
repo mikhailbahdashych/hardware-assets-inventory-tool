@@ -11,7 +11,16 @@ import { orgMeta, useAsset, useMeta, useWorkflow } from '@/api/queries';
 import type { Asset, CustomFieldValue } from '@/types/api';
 import { PageContainer } from '@/components/app/PageContainer';
 import { usePageBreadcrumb } from '@/providers/BreadcrumbProvider';
-import { Avatar, BackLink, Button, Card, KeyValueRow, Pill, Spinner } from '@/components/ui';
+import {
+  Avatar,
+  BackLink,
+  Button,
+  Card,
+  ErrorState,
+  KeyValueRow,
+  Pill,
+  Spinner,
+} from '@/components/ui';
 import { formatCurrency, formatDuration, formatFullDate } from '@/lib/format';
 import { statusInfo, statusMap } from '@/lib/workflow';
 import { AssetFormModal } from './AssetFormModal';
@@ -43,9 +52,10 @@ function primaryAction(asset: Asset, status: WorkflowStatus | undefined): Primar
   if (asset.status === ASSIGNED_STATUS) {
     return { label: 'Check in', modal: 'checkin', permission: 'assets.checkin' };
   }
-  // No row for this status means the workflow has not answered yet, or an
-  // admin deleted the status this asset still carries. Neither can be handed
-  // out, and Change status is the move that fixes the second one.
+  // No row for this status means an admin deleted the one this asset still
+  // carries — the workflow has answered by the time this is called. A status
+  // that no longer exists cannot be handed out, and Change status is the move
+  // that fixes it.
   if (status !== undefined && status.assignableFrom) {
     return { label: 'Assign', modal: 'assign', permission: 'assets.assign' };
   }
@@ -61,7 +71,46 @@ export function AssetDetailPage({ permissions }: AssetDetailPageProps) {
   const workflow = useWorkflow();
   usePageBreadcrumb(detail.data?.asset.assetTag);
 
-  if (detail.isPending) {
+  /**
+   * Every query this page reads is one it needs — the currency comes from
+   * /meta and the status pill's words from the workflow — so the first failure
+   * among them is the page's. One rule for every page: see apps/web/CLAUDE.md.
+   *
+   * This used to be its own panel saying "That asset could not be found." for
+   * every failure alike, which was a diagnosis rather than a report: a 500 and
+   * a dropped connection are not a missing asset. The 404 still reads the same
+   * way, because the sentence now comes from the server, which sends exactly
+   * that. What the old panel had right — a way out of a page that cannot draw
+   * itself — is the BackLink above it, kept.
+   */
+  const failure = detail.isError
+    ? detail.error
+    : meta.isError
+      ? meta.error
+      : workflow.isError
+        ? workflow.error
+        : null;
+
+  function retry(): void {
+    void detail.refetch();
+    void meta.refetch();
+    void workflow.refetch();
+  }
+
+  if (failure !== null) {
+    return (
+      <PageContainer variant="detail" maxWidth={1060} gap={16}>
+        <BackLink to="/assets">Assets</BackLink>
+        <Card padding={false}>
+          <ErrorState error={failure} onRetry={retry}>
+            This asset could not be loaded.
+          </ErrorState>
+        </Card>
+      </PageContainer>
+    );
+  }
+
+  if (!detail.isSuccess || !meta.isSuccess || !workflow.isSuccess) {
     return (
       <PageContainer variant="detail" maxWidth={1060}>
         <div className={styles.loading}>
@@ -71,23 +120,11 @@ export function AssetDetailPage({ permissions }: AssetDetailPageProps) {
     );
   }
 
-  if (detail.isError || !detail.data) {
-    return (
-      <PageContainer variant="detail" maxWidth={1060} gap={16}>
-        <BackLink to="/assets">Assets</BackLink>
-        <Card>
-          <div className={styles.note}>That asset could not be found.</div>
-        </Card>
-      </PageContainer>
-    );
-  }
-
   const { asset, customFields, history, attachments, auditTrail } = detail.data;
   // An asset stores a currency only when it differs from the organization's,
   // so null here means "the org's" — that one is the rule, not a fallback.
   const currency = asset.currency ?? orgMeta(meta.data).defaultCurrency;
-  // A workflow that has not arrived has no statuses to look this one up in.
-  const byId = statusMap(workflow.data?.statuses ?? []);
+  const byId = statusMap(workflow.data.statuses);
   const status = statusInfo(byId, asset.status);
   const primary = primaryAction(asset, byId.get(asset.status));
 

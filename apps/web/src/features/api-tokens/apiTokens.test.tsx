@@ -6,6 +6,7 @@ import {
   ADMIN_ROUTES,
   API_TOKENS,
   AUDITOR_ROLE,
+  DB_DOWN,
   EVERY_ACTION,
   EXPIRED_TOKEN,
   LIVE_TOKEN,
@@ -208,5 +209,45 @@ describe('revoking a token', () => {
       within(await rowFor(LIVE_TOKEN.name)).getByRole('button', { name: /revoke for good/i }),
     );
     await waitFor(() => expect(api.called('DELETE /api-tokens/token-1')).toBeDefined());
+  });
+});
+
+describe('a read that failed', () => {
+  it('says so in the server’s own words instead of a workspace with no integrations', async () => {
+    renderApp({ ...ADMIN_ROUTES, 'GET /api-tokens': DB_DOWN }, '/api-tokens');
+
+    const panel = await screen.findByRole('alert');
+    expect(within(panel).getByText(/the api tokens could not be loaded/i)).toBeInTheDocument();
+    expect(within(panel).getByText('The database is unavailable.')).toBeInTheDocument();
+    // The lie: a failed read drawn as a workspace that has minted nothing —
+    // an invitation to mint a second credential for a system that has one.
+    expect(screen.queryByText(/no api tokens yet/i)).toBeNull();
+    expect(screen.queryByRole('table')).toBeNull();
+  });
+
+  it('reads the list again when the panel’s retry is pressed', async () => {
+    let attempts = 0;
+    const api = renderApp(
+      {
+        ...ADMIN_ROUTES,
+        'GET /api-tokens': () =>
+          attempts++ === 0 ? DB_DOWN : { body: { apiTokens: [LIVE_TOKEN] } },
+      },
+      '/api-tokens',
+    );
+
+    await screen.findByRole('alert');
+    await userEvent.click(screen.getByRole('button', { name: 'Try again' }));
+
+    expect(await screen.findByText(LIVE_TOKEN.name)).toBeInTheDocument();
+    expect(api.calledAll('GET /api-tokens')).toHaveLength(2);
+  });
+
+  it('still says there are none when the workspace genuinely has none', async () => {
+    renderApp(workspace([]), '/api-tokens');
+
+    expect(await screen.findByText(/no api tokens yet/i)).toBeInTheDocument();
+    expect(screen.getByRole('table')).toBeInTheDocument();
+    expect(screen.queryByRole('alert')).toBeNull();
   });
 });

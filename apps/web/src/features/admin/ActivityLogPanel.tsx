@@ -14,9 +14,11 @@ import {
 } from '@inventory/shared';
 import { useAuditLog, useSettings } from '@/api/queries';
 import {
+  Card,
   DataTable,
   Dropdown,
   EmptyState,
+  ErrorState,
   FilterPills,
   Pagination,
   Pill,
@@ -83,9 +85,24 @@ export function ActivityLogPanel() {
   const type = readType(searchParams.get('type'));
   const actorKind = readActorKind(searchParams.get('actorKind'));
   const log = useAuditLog({ type, actorKind, limit: pageSize, offset: (page - 1) * pageSize });
+  /**
+   * The one query on this page whose failure is *not* the page's, and the
+   * exception apps/web/CLAUDE.md's own rule allows for: this page is gated on
+   * `audit.view` and `GET /settings` wants `settings.manage`, so an Auditor is
+   * refused here by design — exactly as `useMe()` is by a 401. The footer says
+   * "the configured period" rather than a number nobody told it, and failing a
+   * log that loaded perfectly well would be its own kind of lie.
+   */
   const settings = useSettings();
 
-  const counts = log.data?.typeCounts;
+  /**
+   * The pills stay reachable through a failure — they are how you ask for a
+   * different log — but their numbers come out of the payload, so a read that
+   * did not answer leaves them bare rather than at zero. A failed *refetch*
+   * leaves the last good payload in `data`, which is why this asks `isSuccess`
+   * rather than reading `data` directly.
+   */
+  const counts = log.isSuccess ? log.data.typeCounts : undefined;
   const options: FilterPillOption<AuditType | 'all'>[] = [
     { value: 'all', label: 'All', count: counts?.all },
     ...AUDIT_TYPES.map((value) => ({
@@ -94,10 +111,6 @@ export function ActivityLogPanel() {
       count: counts?.[value],
     })),
   ];
-
-  // Events that have not arrived are no events to render.
-  const items = log.data?.items ?? [];
-  const total = log.data?.total ?? 0;
 
   /** Both filters ride the URL, so a narrowed log is still a link. */
   function filter(key: 'type' | 'actorKind', value: string) {
@@ -149,34 +162,47 @@ export function ActivityLogPanel() {
         </a>
       </div>
 
-      {log.isPending ? (
+      {/* Failed, then not yet here, then the rows — three states, three
+          branches, and `data` is defined in the last one. The panel's own
+          content is what is replaced: the page's heading and this toolbar are
+          not what failed. */}
+      {log.isError ? (
+        <Card padding={false}>
+          <ErrorState error={log.error} onRetry={() => void log.refetch()}>
+            The activity log could not be loaded.
+          </ErrorState>
+        </Card>
+      ) : !log.isSuccess ? (
         <div className={styles.loading}>
           <Spinner size={18} />
         </div>
       ) : (
-        <DataTable
-          columns={COLUMNS}
-          rows={items}
-          rowKey={(item) => item.id}
-          footer={`${total} ${total === 1 ? 'event' : 'events'} · retained for ${retention(settings.data?.settings.logRetentionMonths)}`}
-          empty={<EmptyState>Nothing has happened under this filter yet.</EmptyState>}
-        />
-      )}
+        <>
+          <DataTable
+            columns={COLUMNS}
+            rows={log.data.items}
+            rowKey={(item) => item.id}
+            footer={`${log.data.total} ${log.data.total === 1 ? 'event' : 'events'} · retained for ${retention(settings.data?.settings.logRetentionMonths)}`}
+            empty={<EmptyState>Nothing has happened under this filter yet.</EmptyState>}
+          />
 
-      <Pagination
-        page={page}
-        pageCount={Math.ceil(total / pageSize)}
-        onChange={setPage}
-        rowsPerPage={{
-          size: pageSize,
-          onChange: (size) => {
-            setPageSize(size);
-            // A smaller page is a different log; page three of it is not where
-            // anybody meant to land.
-            setPage(1);
-          },
-        }}
-      />
+          {/* A pager over a failure has nothing to page. */}
+          <Pagination
+            page={page}
+            pageCount={Math.ceil(log.data.total / pageSize)}
+            onChange={setPage}
+            rowsPerPage={{
+              size: pageSize,
+              onChange: (size) => {
+                setPageSize(size);
+                // A smaller page is a different log; page three of it is not
+                // where anybody meant to land.
+                setPage(1);
+              },
+            }}
+          />
+        </>
+      )}
     </div>
   );
 }
@@ -193,7 +219,8 @@ function readActorKind(value: string | null): AuditActorKind | undefined {
 
 /**
  * The footer's retention note. `null` is "Forever" and `undefined` is settings
- * that have not loaded — the sentence stays honest about which it is.
+ * this reader has not got — not loaded yet, or not theirs to read at all. The
+ * sentence stays honest about which it is by naming no period.
  */
 function retention(months: LogRetention | undefined): string {
   if (months === undefined) return 'the configured period';

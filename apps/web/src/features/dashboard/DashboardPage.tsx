@@ -2,7 +2,7 @@ import { Link, useNavigate } from 'react-router';
 import { ASSET_CATEGORY_LABELS, AUDIT_TYPE_COLORS, renderAuditEvent } from '@inventory/shared';
 import { useDashboard } from '@/api/queries';
 import { PageContainer } from '@/components/app/PageContainer';
-import { Button, EmptyState, Pill, Spinner } from '@/components/ui';
+import { Button, Card, EmptyState, ErrorState, Pill, Spinner } from '@/components/ui';
 import { formatFullDate, formatRelativeTime } from '@/lib/format';
 import { useModals } from '@/providers/ModalProvider';
 import { isWidgetVisible, warrantyUrgency, type WidgetKey } from './widgets';
@@ -27,8 +27,12 @@ export function DashboardPage({ member }: DashboardPageProps) {
       <div className={styles.header}>
         <div>
           <h1 className={styles.title}>Dashboard</h1>
+          {/* The count is the payload's, or it is not drawn. "0 assets tracked"
+              while the read is in flight — or after it failed — is a number
+              nobody took, printed in the same words as one somebody did. */}
           <p className={styles.summary}>
-            {today()} · {dashboard.data?.assetCount ?? 0} assets tracked
+            {today()}
+            {dashboard.isSuccess && ` · ${dashboard.data.assetCount} assets tracked`}
           </p>
         </div>
         <Button variant="ghost" icon="pencil" onClick={() => openModal('widgets')}>
@@ -36,7 +40,15 @@ export function DashboardPage({ member }: DashboardPageProps) {
         </Button>
       </div>
 
-      {dashboard.isPending || !dashboard.data ? (
+      {/* Failed, then not yet here, then the widgets — three states, three
+          branches, and `data` is defined in the last one. */}
+      {dashboard.isError ? (
+        <Card padding={false}>
+          <ErrorState error={dashboard.error} onRetry={() => void dashboard.refetch()}>
+            The dashboard could not be loaded.
+          </ErrorState>
+        </Card>
+      ) : !dashboard.isSuccess ? (
         <div className={styles.loading}>
           <Spinner size={18} />
         </div>

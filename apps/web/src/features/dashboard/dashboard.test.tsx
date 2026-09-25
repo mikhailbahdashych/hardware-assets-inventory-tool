@@ -1,7 +1,7 @@
 import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { ADMIN_MEMBER, DASHBOARD, DASHBOARD_ROUTES, session } from '@/test/api-stub';
+import { ADMIN_MEMBER, DASHBOARD, DASHBOARD_ROUTES, DB_DOWN, session } from '@/test/api-stub';
 import { renderApp, resetAppState } from '@/test/render';
 
 afterEach(() => {
@@ -176,5 +176,58 @@ describe('customizing the dashboard', () => {
     expect(await screen.findByRole('heading', { name: 'Assets by category' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Pending returns' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Available 4' })).toBeNull();
+  });
+});
+
+describe('a read that failed', () => {
+  it('invents no number when there is none to report', async () => {
+    renderApp({ ...DASHBOARD_ROUTES, 'GET /dashboard': DB_DOWN }, '/dashboard');
+
+    const panel = await screen.findByRole('alert');
+    expect(within(panel).getByText(/the dashboard could not be loaded/i)).toBeInTheDocument();
+    expect(within(panel).getByText('The database is unavailable.')).toBeInTheDocument();
+    // The lie this page used to tell: "0 assets tracked" is a count nobody
+    // took, printed in the same words as a count somebody did.
+    expect(screen.queryByText(/0 assets tracked/)).toBeNull();
+    expect(screen.queryByText(/assets tracked/)).toBeNull();
+    // And no tiles, no bars, no activity: every one of them is a number too.
+    expect(screen.queryByRole('heading', { name: 'Assets by category' })).toBeNull();
+    expect(screen.queryByText(/nothing has happened yet/i)).toBeNull();
+  });
+
+  it('reads the dashboard again when the panel’s retry is pressed', async () => {
+    let attempts = 0;
+    const api = renderApp(
+      {
+        ...DASHBOARD_ROUTES,
+        'GET /dashboard': () => (attempts++ === 0 ? DB_DOWN : { body: DASHBOARD }),
+      },
+      '/dashboard',
+    );
+
+    await screen.findByRole('alert');
+    await userEvent.click(screen.getByRole('button', { name: 'Try again' }));
+
+    expect(await screen.findByText(/· 13 assets tracked$/)).toBeInTheDocument();
+    expect(api.calledAll('GET /dashboard')).toHaveLength(2);
+  });
+
+  it('still says a widget is empty when the workspace genuinely is', async () => {
+    renderApp(
+      {
+        ...DASHBOARD_ROUTES,
+        'GET /dashboard': {
+          body: { ...DASHBOARD, assetCount: 0, recentActivity: [], pendingReturns: [] },
+        },
+      },
+      '/dashboard',
+    );
+
+    // A real zero, counted and reported — which is exactly what the failing
+    // page must not be able to say.
+    expect(await screen.findByText(/· 0 assets tracked$/)).toBeInTheDocument();
+    expect(screen.getByText(/nothing has happened yet/i)).toBeInTheDocument();
+    expect(screen.getByText(/nothing is due back right now/i)).toBeInTheDocument();
+    expect(screen.queryByRole('alert')).toBeNull();
   });
 });

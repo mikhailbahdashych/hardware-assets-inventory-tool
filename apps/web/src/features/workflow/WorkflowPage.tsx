@@ -5,8 +5,10 @@ import { useWorkflow } from '@/api/queries';
 import { PageContainer } from '@/components/app/PageContainer';
 import {
   Button,
+  Card,
   Checkbox,
   DataTable,
+  ErrorState,
   IconButton,
   Pill,
   Spinner,
@@ -44,7 +46,17 @@ export function WorkflowPage() {
           The statuses this workspace uses, and the moves between them · visible to Admins only
         </p>
       </div>
-      {workflow.data === undefined ? (
+      {/* Failed, then not yet here, then the cards — three states, three
+          branches, and `data` is defined in the last one. An empty matrix and
+          an empty diagram would read as a workspace that allows no move at
+          all, which is not what the server said. */}
+      {workflow.isError ? (
+        <Card padding={false}>
+          <ErrorState error={workflow.error} onRetry={() => void workflow.refetch()}>
+            The workflow could not be loaded.
+          </ErrorState>
+        </Card>
+      ) : !workflow.isSuccess ? (
         <div className={styles.loading}>
           <Spinner size={18} />
         </div>

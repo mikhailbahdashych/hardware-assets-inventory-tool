@@ -3,7 +3,16 @@ import { ACTION_GROUPS, ACTION_LABELS, type Action, type WorkspaceRole } from '@
 import { useReorderRoles, useSaveRolePermissions } from '@/api/mutations';
 import { useRoles } from '@/api/queries';
 import { PageContainer } from '@/components/app/PageContainer';
-import { Button, Checkbox, DataTable, IconButton, Pill, Spinner } from '@/components/ui';
+import {
+  Button,
+  Card,
+  Checkbox,
+  DataTable,
+  ErrorState,
+  IconButton,
+  Pill,
+  Spinner,
+} from '@/components/ui';
 import type { TableColumn } from '@/types/table';
 import { useToast } from '@/providers/ToastProvider';
 import { DeleteRoleModal } from './DeleteRoleModal';
@@ -38,7 +47,17 @@ export function RolesPage({ ownRole }: RolesPageProps) {
           hold
         </p>
       </div>
-      {roles.data === undefined ? (
+      {/* Failed, then not yet here, then the cards — three states, three
+          branches, and `data` is defined in the last one. A matrix drawn
+          without the payload would have no columns, which reads as a
+          workspace that grants nothing to nobody. */}
+      {roles.isError ? (
+        <Card padding={false}>
+          <ErrorState error={roles.error} onRetry={() => void roles.refetch()}>
+            The roles could not be loaded.
+          </ErrorState>
+        </Card>
+      ) : !roles.isSuccess ? (
         <div className={styles.loading}>
           <Spinner size={18} />
         </div>

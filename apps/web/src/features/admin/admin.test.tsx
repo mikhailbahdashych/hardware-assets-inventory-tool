@@ -5,6 +5,7 @@ import {
   ADMIN_MEMBER,
   ADMIN_ROUTES,
   AUDIT_PAGE,
+  DB_DOWN,
   MANAGER_ACTIONS,
   session,
   SETTINGS,
@@ -392,5 +393,106 @@ describe('the danger zone', () => {
     await userEvent.click(confirm);
     await waitFor(() => expect(api.called('POST /workspace/delete')).toBeDefined());
     expect(api.called('POST /workspace/delete')!.body).toEqual({ confirmText: 'Acme Corp' });
+  });
+});
+
+describe('a read that failed', () => {
+  /** What `GET /settings` says to a role granted `audit.view` and nothing else. */
+  const NOT_YOURS = {
+    status: 403,
+    body: { error: { code: 'forbidden', message: 'Your role cannot do that.' } },
+  };
+
+  it('replaces the log with the server’s own words', async () => {
+    renderApp({ ...ADMIN_ROUTES, 'GET /audit': DB_DOWN }, '/activity');
+
+    const panel = await screen.findByRole('alert');
+    expect(within(panel).getByText(/the activity log could not be loaded/i)).toBeInTheDocument();
+    expect(within(panel).getByText('The database is unavailable.')).toBeInTheDocument();
+    // The lie: a failed read drawn as a workspace where nothing has happened.
+    expect(screen.queryByText(/nothing has happened under this filter yet/i)).toBeNull();
+    expect(screen.queryByRole('table')).toBeNull();
+    // The counts on the pills come from the same payload, so they go too.
+    expect(screen.queryByRole('button', { name: 'All 4' })).toBeNull();
+    expect(screen.getByRole('button', { name: 'All' })).toBeInTheDocument();
+    expect(screen.queryByRole('combobox', { name: 'Rows per page' })).toBeNull();
+    // The page around it still stands: this panel failed, not the screen.
+    expect(screen.getByRole('heading', { name: 'Activity log' })).toBeInTheDocument();
+  });
+
+  it('reads the log again when the panel’s retry is pressed', async () => {
+    let attempts = 0;
+    const api = renderApp(
+      {
+        ...ADMIN_ROUTES,
+        'GET /audit': () => (attempts++ === 0 ? DB_DOWN : { body: AUDIT_PAGE }),
+      },
+      '/activity',
+    );
+
+    await screen.findByRole('alert');
+    await userEvent.click(screen.getByRole('button', { name: 'Try again' }));
+
+    expect(await screen.findByText(/Dell U2723QE/)).toBeInTheDocument();
+    expect(api.calledAll('GET /audit')).toHaveLength(2);
+  });
+
+  it('keeps the log for a reader who may not read the settings behind its footer', async () => {
+    // `/activity` is gated on `audit.view`; `GET /settings` wants
+    // `settings.manage`. An Auditor holds the first and not the second, so a
+    // refusal there is expected — and the footer already hedges rather than
+    // naming a period nobody told it.
+    renderApp({ ...ADMIN_ROUTES, 'GET /settings': NOT_YOURS }, '/activity');
+
+    expect(await screen.findByText(/retained for the configured period/)).toBeInTheDocument();
+    expect(screen.queryByRole('alert')).toBeNull();
+  });
+
+  it('still says the log is empty when the filter genuinely matches nothing', async () => {
+    renderApp(
+      {
+        ...ADMIN_ROUTES,
+        'GET /audit': { body: { items: [], typeCounts: { all: 0 }, total: 0 } },
+      },
+      '/activity',
+    );
+
+    expect(
+      await screen.findByText(/nothing has happened under this filter yet/i),
+    ).toBeInTheDocument();
+    expect(screen.getByRole('table')).toBeInTheDocument();
+    expect(screen.queryByRole('alert')).toBeNull();
+  });
+
+  it('says the settings could not be read rather than drawing a blank form', async () => {
+    renderApp({ ...ADMIN_ROUTES, 'GET /settings': DB_DOWN }, '/admin');
+
+    const panel = await screen.findByRole('alert');
+    expect(
+      within(panel).getByText(/the workspace settings could not be loaded/i),
+    ).toBeInTheDocument();
+    expect(within(panel).getByText('The database is unavailable.')).toBeInTheDocument();
+    expect(screen.queryByLabelText(/company name/i)).toBeNull();
+    expect(screen.queryByRole('button', { name: /save changes/i })).toBeNull();
+    // The page keeps its own heading; only the panel's content failed.
+    expect(screen.getByRole('heading', { name: 'Admin' })).toBeInTheDocument();
+  });
+
+  it('reads the settings again when the panel’s retry is pressed', async () => {
+    let attempts = 0;
+    const api = renderApp(
+      {
+        ...ADMIN_ROUTES,
+        'GET /settings': () =>
+          attempts++ === 0 ? DB_DOWN : { body: { settings: SETTINGS, storageUsedBytes: 188_416 } },
+      },
+      '/admin',
+    );
+
+    await screen.findByRole('alert');
+    await userEvent.click(screen.getByRole('button', { name: 'Try again' }));
+
+    expect(await screen.findByLabelText(/company name/i)).toHaveValue('Acme Corp');
+    expect(api.calledAll('GET /settings')).toHaveLength(2);
   });
 });

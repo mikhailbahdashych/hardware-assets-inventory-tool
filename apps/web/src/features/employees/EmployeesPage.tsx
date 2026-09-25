@@ -9,8 +9,10 @@ import { PageContainer } from '@/components/app/PageContainer';
 import {
   Avatar,
   Button,
+  Card,
   DataTable,
   EmptyState,
+  ErrorState,
   Pagination,
   Pill,
   SearchInput,
@@ -94,10 +96,6 @@ export function EmployeesPage({ permissions }: EmployeesPageProps) {
     offset: (page - 1) * pageSize,
   });
 
-  // A payload that has not arrived has no rows and nothing to count.
-  const rows = employees.data?.employees ?? [];
-  const total = employees.data?.total ?? 0;
-
   return (
     <PageContainer maxWidth={1060}>
       <ListToolbar title="Employees" permissions={permissions}>
@@ -115,41 +113,52 @@ export function EmployeesPage({ permissions }: EmployeesPageProps) {
         aria-label="Filter employees"
       />
 
-      {employees.isPending ? (
+      {/* Failed, then not yet here, then the rows — three states, three
+          branches, and `data` is defined in the last one. */}
+      {employees.isError ? (
+        <Card padding={false}>
+          <ErrorState error={employees.error} onRetry={() => void employees.refetch()}>
+            The employee list could not be loaded.
+          </ErrorState>
+        </Card>
+      ) : !employees.isSuccess ? (
         <div className={styles.loading}>
           <Spinner size={18} />
         </div>
       ) : (
-        <DataTable
-          columns={COLUMNS}
-          rows={rows}
-          rowKey={(employee) => employee.id}
-          onRowClick={(employee) => navigate(`/employees/${employee.id}`)}
-          footer={`${total} ${total === 1 ? 'employee' : 'employees'}`}
-          empty={
-            <EmptyState>
-              {query === ''
-                ? 'No employees yet — add the people who will hold your assets.'
-                : 'No employees match that filter.'}
-            </EmptyState>
-          }
-        />
-      )}
+        <>
+          <DataTable
+            columns={COLUMNS}
+            rows={employees.data.employees}
+            rowKey={(employee) => employee.id}
+            onRowClick={(employee) => navigate(`/employees/${employee.id}`)}
+            footer={`${employees.data.total} ${employees.data.total === 1 ? 'employee' : 'employees'}`}
+            empty={
+              <EmptyState>
+                {query === ''
+                  ? 'No employees yet — add the people who will hold your assets.'
+                  : 'No employees match that filter.'}
+              </EmptyState>
+            }
+          />
 
-      <Pagination
-        page={page}
-        pageCount={Math.ceil(total / pageSize)}
-        onChange={setPage}
-        rowsPerPage={{
-          size: pageSize,
-          onChange: (size) => {
-            setPageSize(size);
-            // A smaller page is a different list; page three of it is not
-            // where anybody meant to land.
-            setPage(1);
-          },
-        }}
-      />
+          {/* A pager over a failure has nothing to page. */}
+          <Pagination
+            page={page}
+            pageCount={Math.ceil(employees.data.total / pageSize)}
+            onChange={setPage}
+            rowsPerPage={{
+              size: pageSize,
+              onChange: (size) => {
+                setPageSize(size);
+                // A smaller page is a different list; page three of it is not
+                // where anybody meant to land.
+                setPage(1);
+              },
+            }}
+          />
+        </>
+      )}
     </PageContainer>
   );
 }

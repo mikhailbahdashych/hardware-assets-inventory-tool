@@ -1,7 +1,7 @@
 import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it } from 'vitest';
-import { DASHBOARD_ROUTES, type StubRoutes } from '@/test/api-stub';
+import { DASHBOARD_ROUTES, DB_DOWN, type StubRoutes } from '@/test/api-stub';
 import { renderApp, resetAppState } from '@/test/render';
 
 afterEach(resetAppState);
@@ -112,6 +112,48 @@ describe('the notifications page', () => {
   it('says when there is nothing at all', async () => {
     renderApp(DASHBOARD_ROUTES, '/notifications');
     expect(await screen.findByText(/all caught up/i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Mark all read' })).toBeDisabled();
+  });
+});
+
+describe('a read that failed', () => {
+  it('says so in the server’s own words instead of an empty inbox', async () => {
+    renderApp({ ...DASHBOARD_ROUTES, 'GET /notifications': DB_DOWN }, '/notifications');
+
+    const panel = await screen.findByRole('alert');
+    expect(within(panel).getByText(/your notifications could not be loaded/i)).toBeInTheDocument();
+    expect(within(panel).getByText('The database is unavailable.')).toBeInTheDocument();
+    // The lie: a failed read drawn as an inbox with nothing waiting in it.
+    expect(screen.queryByText(/all caught up/i)).toBeNull();
+    expect(screen.queryByText(/notifications \u00b7 kept for 90 days/)).toBeNull();
+    expect(screen.queryByRole('combobox', { name: 'Rows per page' })).toBeNull();
+  });
+
+  it('reads the inbox again when the panel’s retry is pressed', async () => {
+    let attempts = 0;
+    const api = renderApp(
+      {
+        ...DASHBOARD_ROUTES,
+        'GET /notifications': () =>
+          attempts++ === 0
+            ? DB_DOWN
+            : { body: { notifications: [HANDED], unreadCount: 1, total: 1 } },
+      },
+      '/notifications',
+    );
+
+    await screen.findByRole('alert');
+    await userEvent.click(screen.getByRole('button', { name: 'Try again' }));
+
+    expect(await screen.findByText(/You were handed AST-0042/)).toBeInTheDocument();
+    expect(api.calledAll('GET /notifications').length).toBeGreaterThan(1);
+  });
+
+  it('leaves nothing to mark read while the inbox is unreadable', async () => {
+    renderApp({ ...DASHBOARD_ROUTES, 'GET /notifications': DB_DOWN }, '/notifications');
+
+    await screen.findByRole('alert');
+    // Zero unread is a fact about an inbox that answered. This one did not.
     expect(screen.getByRole('button', { name: 'Mark all read' })).toBeDisabled();
   });
 });

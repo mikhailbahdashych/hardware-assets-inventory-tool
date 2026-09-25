@@ -5,6 +5,7 @@ import {
   ADMIN_MEMBER,
   CUSTOM_FIELDS,
   DASHBOARD_ROUTES,
+  DB_DOWN,
   INVENTORY_ROUTES,
   MANAGER_ACTIONS,
   session,
@@ -138,5 +139,37 @@ describe('the definitions list', () => {
 
     await userEvent.click(within(row).getByRole('button', { name: 'Delete values too' }));
     await waitFor(() => expect(api.called('DELETE /custom-fields/cf-2')).toBeDefined());
+  });
+});
+
+describe('a read that failed', () => {
+  it('says so in the server’s own words instead of a workspace with no fields', async () => {
+    renderApp({ ...INVENTORY_ROUTES, 'GET /custom-fields': DB_DOWN }, '/custom-fields');
+
+    const panel = await screen.findByRole('alert');
+    expect(within(panel).getByText(/the custom fields could not be loaded/i)).toBeInTheDocument();
+    expect(within(panel).getByText('The database is unavailable.')).toBeInTheDocument();
+    // The lie: a failed read drawn as a workspace that tracks nothing extra,
+    // beside a form inviting somebody to add what is already there.
+    expect(screen.queryByText(/no custom fields yet/i)).toBeNull();
+    expect(screen.queryByLabelText('New field')).toBeNull();
+  });
+
+  it('reads the definitions again when the panel’s retry is pressed', async () => {
+    let attempts = 0;
+    const api = renderApp(
+      {
+        ...INVENTORY_ROUTES,
+        'GET /custom-fields': () =>
+          attempts++ === 0 ? DB_DOWN : { body: { customFields: CUSTOM_FIELDS } },
+      },
+      '/custom-fields',
+    );
+
+    await screen.findByRole('alert');
+    await userEvent.click(screen.getByRole('button', { name: 'Try again' }));
+
+    expect(await screen.findByText('Hostname')).toBeInTheDocument();
+    expect(api.calledAll('GET /custom-fields')).toHaveLength(2);
   });
 });

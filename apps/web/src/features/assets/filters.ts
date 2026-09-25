@@ -25,9 +25,22 @@ export function parseStatusFilter(value: string | null, statuses: WorkflowStatus
  * narrows with the pill, because it is what the footer names and what the pager
  * divides. Two numbers, two jobs.
  */
-export function assetStatusPills(counts: Record<string, number>, statuses: WorkflowStatus[]) {
+export function assetStatusPills(
+  /**
+   * Undefined is the payload that never arrived — pending or failed. The pills
+   * still offer every filter, but carry **no number at all** rather than the
+   * zeros that would read as a workspace whose inventory is empty.
+   */
+  counts: Record<string, number> | undefined,
+  statuses: WorkflowStatus[],
+) {
   return [
-    { value: 'all', label: 'All', count: Object.values(counts).reduce((sum, n) => sum + n, 0) },
+    {
+      value: 'all',
+      label: 'All',
+      count:
+        counts === undefined ? undefined : Object.values(counts).reduce((sum, n) => sum + n, 0),
+    },
     ...[...statuses]
       .sort((a, b) => a.sortOrder - b.sortOrder)
       .map((status) => ({
@@ -35,7 +48,7 @@ export function assetStatusPills(counts: Record<string, number>, statuses: Workf
         label: status.label,
         // A status the payload does not mention has nothing under it — a miss
         // that is a genuine zero, not a count that failed to arrive.
-        count: counts[status.id] ?? 0,
+        count: counts === undefined ? undefined : (counts[status.id] ?? 0),
       })),
   ];
 }

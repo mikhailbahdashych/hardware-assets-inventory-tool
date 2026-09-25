@@ -18,6 +18,7 @@ import {
   Card,
   DataTable,
   EmptyState,
+  ErrorState,
   Pill,
   Spinner,
 } from '@/components/ui';
@@ -44,23 +45,33 @@ export function EmployeeDetailPage({ permissions }: EmployeeDetailPageProps) {
   const detail = useEmployee(id);
   usePageBreadcrumb(detail.data?.employee.displayName);
 
-  if (detail.isPending) {
+  /**
+   * This used to be its own panel saying "That employee could not be found."
+   * for every failure alike, which was a diagnosis rather than a report: a 500
+   * and a dropped connection are not a missing person. The 404 still reads the
+   * same way, because the sentence now comes from the server, which sends
+   * exactly that. What the old panel had right — a way out of a page that
+   * cannot draw itself — is the BackLink above it, kept.
+   */
+  if (detail.isError) {
+    return (
+      <PageContainer variant="detail" maxWidth={1060} gap={16}>
+        <BackLink to="/employees">Employees</BackLink>
+        <Card padding={false}>
+          <ErrorState error={detail.error} onRetry={() => void detail.refetch()}>
+            This employee could not be loaded.
+          </ErrorState>
+        </Card>
+      </PageContainer>
+    );
+  }
+
+  if (!detail.isSuccess) {
     return (
       <PageContainer variant="detail" maxWidth={1060}>
         <div className={styles.loading}>
           <Spinner size={18} />
         </div>
-      </PageContainer>
-    );
-  }
-
-  if (detail.isError || !detail.data) {
-    return (
-      <PageContainer variant="detail" maxWidth={1060} gap={16}>
-        <BackLink to="/employees">Employees</BackLink>
-        <Card>
-          <div className={styles.note}>That employee could not be found.</div>
-        </Card>
       </PageContainer>
     );
   }

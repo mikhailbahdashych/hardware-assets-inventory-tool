@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   ADMIN_MEMBER,
   assetsRoute,
+  DB_DOWN,
   INVENTORY_ROUTES,
   LAPTOP,
   LAPTOP_DETAIL,
@@ -405,5 +406,84 @@ describe('meta', () => {
       '/assets',
     );
     expect(await screen.findByRole('navigation', { name: 'Inventory' })).toBeInTheDocument();
+  });
+});
+
+describe('a read that failed', () => {
+  const detailRoutes = { ...INVENTORY_ROUTES, 'GET /assets/asset-1': { body: LAPTOP_DETAIL } };
+
+  it('says so in the server’s own words instead of an empty inventory', async () => {
+    renderApp({ ...INVENTORY_ROUTES, 'GET /assets': DB_DOWN }, '/assets');
+
+    const panel = await screen.findByRole('alert');
+    expect(within(panel).getByText(/the asset list could not be loaded/i)).toBeInTheDocument();
+    expect(within(panel).getByText('The database is unavailable.')).toBeInTheDocument();
+    // The lie: a failed read drawn as a workspace that has never owned a
+    // device, one click away from somebody entering the whole fleet again.
+    expect(screen.queryByText(/no assets yet/i)).toBeNull();
+    expect(screen.queryByRole('table')).toBeNull();
+    // The pills stay — they are how you ask for a different list — but bare:
+    // "All 0 · Available 0" is an inventory nobody counted.
+    expect(screen.getByRole('button', { name: 'All' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Available' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^All \d/ })).toBeNull();
+    expect(screen.queryByRole('combobox', { name: 'Rows per page' })).toBeNull();
+  });
+
+  it('reads the list again when the panel’s retry is pressed', async () => {
+    let attempts = 0;
+    const api = renderApp(
+      {
+        ...INVENTORY_ROUTES,
+        'GET /assets': (body, search) =>
+          attempts++ === 0 ? DB_DOWN : assetsRoute([LAPTOP])(body, search),
+      },
+      '/assets',
+    );
+
+    await screen.findByRole('alert');
+    await userEvent.click(screen.getByRole('button', { name: 'Try again' }));
+
+    expect(await screen.findByText('MacBook Pro 14"')).toBeInTheDocument();
+    expect(api.calledAll('GET /assets')).toHaveLength(2);
+  });
+
+  it('fails the whole page when the workflow that names the pills fails', async () => {
+    renderApp({ ...INVENTORY_ROUTES, 'GET /workflow': DB_DOWN }, '/assets');
+
+    const panel = await screen.findByRole('alert');
+    expect(within(panel).getByText('The database is unavailable.')).toBeInTheDocument();
+    // Not a table of pills falling back to the slug: that would be this
+    // workspace's vocabulary invented by the browser.
+    expect(screen.queryByText('MacBook Pro 14"')).toBeNull();
+  });
+
+  it('still says the inventory is empty when it genuinely is', async () => {
+    renderApp({ ...INVENTORY_ROUTES, 'GET /assets': assetsRoute([]) }, '/assets');
+
+    expect(await screen.findByText(/no assets yet/i)).toBeInTheDocument();
+    expect(screen.getByRole('table')).toBeInTheDocument();
+    expect(screen.queryByRole('alert')).toBeNull();
+  });
+
+  it('keeps the way back when one asset cannot be read', async () => {
+    renderApp({ ...detailRoutes, 'GET /assets/asset-1': DB_DOWN }, '/assets/asset-1');
+
+    const panel = await screen.findByRole('alert');
+    expect(within(panel).getByText(/this asset could not be loaded/i)).toBeInTheDocument();
+    expect(within(panel).getByText('The database is unavailable.')).toBeInTheDocument();
+    // The bespoke panel this replaces had one thing worth keeping: a way out
+    // of a page that cannot draw itself.
+    // Two of them now: the sidebar's, and the page's own way out of a
+    // screen that cannot draw itself — the one thing the bespoke panel
+    // this replaces had worth keeping.
+    expect(screen.getAllByRole('link', { name: 'Assets' })).toHaveLength(2);
+  });
+
+  it('fails the asset page when the workflow that names its status fails', async () => {
+    renderApp({ ...detailRoutes, 'GET /workflow': DB_DOWN }, '/assets/asset-1');
+
+    expect(await screen.findByRole('alert')).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'MacBook Pro 14"' })).toBeNull();
   });
 });
