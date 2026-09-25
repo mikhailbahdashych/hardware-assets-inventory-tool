@@ -4,6 +4,9 @@
  */
 export interface MfaChallengeProps {
   challengeToken: string;
-  /** Undefined only while `/meta` is in flight; the subtitle says less then. */
-  orgName: string | undefined;
+  /**
+   * Always known: this screen only exists on an instance that has been set up,
+   * and routes.tsx has already read /meta to decide that.
+   */
+  orgName: string;
 }

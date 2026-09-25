@@ -154,6 +154,52 @@ describe('accepting an invitation', () => {
     expect(await screen.findByRole('heading', { name: 'Join Acme Corp' })).toBeInTheDocument();
     expect(screen.getByText(/invited with the Auditor role/i)).toBeInTheDocument();
   });
+
+  it('quotes the server rather than diagnosing every failure as an expiry', async () => {
+    renderApp(
+      {
+        'GET /meta': { body: READY_META },
+        'GET /auth/me': UNAUTHENTICATED,
+        'GET /auth/invite/abc123': DB_DOWN,
+      },
+      '/accept-invite?token=abc123',
+    );
+
+    const panel = await screen.findByRole('alert');
+    expect(within(panel).getByText('The database is unavailable.')).toBeInTheDocument();
+    // The lie: a database that fell over, reported as an invitation somebody
+    // let expire — and an admin sent off to mint a link that would fail too.
+    expect(screen.queryByText(/invalid or has expired/i)).toBeNull();
+    expect(screen.getByRole('link', { name: /back to sign in/i })).toBeInTheDocument();
+  });
+
+  it('still says a rejected token is invalid, because that is the server’s word', async () => {
+    renderApp(
+      {
+        'GET /meta': { body: READY_META },
+        'GET /auth/me': UNAUTHENTICATED,
+        'GET /auth/invite/nope': {
+          status: 401,
+          body: {
+            error: { code: 'invalid_token', message: 'This link is invalid or has expired.' },
+          },
+        },
+      },
+      '/accept-invite?token=nope',
+    );
+
+    expect(await screen.findByText('This link is invalid or has expired.')).toBeInTheDocument();
+  });
+
+  it('says the link is missing its token without asking the server', async () => {
+    const api = renderApp(
+      { 'GET /meta': { body: READY_META }, 'GET /auth/me': UNAUTHENTICATED },
+      '/accept-invite',
+    );
+
+    expect(await screen.findByText(/missing its token/i)).toBeInTheDocument();
+    expect(api.calls.some((call) => call.path.startsWith('/auth/invite'))).toBe(false);
+  });
 });
 
 describe('app shell', () => {

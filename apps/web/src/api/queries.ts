@@ -96,25 +96,42 @@ export function useMeta() {
 }
 
 /**
+ * What /meta said, for the screens that cannot be drawn without it. **Every
+ * route set in routes.tsx is chosen from this payload and throws without it**,
+ * so anything the router rendered — the shell and the auth screens alike — can
+ * ask for it and get an answer. The throw is here for the one case the type
+ * still allows and the router has already ruled out; an em dash where the
+ * version goes would be a blank this app has no reason to draw.
+ */
+export function instanceMeta(meta: Meta | undefined): Meta {
+  if (!meta) {
+    throw new Error('GET /api/v1/meta has not answered, so this instance cannot be described.');
+  }
+  return meta;
+}
+
+/**
  * The organization's own metadata, for the screens that only exist once setup
  * has run. `orgName` and `defaultCurrency` are NOT NULL columns written by
  * /setup, so an absent one means /meta broke its contract — and calling the
  * workspace "Inventory" or pricing everything in EUR because the call failed
  * would be a lie that survives to a screenshot.
  *
- * Safe to call anywhere inside the signed-in app: routes.tsx blocks on /meta
- * before the shell mounts, so the query has resolved by then.
+ * Safe to call anywhere past the router's own check: the setup screen is the
+ * one place these two are legitimately absent, and it never asks.
  */
 export function orgMeta(meta: Meta | undefined): OrgMeta {
-  if (!meta) {
-    throw new Error('GET /api/v1/meta has not answered, so this instance cannot be described.');
-  }
-  if (meta.orgName === undefined || meta.defaultCurrency === undefined) {
+  const answered = instanceMeta(meta);
+  if (answered.orgName === undefined || answered.defaultCurrency === undefined) {
     throw new Error(
       'GET /api/v1/meta reported an initialized instance without an orgName or a defaultCurrency.',
     );
   }
-  return { version: meta.version, orgName: meta.orgName, defaultCurrency: meta.defaultCurrency };
+  return {
+    version: answered.version,
+    orgName: answered.orgName,
+    defaultCurrency: answered.defaultCurrency,
+  };
 }
 
 /** Resolves to the signed-in session, or null when nobody is signed in. */

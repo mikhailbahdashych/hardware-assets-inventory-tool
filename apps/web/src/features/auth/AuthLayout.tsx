@@ -1,6 +1,6 @@
 import { useId } from 'react';
 import { ApiError } from '@/api/client';
-import { useMeta } from '@/api/queries';
+import { instanceMeta, useMeta } from '@/api/queries';
 import { Icon, IconButton } from '@/components/ui';
 import { useDocumentTitle } from '@/lib/useDocumentTitle';
 import { useTheme } from '@/providers/ThemeProvider';
@@ -38,9 +38,10 @@ export function AuthLayout({ title, subtitle, children, below }: AuthLayoutProps
         <div className={styles.card}>{children}</div>
         {below}
         <div className={styles.footer}>
-          {/* The design's em dash for a value that is not known yet, the same
-              rule empty table cells follow — never a made-up version number. */}
-          v{meta?.version ?? '—'} · open source · self-hosted at {window.location.host}
+          {/* No em dash and no `?.`: routes.tsx throws before it picks a route
+              set without /meta, so by the time an auth screen renders the
+              answer is in. `instanceMeta` is what says so in the type. */}
+          v{instanceMeta(meta).version} · open source · self-hosted at {window.location.host}
         </div>
       </div>
     </div>

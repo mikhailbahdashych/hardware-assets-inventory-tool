@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Link, useNavigate } from 'react-router';
 import { fieldErrors } from '@/api/formErrors';
 import { useLogin, useMfaVerify, useRefreshSession } from '@/api/mutations';
-import { useMeta } from '@/api/queries';
+import { orgMeta, useMeta } from '@/api/queries';
 import { AuthField, AuthLayout, FormError } from './AuthLayout';
 import { RecoveryCodesScreen } from './RecoveryCodesScreen';
 import type { MfaChallengeProps } from './types/loginPage';
@@ -11,7 +11,10 @@ import styles from './Auth.module.css';
 export function LoginPage() {
   const navigate = useNavigate();
   const login = useLogin();
-  const { data: meta } = useMeta();
+  // The signed-out route set exists only once /meta has answered *and* said
+  // the instance is set up — so both fields are there, and a workspace called
+  // "Inventory" because a read was in flight is not a screen this app draws.
+  const org = orgMeta(useMeta().data);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   /**
@@ -23,17 +26,13 @@ export function LoginPage() {
   const errors = fieldErrors(login.error);
 
   if (challengeToken) {
-    return <MfaChallenge challengeToken={challengeToken} orgName={meta?.orgName} />;
+    return <MfaChallenge challengeToken={challengeToken} orgName={org.orgName} />;
   }
 
   return (
     <AuthLayout
       title="Sign in to Inventory"
-      subtitle={
-        meta?.orgName
-          ? `Self-hosted hardware asset tracking for ${meta.orgName}`
-          : 'Self-hosted hardware asset tracking'
-      }
+      subtitle={`Self-hosted hardware asset tracking for ${org.orgName}`}
     >
       <form
         style={{ display: 'contents' }}
@@ -114,12 +113,7 @@ function MfaChallenge({ challengeToken, orgName }: MfaChallengeProps) {
   }
 
   return (
-    <AuthLayout
-      title="Two-factor authentication"
-      subtitle={
-        orgName ? `${orgName} requires a second factor` : 'Enter the code from your authenticator'
-      }
-    >
+    <AuthLayout title="Two-factor authentication" subtitle={`${orgName} requires a second factor`}>
       <form
         style={{ display: 'contents' }}
         onSubmit={(event) => {
