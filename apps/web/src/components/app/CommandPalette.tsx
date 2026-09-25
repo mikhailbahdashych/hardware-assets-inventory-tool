@@ -2,7 +2,7 @@ import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router';
 import { useSearch, useWorkflow } from '@/api/queries';
-import { Icon, Kbd } from '@/components/ui';
+import { ErrorState, Icon, Kbd } from '@/components/ui';
 import { useDebouncedValue } from '@/lib/useDebouncedValue';
 import { useModals } from '@/providers/ModalProvider';
 import { useThemeControls } from './useThemeControls';
@@ -38,13 +38,29 @@ export function CommandPalette({ permissions, role, onClose }: CommandPalettePro
   const listRef = useRef<HTMLDivElement>(null);
 
   /**
+   * The two server-backed groups' own failure. `/search` is obvious; the
+   * workflow counts because every asset row's subtitle names a status, and
+   * `statusInfo`'s slug fallback is for a status an admin has since deleted,
+   * not for a read that did not answer.
+   */
+  const failure = results.isError ? results.error : workflow.isError ? workflow.error : null;
+
+  function retry(): void {
+    void results.refetch();
+    void workflow.refetch();
+  }
+
+  /**
    * Rows for a query nobody is typing any more are not results, they are the
    * last ones — and ↵ lands on whichever is first. So while the debounce is
    * still holding the needle, or the request for it is still out, the two
    * server-backed groups are empty rather than stale. The commands are matched
    * here and stay, which is what keeps typing "invite" and hitting ↵ honest.
+   *
+   * A failure empties them for the same reason: the last rows that arrived are
+   * not an answer to this question either.
    */
-  const stale = settled !== query || results.isPlaceholderData;
+  const stale = settled !== query || results.isPlaceholderData || failure !== null;
 
   const groups = useMemo(
     () =>
@@ -52,10 +68,19 @@ export function CommandPalette({ permissions, role, onClose }: CommandPalettePro
         query,
         permissions,
         role,
-        results: stale ? NOTHING_YET : (results.data ?? NOTHING_YET),
-        statuses: workflow.data?.statuses ?? [],
+        results: stale || !results.isSuccess ? NOTHING_YET : results.data,
+        statuses: workflow.isSuccess ? workflow.data.statuses : [],
       }),
-    [query, permissions, role, stale, results.data, workflow.data],
+    [
+      query,
+      permissions,
+      role,
+      stale,
+      results.data,
+      results.isSuccess,
+      workflow.data,
+      workflow.isSuccess,
+    ],
   );
   const rows = useMemo(() => paletteRows(groups), [groups]);
   // `active` is an index this component maintains across renders while the
@@ -150,7 +175,17 @@ export function CommandPalette({ permissions, role, onClose }: CommandPalettePro
               ))}
             </div>
           ))}
-          {rows.length === 0 && <div className={styles.empty}>No results for “{query}”</div>}
+          {/* "We found nothing" and "we could not look" are different answers,
+              and only one of them is this palette's to give. The commands sit
+              above it either way: the shell stays usable while something under
+              it is broken. */}
+          {failure !== null ? (
+            <ErrorState error={failure} onRetry={retry}>
+              Assets and people could not be searched.
+            </ErrorState>
+          ) : (
+            rows.length === 0 && <div className={styles.empty}>No results for “{query}”</div>
+          )}
         </div>
 
         <div className={styles.footer}>

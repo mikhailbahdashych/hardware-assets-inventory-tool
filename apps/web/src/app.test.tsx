@@ -5,6 +5,7 @@ import {
   ADMIN_MEMBER,
   AUDITOR_ROLE,
   DASHBOARD_ROUTES,
+  DB_DOWN,
   EVERY_ACTION,
   READY_META,
   ROLES,
@@ -153,6 +154,52 @@ describe('accepting an invitation', () => {
     expect(await screen.findByRole('heading', { name: 'Join Acme Corp' })).toBeInTheDocument();
     expect(screen.getByText(/invited with the Auditor role/i)).toBeInTheDocument();
   });
+
+  it('quotes the server rather than diagnosing every failure as an expiry', async () => {
+    renderApp(
+      {
+        'GET /meta': { body: READY_META },
+        'GET /auth/me': UNAUTHENTICATED,
+        'GET /auth/invite/abc123': DB_DOWN,
+      },
+      '/accept-invite?token=abc123',
+    );
+
+    const panel = await screen.findByRole('alert');
+    expect(within(panel).getByText('The database is unavailable.')).toBeInTheDocument();
+    // The lie: a database that fell over, reported as an invitation somebody
+    // let expire — and an admin sent off to mint a link that would fail too.
+    expect(screen.queryByText(/invalid or has expired/i)).toBeNull();
+    expect(screen.getByRole('link', { name: /back to sign in/i })).toBeInTheDocument();
+  });
+
+  it('still says a rejected token is invalid, because that is the server’s word', async () => {
+    renderApp(
+      {
+        'GET /meta': { body: READY_META },
+        'GET /auth/me': UNAUTHENTICATED,
+        'GET /auth/invite/nope': {
+          status: 401,
+          body: {
+            error: { code: 'invalid_token', message: 'This link is invalid or has expired.' },
+          },
+        },
+      },
+      '/accept-invite?token=nope',
+    );
+
+    expect(await screen.findByText('This link is invalid or has expired.')).toBeInTheDocument();
+  });
+
+  it('says the link is missing its token without asking the server', async () => {
+    const api = renderApp(
+      { 'GET /meta': { body: READY_META }, 'GET /auth/me': UNAUTHENTICATED },
+      '/accept-invite',
+    );
+
+    expect(await screen.findByText(/missing its token/i)).toBeInTheDocument();
+    expect(api.calls.some((call) => call.path.startsWith('/auth/invite'))).toBe(false);
+  });
 });
 
 describe('app shell', () => {
@@ -188,6 +235,18 @@ describe('app shell', () => {
       '/dashboard',
     );
     expect(await screen.findByText('Auditor', { selector: 'div' })).toBeInTheDocument();
+  });
+
+  it('names no role at all when the roles could not be read', async () => {
+    renderApp({ ...authenticatedRoutes(), 'GET /roles': DB_DOWN }, '/dashboard');
+
+    expect(await screen.findByText('Tomasz Kowalski')).toBeInTheDocument();
+    // The bug: the identity card degrading to "Tomasz Kowalski / admin" — the
+    // stored id, printed by a fallback that exists for a role an admin has
+    // since deleted, not for a read that never answered. Absence is the
+    // honest answer; a word the workspace never wrote is not.
+    expect(screen.queryByText('admin', { selector: 'div' })).toBeNull();
+    expect(screen.queryByText('Admin', { selector: 'div' })).toBeNull();
   });
 
   it('marks the current section in the sidebar', async () => {

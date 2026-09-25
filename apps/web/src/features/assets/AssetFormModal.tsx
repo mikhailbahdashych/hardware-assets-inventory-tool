@@ -17,7 +17,16 @@ import {
   useWorkflow,
 } from '@/api/queries';
 import type { Asset, CustomFieldValue } from '@/types/api';
-import { Button, Checkbox, Dropdown, Field, Input, Modal, Textarea } from '@/components/ui';
+import {
+  Button,
+  Checkbox,
+  Dropdown,
+  ErrorState,
+  Field,
+  Input,
+  Modal,
+  Textarea,
+} from '@/components/ui';
 import { useToast } from '@/providers/ToastProvider';
 import type { AssetFormModalProps, AssetFormState } from './types/assetFormModal';
 import styles from '@/components/ui/FormModal.module.css';
@@ -100,11 +109,37 @@ export function AssetFormModal({
   const update = useUpdateAsset(asset?.id ?? '');
   const remove = useDeleteAsset();
 
+  /**
+   * Every choice this form offers is the workspace's own — the statuses an
+   * asset may take, the custom fields it has to carry, the people a new one can
+   * start out with — so the first failure among those reads is the form's, the
+   * same rule a page follows (apps/web/CLAUDE.md). A form drawn past one would
+   * offer a Status select with nothing in it and quietly leave out every custom
+   * field this workspace tracks, which is the empty-list lie in a form's shape.
+   *
+   * `nextTag` is deliberately not among them. It is a suggestion for a field
+   * the form calls editable, and the API mints a tag when none is sent — so a
+   * suggestion that did not arrive changes nothing this form cannot do.
+   */
+  const failure = workflow.isError
+    ? workflow.error
+    : defs.isError
+      ? defs.error
+      : employees.isError
+        ? employees.error
+        : null;
+
+  function retryOptions(): void {
+    void workflow.refetch();
+    void defs.refetch();
+    void employees.refetch();
+  }
+
   const pending = create.isPending || update.isPending || remove.isPending;
   // Whichever of the three ran is the one that can have failed — this picks the
   // failure that exists rather than defaulting to anything.
   const errors = fieldErrors(create.error ?? update.error);
-  const failure = create.error ?? update.error ?? remove.error;
+  const writeFailure = create.error ?? update.error ?? remove.error;
   const set = <K extends keyof AssetFormState>(key: K, value: AssetFormState[K]) =>
     setForm((current) => ({ ...current, [key]: value }));
 
@@ -113,7 +148,7 @@ export function AssetFormModal({
   const holderLocked = editing && asset.status === ASSIGNED_STATUS;
   // Statuses that have not arrived are none to offer, and the form waits for
   // them rather than defaulting to a status this workspace may not have.
-  const statuses = workflow.data?.statuses ?? [];
+  const statuses = workflow.isSuccess ? workflow.data.statuses : [];
   // A new asset starts on the first status the workspace lists that assign and
   // check-in do not own; an untouched form has no choice of its own to keep.
   const status = form.status || (statuses.find((option) => !option.isSystem)?.id ?? '');
@@ -123,11 +158,13 @@ export function AssetFormModal({
     (option) => !editing || option.id !== ASSIGNED_STATUS || status === ASSIGNED_STATUS,
   );
 
-  // `defs.data ?? []` throughout: definitions that have not loaded are no
-  // definitions to render, and a field never typed into has no entry.
+  // Definitions that have not arrived are none to render, and a field never
+  // typed into has no entry. A definition this form never drew is simply not in
+  // the payload, and the service only writes the keys it is given.
+  const definitions = defs.isSuccess ? defs.data : [];
   const customValuesPayload = () =>
     Object.fromEntries(
-      (defs.data ?? []).map((def) => [def.key, blankToNull(form.customValues[def.key] ?? '')]),
+      definitions.map((def) => [def.key, blankToNull(form.customValues[def.key] ?? '')]),
     );
 
   function reset() {
@@ -230,6 +267,8 @@ export function AssetFormModal({
               className={styles.another}
               label="Create another"
               checked={createAnother}
+              // Offering to repeat something that cannot be done once.
+              disabled={failure !== null}
               onChange={(event) => setCreateAnother(event.target.checked)}
             />
           )}
@@ -238,237 +277,247 @@ export function AssetFormModal({
           </Button>
           {/* Nothing can be saved before the workspace's statuses are known —
               the Status select would have nothing in it either. */}
-          <Button type="submit" form="asset-form" disabled={pending || status === ''}>
+          <Button
+            type="submit"
+            form="asset-form"
+            disabled={pending || failure !== null || status === ''}
+          >
             {editing ? 'Save changes' : 'Create asset'}
           </Button>
         </>
       }
     >
-      <form id="asset-form" className={styles.form} onSubmit={submit} noValidate>
-        {failure && !Object.keys(errors).length && (
-          <div className={styles.formError} role="alert">
-            {failure.message}
-          </div>
-        )}
-
-        <Field label="Name" required error={errors.name}>
-          {(id) => (
-            <Input
-              id={id}
-              value={form.name}
-              placeholder={'e.g. MacBook Pro 14" M3'}
-              onChange={(event) => set('name', event.target.value)}
-              autoFocus
-            />
+      {failure !== null ? (
+        <ErrorState error={failure} onRetry={retryOptions}>
+          The statuses and fields this workspace tracks could not be loaded.
+        </ErrorState>
+      ) : (
+        <form id="asset-form" className={styles.form} onSubmit={submit} noValidate>
+          {writeFailure && !Object.keys(errors).length && (
+            <div className={styles.formError} role="alert">
+              {writeFailure.message}
+            </div>
           )}
-        </Field>
 
-        <div className={styles.pair}>
-          <Field label="Category" required error={errors.category}>
-            {(id) => (
-              <Dropdown
-                id={id}
-                value={form.category}
-                options={ASSET_CATEGORIES.map((category) => ({
-                  value: category,
-                  label: ASSET_CATEGORY_LABELS[category],
-                }))}
-                onChange={(category) => set('category', category)}
-              />
-            )}
-          </Field>
-
-          <Field
-            label="Status"
-            required
-            error={errors.status}
-            hint={holderLocked ? 'Check the asset in to change its status.' : undefined}
-          >
-            {(id) => (
-              <Dropdown
-                id={id}
-                value={status}
-                disabled={holderLocked}
-                options={statusOptions.map((option) => ({
-                  value: option.id,
-                  label: option.label,
-                }))}
-                onChange={(chosen) => set('status', chosen)}
-              />
-            )}
-          </Field>
-
-          <Field label="Asset tag" hint="Auto-generated — editable" error={errors.assetTag}>
+          <Field label="Name" required error={errors.name}>
             {(id) => (
               <Input
                 id={id}
-                mono
-                value={tagValue}
-                placeholder="AST-0224"
-                onChange={(event) => set('assetTag', event.target.value)}
+                value={form.name}
+                placeholder={'e.g. MacBook Pro 14" M3'}
+                onChange={(event) => set('name', event.target.value)}
+                autoFocus
               />
             )}
           </Field>
 
-          <Field label="Serial number" error={errors.serialNumber}>
-            {(id) => (
-              <Input
-                id={id}
-                mono
-                value={form.serialNumber}
-                placeholder="e.g. C02XK1AZQ6L7"
-                onChange={(event) => set('serialNumber', event.target.value)}
-              />
-            )}
-          </Field>
-        </div>
-
-        <Field label="Model" error={errors.model}>
-          {(id) => (
-            <Input
-              id={id}
-              value={form.model}
-              placeholder="e.g. A2779 · M3 Pro"
-              onChange={(event) => set('model', event.target.value)}
-            />
-          )}
-        </Field>
-
-        {!editing && status === ASSIGNED_STATUS && (
           <div className={styles.pair}>
+            <Field label="Category" required error={errors.category}>
+              {(id) => (
+                <Dropdown
+                  id={id}
+                  value={form.category}
+                  options={ASSET_CATEGORIES.map((category) => ({
+                    value: category,
+                    label: ASSET_CATEGORY_LABELS[category],
+                  }))}
+                  onChange={(category) => set('category', category)}
+                />
+              )}
+            </Field>
+
             <Field
-              label="Assigned to"
+              label="Status"
               required
-              hint="Creates the first ownership record"
-              error={errors.assignedToEmployeeId}
+              error={errors.status}
+              hint={holderLocked ? 'Check the asset in to change its status.' : undefined}
             >
               {(id) => (
                 <Dropdown
                   id={id}
-                  value={form.assignedToEmployeeId}
-                  options={[
-                    { value: '', label: '— Choose an employee —' },
-                    // People that have not loaded are no people to offer.
-                    ...(employees.data?.employees ?? [])
-                      .filter((employee) => employee.status === 'active')
-                      .map((employee) => ({
-                        value: employee.id,
-                        label: employee.displayName,
-                      })),
-                  ]}
-                  onChange={(employeeId) => set('assignedToEmployeeId', employeeId)}
+                  value={status}
+                  disabled={holderLocked}
+                  options={statusOptions.map((option) => ({
+                    value: option.id,
+                    label: option.label,
+                  }))}
+                  onChange={(chosen) => set('status', chosen)}
                 />
               )}
             </Field>
-            <Field label="Checkout date" hint="Defaults to today" error={errors.checkoutDate}>
+
+            <Field label="Asset tag" hint="Auto-generated — editable" error={errors.assetTag}>
+              {(id) => (
+                <Input
+                  id={id}
+                  mono
+                  value={tagValue}
+                  placeholder="AST-0224"
+                  onChange={(event) => set('assetTag', event.target.value)}
+                />
+              )}
+            </Field>
+
+            <Field label="Serial number" error={errors.serialNumber}>
+              {(id) => (
+                <Input
+                  id={id}
+                  mono
+                  value={form.serialNumber}
+                  placeholder="e.g. C02XK1AZQ6L7"
+                  onChange={(event) => set('serialNumber', event.target.value)}
+                />
+              )}
+            </Field>
+          </div>
+
+          <Field label="Model" error={errors.model}>
+            {(id) => (
+              <Input
+                id={id}
+                value={form.model}
+                placeholder="e.g. A2779 · M3 Pro"
+                onChange={(event) => set('model', event.target.value)}
+              />
+            )}
+          </Field>
+
+          {!editing && status === ASSIGNED_STATUS && (
+            <div className={styles.pair}>
+              <Field
+                label="Assigned to"
+                required
+                hint="Creates the first ownership record"
+                error={errors.assignedToEmployeeId}
+              >
+                {(id) => (
+                  <Dropdown
+                    id={id}
+                    value={form.assignedToEmployeeId}
+                    options={[
+                      { value: '', label: '— Choose an employee —' },
+                      // People that have not loaded are no people to offer.
+                      ...(employees.isSuccess ? employees.data.employees : [])
+                        .filter((employee) => employee.status === 'active')
+                        .map((employee) => ({
+                          value: employee.id,
+                          label: employee.displayName,
+                        })),
+                    ]}
+                    onChange={(employeeId) => set('assignedToEmployeeId', employeeId)}
+                  />
+                )}
+              </Field>
+              <Field label="Checkout date" hint="Defaults to today" error={errors.checkoutDate}>
+                {(id) => (
+                  <Input
+                    id={id}
+                    type="date"
+                    value={form.checkoutDate}
+                    onChange={(event) => set('checkoutDate', event.target.value)}
+                  />
+                )}
+              </Field>
+            </div>
+          )}
+
+          <div className={styles.pair}>
+            <Field label="Purchase date" error={errors.purchaseDate}>
               {(id) => (
                 <Input
                   id={id}
                   type="date"
-                  value={form.checkoutDate}
-                  onChange={(event) => set('checkoutDate', event.target.value)}
+                  value={form.purchaseDate}
+                  onChange={(event) => set('purchaseDate', event.target.value)}
+                />
+              )}
+            </Field>
+            {/* A price we could not read locally never reached the server, so
+              there is no server message to prefer over it. */}
+            <Field label="Purchase price" error={priceError ?? errors.purchasePriceCents}>
+              {(id) => (
+                <Input
+                  id={id}
+                  inputMode="decimal"
+                  value={form.price}
+                  placeholder="0.00"
+                  onChange={(event) => set('price', event.target.value)}
+                />
+              )}
+            </Field>
+            <Field label="Supplier" error={errors.supplier}>
+              {(id) => (
+                <Input
+                  id={id}
+                  value={form.supplier}
+                  placeholder="e.g. Insight EMEA"
+                  onChange={(event) => set('supplier', event.target.value)}
+                />
+              )}
+            </Field>
+            <Field label="Warranty until" error={errors.warrantyUntil}>
+              {(id) => (
+                <Input
+                  id={id}
+                  type="date"
+                  value={form.warrantyUntil}
+                  onChange={(event) => set('warrantyUntil', event.target.value)}
                 />
               )}
             </Field>
           </div>
-        )}
 
-        <div className={styles.pair}>
-          <Field label="Purchase date" error={errors.purchaseDate}>
+          <Field label="Notes" error={errors.notes}>
             {(id) => (
-              <Input
+              <Textarea
                 id={id}
-                type="date"
-                value={form.purchaseDate}
-                onChange={(event) => set('purchaseDate', event.target.value)}
+                rows={2}
+                value={form.notes}
+                placeholder="Anything worth remembering about this device"
+                onChange={(event) => set('notes', event.target.value)}
               />
             )}
           </Field>
-          {/* A price we could not read locally never reached the server, so
-              there is no server message to prefer over it. */}
-          <Field label="Purchase price" error={priceError ?? errors.purchasePriceCents}>
-            {(id) => (
-              <Input
-                id={id}
-                inputMode="decimal"
-                value={form.price}
-                placeholder="0.00"
-                onChange={(event) => set('price', event.target.value)}
-              />
-            )}
-          </Field>
-          <Field label="Supplier" error={errors.supplier}>
-            {(id) => (
-              <Input
-                id={id}
-                value={form.supplier}
-                placeholder="e.g. Insight EMEA"
-                onChange={(event) => set('supplier', event.target.value)}
-              />
-            )}
-          </Field>
-          <Field label="Warranty until" error={errors.warrantyUntil}>
-            {(id) => (
-              <Input
-                id={id}
-                type="date"
-                value={form.warrantyUntil}
-                onChange={(event) => set('warrantyUntil', event.target.value)}
-              />
-            )}
-          </Field>
-        </div>
 
-        <Field label="Notes" error={errors.notes}>
-          {(id) => (
-            <Textarea
-              id={id}
-              rows={2}
-              value={form.notes}
-              placeholder="Anything worth remembering about this device"
-              onChange={(event) => set('notes', event.target.value)}
-            />
+          {definitions.length > 0 && (
+            <div className={styles.custom}>
+              <div className={styles.customTitle}>Custom fields</div>
+              {definitions.map((def) =>
+                def.type === 'boolean' ? (
+                  <Checkbox
+                    key={def.key}
+                    label={def.label}
+                    checked={form.customValues[def.key] === 'true'}
+                    onChange={(event) =>
+                      set('customValues', {
+                        ...form.customValues,
+                        [def.key]: event.target.checked ? 'true' : '',
+                      })
+                    }
+                  />
+                ) : (
+                  <Field key={def.key} label={def.label}>
+                    {(id) => (
+                      <Input
+                        id={id}
+                        type={def.type === 'date' ? 'date' : 'text'}
+                        inputMode={def.type === 'number' ? 'decimal' : undefined}
+                        value={form.customValues[def.key] ?? ''}
+                        onChange={(event) =>
+                          set('customValues', {
+                            ...form.customValues,
+                            [def.key]: event.target.value,
+                          })
+                        }
+                      />
+                    )}
+                  </Field>
+                ),
+              )}
+            </div>
           )}
-        </Field>
-
-        {(defs.data ?? []).length > 0 && (
-          <div className={styles.custom}>
-            <div className={styles.customTitle}>Custom fields</div>
-            {(defs.data ?? []).map((def) =>
-              def.type === 'boolean' ? (
-                <Checkbox
-                  key={def.key}
-                  label={def.label}
-                  checked={form.customValues[def.key] === 'true'}
-                  onChange={(event) =>
-                    set('customValues', {
-                      ...form.customValues,
-                      [def.key]: event.target.checked ? 'true' : '',
-                    })
-                  }
-                />
-              ) : (
-                <Field key={def.key} label={def.label}>
-                  {(id) => (
-                    <Input
-                      id={id}
-                      type={def.type === 'date' ? 'date' : 'text'}
-                      inputMode={def.type === 'number' ? 'decimal' : undefined}
-                      value={form.customValues[def.key] ?? ''}
-                      onChange={(event) =>
-                        set('customValues', {
-                          ...form.customValues,
-                          [def.key]: event.target.value,
-                        })
-                      }
-                    />
-                  )}
-                </Field>
-              ),
-            )}
-          </div>
-        )}
-      </form>
+        </form>
+      )}
     </Modal>
   );
 }

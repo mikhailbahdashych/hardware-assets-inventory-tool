@@ -487,3 +487,55 @@ describe('a read that failed', () => {
     expect(screen.queryByRole('heading', { name: 'MacBook Pro 14"' })).toBeNull();
   });
 });
+
+describe('a form whose choices could not be loaded', () => {
+  /** The New-asset button is drawn above the page's own failure, deliberately. */
+  async function openNewAsset(routes: Parameters<typeof renderApp>[0]) {
+    renderApp(routes, '/assets');
+    await userEvent.click(await screen.findByRole('button', { name: /new asset/i }));
+    return screen.findByRole('dialog', { name: /new asset/i });
+  }
+
+  it('says so in the body instead of drawing a Status select with nothing in it', async () => {
+    const dialog = await openNewAsset({ ...INVENTORY_ROUTES, 'GET /workflow': DB_DOWN });
+
+    expect(within(dialog).getByRole('alert')).toHaveTextContent('The database is unavailable.');
+    expect(within(dialog).queryByLabelText('Name')).toBeNull();
+    expect(within(dialog).getByRole('button', { name: /create asset/i })).toBeDisabled();
+    // Offering to repeat something that cannot be done once.
+    expect(within(dialog).getByRole('checkbox', { name: /create another/i })).toBeDisabled();
+  });
+
+  it('will not save a form that never saw the fields this workspace tracks', async () => {
+    const dialog = await openNewAsset({ ...INVENTORY_ROUTES, 'GET /custom-fields': DB_DOWN });
+
+    expect(within(dialog).getByRole('alert')).toHaveTextContent('The database is unavailable.');
+    // A form drawn past this one would quietly leave out every field the
+    // workspace tracks, and save the asset as though it tracked none.
+    expect(within(dialog).getByRole('button', { name: /create asset/i })).toBeDisabled();
+  });
+
+  it('keeps the form when only the tag suggestion failed, because it is a hint', async () => {
+    const dialog = await openNewAsset({ ...INVENTORY_ROUTES, 'GET /assets/next-tag': DB_DOWN });
+
+    expect(within(dialog).queryByRole('alert')).toBeNull();
+    expect(within(dialog).getByLabelText('Name')).toBeInTheDocument();
+    // The API mints a tag when the form sends none, so an absent suggestion
+    // changes nothing this form cannot do.
+    expect(within(dialog).getByRole('button', { name: /create asset/i })).toBeEnabled();
+  });
+
+  it('draws the form again when the panel’s retry is pressed', async () => {
+    // Twice: the page's own read, then the one the modal's mount retries.
+    let attempts = 0;
+    const dialog = await openNewAsset({
+      ...INVENTORY_ROUTES,
+      'GET /workflow': () => (attempts++ < 2 ? DB_DOWN : { body: WORKFLOW }),
+    });
+
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Try again' }));
+
+    expect(await within(dialog).findByLabelText('Name')).toBeInTheDocument();
+    expect(within(dialog).getByRole('button', { name: /create asset/i })).toBeEnabled();
+  });
+});

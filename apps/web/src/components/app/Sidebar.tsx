@@ -16,7 +16,6 @@ export function Sidebar({ member, permissions, orgName, onSignOut }: SidebarProp
   // The role under the member's name is a row's label, not a word this build
   // knows — the same lookup the Members page's pills go through.
   const roles = useRoles();
-  const byId = roleMap(roles.data === undefined ? [] : roles.data.roles);
 
   function navLink(item: NavItem) {
     return (
@@ -59,7 +58,17 @@ export function Sidebar({ member, permissions, orgName, onSignOut }: SidebarProp
           <Avatar name={member.displayName} colorKey={member.id} size={24} />
           <div style={{ minWidth: 0, flex: 1 }}>
             <div className={styles.memberName}>{member.displayName}</div>
-            <div className={styles.memberRole}>{roleInfo(byId, member.role).label}</div>
+            {/* A full panel is wrong in a shell that has to stay usable, and a
+                slug is worse: "Ada Okafor / admin" is a vocabulary this
+                workspace never wrote. `roleInfo`'s fallback is for a role an
+                admin has since deleted — historical data — not for a read that
+                did not answer, so a read that did not answer says nothing.
+                `isSuccess` is what makes the payload defined here. */}
+            {roles.isSuccess && (
+              <div className={styles.memberRole}>
+                {roleInfo(roleMap(roles.data.roles), member.role).label}
+              </div>
+            )}
           </div>
           <IconButton
             icon="key"
