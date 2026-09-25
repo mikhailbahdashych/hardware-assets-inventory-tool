@@ -5,6 +5,7 @@ import type { WorkflowStatus } from '@inventory/shared';
 import {
   ADMIN_MEMBER,
   ADMIN_ROUTES,
+  DB_DOWN,
   MANAGER_ACTIONS,
   session,
   WORKFLOW,
@@ -368,5 +369,38 @@ describe('the transition matrix', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Discard' }));
     expect(cell('In repair', 'Available')).toBeChecked();
     expect(screen.getByRole('button', { name: 'Save workflow' })).toBeDisabled();
+  });
+});
+
+describe('a read that failed', () => {
+  it('says so in the server’s own words instead of a workspace with no statuses', async () => {
+    renderApp({ ...ADMIN_ROUTES, 'GET /workflow': DB_DOWN }, '/workflow');
+
+    const panel = await screen.findByRole('alert');
+    expect(within(panel).getByText(/the workflow could not be loaded/i)).toBeInTheDocument();
+    expect(within(panel).getByText('The database is unavailable.')).toBeInTheDocument();
+    // An empty matrix and an empty diagram would read as a workspace that
+    // allows no move at all — which is not what the server said.
+    expect(screen.queryByRole('table', { name: 'Statuses' })).toBeNull();
+    expect(screen.queryByRole('table', { name: 'Transitions' })).toBeNull();
+    expect(screen.queryByRole('img', { name: /Workflow diagram/ })).toBeNull();
+    expect(screen.getByRole('heading', { name: 'Workflow', level: 1 })).toBeInTheDocument();
+  });
+
+  it('reads the workflow again when the panel’s retry is pressed', async () => {
+    let attempts = 0;
+    const api = renderApp(
+      {
+        ...ADMIN_ROUTES,
+        'GET /workflow': () => (attempts++ === 0 ? DB_DOWN : { body: WORKFLOW }),
+      },
+      '/workflow',
+    );
+
+    await screen.findByRole('alert');
+    await userEvent.click(screen.getByRole('button', { name: 'Try again' }));
+
+    expect(await screen.findByRole('table', { name: 'Transitions' })).toBeInTheDocument();
+    expect(api.calledAll('GET /workflow')).toHaveLength(2);
   });
 });

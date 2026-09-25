@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   ADMIN_MEMBER,
+  DB_DOWN,
   employeesRoute,
   INVENTORY_ROUTES,
   LAPTOP,
@@ -260,5 +261,59 @@ describe('employee detail', () => {
       '/employees/emp-9',
     );
     expect(await screen.findByText(/could not be found/i)).toBeInTheDocument();
+  });
+});
+
+describe('a read that failed', () => {
+  it('says so in the server’s own words instead of an empty payroll', async () => {
+    renderApp({ ...INVENTORY_ROUTES, 'GET /employees': DB_DOWN }, '/employees');
+
+    const panel = await screen.findByRole('alert');
+    expect(within(panel).getByText(/the employee list could not be loaded/i)).toBeInTheDocument();
+    expect(within(panel).getByText('The database is unavailable.')).toBeInTheDocument();
+    // The lie: a failed read drawn as a company with nobody in it.
+    expect(screen.queryByText(/no employees yet/i)).toBeNull();
+    expect(screen.queryByRole('table')).toBeNull();
+    expect(screen.queryByRole('combobox', { name: 'Rows per page' })).toBeNull();
+  });
+
+  it('reads the list again when the panel’s retry is pressed', async () => {
+    let attempts = 0;
+    const api = renderApp(
+      {
+        ...INVENTORY_ROUTES,
+        'GET /employees': (body, search) =>
+          attempts++ === 0 ? DB_DOWN : employeesRoute([MAYA])(body, search),
+      },
+      '/employees',
+    );
+
+    await screen.findByRole('alert');
+    await userEvent.click(screen.getByRole('button', { name: 'Try again' }));
+
+    expect(await screen.findByText('Maya Lindqvist')).toBeInTheDocument();
+    expect(api.calledAll('GET /employees')).toHaveLength(2);
+  });
+
+  it('still says the list is empty when it genuinely is', async () => {
+    renderApp({ ...INVENTORY_ROUTES, 'GET /employees': employeesRoute([]) }, '/employees');
+
+    expect(await screen.findByText(/no employees yet/i)).toBeInTheDocument();
+    expect(screen.getByRole('table')).toBeInTheDocument();
+    expect(screen.queryByRole('alert')).toBeNull();
+  });
+
+  it('keeps the way back when one person cannot be read', async () => {
+    renderApp({ ...INVENTORY_ROUTES, 'GET /employees/emp-1': DB_DOWN }, '/employees/emp-1');
+
+    const panel = await screen.findByRole('alert');
+    expect(within(panel).getByText(/this employee could not be loaded/i)).toBeInTheDocument();
+    expect(within(panel).getByText('The database is unavailable.')).toBeInTheDocument();
+    // The bespoke panel this replaces had one thing worth keeping: a way out
+    // of a page that cannot draw itself.
+    // Two of them now: the sidebar's, and the page's own way out of a
+    // screen that cannot draw itself — the one thing the bespoke panel
+    // this replaces had worth keeping.
+    expect(screen.getAllByRole('link', { name: 'Employees' })).toHaveLength(2);
   });
 });

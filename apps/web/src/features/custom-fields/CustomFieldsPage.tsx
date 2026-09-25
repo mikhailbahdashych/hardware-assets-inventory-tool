@@ -8,7 +8,7 @@ import { fieldErrors } from '@/api/formErrors';
 import { useCreateCustomField, useDeleteCustomField, useUpdateCustomField } from '@/api/mutations';
 import { useCustomFields } from '@/api/queries';
 import { PageContainer } from '@/components/app/PageContainer';
-import { Button, Card, Dropdown, Field, Input, Spinner } from '@/components/ui';
+import { Button, Card, Dropdown, ErrorState, Field, Input, Spinner } from '@/components/ui';
 import { useToast } from '@/providers/ToastProvider';
 import styles from './CustomFields.module.css';
 
@@ -61,7 +61,17 @@ export function CustomFieldsPage() {
         </p>
       </div>
 
-      {fields.data === undefined ? (
+      {/* Failed, then not yet here, then the definitions — three states, three
+          branches, and `data` is defined in the last one. The add form goes
+          with them: a form for a list nobody could read is an invitation to
+          add what is already there. */}
+      {fields.isError ? (
+        <Card padding={false}>
+          <ErrorState error={fields.error} onRetry={() => void fields.refetch()}>
+            The custom fields could not be loaded.
+          </ErrorState>
+        </Card>
+      ) : !fields.isSuccess ? (
         <div className={styles.loading}>
           <Spinner size={18} />
         </div>

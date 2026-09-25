@@ -3,7 +3,7 @@ import { renderNotification } from '@inventory/shared';
 import { useMarkNotificationsRead } from '@/api/mutations';
 import { INBOX_PAGE, useNotifications } from '@/api/queries';
 import { PageContainer } from '@/components/app/PageContainer';
-import { Button, EmptyState, Pagination, Spinner } from '@/components/ui';
+import { Button, Card, EmptyState, ErrorState, Pagination, Spinner } from '@/components/ui';
 import { formatRelativeTime } from '@/lib/format';
 import { usePageSize } from '@/lib/usePageSize';
 import styles from './Notifications.module.css';
@@ -21,11 +21,6 @@ export function NotificationsPage() {
   const inbox = useNotifications(pageSize, (page - 1) * pageSize);
   const markRead = useMarkNotificationsRead();
 
-  // A payload that has not arrived yet has no rows and nothing to count.
-  const rows = inbox.data?.notifications ?? [];
-  const unreadCount = inbox.data?.unreadCount ?? 0;
-  const total = inbox.data?.total ?? 0;
-
   return (
     <PageContainer maxWidth={760}>
       <div className={styles.header}>
@@ -36,25 +31,35 @@ export function NotificationsPage() {
             running out.
           </p>
         </div>
+        {/* Nothing to mark while the inbox has not answered: zero unread is a
+            fact about an inbox that did. */}
         <Button
           variant="ghost"
-          disabled={unreadCount === 0 || markRead.isPending}
+          disabled={!inbox.isSuccess || inbox.data.unreadCount === 0 || markRead.isPending}
           onClick={() => markRead.mutate()}
         >
           Mark all read
         </Button>
       </div>
 
-      {inbox.isPending ? (
+      {/* Failed, then not yet here, then the notices — three states, three
+          branches, and `data` is defined in the last one. */}
+      {inbox.isError ? (
+        <Card padding={false}>
+          <ErrorState error={inbox.error} onRetry={() => void inbox.refetch()}>
+            Your notifications could not be loaded.
+          </ErrorState>
+        </Card>
+      ) : !inbox.isSuccess ? (
         <div className={styles.loading}>
           <Spinner size={18} />
         </div>
-      ) : rows.length === 0 ? (
+      ) : inbox.data.notifications.length === 0 ? (
         <EmptyState>You’re all caught up — nothing has happened since you last looked.</EmptyState>
       ) : (
         <>
           <ul className={styles.list}>
-            {rows.map((row) => (
+            {inbox.data.notifications.map((row) => (
               <li key={row.id} className={styles.row} data-unread={row.readAt === null}>
                 <span className={styles.sentence}>{renderNotification(row)}</span>
                 <span className={styles.time}>{formatRelativeTime(row.createdAt)}</span>
@@ -62,25 +67,29 @@ export function NotificationsPage() {
             ))}
           </ul>
           <div className={styles.count}>
-            {total} {total === 1 ? 'notification' : 'notifications'} · kept for 90 days
+            {inbox.data.total} {inbox.data.total === 1 ? 'notification' : 'notifications'} · kept
+            for 90 days
           </div>
         </>
       )}
 
-      <Pagination
-        page={page}
-        pageCount={Math.ceil(total / pageSize)}
-        onChange={setPage}
-        rowsPerPage={{
-          size: pageSize,
-          onChange: (size) => {
-            setPageSize(size);
-            // A smaller page is a different list; page three of it is not
-            // where anybody meant to land.
-            setPage(1);
-          },
-        }}
-      />
+      {/* A pager over a failure has nothing to page. */}
+      {inbox.isSuccess && (
+        <Pagination
+          page={page}
+          pageCount={Math.ceil(inbox.data.total / pageSize)}
+          onChange={setPage}
+          rowsPerPage={{
+            size: pageSize,
+            onChange: (size) => {
+              setPageSize(size);
+              // A smaller page is a different list; page three of it is not
+              // where anybody meant to land.
+              setPage(1);
+            },
+          }}
+        />
+      )}
     </PageContainer>
   );
 }

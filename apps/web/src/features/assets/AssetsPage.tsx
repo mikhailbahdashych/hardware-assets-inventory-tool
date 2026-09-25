@@ -8,8 +8,10 @@ import { useModals } from '@/providers/ModalProvider';
 import { PageContainer } from '@/components/app/PageContainer';
 import {
   Button,
+  Card,
   DataTable,
   EmptyState,
+  ErrorState,
   FilterPills,
   Pagination,
   Pill,
@@ -100,9 +102,9 @@ export function AssetsPage({ permissions }: AssetsPageProps) {
   const { openModal } = useModals();
   const workflow = useWorkflow();
 
-  // A workflow that has not arrived has no statuses — the spinner below covers
-  // that moment, so nothing is ever drawn without the labels it needs.
-  const statuses = workflow.data?.statuses ?? [];
+  // A workflow that has not arrived has no statuses to match a `?status=`
+  // against; the three-state branch below covers what the reader sees.
+  const statuses = workflow.isSuccess ? workflow.data.statuses : [];
 
   // Filters live in the URL so a filtered view is shareable and survives a
   // reload — and so the dashboard can link straight to /assets?status=in_repair.
@@ -134,10 +136,23 @@ export function AssetsPage({ permissions }: AssetsPageProps) {
     offset: (page - 1) * pageSize,
   });
 
-  // A payload that has not arrived has no rows and nothing to count.
-  const rows = assets.data?.assets ?? [];
-  const total = assets.data?.total ?? 0;
-  const statusCounts = assets.data?.statusCounts ?? {};
+  /**
+   * Every query this page reads is one it needs — without the workflow the
+   * pills and the Status column would name a vocabulary this workspace never
+   * wrote — so the first failure among them is the page's. One rule for every
+   * page: see apps/web/CLAUDE.md.
+   */
+  const failure = assets.isError ? assets.error : workflow.isError ? workflow.error : null;
+
+  function retry(): void {
+    void assets.refetch();
+    void workflow.refetch();
+  }
+
+  // The pills stay reachable through a failure — they are how you ask for a
+  // different list — but their numbers come out of the payload, so a read that
+  // did not answer leaves them bare rather than at zero.
+  const statusCounts = assets.isSuccess ? assets.data.statusCounts : undefined;
 
   return (
     <PageContainer>
@@ -163,41 +178,52 @@ export function AssetsPage({ permissions }: AssetsPageProps) {
         />
       </div>
 
-      {assets.isPending || workflow.isPending ? (
+      {/* Failed, then not yet here, then the rows — three states, three
+          branches, and `data` is defined in the last one. */}
+      {failure !== null ? (
+        <Card padding={false}>
+          <ErrorState error={failure} onRetry={retry}>
+            The asset list could not be loaded.
+          </ErrorState>
+        </Card>
+      ) : !assets.isSuccess || !workflow.isSuccess ? (
         <div className={styles.loading}>
           <Spinner size={18} />
         </div>
       ) : (
-        <DataTable
-          columns={assetColumns(statuses)}
-          rows={rows}
-          rowKey={(asset) => asset.id}
-          onRowClick={(asset) => navigate(`/assets/${asset.id}`)}
-          footer={`${total} ${total === 1 ? 'asset' : 'assets'}`}
-          empty={
-            <EmptyState>
-              {query === '' && status === 'all'
-                ? 'No assets yet — add your first device to start tracking it.'
-                : 'No assets match these filters.'}
-            </EmptyState>
-          }
-        />
-      )}
+        <>
+          <DataTable
+            columns={assetColumns(workflow.data.statuses)}
+            rows={assets.data.assets}
+            rowKey={(asset) => asset.id}
+            onRowClick={(asset) => navigate(`/assets/${asset.id}`)}
+            footer={`${assets.data.total} ${assets.data.total === 1 ? 'asset' : 'assets'}`}
+            empty={
+              <EmptyState>
+                {query === '' && status === 'all'
+                  ? 'No assets yet — add your first device to start tracking it.'
+                  : 'No assets match these filters.'}
+              </EmptyState>
+            }
+          />
 
-      <Pagination
-        page={page}
-        pageCount={Math.ceil(total / pageSize)}
-        onChange={setPage}
-        rowsPerPage={{
-          size: pageSize,
-          onChange: (size) => {
-            setPageSize(size);
-            // A smaller page is a different list; page three of it is not
-            // where anybody meant to land.
-            setPage(1);
-          },
-        }}
-      />
+          {/* A pager over a failure has nothing to page. */}
+          <Pagination
+            page={page}
+            pageCount={Math.ceil(assets.data.total / pageSize)}
+            onChange={setPage}
+            rowsPerPage={{
+              size: pageSize,
+              onChange: (size) => {
+                setPageSize(size);
+                // A smaller page is a different list; page three of it is not
+                // where anybody meant to land.
+                setPage(1);
+              },
+            }}
+          />
+        </>
+      )}
     </PageContainer>
   );
 }

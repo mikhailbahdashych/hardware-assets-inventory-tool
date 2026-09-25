@@ -52,6 +52,14 @@ describe('assetStatusPills', () => {
   it('offers only All while the workflow is still loading', () => {
     expect(assetStatusPills(COUNTS, []).map((pill) => pill.value)).toEqual(['all']);
   });
+
+  it('carries no number at all when no payload arrived', () => {
+    // A read that is pending or has failed. Every filter is still offered —
+    // "All 0 · Available 0" would be an inventory nobody counted.
+    const pills = assetStatusPills(undefined, STATUSES);
+    expect(pills.map((pill) => pill.value)).toContain('available');
+    expect(pills.every((pill) => pill.count === undefined)).toBe(true);
+  });
 });
 
 describe('parseStatusFilter', () => {

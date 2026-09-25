@@ -3,7 +3,16 @@ import { API_SCOPE_LABELS } from '@inventory/shared';
 import { useRevokeApiToken } from '@/api/mutations';
 import { useApiTokens } from '@/api/queries';
 import { PageContainer } from '@/components/app/PageContainer';
-import { Button, DataTable, EmptyState, Menu, Pill, Spinner } from '@/components/ui';
+import {
+  Button,
+  Card,
+  DataTable,
+  EmptyState,
+  ErrorState,
+  Menu,
+  Pill,
+  Spinner,
+} from '@/components/ui';
 import { formatFullDate, formatRelativeTime } from '@/lib/format';
 import { useToast } from '@/providers/ToastProvider';
 import type { ApiTokenSummary } from '@/types/api';
@@ -128,15 +137,22 @@ export function ApiTokensPage() {
         </Button>
       </div>
 
-      {tokens.isPending ? (
+      {/* Failed, then not yet here, then the rows — three states, three
+          branches, and `data` is defined in the last one. */}
+      {tokens.isError ? (
+        <Card padding={false}>
+          <ErrorState error={tokens.error} onRetry={() => void tokens.refetch()}>
+            The API tokens could not be loaded.
+          </ErrorState>
+        </Card>
+      ) : !tokens.isSuccess ? (
         <div className={styles.loading}>
           <Spinner size={18} />
         </div>
       ) : (
         <DataTable
           columns={columns}
-          // Tokens that have not arrived are no tokens to draw.
-          rows={tokens.data ?? []}
+          rows={tokens.data}
           rowKey={(token) => token.id}
           empty={
             <EmptyState>

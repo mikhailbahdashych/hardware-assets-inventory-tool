@@ -14,7 +14,16 @@ import {
 import { fieldErrors } from '@/api/formErrors';
 import { useUpdateSettings } from '@/api/mutations';
 import { useSettings } from '@/api/queries';
-import { Button, Dropdown, Field, Input, Spinner, ToggleSwitch } from '@/components/ui';
+import {
+  Button,
+  Card,
+  Dropdown,
+  ErrorState,
+  Field,
+  Input,
+  Spinner,
+  ToggleSwitch,
+} from '@/components/ui';
 import { formatFileSize } from '@/lib/format';
 import { useToast } from '@/providers/ToastProvider';
 import type { OrgSettings } from '@/types/api';
@@ -44,7 +53,20 @@ const NOTIFICATION_TOGGLES = [
 export function SettingsPanel() {
   const settings = useSettings();
 
-  if (!settings.data) {
+  // Failed, then not yet here, then the form — three states, three branches,
+  // and `data` is defined in the last one. The failure lands where this
+  // panel's content would be; the page's own heading is not what failed.
+  if (settings.isError) {
+    return (
+      <Card padding={false}>
+        <ErrorState error={settings.error} onRetry={() => void settings.refetch()}>
+          The workspace settings could not be loaded.
+        </ErrorState>
+      </Card>
+    );
+  }
+
+  if (!settings.isSuccess) {
     return (
       <div className={styles.loading}>
         <Spinner size={18} />

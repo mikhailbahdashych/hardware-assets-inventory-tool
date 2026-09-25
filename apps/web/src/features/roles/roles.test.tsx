@@ -5,6 +5,7 @@ import { ACTIONS, type Action, type WorkspaceRole } from '@inventory/shared';
 import {
   ADMIN_MEMBER,
   ADMIN_ROUTES,
+  DB_DOWN,
   MANAGER_ACTIONS,
   ROLES,
   session,
@@ -460,5 +461,37 @@ describe('the permissions matrix', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Discard' }));
     expect(cell('Manager', 'Create assets')).toBeChecked();
     expect(screen.getByRole('button', { name: 'Save permissions' })).toBeDisabled();
+  });
+});
+
+describe('a read that failed', () => {
+  it('says so in the server’s own words instead of a workspace with no roles', async () => {
+    renderApp({ ...ADMIN_ROUTES, 'GET /roles': DB_DOWN }, '/roles');
+
+    const panel = await screen.findByRole('alert');
+    expect(within(panel).getByText(/the roles could not be loaded/i)).toBeInTheDocument();
+    expect(within(panel).getByText('The database is unavailable.')).toBeInTheDocument();
+    // Neither card is drawable without the payload, and a permissions matrix
+    // with no columns would read as a workspace that grants nothing.
+    expect(screen.queryByRole('table', { name: 'Roles' })).toBeNull();
+    expect(screen.queryByRole('table', { name: 'Permissions' })).toBeNull();
+    expect(screen.getByRole('heading', { name: 'Roles', level: 1 })).toBeInTheDocument();
+  });
+
+  it('reads the roles again when the panel’s retry is pressed', async () => {
+    let attempts = 0;
+    const api = renderApp(
+      {
+        ...ADMIN_ROUTES,
+        'GET /roles': () => (attempts++ === 0 ? DB_DOWN : { body: ROLES }),
+      },
+      '/roles',
+    );
+
+    await screen.findByRole('alert');
+    await userEvent.click(screen.getByRole('button', { name: 'Try again' }));
+
+    expect(await screen.findByRole('table', { name: 'Permissions' })).toBeInTheDocument();
+    expect(api.calledAll('GET /roles')).toHaveLength(2);
   });
 });
