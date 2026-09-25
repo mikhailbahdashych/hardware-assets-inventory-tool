@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   ADMIN_MEMBER,
   DASHBOARD_ROUTES,
+  DB_DOWN,
   LAPTOP,
   MAYA,
   searchRoute,
@@ -219,5 +220,41 @@ describe('the actions', () => {
       await within(dialog).findByRole('option', { name: new RegExp(MAYA.displayName) }),
     );
     expect(await screen.findByRole('heading', { name: MAYA.displayName })).toBeInTheDocument();
+  });
+});
+
+describe('a search that failed', () => {
+  it('says it could not look, rather than that it found nothing', async () => {
+    renderApp({ ...DASHBOARD_ROUTES, 'GET /search': DB_DOWN }, '/dashboard');
+    const dialog = await openPalette();
+    await userEvent.type(search(), 'macbook');
+
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent(
+      'The database is unavailable.',
+    );
+    // The same lie an empty list tells: "we found nothing" for "we could not
+    // look" — and nothing here matches a command either, so this was all the
+    // palette used to say.
+    expect(within(dialog).queryByText(/no results for/i)).toBeNull();
+  });
+
+  it('keeps the commands, because the shell stays usable through it', async () => {
+    renderApp({ ...DASHBOARD_ROUTES, 'GET /search': DB_DOWN }, '/dashboard');
+    const dialog = await openPalette();
+    await userEvent.type(search(), 'invite');
+
+    expect(await within(dialog).findByRole('alert')).toBeInTheDocument();
+    expect(within(dialog).getByRole('option', { name: /Invite member/ })).toBeInTheDocument();
+  });
+
+  it('drops the rows whose status words the workflow never delivered', async () => {
+    renderApp({ ...DASHBOARD_ROUTES, 'GET /workflow': DB_DOWN }, '/dashboard');
+    const dialog = await openPalette();
+    await userEvent.type(search(), 'macbook');
+
+    expect(await within(dialog).findByRole('alert')).toBeInTheDocument();
+    // Not "AST-0142 · assigned": a subtitle printing the stored slug is this
+    // workspace's vocabulary invented by the browser.
+    expect(within(dialog).queryByRole('option', { name: /MacBook/ })).toBeNull();
   });
 });

@@ -5,6 +5,7 @@ import {
   ADMIN_MEMBER,
   AUDITOR_ROLE,
   DASHBOARD_ROUTES,
+  DB_DOWN,
   EVERY_ACTION,
   READY_META,
   ROLES,
@@ -188,6 +189,18 @@ describe('app shell', () => {
       '/dashboard',
     );
     expect(await screen.findByText('Auditor', { selector: 'div' })).toBeInTheDocument();
+  });
+
+  it('names no role at all when the roles could not be read', async () => {
+    renderApp({ ...authenticatedRoutes(), 'GET /roles': DB_DOWN }, '/dashboard');
+
+    expect(await screen.findByText('Tomasz Kowalski')).toBeInTheDocument();
+    // The bug: the identity card degrading to "Tomasz Kowalski / admin" — the
+    // stored id, printed by a fallback that exists for a role an admin has
+    // since deleted, not for a read that never answered. Absence is the
+    // honest answer; a word the workspace never wrote is not.
+    expect(screen.queryByText('admin', { selector: 'div' })).toBeNull();
+    expect(screen.queryByText('Admin', { selector: 'div' })).toBeNull();
   });
 
   it('marks the current section in the sidebar', async () => {

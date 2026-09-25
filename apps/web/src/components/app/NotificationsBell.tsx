@@ -12,8 +12,10 @@ export function NotificationsBell() {
   const navigate = useNavigate();
   const inbox = useNotifications();
 
-  // A payload that has not arrived yet has nothing to count.
-  const unread = inbox.data?.unreadCount ?? 0;
+  // A read that has not arrived — or failed — has nothing to count, and a bell
+  // with no badge says exactly that: nothing to see here yet. A zero would be a
+  // count somebody took, which is the one thing this does not have.
+  const unread = inbox.isSuccess ? inbox.data.unreadCount : 0;
 
   return (
     <span className={styles.wrap}>
