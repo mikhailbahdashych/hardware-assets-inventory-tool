@@ -13,6 +13,7 @@ import styles from './Attachments.module.css';
  * saves it — see the content-disposition header on the download route.
  */
 export function AttachmentsCard({ assetId, attachments, permissions }: AttachmentsCardProps) {
+  // Null until the input mounts — what the `?.` on it below reads.
   const input = useRef<HTMLInputElement>(null);
   const [failure, setFailure] = useState<string | null>(null);
   const toast = useToast();
@@ -49,6 +50,7 @@ export function AttachmentsCard({ assetId, attachments, permissions }: Attachmen
           // a suggestion a drag-and-drop can walk straight past.
           accept={ATTACHMENT_ACCEPT}
           onChange={(event) => {
+            // A picker closed without a choice hands over no file at all.
             const file = event.target.files?.[0];
             event.target.value = '';
             if (!file) return;

@@ -35,6 +35,7 @@ export function CommandPalette({ permissions, role, onClose }: CommandPalettePro
   const settled = useDebouncedValue(query);
   const results = useSearch(settled, true);
   const workflow = useWorkflow();
+  // Null until the list mounts — what the `?.` on it below reads.
   const listRef = useRef<HTMLDivElement>(null);
 
   /**

@@ -24,7 +24,31 @@ export async function parseCsv(file: File): Promise<ParsedCsv> {
     });
   });
 
-  const headers = result.meta.fields ?? [];
+  // `header: true` is what makes papaparse fill `fields`, so an absent list is
+  // a header it could not produce — reported, not read as a file with none.
+  const headers = result.meta.fields;
+  if (headers === undefined) {
+    return { ok: false, reason: 'The header row of that file could not be read.' };
+  }
+  // A quote nobody closed runs everything after it into one cell. In the header
+  // row that is the whole file read as a single column name, which would
+  // otherwise surface as "no data rows" — a diagnosis of the wrong thing.
+  const unclosed = result.errors.find((error) => error.type === 'Quotes');
+  if (unclosed) {
+    // papaparse sets `row` at both places it raises a Quotes error: the index
+    // of the record it was reading, the header being record 0 and blank lines
+    // counted. It reads a local file in 10 MB chunks and MAX_IMPORT_BYTES is
+    // 2 MB, so that index is the file's own — and the spreadsheet's "Row N",
+    // with the header as row 1, is the index plus one.
+    const row = unclosed.row!;
+    return {
+      ok: false,
+      reason:
+        row === 0
+          ? 'The header row of that file opens a quote it never closes, so its columns cannot be read.'
+          : `Row ${row + 1} of that file opens a quote it never closes, so everything after it runs into one cell.`,
+    };
+  }
   if (headers.length === 0) {
     return { ok: false, reason: 'That file has no header row.' };
   }

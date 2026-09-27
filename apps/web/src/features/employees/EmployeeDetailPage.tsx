@@ -43,15 +43,16 @@ export function EmployeeDetailPage({ permissions }: EmployeeDetailPageProps) {
   const [checkingIn, setCheckingIn] = useState<Holding | null>(null);
   const navigate = useNavigate();
   const detail = useEmployee(id);
+  // A hook runs before the branches below, so it sees the record not yet here.
   usePageBreadcrumb(detail.data?.employee.displayName);
 
   /**
    * This used to be its own panel saying "That employee could not be found."
    * for every failure alike, which was a diagnosis rather than a report: a 500
-   * and a dropped connection are not a missing person. The 404 still reads the
-   * same way, because the sentence now comes from the server, which sends
-   * exactly that. What the old panel had right — a way out of a page that
-   * cannot draw itself — is the BackLink above it, kept.
+   * and a dropped connection are not a missing person. A 404 still says so, in
+   * the server's own sentence — "The employee could not be found.", the same
+   * register as this panel's line above it. What the old panel had right — a
+   * way out of a page that cannot draw itself — is the BackLink above it, kept.
    */
   if (detail.isError) {
     return (
@@ -59,7 +60,7 @@ export function EmployeeDetailPage({ permissions }: EmployeeDetailPageProps) {
         <BackLink to="/employees">Employees</BackLink>
         <Card padding={false}>
           <ErrorState error={detail.error} onRetry={() => void detail.refetch()}>
-            This employee could not be loaded.
+            The employee could not be loaded.
           </ErrorState>
         </Card>
       </PageContainer>

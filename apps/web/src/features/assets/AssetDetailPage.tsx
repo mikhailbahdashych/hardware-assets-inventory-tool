@@ -69,6 +69,7 @@ export function AssetDetailPage({ permissions }: AssetDetailPageProps) {
   const detail = useAsset(id);
   const meta = useMeta();
   const workflow = useWorkflow();
+  // A hook runs before the branches below, so it sees the record not yet here.
   usePageBreadcrumb(detail.data?.asset.assetTag);
 
   /**
@@ -78,10 +79,10 @@ export function AssetDetailPage({ permissions }: AssetDetailPageProps) {
    *
    * This used to be its own panel saying "That asset could not be found." for
    * every failure alike, which was a diagnosis rather than a report: a 500 and
-   * a dropped connection are not a missing asset. The 404 still reads the same
-   * way, because the sentence now comes from the server, which sends exactly
-   * that. What the old panel had right — a way out of a page that cannot draw
-   * itself — is the BackLink above it, kept.
+   * a dropped connection are not a missing asset. A 404 still says so, in the
+   * server's own sentence — "The asset could not be found.", the same register
+   * as this panel's line above it. What the old panel had right — a way out of
+   * a page that cannot draw itself — is the BackLink above it, kept.
    */
   const failure = detail.isError
     ? detail.error
@@ -103,7 +104,7 @@ export function AssetDetailPage({ permissions }: AssetDetailPageProps) {
         <BackLink to="/assets">Assets</BackLink>
         <Card padding={false}>
           <ErrorState error={failure} onRetry={retry}>
-            This asset could not be loaded.
+            The asset could not be loaded.
           </ErrorState>
         </Card>
       </PageContainer>
@@ -292,7 +293,9 @@ export function AssetDetailPage({ permissions }: AssetDetailPageProps) {
         />
       )}
       {open === 'checkin' && <CheckInModal asset={asset} onClose={() => setOpen(null)} />}
-      {open === 'status' && <ChangeStatusModal asset={asset} onClose={() => setOpen(null)} />}
+      {open === 'status' && (
+        <ChangeStatusModal asset={asset} workflow={workflow.data} onClose={() => setOpen(null)} />
+      )}
     </PageContainer>
   );
 }

@@ -27,6 +27,8 @@ export function Dropdown<V extends string>({
 }: DropdownProps<V>) {
   const [position, setPosition] = useState<PanelPosition | null>(null);
   const [active, setActive] = useState(0);
+  // A ref is null until its element mounts, and the panel only exists while
+  // open — which is what every `?.` on these two reads.
   const trigger = useRef<HTMLButtonElement>(null);
   const panel = useRef<HTMLDivElement>(null);
   const listboxId = useId();
@@ -88,8 +90,10 @@ export function Dropdown<V extends string>({
   function typeahead(character: string): void {
     const wanted = character.toLowerCase();
     for (let step = 1; step <= options.length; step += 1) {
+      // A remainder of the length is always in range, and the loop does not
+      // run over an empty list.
       const index = (active + step) % options.length;
-      if (options[index]?.label.toLowerCase().startsWith(wanted)) {
+      if (options[index]!.label.toLowerCase().startsWith(wanted)) {
         setActive(index);
         return;
       }

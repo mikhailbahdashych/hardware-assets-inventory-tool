@@ -29,6 +29,7 @@ export function CustomFieldsPage() {
   const [label, setLabel] = useState('');
   const [type, setType] = useState<CustomFieldType>('text');
   const [confirmingDelete, setConfirmingDelete] = useState<string | null>(null);
+  // Null while no row is being renamed — what each `renaming?.id` below reads.
   const [renaming, setRenaming] = useState<{ id: string; label: string } | null>(null);
 
   const toast = useToast();

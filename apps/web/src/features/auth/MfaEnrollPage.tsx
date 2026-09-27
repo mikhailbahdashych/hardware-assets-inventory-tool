@@ -31,6 +31,7 @@ export function MfaEnrollPage({ member }: MfaEnrollPageProps) {
     begin();
   }, [begin]);
 
+  // Nothing to draw until the enrolment answers; a failure is `FormError`'s.
   const otpauthUri = enroll.data?.otpauthUri;
   useEffect(() => {
     if (!otpauthUri) return;

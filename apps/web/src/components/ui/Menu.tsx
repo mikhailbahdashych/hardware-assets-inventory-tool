@@ -20,6 +20,8 @@ const GAP = 4;
  */
 export function Menu({ label, items }: MenuProps) {
   const [anchor, setAnchor] = useState<MenuAnchor | null>(null);
+  // A ref is null until its element mounts, and the panel only exists while
+  // open — which is what the `?.` on these two reads.
   const trigger = useRef<HTMLButtonElement>(null);
   const panel = useRef<HTMLDivElement>(null);
 

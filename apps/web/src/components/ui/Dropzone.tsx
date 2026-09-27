@@ -11,6 +11,7 @@ export function Dropzone({
   hint,
   compact = false,
 }: DropzoneProps) {
+  // Null until the input mounts — what the `?.` on it below reads.
   const inputRef = useRef<HTMLInputElement>(null);
   const [over, setOver] = useState(false);
 
@@ -47,6 +48,7 @@ export function Dropzone({
         aria-label={inputLabel}
         hidden
         onChange={(event) => {
+          // A picker closed without a choice hands over no file at all.
           const chosen = event.target.files?.[0];
           event.target.value = '';
           if (chosen) onFile(chosen);

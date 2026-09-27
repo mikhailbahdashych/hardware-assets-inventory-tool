@@ -43,7 +43,7 @@ The alias is declared in **three** places that must agree, or you get a green ty
 
 ## Indexing, under `noUncheckedIndexedAccess`
 
-`array[i]` is `T | undefined`. Prefer removing the doubt over asserting it away: `Dropzone` hands its caller a single `File` rather than a `FileList` because every caller wanted the first one, and the palette reads `rows[active]` into one `activeRow` and checks it, because that index is maintained by hand across renders and ↵ on nothing should do nothing. The one assertion in this workspace is `avatar.ts`, where a hash modulo the palette length is provably in range and a fallback colour would hide a real mistake.
+`array[i]` is `T | undefined`. Prefer removing the doubt over asserting it away: `Dropzone` hands its caller a single `File` rather than a `FileList` because every caller wanted the first one, and the palette reads `rows[active]` into one `activeRow` and checks it, because that index is maintained by hand across renders and ↵ on nothing should do nothing. An assertion is the rare exception, and each one names its proof in a comment beside it: `avatar.ts` indexes the palette by a hash modulo its length, and `Dropdown`'s type-ahead steps through its options by a remainder of theirs — both provably in range, where a fallback colour or a skipped option would hide a real mistake.
 
 ## When a `??` is legitimate here
 

@@ -1,9 +1,8 @@
 import { useState, type FormEvent } from 'react';
 import { fieldErrors } from '@/api/formErrors';
 import { useUpdateAsset } from '@/api/mutations';
-import { useWorkflow } from '@/api/queries';
 import { Button, Dropdown, Field, Modal } from '@/components/ui';
-import { allowedTargets, statusInfo, statusMap, EMPTY_WORKFLOW } from '@/lib/workflow';
+import { allowedTargets, statusInfo, statusMap } from '@/lib/workflow';
 import { useToast } from '@/providers/ToastProvider';
 import type { ChangeStatusModalProps } from './types/changeStatusModal';
 import formStyles from '@/components/ui/FormModal.module.css';
@@ -15,13 +14,9 @@ import formStyles from '@/components/ui/FormModal.module.css';
  * admin who removes a transition removes it from this list too, rather than
  * leaving a choice the API would refuse.
  */
-export function ChangeStatusModal({ asset, onClose }: ChangeStatusModalProps) {
-  const workflow = useWorkflow();
-  // A workflow that has not arrived offers no moves; the empty state below
-  // covers that moment as well as a status with nowhere to go.
-  const payload = workflow.data ?? EMPTY_WORKFLOW;
-  const byId = statusMap(payload.statuses);
-  const options = allowedTargets(payload, asset.status);
+export function ChangeStatusModal({ asset, workflow, onClose }: ChangeStatusModalProps) {
+  const byId = statusMap(workflow.statuses);
+  const options = allowedTargets(workflow, asset.status);
   const current = statusInfo(byId, asset.status);
 
   const [chosen, setChosen] = useState('');

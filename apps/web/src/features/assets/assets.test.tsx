@@ -470,7 +470,7 @@ describe('a read that failed', () => {
     renderApp({ ...detailRoutes, 'GET /assets/asset-1': DB_DOWN }, '/assets/asset-1');
 
     const panel = await screen.findByRole('alert');
-    expect(within(panel).getByText(/this asset could not be loaded/i)).toBeInTheDocument();
+    expect(within(panel).getByText(/the asset could not be loaded/i)).toBeInTheDocument();
     expect(within(panel).getByText('The database is unavailable.')).toBeInTheDocument();
     // The bespoke panel this replaces had one thing worth keeping: a way out
     // of a page that cannot draw itself.

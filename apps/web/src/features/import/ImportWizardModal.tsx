@@ -42,6 +42,7 @@ const rows = (n: number): string => `${n} ${n === 1 ? 'row' : 'rows'}`;
 export function ImportWizardModal({ onClose }: ImportWizardModalProps) {
   const [kind, setKind] = useState<ImportKind>('assets');
   const [step, setStep] = useState<ImportStep>('file');
+  // Null until a file has been read — what every `parsed?.ok` below reads.
   const [parsed, setParsed] = useState<ParsedCsv | null>(null);
   const [mapping, setMapping] = useState<ColumnMapping>({});
   const [report, setReport] = useState<ImportReport | null>(null);
@@ -63,6 +64,8 @@ export function ImportWizardModal({ onClose }: ImportWizardModalProps) {
       const mapped: Record<string, string> = {};
       for (const column of columns) {
         const header = mapping[column.header];
+        // A row shorter than the header has no cell for its last columns, and
+        // the mapping step already says a blank is imported empty.
         if (header !== undefined && header !== '') mapped[column.header] = row[header] ?? '';
       }
       return mapped;
@@ -242,6 +245,7 @@ export function ImportWizardModal({ onClose }: ImportWizardModalProps) {
               </span>
               <Dropdown
                 aria-label={column.header}
+                // No entry is this column left unmapped: the "Not imported" option.
                 value={mapping[column.header] ?? ''}
                 options={[
                   { value: '', label: '— Not imported —' },
@@ -350,7 +354,11 @@ function IssueList({ title, issues, tone }: IssueListProps) {
   );
 }
 
-/** Drops the columns the auto-matcher had no header for, so `?? ''` never fires. */
+/**
+ * Drops the columns the auto-matcher had no header for. An unmatched column is
+ * then simply absent from the mapping — the same state as one a person set to
+ * "Not imported", which is what the mapping step's `?? ''` reads.
+ */
 function cleanMatches(matched: Record<string, string | undefined>): ColumnMapping {
   const mapping: ColumnMapping = {};
   for (const [column, header] of Object.entries(matched)) {
