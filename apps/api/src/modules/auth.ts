@@ -115,7 +115,7 @@ export function registerAuthRoutes(app: FastifyInstance, deps: AppDeps): void {
           throw new AppError(422, 'mfa_code_invalid', 'That code is not right.');
         }
 
-        await consumeToken(tx, token.id, now);
+        if (!(await consumeToken(tx, token.id, now))) throw invalidToken();
         await writeAudit(
           tx,
           {
@@ -179,7 +179,7 @@ export function registerAuthRoutes(app: FastifyInstance, deps: AppDeps): void {
           .update(members)
           .set({ passwordHash, updatedAt: nowIso(now) })
           .where(eq(members.id, token.memberId));
-        await consumeToken(tx, token.id, now);
+        if (!(await consumeToken(tx, token.id, now))) throw invalidToken();
         const updated = (await tx.select().from(members).where(eq(members.id, token.memberId)))[0]!;
         await writeAudit(
           tx,
@@ -252,7 +252,7 @@ export function registerAuthRoutes(app: FastifyInstance, deps: AppDeps): void {
             updatedAt: nowIso(now),
           })
           .where(eq(members.id, invited.id));
-        await consumeToken(tx, token.id, now);
+        if (!(await consumeToken(tx, token.id, now))) throw invalidToken();
         const updated = (await tx.select().from(members).where(eq(members.id, invited.id)))[0]!;
         await writeAudit(
           tx,

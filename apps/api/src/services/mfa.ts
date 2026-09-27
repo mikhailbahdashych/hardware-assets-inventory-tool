@@ -112,24 +112,22 @@ export async function verifyChallenge(
   const candidate = code.trim().toLowerCase();
   if (await acceptTotp(db, member, code, now)) return true;
 
-  const hash = hashToken(candidate);
-  const [match] = await db
-    .select()
-    .from(mfaRecoveryCodes)
+  // Finding the code and spending it are one conditional UPDATE, for the
+  // reason `acceptTotp` gives: a lookup and then a write lets two requests
+  // racing one code both find it unused and both spend it. Nothing returned is
+  // a code that is wrong or already spent — the same answer either way.
+  const spent = await db
+    .update(mfaRecoveryCodes)
+    .set({ usedAt: nowIso(now) })
     .where(
       and(
         eq(mfaRecoveryCodes.memberId, member.id),
-        eq(mfaRecoveryCodes.codeHash, hash),
+        eq(mfaRecoveryCodes.codeHash, hashToken(candidate)),
         isNull(mfaRecoveryCodes.usedAt),
       ),
-    );
-  if (!match) return false;
-
-  await db
-    .update(mfaRecoveryCodes)
-    .set({ usedAt: nowIso(now) })
-    .where(eq(mfaRecoveryCodes.id, match.id));
-  return true;
+    )
+    .returning({ id: mfaRecoveryCodes.id });
+  return spent.length > 0;
 }
 
 /**

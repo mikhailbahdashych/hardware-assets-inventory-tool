@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { members, mfaRecoveryCodes, orgSettings, sessions } from '@/db/schema.js';
 import { hashToken } from '@/lib/tokens.js';
 import { totpCode } from '@/lib/totp.js';
+import { consumeToken, findValidToken, issueAuthToken } from '@/services/auth-tokens.js';
 import { verifyChallenge } from '@/services/mfa.js';
 import {
   buildTestApp,
@@ -701,7 +702,7 @@ describe('what the log must never contain', () => {
 // record of what was accepted, a code read over a shoulder or out of a proxy
 // log signs in again for as long as it lasts. The clock is pinned here so each
 // test says exactly which step a code belongs to.
-describe('an authenticator code works once', () => {
+describe('a code works once — authenticator, recovery code or challenge', () => {
   const STEP_MS = 30_000;
   /** Five seconds into a step: nothing below straddles a boundary by accident. */
   let clock: Date;
@@ -804,6 +805,68 @@ describe('an authenticator code works once', () => {
       expect([401, 422]).toContain(status);
     }
     expect(await ctx.db.select().from(sessions)).toHaveLength(sessionsBefore + 1);
+  });
+
+  it('spends a challenge once, even for a caller holding the row read before', async () => {
+    await enrolled();
+    const member = (await ctx.db.select().from(members).where(eq(members.email, ADMIN.email)))[0]!;
+    const raw = await issueAuthToken(ctx.db, member.id, 'mfa_challenge', clock);
+
+    // What two racing verifies each hold: the challenge as found before either
+    // consumed it. The consume is a conditional UPDATE, so the second loses.
+    const token = (await findValidToken(ctx.db, raw, 'mfa_challenge', clock))!;
+    expect(await consumeToken(ctx.db, token.id, clock)).toBe(true);
+    expect(await consumeToken(ctx.db, token.id, clock)).toBe(false);
+  });
+
+  it('spends a recovery code once when two verifies race for it', async () => {
+    const { recoveryCodes } = await enrolled();
+    const member = (await ctx.db.select().from(members).where(eq(members.email, ADMIN.email)))[0]!;
+    const code = recoveryCodes[0]!;
+
+    // Two transactions at once. On SQLite the write gate queues the second
+    // behind the first; on Postgres they genuinely overlap, and a lookup
+    // followed by an unconditional write would let both spend the one code.
+    // The pool is warmed first, or the second transaction spends its head
+    // start opening a connection and the first has committed by then.
+    await Promise.all([0, 1, 2].map(() => ctx.db.select().from(members)));
+    const results = await Promise.all(
+      [0, 1].map(() => ctx.db.transaction(async (tx) => verifyChallenge(tx, member, code, clock))),
+    );
+    expect(results.sort()).toEqual([false, true]);
+    const spent = (await ctx.db.select().from(mfaRecoveryCodes)).filter((row) => row.usedAt);
+    expect(spent).toHaveLength(1);
+  });
+
+  it('lets exactly one of several verifies racing one recovery code through', async () => {
+    const { recoveryCodes } = await enrolled();
+    const code = recoveryCodes[0]!;
+
+    const { challengeToken } = (await login(ADMIN)).json();
+    const sessionsBefore = (await ctx.db.select().from(sessions)).length;
+    const results = await Promise.all(
+      Array.from({ length: 4 }, () =>
+        inject(ctx.app, {
+          method: 'POST',
+          url: '/api/v1/auth/mfa/verify',
+          body: { challengeToken, code },
+        }),
+      ),
+    );
+
+    // The loser finds the challenge spent (401) or the code spent (422) —
+    // the answers a spent challenge and a wrong code already give.
+    const statuses = results.map((res) => res.statusCode);
+    expect(
+      statuses.filter((status) => status === 200),
+      statuses.join(),
+    ).toHaveLength(1);
+    for (const status of statuses.filter((status) => status !== 200)) {
+      expect([401, 422]).toContain(status);
+    }
+    expect(await ctx.db.select().from(sessions)).toHaveLength(sessionsBefore + 1);
+    const spent = (await ctx.db.select().from(mfaRecoveryCodes)).filter((row) => row.usedAt);
+    expect(spent).toHaveLength(1);
   });
 
   it('does not let the code that confirmed the enrolment sign in as well', async () => {
