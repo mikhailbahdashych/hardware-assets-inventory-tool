@@ -115,10 +115,30 @@ describe('the SPA document carries a content security policy', () => {
     expect(missing.json().error.code).toBe('not_found');
   });
 
-  it('adds no headers at all to an instance serving no SPA', async () => {
+  it('adds no document headers to an instance serving no SPA', async () => {
     ctx = await buildTestApp();
     const res = await ctx.app.inject({ method: 'GET', url: '/anything' });
     expect(res.statusCode).toBe(404);
     expect(res.headers['content-security-policy']).toBeUndefined();
+  });
+});
+
+// Unlike the policy above, this one rides on everything: a browser that sniffs
+// a response into a type it was not sent as can run it as one, and no
+// response here — JSON, the document, a bundle, a refusal — wants that.
+describe('every response says nosniff', () => {
+  it.each([
+    ['API JSON', '/api/v1/meta', 200],
+    ['the SPA document', '/index.html', 200],
+    ['the client-routing fallback', '/assets/AST-0001', 200],
+    ['a built asset', '/assets/app.js', 200],
+    ['an error envelope', '/api/v1/assets', 401],
+  ])('on %s', async (_what, url, status) => {
+    ctx = await buildTestApp({ WEB_DIST: writeDist(withInlineScript) });
+
+    const res = await ctx.app.inject({ method: 'GET', url });
+    expect(res.statusCode).toBe(status);
+    // `toBe`, not `toContain`: one header carrying one value.
+    expect(res.headers['x-content-type-options']).toBe('nosniff');
   });
 });
