@@ -105,7 +105,7 @@ export async function saveAttachment(
   file: UploadedFile,
 ): Promise<AttachmentRow> {
   const [asset] = await deps.db.select().from(assets).where(eq(assets.id, assetId));
-  if (!asset) throw notFound('That asset');
+  if (!asset) throw notFound('asset');
 
   const id = newId();
   const extension = extname(file.filename)
@@ -203,12 +203,12 @@ export async function deleteAttachment(
   attachmentId: string,
 ): Promise<void> {
   const [row] = await deps.db.select().from(attachments).where(eq(attachments.id, attachmentId));
-  if (!row) throw notFound('That attachment');
+  if (!row) throw notFound('attachment');
   // attachments.asset_id is NOT NULL and cascades on delete, so the asset an
   // attachment names always exists. Reading it optionally would only hide the
   // day that stops being true — and write a nameless audit line.
   const [asset] = await deps.db.select().from(assets).where(eq(assets.id, row.assetId));
-  if (!asset) throw notFound('That asset');
+  if (!asset) throw notFound('asset');
 
   const now = deps.now();
   await deps.db.transaction(async (tx) => {

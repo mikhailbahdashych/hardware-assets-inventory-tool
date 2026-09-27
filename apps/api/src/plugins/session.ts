@@ -2,9 +2,9 @@ import type { FastifyInstance } from 'fastify';
 import type { Action } from '@inventory/shared';
 import type { AppDeps } from '@/types/app.js';
 import type { MemberRow } from '@/types/members.js';
-import { orgSettings } from '@/db/schema.js';
 import { resolvePermissions } from '@/services/roles.js';
 import { resolveSession, SESSION_COOKIE } from '@/services/sessions.js';
+import { getSettings } from '@/services/settings.js';
 
 // The augmentation stays here rather than moving to `src/types/`: it is
 // ambient, and it only takes effect because this module is imported for its
@@ -49,8 +49,10 @@ export function registerSessionAuth(app: FastifyInstance, deps: AppDeps): void {
 
     // Read from the settings row rather than cached anywhere: an admin turning
     // the requirement on should reach everybody already signed in, on their
-    // very next request, without waiting for a session to expire.
-    const [settings] = await deps.db.select().from(orgSettings);
-    request.mustEnrolMfa = settings?.mfaRequired === true && request.member.mfaConfirmedAt === null;
+    // very next request, without waiting for a session to expire. A session
+    // implies setup ran, so a missing row is a broken instance: `getSettings`
+    // says so rather than letting it read as "not required".
+    const settings = await getSettings(deps.db);
+    request.mustEnrolMfa = settings.mfaRequired && request.member.mfaConfirmedAt === null;
   });
 }

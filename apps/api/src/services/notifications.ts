@@ -22,6 +22,8 @@ export async function notify(db: DbOrTx, input: NotifyInput, now: Date): Promise
       memberId: input.memberId,
       kind: input.kind,
       params: JSON.stringify(input.params),
+      // Only the jobs pass one. NULL is "may repeat", and both engines let a
+      // unique index hold any number of NULLs.
       dedupeKey: input.dedupeKey ?? null,
       createdAt: nowIso(now),
     })

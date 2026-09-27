@@ -283,6 +283,7 @@ describe('employee detail', () => {
       cookie: admin,
     });
     expect(res.statusCode).toBe(404);
+    expect(res.json().error.message).toBe('The employee could not be found.');
   });
 });
 

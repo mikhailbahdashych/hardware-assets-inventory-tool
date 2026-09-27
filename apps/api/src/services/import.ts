@@ -152,6 +152,9 @@ async function writeAssets(tx: DbOrTx, rows: PlannedAsset[], now: Date): Promise
           assetId: id,
           employeeId: holder.id,
           holderName: `${holder.firstName} ${holder.lastName}`,
+          // A spreadsheet does not say when its holder got the device. The
+          // purchase date is the earliest it can have been; without one, the
+          // import is the only handover this system witnessed.
           checkedOutAt: row.purchaseDate ?? at.slice(0, 10),
           expectedReturnDate: null,
           notes: IMPORT_NOTE,

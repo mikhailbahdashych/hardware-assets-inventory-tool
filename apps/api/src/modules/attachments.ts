@@ -43,7 +43,7 @@ export function registerAttachmentRoutes(app: FastifyInstance, deps: AppDeps): v
         .select()
         .from(attachments)
         .where(eq(attachments.id, request.params.id));
-      if (!row) throw notFound('That attachment');
+      if (!row) throw notFound('attachment');
 
       // Open the bytes before a single header is set. Setting content-type
       // first and letting the stream fail leaves the error handler unable to
@@ -56,7 +56,7 @@ export function registerAttachmentRoutes(app: FastifyInstance, deps: AppDeps): v
       try {
         body = await deps.storage.stream(row.storedName);
       } catch (error) {
-        if (error instanceof ObjectNotStored) throw notFound('That attachment');
+        if (error instanceof ObjectNotStored) throw notFound('attachment');
         throw error;
       }
 

@@ -295,6 +295,18 @@ describe('when the workspace requires it', () => {
     expect(settings?.mfaRequired).toBe(true);
   });
 
+  it('refuses to read a missing settings row as "not required"', async () => {
+    ctx = await buildTestApp();
+    const cookie = await setupOrg(ctx.app);
+    // A session implies setup ran, so this is a broken instance — and reading
+    // the requirement off a row that is not there would wave everybody past it.
+    await ctx.db.delete(orgSettings);
+
+    const res = await inject(ctx.app, { method: 'GET', url: '/api/v1/auth/me', cookie });
+    expect(res.statusCode).toBe(500);
+    expect(res.json().error.code).toBe('not_initialized');
+  });
+
   it('lets them back in once they enrol', async () => {
     ctx = await buildTestApp();
     const cookie = await setupOrg(ctx.app);

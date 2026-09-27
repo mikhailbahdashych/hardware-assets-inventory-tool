@@ -65,10 +65,12 @@ export function contains(column: SQLWrapper, query: string): SQL {
 /**
  * Any of these columns contains it — the ORed match the browser used to do
  * over the whole list. Parenthesised, because this goes inside an `and()` with
- * the status filter and OR binds looser than AND. Undefined for a blank query,
- * which is drizzle's own "no condition" and so reads as "everything".
+ * the status filter and OR binds looser than AND. Undefined for an absent or
+ * blank query — `ListQuery.q` is absent when nothing was typed — which is
+ * drizzle's own "no condition" and so reads as "everything".
  */
-export function containsAny(query: string, columns: SQLWrapper[]): SQL | undefined {
+export function containsAny(query: string | undefined, columns: SQLWrapper[]): SQL | undefined {
+  if (query === undefined) return undefined;
   const needle = query.trim();
   if (needle === '') return undefined;
   return sql`(${sql.join(

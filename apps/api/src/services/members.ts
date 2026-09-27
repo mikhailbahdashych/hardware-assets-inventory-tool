@@ -50,7 +50,7 @@ const SEARCHABLE = [members.displayName, members.email];
  * accounts sharing a display name cannot swap across a page boundary.
  */
 export async function listMembers(db: Db, query: ListQuery): Promise<MemberListPage> {
-  const search = containsAny(query.q ?? '', SEARCHABLE);
+  const search = containsAny(query.q, SEARCHABLE);
   const rows = await db
     .select({ member: members, employee: employees })
     .from(members)
@@ -402,7 +402,7 @@ async function readMember(tx: DbOrTx, id: string): Promise<MemberSummary> {
     .from(members)
     .leftJoin(employees, eq(members.employeeId, employees.id))
     .where(eq(members.id, id));
-  if (!row) throw notFound('That member');
+  if (!row) throw notFound('member');
   return serializeMemberSummary(
     row.member,
     row.employee,
@@ -476,7 +476,7 @@ async function assertNotLastAdmin(tx: DbOrTx, target: MemberRow): Promise<void> 
 
 async function requireMember(tx: DbOrTx, id: string): Promise<MemberRow> {
   const [member] = await tx.select().from(members).where(eq(members.id, id));
-  if (!member) throw notFound('That member');
+  if (!member) throw notFound('member');
   return member;
 }
 
@@ -498,6 +498,6 @@ async function requireFreeEmail(tx: DbOrTx, email: string): Promise<void> {
  * address without one is all local part, which is the right answer anyway.
  */
 function localPart(email: string): string {
-  const [local] = email.split('@');
-  return local ?? email;
+  // `split` never returns an empty array, so element 0 is always there.
+  return email.split('@')[0]!;
 }

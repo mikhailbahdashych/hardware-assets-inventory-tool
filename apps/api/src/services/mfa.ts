@@ -216,7 +216,7 @@ export async function replenishRecoveryCodes(
  */
 export async function resetMemberRecoveryCodes(db: DbOrTx, memberId: string): Promise<void> {
   const [member] = await db.select().from(members).where(eq(members.id, memberId));
-  if (!member) throw notFound('That member');
+  if (!member) throw notFound('member');
   if (member.mfaConfirmedAt === null) {
     throw new AppError(
       409,

@@ -143,7 +143,7 @@ export async function assignAsset(
 
   return await deps.db.transaction(async (tx) => {
     const [asset] = await tx.select().from(assets).where(eq(assets.id, assetId));
-    if (!asset) throw notFound('That asset');
+    if (!asset) throw notFound('asset');
 
     // Both halves of the invariant are checked, not just the status column:
     // whichever one is wrong, the answer is the same. An asset somebody holds
@@ -161,7 +161,7 @@ export async function assignAsset(
     }
 
     const [holder] = await tx.select().from(employees).where(eq(employees.id, input.employeeId));
-    if (!holder) throw invalidFields({ employeeId: 'That employee could not be found.' });
+    if (!holder) throw invalidFields({ employeeId: 'The employee could not be found.' });
     if (holder.status !== 'active') {
       throw invalidFields({ employeeId: 'That person is offboarding and cannot take on assets.' });
     }
@@ -228,7 +228,7 @@ export async function checkinAsset(
 
   return await deps.db.transaction(async (tx) => {
     const [asset] = await tx.select().from(assets).where(eq(assets.id, assetId));
-    if (!asset) throw notFound('That asset');
+    if (!asset) throw notFound('asset');
 
     const open = await activeAssignment(tx, assetId);
     if (!open) {
@@ -291,7 +291,7 @@ export async function checkinAsset(
           // The label at write time, like `holderName` beside it: a status
           // renamed next year must not rewrite this sentence.
           to: target.label,
-          condition: input.condition ?? null,
+          condition: input.condition,
         },
       },
       now,

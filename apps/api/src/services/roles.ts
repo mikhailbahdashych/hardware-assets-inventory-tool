@@ -197,7 +197,7 @@ export async function updateRole(
   return await deps.db.transaction(async (tx) => {
     const rows = await roleRows(tx);
     const current = rows.find((row) => row.id === id);
-    if (!current) throw notFound('That role');
+    if (!current) throw notFound('role');
     assertEditable(current, actor);
 
     const values: Partial<RoleRow> = {};
@@ -380,7 +380,7 @@ export async function deleteRole(
 
   await deps.db.transaction(async (tx) => {
     const [current] = await tx.select().from(roles).where(eq(roles.id, id));
-    if (!current) throw notFound('That role');
+    if (!current) throw notFound('role');
     assertEditable(current, actor);
 
     const [holders] = await tx.select({ count: count() }).from(members).where(eq(members.role, id));
@@ -435,6 +435,7 @@ async function readRole(tx: DbOrTx, row: RoleRow): Promise<WorkspaceRole> {
   const counts = await memberCounts(tx);
   return serialize(
     row,
+    // Absent from the grouped count means nobody holds it, as in `listRoles`.
     counts.get(row.id) ?? 0,
     row.isSystem
       ? [...ACTIONS]

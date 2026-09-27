@@ -60,7 +60,7 @@ export const EMPLOYEE_SEARCH_FIELDS = [
  * swap places across a page boundary.
  */
 export async function listEmployees(db: Db, query: ListQuery): Promise<EmployeeListPage> {
-  const search = containsAny(query.q ?? '', EMPLOYEE_SEARCH_FIELDS);
+  const search = containsAny(query.q, EMPLOYEE_SEARCH_FIELDS);
   const rows = await db
     .select()
     .from(employees)
@@ -92,7 +92,7 @@ export async function listEmployees(db: Db, query: ListQuery): Promise<EmployeeL
  */
 export async function getEmployeeDetail(db: Db, id: string) {
   const [employee] = await db.select().from(employees).where(eq(employees.id, id));
-  if (!employee) throw notFound('That employee');
+  if (!employee) throw notFound('employee');
 
   const records = (await employeeHistory(db, id)).map((row) =>
     serializeHolding(row.assignment, row.asset),
@@ -159,7 +159,7 @@ export async function updateEmployee(
 
   return await deps.db.transaction(async (tx) => {
     const [current] = await tx.select().from(employees).where(eq(employees.id, id));
-    if (!current) throw notFound('That employee');
+    if (!current) throw notFound('employee');
 
     const values: Record<string, unknown> = {};
     const changedFields: string[] = [];
@@ -247,7 +247,7 @@ export async function deleteEmployee(deps: AppDeps, actor: Actor, id: string): P
 
   await deps.db.transaction(async (tx) => {
     const [employee] = await tx.select().from(employees).where(eq(employees.id, id));
-    if (!employee) throw notFound('That employee');
+    if (!employee) throw notFound('employee');
     if ((await countHeldBy(tx, id)) > 0) {
       throw new AppError(
         409,

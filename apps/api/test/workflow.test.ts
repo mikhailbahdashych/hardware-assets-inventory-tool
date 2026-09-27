@@ -499,7 +499,7 @@ describe('deleting a status', () => {
 
     const attempt = async (migrateTo: string) =>
       (await fieldErrors(() => deleteStatus(ctx.deps, actor, 'lost_stolen', migrateTo))).migrateTo;
-    expect(await attempt('nowhere')).toMatch(/could not be found/i);
+    expect(await attempt('nowhere')).toBe('The status could not be found.');
     expect(await attempt('assigned')).toMatch(/assigning/i);
     expect(await attempt('lost_stolen')).toMatch(/different status/i);
 

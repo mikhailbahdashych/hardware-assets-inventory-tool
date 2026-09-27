@@ -163,7 +163,7 @@ export async function updateStatus(
   return await deps.db.transaction(async (tx) => {
     const rows = await statusRows(tx);
     const current = rows.find((row) => row.id === id);
-    if (!current) throw notFound('That status');
+    if (!current) throw notFound('status');
 
     // A system status may be renamed and recolored — those are presentation.
     // Its flags are not: assign and check-in are the only doors into and out
@@ -243,7 +243,7 @@ export async function deleteStatus(
   await deps.db.transaction(async (tx) => {
     const rows = await statusRows(tx);
     const current = rows.find((row) => row.id === id);
-    if (!current) throw notFound('That status');
+    if (!current) throw notFound('status');
     if (current.isSystem) {
       throw new AppError(
         409,
@@ -429,7 +429,7 @@ async function requireMigrationTarget(
     throw invalidFields({ migrateTo: 'Assets are moved into Assigned by assigning them.' });
   }
   const [row] = await tx.select().from(assetStatuses).where(eq(assetStatuses.id, migrateTo));
-  if (!row) throw invalidFields({ migrateTo: 'That status could not be found.' });
+  if (!row) throw invalidFields({ migrateTo: 'The status could not be found.' });
   return row;
 }
 

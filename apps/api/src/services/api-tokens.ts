@@ -125,7 +125,7 @@ export async function revokeApiToken(deps: AppDeps, actor: Actor, id: string): P
 
   await deps.db.transaction(async (tx) => {
     const [row] = await tx.select().from(apiTokens).where(eq(apiTokens.id, id));
-    if (!row) throw notFound('That API token');
+    if (!row) throw notFound('API token');
 
     await tx.delete(apiTokens).where(eq(apiTokens.id, id));
     await writeAudit(

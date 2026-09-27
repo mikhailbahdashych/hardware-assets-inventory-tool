@@ -22,6 +22,7 @@ import { writeAudit } from '@/services/audit.js';
  * already available with a hex editor, it just makes it survivable.
  */
 async function main(): Promise<void> {
+  // No argument is a usage error, answered right below.
   const email = process.argv[2]?.trim().toLowerCase();
   if (!email) {
     process.stderr.write(

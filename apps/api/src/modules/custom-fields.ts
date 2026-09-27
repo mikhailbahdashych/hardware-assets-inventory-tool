@@ -90,7 +90,7 @@ export function registerCustomFieldRoutes(app: FastifyInstance, deps: AppDeps): 
           .select()
           .from(customFieldDefs)
           .where(eq(customFieldDefs.id, request.params.id));
-        if (!current) throw notFound('That field');
+        if (!current) throw notFound('field');
 
         // The key deliberately does not follow the label: stored values, CSV
         // headers and API payloads all hang off it.
@@ -133,7 +133,7 @@ export function registerCustomFieldRoutes(app: FastifyInstance, deps: AppDeps): 
           .select()
           .from(customFieldDefs)
           .where(eq(customFieldDefs.id, request.params.id));
-        if (!current) throw notFound('That field');
+        if (!current) throw notFound('field');
 
         // Values cascade away with the definition — there is nowhere to keep
         // them once the column they described is gone.

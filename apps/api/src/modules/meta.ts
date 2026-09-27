@@ -7,13 +7,16 @@ import pkg from '../../package.json';
 export function registerMetaRoutes(app: FastifyInstance, deps: AppDeps): void {
   app.get('/api/v1/meta', async () => {
     const [settings] = await deps.db.select().from(orgSettings);
+    // Before /setup there is no organization to name, and `needsSetup` is how
+    // this says so — the two keys are absent rather than invented.
+    if (!settings) return { needsSetup: true, version: pkg.version };
     return {
-      needsSetup: !settings,
+      needsSetup: false,
       version: pkg.version,
-      orgName: settings?.orgName,
+      orgName: settings.orgName,
       // Assets store a currency only when it differs from the organization's;
       // the UI needs this to render every other price.
-      defaultCurrency: settings?.defaultCurrency,
+      defaultCurrency: settings.defaultCurrency,
     };
   });
 

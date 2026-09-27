@@ -84,6 +84,7 @@ export async function seedDemo(deps: AppDeps, options: DemoSeedOptions): Promise
 
   const signIn: DemoAccount[] = [];
 
+  // Most people in the dataset do not sign in, and have no account to ask.
   const founder = PEOPLE.find((person) => person.account?.role === 'admin');
   if (!founder) throw new Error('The demo dataset has no admin to attribute its history to.');
   // Kept as a plain string beside the actor rather than read back off it: the
@@ -397,6 +398,13 @@ async function seedMembers(
     // The founder's own row is the one the setup event was attributed to.
     const id = account.role === 'admin' ? ctx.founderId : newId();
     ids.set(person.key, id);
+    // Every account belongs to somebody `seedPeople` already filed, and the
+    // member row links to them. A miss is the dataset or the seeding order
+    // broken — a member quietly unlinked would be a demo telling a lie.
+    const employeeId = ctx.employeeIds.get(person.key);
+    if (employeeId === undefined) {
+      throw new Error(`demo-data: ${person.key} has an account but no employee row.`);
+    }
 
     const invitedAt = at(person.addedDaysAgo, 9, 30 + index);
     const active = account.status === 'active';
@@ -410,7 +418,7 @@ async function seedMembers(
       passwordHash: active ? ctx.passwordHash : null,
       role: account.role,
       status: account.status,
-      employeeId: ctx.employeeIds.get(person.key) ?? null,
+      employeeId,
       lastActiveAt: active ? nowIso(at(index, 8, 15)) : null,
       createdAt: nowIso(invitedAt),
       updatedAt: nowIso(invitedAt),
@@ -579,7 +587,7 @@ async function seedHoldings(tx: DbOrTx, at: Clock, ctx: HoldingSeedContext): Pro
         checkedOutAt: todayDate(out),
         expectedReturnDate:
           holding.dueInDays === undefined ? null : todayDate(at(-holding.dueInDays)),
-        notes: holding.notes ?? null,
+        notes: holding.notes,
       },
       out,
     );
@@ -620,6 +628,8 @@ async function seedHoldings(tx: DbOrTx, at: Clock, ctx: HoldingSeedContext): Pro
     if (!open) {
       throw new Error(`demo-data: ${holding.assetKey} has no open record to close.`);
     }
+    // The dataset's defaults, as `DemoHolding` documents them: a return that
+    // names nowhere else went back on the shelf, and came back fine.
     const newStatus = holding.returnedTo ?? 'available';
     // The same derivation the check-in endpoint uses, against the status the
     // holder had *then*. Somebody who is leaving now was not leaving in June,
@@ -638,7 +648,7 @@ async function seedHoldings(tx: DbOrTx, at: Clock, ctx: HoldingSeedContext): Pro
         returnedAt: todayDate(back),
         newStatus,
         condition: holding.condition ?? 'good',
-        notes: holding.notes ?? null,
+        notes: holding.notes,
         outcome,
       },
       back,

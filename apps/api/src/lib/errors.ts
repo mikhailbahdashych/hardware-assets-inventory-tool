@@ -33,8 +33,14 @@ export const missingScope = (scope: string) =>
 
 export const forbidden = () =>
   new AppError(403, 'forbidden', 'Your role does not allow this action.');
-export const notFound = (what = 'That record') =>
-  new AppError(404, 'not_found', `${what} could not be found.`);
+/**
+ * "The asset could not be found." — the definite article, built in here so no
+ * caller can pick another. The sentence stands alone in a toast, beneath a
+ * page's own "The asset could not be loaded.", and in a public-API response
+ * with no screen at all: "That" points at something only one of those has.
+ */
+export const notFound = (noun: string) =>
+  new AppError(404, 'not_found', `The ${noun} could not be found.`);
 
 /** 422 with per-field messages, matching the envelope zod failures produce. */
 export const invalidFields = (fields: Record<string, string>) =>
