@@ -112,6 +112,25 @@ describe('enrolling an authenticator', () => {
     }
   });
 
+  it('hands back the same pending secret when asked again, so a reload keeps the scanned code', async () => {
+    ctx = await buildTestApp();
+    const cookie = await setupOrg(ctx.app);
+
+    const first = await inject(ctx.app, { method: 'POST', url: '/api/v1/me/mfa/enroll', cookie });
+    const again = await inject(ctx.app, { method: 'POST', url: '/api/v1/me/mfa/enroll', cookie });
+    expect(again.statusCode).toBe(200);
+    expect(again.json()).toEqual(first.json());
+
+    // The authenticator that scanned the first QR code confirms the enrolment.
+    const confirmed = await inject(ctx.app, {
+      method: 'POST',
+      url: '/api/v1/me/mfa/confirm',
+      cookie,
+      body: { code: totpCode(first.json().secret, new Date()) },
+    });
+    expect(confirmed.statusCode, confirmed.body).toBe(200);
+  });
+
   it('refuses a second enrolment on an account that already has one', async () => {
     ctx = await buildTestApp();
     const cookie = await setupOrg(ctx.app);
