@@ -39,11 +39,14 @@ async function setRequireMfa(page: Page, required: boolean): Promise<void> {
   await expect(toggle).toHaveAttribute('aria-checked', String(!required));
   await toggle.click();
   await page.getByRole('button', { name: 'Save changes' }).click();
+  // Either direction asks once more: on sends everybody without an
+  // authenticator — this admin included — to enrol; off deletes every secret.
   if (required) {
-    // Turning it on asks once more, because it sends everybody without an
-    // authenticator — this admin included — to enrol.
     await expect(page.getByText(/will be asked to set up an authenticator/)).toBeVisible();
     await page.getByRole('button', { name: 'Require two-factor' }).click();
+  } else {
+    await expect(page.getByText(/recovery code in the workspace will be deleted/)).toBeVisible();
+    await page.getByRole('button', { name: 'Turn two-factor off' }).click();
   }
   await expect(page.getByText('Settings saved.')).toBeVisible();
 }

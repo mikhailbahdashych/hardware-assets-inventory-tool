@@ -96,10 +96,11 @@ export function SettingsPanel() {
 function SettingsForm({ settings, storageUsedBytes }: SettingsFormProps) {
   const [draft, setDraft] = useState<SettingsDraft>(() => toDraft(settings));
   const [deleting, setDeleting] = useState(false);
-  // Turning two-factor on sends everybody without an authenticator — the
-  // admin saving it too, possibly — to the enrolment screen on their next
-  // request. That is one press too consequential to be the same as a rename,
-  // so Save asks once more and says so.
+  // Flipping two-factor either way is one press too consequential to be the
+  // same as a rename, so Save asks once more and says what will happen. On
+  // sends everybody without an authenticator — the admin saving it too,
+  // possibly — to enrol on their next request; off deletes every secret and
+  // recovery code in the workspace.
   const [confirmingMfa, setConfirmingMfa] = useState(false);
 
   const toast = useToast();
@@ -110,7 +111,20 @@ function SettingsForm({ settings, storageUsedBytes }: SettingsFormProps) {
   // disagree about whether there is anything to save.
   const patch = changedSettings(settings, draft);
   const dirty = Object.keys(patch).length > 0;
-  const turningMfaOn = patch.mfaRequired === true;
+  // What the second press will do, or null when the patch leaves two-factor alone.
+  const mfaConfirm =
+    patch.mfaRequired === undefined
+      ? null
+      : patch.mfaRequired
+        ? {
+            note: 'Everyone not yet enrolled — you included — will be asked to set up an authenticator before they can go on.',
+            action: 'Require two-factor',
+          }
+        : {
+            note: 'Every authenticator and recovery code in the workspace will be deleted — everyone enrols again if you turn it back on.',
+            action: 'Turn two-factor off',
+          };
+  const asking = confirmingMfa && mfaConfirm !== null;
   const set = <K extends keyof SettingsDraft>(key: K, value: SettingsDraft[K]) =>
     setDraft((current) => ({ ...current, [key]: value }));
 
@@ -295,12 +309,8 @@ function SettingsForm({ settings, storageUsedBytes }: SettingsFormProps) {
       {/* Sticky: the fields it saves are taller than a screen, and a Save
           button you have to scroll to find is a Save button people miss. */}
       <div className={styles.actions}>
-        <span className={styles.actionsNote} role={confirmingMfa ? 'status' : undefined}>
-          {confirmingMfa && turningMfaOn
-            ? 'Everyone not yet enrolled — you included — will be asked to set up an authenticator before they can go on.'
-            : dirty
-              ? 'Unsaved changes'
-              : 'Everything here is saved'}
+        <span className={styles.actionsNote} role={asking ? 'status' : undefined}>
+          {asking ? mfaConfirm.note : dirty ? 'Unsaved changes' : 'Everything here is saved'}
         </span>
         <Button
           variant="ghost"
@@ -315,7 +325,7 @@ function SettingsForm({ settings, storageUsedBytes }: SettingsFormProps) {
         <Button
           disabled={!dirty || update.isPending}
           onClick={() => {
-            if (turningMfaOn && !confirmingMfa) {
+            if (mfaConfirm && !confirmingMfa) {
               setConfirmingMfa(true);
               return;
             }
@@ -325,11 +335,7 @@ function SettingsForm({ settings, storageUsedBytes }: SettingsFormProps) {
             });
           }}
         >
-          {update.isPending
-            ? 'Saving…'
-            : confirmingMfa && turningMfaOn
-              ? 'Require two-factor'
-              : 'Save changes'}
+          {update.isPending ? 'Saving…' : asking ? mfaConfirm.action : 'Save changes'}
         </Button>
       </div>
 

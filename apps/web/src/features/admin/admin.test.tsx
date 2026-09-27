@@ -312,6 +312,34 @@ describe('workspace settings', () => {
     ).toBeInTheDocument();
   });
 
+  it('asks before turning two-factor off, because every secret goes with it', async () => {
+    const api = renderApp(
+      {
+        ...ADMIN_ROUTES,
+        'GET /settings': {
+          body: { settings: { ...SETTINGS, mfaRequired: true }, storageUsedBytes: 0 },
+        },
+        'PATCH /settings': { body: { settings: { ...SETTINGS, mfaRequired: false } } },
+      },
+      '/admin',
+    );
+
+    await userEvent.click(
+      await screen.findByRole('switch', { name: /require two-factor authentication/i }),
+    );
+    await userEvent.click(screen.getByRole('button', { name: /save changes/i }));
+    expect(api.called('PATCH /settings')).toBeUndefined();
+    expect(
+      screen.getByText(
+        'Every authenticator and recovery code in the workspace will be deleted — everyone enrols again if you turn it back on.',
+      ),
+    ).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole('button', { name: 'Turn two-factor off' }));
+    await waitFor(() => expect(api.called('PATCH /settings')).toBeDefined());
+    expect(api.called('PATCH /settings')!.body).toEqual({ mfaRequired: false });
+  });
+
   it('puts every field back the way it was when the edits are discarded', async () => {
     const api = renderApp(ADMIN_ROUTES, '/admin');
 
