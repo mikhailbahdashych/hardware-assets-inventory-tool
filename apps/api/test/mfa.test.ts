@@ -571,9 +571,9 @@ describe('a sign-in that finds no codes left', () => {
     const cookie = await setupOrg(ctx.app);
     const { recoveryCodes } = await enrol(cookie, ADMIN.email);
     const last = recoveryCodes[0]!;
-    // Nine sign-ins' worth of spending, without nine logins the rate limiter
-    // would rightly refuse. Marked used rather than deleted, exactly as
-    // verifying with one leaves them.
+    // Nine sign-ins' worth of spending, written straight in rather than
+    // signed in for nine times over. Marked used rather than deleted, exactly
+    // as verifying with one leaves them.
     await ctx.db
       .update(mfaRecoveryCodes)
       .set({ usedAt: '2026-08-18T00:00:00.000Z' })

@@ -1,5 +1,5 @@
 import { eq } from 'drizzle-orm';
-import type { FastifyInstance } from 'fastify';
+import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
 import { z } from 'zod';
 import {
@@ -9,10 +9,11 @@ import {
   resetPasswordInput,
 } from '@inventory/shared';
 import type { AppDeps } from '@/types/app.js';
-import type { MfaChallengeResponse } from '@/types/auth.js';
+import type { FailureLimit, MfaChallengeResponse } from '@/types/auth.js';
 import { members, orgSettings, sessions } from '@/db/schema.js';
 import { AppError, invalidCredentials, invalidToken } from '@/lib/errors.js';
 import { nowIso } from '@/lib/dates.js';
+import { failureLimit } from '@/lib/failure-limit.js';
 import { DUMMY_HASH_PROMISE, hashPassword, verifyPassword } from '@/lib/password.js';
 import { serializeMember } from '@/lib/serialize.js';
 import { requireSession } from '@/plugins/rbac.js';
@@ -29,7 +30,9 @@ import {
 } from '@/services/sessions.js';
 
 // Attempt caps per IP; the login handler additionally verifies a dummy hash
-// for unknown emails so timing never reveals whether an account exists.
+// for unknown emails so timing never reveals whether an account exists. The
+// two sign-in steps count failures only (see `countFailures`); the token
+// routes count every request, because each success spends the token anyway.
 const LOGIN_RATE = { max: 10, timeWindow: 15 * 60 * 1000 };
 const TOKEN_RATE = { max: 10, timeWindow: 60 * 60 * 1000 };
 
@@ -51,12 +54,33 @@ async function mfaChallenge(
   };
 }
 
+/**
+ * The hooks that make a route spend `limit` on failures only: one attempt is
+ * charged as the request arrives — so a burst of parallel guesses cannot all
+ * find the bucket empty — and handed back when the answer is a 200. Keyed on
+ * `request.ip`, which is what TRUST_PROXY decides, as the plugin's was.
+ */
+function countFailures(limit: FailureLimit) {
+  return {
+    onRequest: async (request: FastifyRequest) => {
+      limit.charge(request.ip);
+    },
+    onSend: async (request: FastifyRequest, reply: FastifyReply, payload: unknown) => {
+      if (reply.statusCode === 200) limit.refund(request.ip);
+      return payload;
+    },
+  };
+}
+
 export function registerAuthRoutes(app: FastifyInstance, deps: AppDeps): void {
   const typed = app.withTypeProvider<ZodTypeProvider>();
+  // One budget per route and per app, as the plugin kept them.
+  const passwordFailures = failureLimit(LOGIN_RATE);
+  const codeFailures = failureLimit(LOGIN_RATE);
 
   typed.post(
     '/api/v1/auth/login',
-    { schema: { body: loginInput }, config: { rateLimit: LOGIN_RATE } },
+    { schema: { body: loginInput }, ...countFailures(passwordFailures) },
     async (request, reply) => {
       const now = deps.now();
       const [member] = await deps.db
@@ -101,7 +125,7 @@ export function registerAuthRoutes(app: FastifyInstance, deps: AppDeps): void {
    */
   typed.post(
     '/api/v1/auth/mfa/verify',
-    { schema: { body: mfaChallengeInput }, config: { rateLimit: LOGIN_RATE } },
+    { schema: { body: mfaChallengeInput }, ...countFailures(codeFailures) },
     async (request, reply) => {
       const now = deps.now();
       const token = await findValidToken(

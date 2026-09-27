@@ -14,3 +14,22 @@ export interface MfaChallengeResponse {
   mfaRequired: true;
   challengeToken: string;
 }
+
+/** How many of something one key may spend, and over how long. */
+export interface RateWindow {
+  max: number;
+  /** Milliseconds. */
+  timeWindow: number;
+}
+
+/**
+ * A budget of failures per key. `charge` spends one up front and throws 429
+ * when none is left; `refund` gives it back once the attempt turns out to have
+ * succeeded. Charging first is what keeps a burst of parallel guesses inside
+ * the budget — counting only after the answer would let every one of them read
+ * an empty bucket.
+ */
+export interface FailureLimit {
+  charge: (key: string) => void;
+  refund: (key: string) => void;
+}
