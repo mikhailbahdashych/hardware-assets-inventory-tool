@@ -3,7 +3,7 @@ import { fileURLToPath } from 'node:url';
 import { buildApp } from './app.js';
 import { loadConfig } from './config.js';
 import { createDb } from './db/client.js';
-import { runMigrations } from './db/migrate.js';
+import { runMigrations, UpgradeRefused } from './db/migrate.js';
 import { seed } from './db/seed.js';
 import { makeStorage, uploadsDir } from './services/storage.js';
 import { startScheduler } from './services/scheduler.js';
@@ -40,7 +40,15 @@ try {
 }
 
 const { db, client } = await createDb(config);
-await runMigrations(db, fileURLToPath(new URL('.', import.meta.url)));
+try {
+  await runMigrations(db, fileURLToPath(new URL('.', import.meta.url)));
+} catch (error) {
+  // A database this version will not move says why in a sentence; anything
+  // else is a real failure and keeps its stack.
+  if (!(error instanceof UpgradeRefused)) throw error;
+  process.stderr.write(`${error.message}\n`);
+  process.exit(1);
+}
 await seed(db);
 
 // One omission, and nothing else would say so until somebody tries to use the

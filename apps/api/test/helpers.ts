@@ -10,7 +10,8 @@ import { buildApp } from '@/app.js';
 import type { AppDeps } from '@/types/app.js';
 import { loadConfig } from '@/config.js';
 import { createDb } from '@/db/client.js';
-import type { Db } from '@/types/db.js';
+import type { Config } from '@/types/config.js';
+import type { Db, DbClient } from '@/types/db.js';
 import { runMigrations } from '@/db/migrate.js';
 import { seed } from '@/db/seed.js';
 import { members } from '@/db/schema.js';
@@ -80,6 +81,46 @@ export type TestApp = {
   close: () => Promise<void>;
 };
 
+export type BareDatabase = {
+  config: Config;
+  db: Db;
+  client: DbClient;
+  /** The throwaway data directory; the SQLite file lives in it. */
+  dataDir: string;
+  /** Closes the handle and removes the database and the directory. */
+  dispose: () => Promise<void>;
+};
+
+/**
+ * A throwaway database with nothing in it — not even the migrations, which is
+ * what a test of the migrator itself needs. `buildTestApp` starts here.
+ */
+export async function bareDatabase(env: Record<string, string> = {}): Promise<BareDatabase> {
+  // A throwaway data directory per test: the SQLite file and any uploads must
+  // never touch the repo. Uploads land here on either engine.
+  const dataDir = mkdtempSync(join(tmpdir(), 'inventory-test-'));
+  const databaseUrl = PG_SERVER_URL ? await createTestDatabase(PG_SERVER_URL) : undefined;
+  const config = loadConfig({
+    NODE_ENV: 'test',
+    LOG_LEVEL: 'silent',
+    DATA_DIR: dataDir,
+    ...(databaseUrl ? { DATABASE_URL: databaseUrl } : {}),
+    ...env,
+  });
+  const { db, client } = await createDb(config);
+  return {
+    config,
+    db,
+    client,
+    dataDir,
+    dispose: async () => {
+      await client.close();
+      if (PG_SERVER_URL && databaseUrl) await dropTestDatabase(PG_SERVER_URL, databaseUrl);
+      rmSync(dataDir, { recursive: true, force: true });
+    },
+  };
+}
+
 /**
  * A real app on a throwaway database with the real migrations. Pass `now` to
  * pin the clock — anything that counts days from today needs a fixed one.
@@ -96,18 +137,7 @@ export async function buildTestApp(
   logDestination?: NodeJS.WritableStream,
   s3?: S3Client,
 ): Promise<TestApp> {
-  // A throwaway data directory per test: the SQLite file and any uploads must
-  // never touch the repo. Uploads land here on either engine.
-  const dataDir = mkdtempSync(join(tmpdir(), 'inventory-test-'));
-  const databaseUrl = PG_SERVER_URL ? await createTestDatabase(PG_SERVER_URL) : undefined;
-  const config = loadConfig({
-    NODE_ENV: 'test',
-    LOG_LEVEL: 'silent',
-    DATA_DIR: dataDir,
-    ...(databaseUrl ? { DATABASE_URL: databaseUrl } : {}),
-    ...env,
-  });
-  const { db, client } = await createDb(config);
+  const { config, db, client, dataDir, dispose } = await bareDatabase(env);
   await runMigrations(db, MIGRATIONS_ROOT);
   await seed(db);
   // Built here rather than inside the app, because the scheduled jobs below
@@ -130,9 +160,7 @@ export async function buildTestApp(
       if (closed) return;
       closed = true;
       await app.close();
-      await client.close();
-      if (PG_SERVER_URL && databaseUrl) await dropTestDatabase(PG_SERVER_URL, databaseUrl);
-      rmSync(dataDir, { recursive: true, force: true });
+      await dispose();
     },
   };
 }
