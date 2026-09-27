@@ -28,13 +28,13 @@ const deleteQuery = z.object({ migrateTo: z.string().min(1).optional() });
 export function registerRoleRoutes(app: FastifyInstance, deps: AppDeps): void {
   const typed = app.withTypeProvider<ZodTypeProvider>();
 
-  typed.get('/api/v1/roles', { preHandler: requireAuth }, async () => ({
+  typed.get('/api/v1/roles', { preValidation: requireAuth }, async () => ({
     roles: await listRoles(deps.db),
   }));
 
   typed.post(
     '/api/v1/roles',
-    { schema: { body: roleCreateSchema }, preHandler: requireAction('roles.manage') },
+    { schema: { body: roleCreateSchema }, preValidation: requireAction('roles.manage') },
     async (request, reply) =>
       reply.status(201).send({ role: await createRole(deps, request.member!, request.body) }),
   );
@@ -43,7 +43,7 @@ export function registerRoleRoutes(app: FastifyInstance, deps: AppDeps): void {
     '/api/v1/roles/:id',
     {
       schema: { params: idParam, body: rolePatchSchema },
-      preHandler: requireAction('roles.manage'),
+      preValidation: requireAction('roles.manage'),
     },
     async (request) => ({
       role: await updateRole(deps, request.member!, request.params.id, request.body),
@@ -56,7 +56,7 @@ export function registerRoleRoutes(app: FastifyInstance, deps: AppDeps): void {
    */
   typed.put(
     '/api/v1/roles/permissions',
-    { schema: { body: permissionsPutSchema }, preHandler: requireAction('roles.manage') },
+    { schema: { body: permissionsPutSchema }, preValidation: requireAction('roles.manage') },
     async (request) => replacePermissions(deps, request.member!, request.body),
   );
 
@@ -67,7 +67,7 @@ export function registerRoleRoutes(app: FastifyInstance, deps: AppDeps): void {
    */
   typed.post(
     '/api/v1/roles/order',
-    { schema: { body: roleOrderSchema }, preHandler: requireAction('roles.manage') },
+    { schema: { body: roleOrderSchema }, preValidation: requireAction('roles.manage') },
     async (request, reply) => {
       await reorderRoles(deps, request.member!, request.body.order);
       return reply.status(204).send();
@@ -78,7 +78,7 @@ export function registerRoleRoutes(app: FastifyInstance, deps: AppDeps): void {
     '/api/v1/roles/:id',
     {
       schema: { params: idParam, querystring: deleteQuery },
-      preHandler: requireAction('roles.manage'),
+      preValidation: requireAction('roles.manage'),
     },
     async (request, reply) => {
       await deleteRole(deps, request.member!, request.params.id, request.query.migrateTo);

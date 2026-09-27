@@ -31,13 +31,13 @@ export function registerMemberRoutes(app: FastifyInstance, deps: AppDeps): void 
 
   typed.get(
     '/api/v1/members',
-    { schema: { querystring: listQuery }, preHandler: requireAuth },
+    { schema: { querystring: listQuery }, preValidation: requireAuth },
     async (request) => listMembers(deps.db, request.query),
   );
 
   typed.post(
     '/api/v1/members/invites',
-    { schema: { body: inviteInput }, preHandler: requireAction('members.manage') },
+    { schema: { body: inviteInput }, preValidation: requireAction('members.manage') },
     async (request) => {
       // The link in the response is the whole delivery: whoever invited copies
       // it to the person however the company already talks.
@@ -48,7 +48,7 @@ export function registerMemberRoutes(app: FastifyInstance, deps: AppDeps): void 
 
   typed.post(
     '/api/v1/members/:id/resend-invite',
-    { schema: { params: idParam }, preHandler: requireAction('members.manage') },
+    { schema: { params: idParam }, preValidation: requireAction('members.manage') },
     async (request) => {
       const result = await resendInvite(deps, request.member!, request.params.id);
       return result;
@@ -57,7 +57,7 @@ export function registerMemberRoutes(app: FastifyInstance, deps: AppDeps): void 
 
   typed.post(
     '/api/v1/members/:id/reset-link',
-    { schema: { params: idParam }, preHandler: requireAction('members.manage') },
+    { schema: { params: idParam }, preValidation: requireAction('members.manage') },
     async (request) => {
       const result = await issueResetLink(deps, request.member!, request.params.id);
       return result;
@@ -73,7 +73,7 @@ export function registerMemberRoutes(app: FastifyInstance, deps: AppDeps): void 
     '/api/v1/members/:id/password',
     {
       schema: { params: idParam, body: setPasswordInput },
-      preHandler: requireAction('members.manage'),
+      preValidation: requireAction('members.manage'),
     },
     async (request, reply) => {
       await setMemberPassword(deps, request.member!, request.params.id, request.body.newPassword);
@@ -92,7 +92,7 @@ export function registerMemberRoutes(app: FastifyInstance, deps: AppDeps): void 
    */
   typed.post(
     '/api/v1/members/:id/mfa/reset',
-    { schema: { params: idParam }, preHandler: requireAction('members.manage') },
+    { schema: { params: idParam }, preValidation: requireAction('members.manage') },
     async (request, reply) => {
       const now = deps.now();
       const target = await memberById(deps.db, request.params.id);
@@ -128,7 +128,7 @@ export function registerMemberRoutes(app: FastifyInstance, deps: AppDeps): void 
    */
   typed.post(
     '/api/v1/members/:id/mfa/reset-codes',
-    { schema: { params: idParam }, preHandler: requireAction('members.manage') },
+    { schema: { params: idParam }, preValidation: requireAction('members.manage') },
     async (request, reply) => {
       const now = deps.now();
       const target = await memberById(deps.db, request.params.id);
@@ -157,7 +157,7 @@ export function registerMemberRoutes(app: FastifyInstance, deps: AppDeps): void 
     '/api/v1/members/:id',
     {
       schema: { params: idParam, body: memberPatchInput },
-      preHandler: requireAction('members.manage'),
+      preValidation: requireAction('members.manage'),
     },
     async (request) => ({
       member: await updateMember(deps, request.member!, request.params.id, request.body),
@@ -166,7 +166,7 @@ export function registerMemberRoutes(app: FastifyInstance, deps: AppDeps): void 
 
   typed.delete(
     '/api/v1/members/:id',
-    { schema: { params: idParam }, preHandler: requireAction('members.manage') },
+    { schema: { params: idParam }, preValidation: requireAction('members.manage') },
     async (request, reply) => {
       await removeMember(deps, request.member!, request.params.id);
       return reply.status(204).send();

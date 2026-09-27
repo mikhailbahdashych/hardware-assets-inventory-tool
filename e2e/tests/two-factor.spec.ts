@@ -91,8 +91,13 @@ test('two-factor: enrol, spend a code, and be handed a fresh set at sign-in', as
   await expect(adminRow(page)).toContainText('0 of 10 codes left');
 
   // …and the next sign-in is where the new set arrives, before the app does.
+  // With the code the app shows *next*: the one that confirmed the enrolment
+  // may still be on screen, and a code works once. One step ahead is inside
+  // the server's window, the way a phone running a little fast would be.
   await passwordStep(page);
-  await page.getByLabel('Authentication code').fill(totpCode(secret));
+  await page
+    .getByLabel('Authentication code')
+    .fill(totpCode(secret, new Date(Date.now() + 30_000)));
   await page.getByRole('button', { name: 'Verify' }).click();
 
   await expect(page.getByRole('heading', { name: 'Save your recovery codes' })).toBeVisible();

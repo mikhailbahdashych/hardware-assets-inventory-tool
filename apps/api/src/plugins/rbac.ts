@@ -33,10 +33,18 @@ export async function requireAuth(request: FastifyRequest, _reply: FastifyReply)
 }
 
 /**
- * Route preHandler: a member whose role grants the action. The set was
+ * Route preValidation: a member whose role grants the action. The set was
  * resolved from the `roles` tables when the session was (see
  * `plugins/session.ts`), so this is a lookup rather than a query, and a
  * permission an admin revoked a second ago is already gone from it.
+ *
+ * All three guards here are attached as **`preValidation`**, never
+ * `preHandler`, the same rule `requireScope` follows on the public surface.
+ * They read only what the session hook resolved at `onRequest` — the member,
+ * the enrolment flag, the permission set — never the body, so they can run
+ * before it is validated. On `preHandler` they ran after, and an anonymous
+ * caller posting junk read back 422 with the zod field errors: the shape of a
+ * request they could never have sent.
  */
 export function requireAction(action: Action) {
   return async (request: FastifyRequest, reply: FastifyReply): Promise<void> => {

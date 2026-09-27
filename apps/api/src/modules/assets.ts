@@ -27,25 +27,25 @@ export function registerAssetRoutes(app: FastifyInstance, deps: AppDeps): void {
 
   typed.get(
     '/api/v1/assets',
-    { schema: { querystring: assetListQuery }, preHandler: requireAuth },
+    { schema: { querystring: assetListQuery }, preValidation: requireAuth },
     async (request) => listAssets(deps.db, request.query),
   );
 
   typed.get(
     '/api/v1/assets/next-tag',
-    { preHandler: requireAction('assets.create') },
+    { preValidation: requireAction('assets.create') },
     async () => ({ assetTag: await nextAssetTag(deps.db) }),
   );
 
   typed.get(
     '/api/v1/assets/:id',
-    { schema: { params: idParam }, preHandler: requireAuth },
+    { schema: { params: idParam }, preValidation: requireAuth },
     async (request) => getAssetDetail(deps.db, request.params.id),
   );
 
   typed.post(
     '/api/v1/assets',
-    { schema: { body: assetCreateInput }, preHandler: requireAction('assets.create') },
+    { schema: { body: assetCreateInput }, preValidation: requireAction('assets.create') },
     async (request) => ({ asset: await createAsset(deps, request.member!, request.body) }),
   );
 
@@ -53,7 +53,7 @@ export function registerAssetRoutes(app: FastifyInstance, deps: AppDeps): void {
     '/api/v1/assets/:id',
     {
       schema: { params: idParam, body: assetPatchInput },
-      preHandler: requireAction('assets.edit'),
+      preValidation: requireAction('assets.edit'),
     },
     async (request) => ({
       asset: await updateAsset(deps, request.member!, request.params.id, request.body),
@@ -62,7 +62,7 @@ export function registerAssetRoutes(app: FastifyInstance, deps: AppDeps): void {
 
   typed.delete(
     '/api/v1/assets/:id',
-    { schema: { params: idParam }, preHandler: requireAction('assets.delete') },
+    { schema: { params: idParam }, preValidation: requireAction('assets.delete') },
     async (request, reply) => {
       const storedNames = await deleteAsset(deps, request.member!, request.params.id);
       await removeStoredFiles(deps, storedNames);
@@ -76,7 +76,7 @@ export function registerAssetRoutes(app: FastifyInstance, deps: AppDeps): void {
     '/api/v1/assets/:id/assign',
     {
       schema: { params: idParam, body: assignInput },
-      preHandler: requireAction('assets.assign'),
+      preValidation: requireAction('assets.assign'),
     },
     async (request) => ({
       asset: await handOver(request),
@@ -87,7 +87,7 @@ export function registerAssetRoutes(app: FastifyInstance, deps: AppDeps): void {
     '/api/v1/assets/:id/checkin',
     {
       schema: { params: idParam, body: checkinInput },
-      preHandler: requireAction('assets.checkin'),
+      preValidation: requireAction('assets.checkin'),
     },
     async (request) => ({
       asset: await takeBack(request),

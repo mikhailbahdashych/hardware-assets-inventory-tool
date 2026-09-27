@@ -22,7 +22,7 @@ import { getWorkflow } from '@/services/workflow.js';
 export function registerDataRoutes(app: FastifyInstance, deps: AppDeps): void {
   const typed = app.withTypeProvider<ZodTypeProvider>();
 
-  typed.get('/api/v1/dashboard', { preHandler: requireAuth }, async () =>
+  typed.get('/api/v1/dashboard', { preValidation: requireAuth }, async () =>
     dashboardPayload(deps.db, deps.now()),
   );
 
@@ -30,7 +30,7 @@ export function registerDataRoutes(app: FastifyInstance, deps: AppDeps): void {
     '/api/v1/import/template',
     {
       schema: { querystring: z.object({ kind: z.enum(IMPORT_KINDS) }) },
-      preHandler: requireAction('import.run'),
+      preValidation: requireAction('import.run'),
     },
     async (request, reply) =>
       reply
@@ -43,19 +43,19 @@ export function registerDataRoutes(app: FastifyInstance, deps: AppDeps): void {
 
   typed.post(
     '/api/v1/import/validate',
-    { schema: { body: importValidateInput }, preHandler: requireAction('import.run') },
+    { schema: { body: importValidateInput }, preValidation: requireAction('import.run') },
     async (request) => ({ report: await validateImport(deps, request.body) }),
   );
 
   typed.post(
     '/api/v1/import/commit',
-    { schema: { body: importCommitInput }, preHandler: requireAction('import.run') },
+    { schema: { body: importCommitInput }, preValidation: requireAction('import.run') },
     async (request) => commitImport(deps, request.member!, request.body),
   );
 
   typed.get(
     '/api/v1/export',
-    { preHandler: requireAction('export.run') },
+    { preValidation: requireAction('export.run') },
     async (_request, reply) => {
       const day = deps.now().toISOString().slice(0, 10);
       return reply

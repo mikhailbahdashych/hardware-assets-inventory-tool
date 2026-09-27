@@ -1,8 +1,10 @@
 import { eq, ne } from 'drizzle-orm';
 import { afterEach, describe, expect, it } from 'vitest';
-import { members, mfaRecoveryCodes, orgSettings } from '@/db/schema.js';
+import { members, mfaRecoveryCodes, orgSettings, sessions } from '@/db/schema.js';
 import { hashToken } from '@/lib/tokens.js';
 import { totpCode } from '@/lib/totp.js';
+import { consumeToken, findValidToken, issueAuthToken } from '@/services/auth-tokens.js';
+import { verifyChallenge } from '@/services/mfa.js';
 import {
   buildTestApp,
   inject,
@@ -24,6 +26,16 @@ async function storedSecret(email: string): Promise<string> {
   const [row] = await ctx.db.select().from(members).where(eq(members.email, email));
   if (!row?.mfaSecret) throw new Error(`${email} has no secret`);
   return row.mfaSecret;
+}
+
+/**
+ * The code an authenticator shows next. The one it shows now was spent
+ * confirming the enrolment a moment ago, and a code works once — so a test that
+ * signs in straight after enrolling types the next one, as a person would after
+ * waiting for it. One step ahead is inside the window wherever the clock is.
+ */
+async function nextCode(email: string): Promise<string> {
+  return totpCode(await storedSecret(email), new Date(Date.now() + 30_000));
 }
 
 async function enrol(cookie: string, email: string) {
@@ -135,7 +147,7 @@ describe('signing in with a second factor', () => {
     const res = await inject(ctx.app, {
       method: 'POST',
       url: '/api/v1/auth/mfa/verify',
-      body: { challengeToken, code: totpCode(await storedSecret(ADMIN.email), new Date()) },
+      body: { challengeToken, code: await nextCode(ADMIN.email) },
     });
 
     expect(res.statusCode, res.body).toBe(200);
@@ -198,7 +210,7 @@ describe('signing in with a second factor', () => {
     const cookie = await setupOrg(ctx.app);
     await enrol(cookie, ADMIN.email);
     const { challengeToken } = (await login(ADMIN)).json();
-    const code = async () => totpCode(await storedSecret(ADMIN.email), new Date());
+    const code = () => nextCode(ADMIN.email);
 
     expect(
       (
@@ -509,7 +521,7 @@ describe('a sign-in that finds no codes left', () => {
     return res;
   }
 
-  const totp = async () => totpCode(await storedSecret(ADMIN.email), new Date());
+  const totp = () => nextCode(ADMIN.email);
 
   /** Codes still in hand, straight off the table. */
   const unusedCount = async () =>
@@ -682,5 +694,267 @@ describe('what the log must never contain', () => {
     for (const code of recoveryCodes) expect(res.body).not.toContain(code);
     // What it does say is whether they are covered.
     expect(res.json().members[0].mfaEnrolled).toBe(true);
+  });
+});
+
+// RFC 6238 §5.2: a verifier must not accept the same code twice. A code is live
+// for its own step and one either side — about ninety seconds — so without a
+// record of what was accepted, a code read over a shoulder or out of a proxy
+// log signs in again for as long as it lasts. The clock is pinned here so each
+// test says exactly which step a code belongs to.
+describe('a code works once — authenticator, recovery code or challenge', () => {
+  const STEP_MS = 30_000;
+  /** Five seconds into a step: nothing below straddles a boundary by accident. */
+  let clock: Date;
+  const tick = (steps = 1) => {
+    clock = new Date(clock.getTime() + steps * STEP_MS);
+  };
+  /** The code for the step `offset` away from the pinned clock. */
+  const codeAt = (secret: string, offset = 0) =>
+    totpCode(secret, new Date(clock.getTime() + offset * STEP_MS));
+  /** The step the pinned clock is in — what the column should read. */
+  const stepNow = () => Math.floor(clock.getTime() / STEP_MS);
+
+  /** A workspace whose admin has just confirmed an authenticator at `clock`. */
+  async function enrolled() {
+    clock = new Date('2026-09-27T10:00:05.000Z');
+    ctx = await buildTestApp({}, () => clock);
+    const cookie = await setupOrg(ctx.app);
+    await inject(ctx.app, { method: 'POST', url: '/api/v1/me/mfa/enroll', cookie });
+    const secret = await storedSecret(ADMIN.email);
+    const confirmed = await inject(ctx.app, {
+      method: 'POST',
+      url: '/api/v1/me/mfa/confirm',
+      cookie,
+      body: { code: codeAt(secret) },
+    });
+    expect(confirmed.statusCode, confirmed.body).toBe(200);
+    return { cookie, secret, recoveryCodes: confirmed.json().recoveryCodes as string[] };
+  }
+
+  /** Password, then this code: a whole two-factor sign-in. */
+  async function signIn(code: string) {
+    return inject(ctx.app, {
+      method: 'POST',
+      url: '/api/v1/auth/mfa/verify',
+      body: { challengeToken: (await login(ADMIN)).json().challengeToken, code },
+    });
+  }
+
+  const lastStep = async () =>
+    (await ctx.db.select().from(members).where(eq(members.email, ADMIN.email)))[0]!.mfaLastStep;
+
+  it('accepts a code once, and refuses it again exactly as it refuses a wrong one', async () => {
+    const { secret } = await enrolled();
+    tick();
+    const code = codeAt(secret);
+
+    const first = await signIn(code);
+    expect(first.statusCode, first.body).toBe(200);
+
+    // Same code, same step, still inside its window.
+    const replay = await signIn(code);
+    const wrong = await signIn('000000');
+    expect(replay.statusCode).toBe(422);
+    // No new oracle: a spent code and a wrong one read back byte for byte alike.
+    expect(replay.json()).toEqual(wrong.json());
+    expect(replay.json().error.code).toBe('mfa_code_invalid');
+  });
+
+  it('decides on the database, not on the row a racing request read', async () => {
+    const { secret } = await enrolled();
+    tick();
+    const code = codeAt(secret);
+
+    // What two racing requests each hold: the member as it was before either
+    // wrote. `app.inject` cannot make that race happen on demand, so the
+    // service is handed the stale row twice — a check made on it would say
+    // yes both times. The claim is a conditional UPDATE, so the second loses.
+    const [stale] = await ctx.db.select().from(members).where(eq(members.email, ADMIN.email));
+    expect(await verifyChallenge(ctx.db, stale!, code, clock)).toBe(true);
+    expect(await verifyChallenge(ctx.db, stale!, code, clock)).toBe(false);
+  });
+
+  it('lets exactly one of several verifies racing the same code through', async () => {
+    const { secret } = await enrolled();
+    tick();
+    const code = codeAt(secret);
+
+    // One challenge (a second login would retire the first), verified four
+    // times at once with one valid code. Whichever commits first wins; the
+    // rest either find the challenge spent (401) or the step taken (422) —
+    // both refusals the flow already gives, and no second session.
+    const { challengeToken } = (await login(ADMIN)).json();
+    const sessionsBefore = (await ctx.db.select().from(sessions)).length;
+    const results = await Promise.all(
+      Array.from({ length: 4 }, () =>
+        inject(ctx.app, {
+          method: 'POST',
+          url: '/api/v1/auth/mfa/verify',
+          body: { challengeToken, code },
+        }),
+      ),
+    );
+
+    const statuses = results.map((res) => res.statusCode);
+    expect(
+      statuses.filter((status) => status === 200),
+      statuses.join(),
+    ).toHaveLength(1);
+    for (const status of statuses.filter((status) => status !== 200)) {
+      expect([401, 422]).toContain(status);
+    }
+    expect(await ctx.db.select().from(sessions)).toHaveLength(sessionsBefore + 1);
+  });
+
+  it('spends a challenge once, even for a caller holding the row read before', async () => {
+    await enrolled();
+    const member = (await ctx.db.select().from(members).where(eq(members.email, ADMIN.email)))[0]!;
+    const raw = await issueAuthToken(ctx.db, member.id, 'mfa_challenge', clock);
+
+    // What two racing verifies each hold: the challenge as found before either
+    // consumed it. The consume is a conditional UPDATE, so the second loses.
+    const token = (await findValidToken(ctx.db, raw, 'mfa_challenge', clock))!;
+    expect(await consumeToken(ctx.db, token.id, clock)).toBe(true);
+    expect(await consumeToken(ctx.db, token.id, clock)).toBe(false);
+  });
+
+  it('spends a recovery code once when two verifies race for it', async () => {
+    const { recoveryCodes } = await enrolled();
+    const member = (await ctx.db.select().from(members).where(eq(members.email, ADMIN.email)))[0]!;
+    const code = recoveryCodes[0]!;
+
+    // Two transactions at once. On SQLite the write gate queues the second
+    // behind the first; on Postgres they genuinely overlap, and a lookup
+    // followed by an unconditional write would let both spend the one code.
+    // The pool is warmed first, or the second transaction spends its head
+    // start opening a connection and the first has committed by then.
+    await Promise.all([0, 1, 2].map(() => ctx.db.select().from(members)));
+    const results = await Promise.all(
+      [0, 1].map(() => ctx.db.transaction(async (tx) => verifyChallenge(tx, member, code, clock))),
+    );
+    expect(results.sort()).toEqual([false, true]);
+    const spent = (await ctx.db.select().from(mfaRecoveryCodes)).filter((row) => row.usedAt);
+    expect(spent).toHaveLength(1);
+  });
+
+  it('lets exactly one of several verifies racing one recovery code through', async () => {
+    const { recoveryCodes } = await enrolled();
+    const code = recoveryCodes[0]!;
+
+    const { challengeToken } = (await login(ADMIN)).json();
+    const sessionsBefore = (await ctx.db.select().from(sessions)).length;
+    const results = await Promise.all(
+      Array.from({ length: 4 }, () =>
+        inject(ctx.app, {
+          method: 'POST',
+          url: '/api/v1/auth/mfa/verify',
+          body: { challengeToken, code },
+        }),
+      ),
+    );
+
+    // The loser finds the challenge spent (401) or the code spent (422) —
+    // the answers a spent challenge and a wrong code already give.
+    const statuses = results.map((res) => res.statusCode);
+    expect(
+      statuses.filter((status) => status === 200),
+      statuses.join(),
+    ).toHaveLength(1);
+    for (const status of statuses.filter((status) => status !== 200)) {
+      expect([401, 422]).toContain(status);
+    }
+    expect(await ctx.db.select().from(sessions)).toHaveLength(sessionsBefore + 1);
+    const spent = (await ctx.db.select().from(mfaRecoveryCodes)).filter((row) => row.usedAt);
+    expect(spent).toHaveLength(1);
+  });
+
+  it('does not let the code that confirmed the enrolment sign in as well', async () => {
+    const { secret } = await enrolled();
+    const confirming = codeAt(secret);
+    tick(); // one step on: that code is still inside the window
+
+    const res = await signIn(confirming);
+    expect(res.statusCode).toBe(422);
+    expect(res.json().error.code).toBe('mfa_code_invalid');
+  });
+
+  it('accepts the next step’s code once an earlier one was used', async () => {
+    const { secret } = await enrolled();
+    tick();
+    expect((await signIn(codeAt(secret))).statusCode).toBe(200);
+
+    tick();
+    const later = await signIn(codeAt(secret));
+    expect(later.statusCode, later.body).toBe(200);
+    expect(await lastStep()).toBe(stepNow());
+  });
+
+  it('refuses an earlier step inside the window once a later one was accepted', async () => {
+    const { secret } = await enrolled();
+    tick(2);
+    // A phone running a step ahead: its code is inside the window, and taken.
+    expect((await signIn(codeAt(secret, +1))).statusCode).toBe(200);
+
+    // Neither of these was ever used, and both are inside the window — but
+    // the guard is monotonic, not "the last code only".
+    expect((await signIn(codeAt(secret))).statusCode).toBe(422);
+    expect((await signIn(codeAt(secret, -1))).statusCode).toBe(422);
+    expect(await lastStep()).toBe(stepNow() + 1);
+  });
+
+  it('leaves the recovery codes alone', async () => {
+    const { secret, recoveryCodes } = await enrolled();
+    tick();
+    expect((await signIn(codeAt(secret))).statusCode).toBe(200);
+    const recorded = await lastStep();
+
+    // A recovery code in the same step still works, spends itself as before,
+    // and neither reads nor moves the authenticator's step.
+    const recovery = await signIn(recoveryCodes[0]!);
+    expect(recovery.statusCode, recovery.body).toBe(200);
+    expect(await lastStep()).toBe(recorded);
+    expect((await signIn(recoveryCodes[0]!)).statusCode).toBe(422);
+  });
+
+  it('starts over when an admin resets the authenticator', async () => {
+    const { secret } = await enrolled();
+    tick();
+    const session = sessionCookie(await signIn(codeAt(secret)));
+    expect(await lastStep()).toBe(stepNow());
+
+    const me = await inject(ctx.app, { method: 'GET', url: '/api/v1/auth/me', cookie: session });
+    const reset = await inject(ctx.app, {
+      method: 'POST',
+      url: `/api/v1/members/${me.json().member.id}/mfa/reset`,
+      cookie: session,
+    });
+    expect(reset.statusCode).toBe(204);
+    expect(await lastStep()).toBeNull();
+
+    // A new authenticator, confirmed in the very step the old one last signed
+    // in: a step recorded against the old secret means nothing to the new one.
+    const fresh = sessionCookie(await login(ADMIN));
+    await inject(ctx.app, { method: 'POST', url: '/api/v1/me/mfa/enroll', cookie: fresh });
+    const confirmed = await inject(ctx.app, {
+      method: 'POST',
+      url: '/api/v1/me/mfa/confirm',
+      cookie: fresh,
+      body: { code: codeAt(await storedSecret(ADMIN.email)) },
+    });
+    expect(confirmed.statusCode, confirmed.body).toBe(200);
+  });
+
+  it('forgets every step when the workspace switches two-factor off', async () => {
+    const { cookie } = await enrolled();
+    const patch = (mfaRequired: boolean) =>
+      inject(ctx.app, { method: 'PATCH', url: '/api/v1/settings', cookie, body: { mfaRequired } });
+    expect((await patch(true)).statusCode).toBe(200);
+    expect(await lastStep()).toBe(stepNow());
+
+    expect((await patch(false)).statusCode).toBe(200);
+    for (const row of await ctx.db.select().from(members)) {
+      expect(row.mfaLastStep, row.email).toBeNull();
+    }
   });
 });

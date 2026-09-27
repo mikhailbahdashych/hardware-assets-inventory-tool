@@ -42,7 +42,7 @@ async function requireAdminRole(request: FastifyRequest, reply: FastifyReply): P
 export function registerApiTokenRoutes(app: FastifyInstance, deps: AppDeps): void {
   const typed = app.withTypeProvider<ZodTypeProvider>();
 
-  typed.get('/api/v1/api-tokens', { preHandler: requireAdminRole }, async () => ({
+  typed.get('/api/v1/api-tokens', { preValidation: requireAdminRole }, async () => ({
     apiTokens: await listApiTokens(deps.db),
   }));
 
@@ -52,14 +52,14 @@ export function registerApiTokenRoutes(app: FastifyInstance, deps: AppDeps): voi
    */
   typed.post(
     '/api/v1/api-tokens',
-    { schema: { body: apiTokenCreateSchema }, preHandler: requireAdminRole },
+    { schema: { body: apiTokenCreateSchema }, preValidation: requireAdminRole },
     async (request, reply) =>
       reply.status(201).send(await mintApiToken(deps, request.member!, request.body)),
   );
 
   typed.delete(
     '/api/v1/api-tokens/:id',
-    { schema: { params: idParam }, preHandler: requireAdminRole },
+    { schema: { params: idParam }, preValidation: requireAdminRole },
     async (request, reply) => {
       await revokeApiToken(deps, request.member!, request.params.id);
       return reply.status(204).send();

@@ -95,30 +95,36 @@ function codeForStep(key: Uint8Array, step: number): string {
 }
 
 /**
- * Whether a code is live for this secret, within one step either side.
+ * The time step a code belongs to, if it is live for this secret within one
+ * step either side — or null when it is not.
+ *
+ * The step rather than a yes: RFC 6238 §5.2 has the verifier refuse a code it
+ * has already accepted, and the step is what `services/mfa.ts` records to do
+ * that. It is the code's own step, not the one it arrived in, so the same code
+ * typed at :29 and again at :31 is recognised as one.
  *
  * Fails closed on anything malformed — a corrupt secret column must not turn
  * the login route into a 500, and a five-character code is a wrong code, not
  * an error. The comparison is constant-time so a code cannot be guessed a
  * digit at a time.
  */
-export function verifyTotp(secret: string, code: string, now: Date): boolean {
+export function verifyTotp(secret: string, code: string, now: Date): number | null {
   const candidate = code.replace(/\s/g, '');
-  if (!/^\d{6}$/.test(candidate)) return false;
+  if (!/^\d{6}$/.test(candidate)) return null;
 
   let key: Uint8Array;
   try {
     key = base32Decode(secret);
   } catch {
-    return false;
+    return null;
   }
-  if (key.length === 0) return false;
+  if (key.length === 0) return null;
 
   const current = Math.floor(now.getTime() / 1000 / PERIOD_SECONDS);
-  for (let offset = -WINDOW_STEPS; offset <= WINDOW_STEPS; offset += 1) {
-    if (equalsConstantTime(codeForStep(key, current + offset), candidate)) return true;
+  for (let step = current - WINDOW_STEPS; step <= current + WINDOW_STEPS; step += 1) {
+    if (equalsConstantTime(codeForStep(key, step), candidate)) return step;
   }
-  return false;
+  return null;
 }
 
 function equalsConstantTime(a: string, b: string): boolean {

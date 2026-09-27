@@ -1,7 +1,14 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { requireAction } from '@/plugins/rbac.js';
 import { loadConfig } from '@/config.js';
-import { buildTestApp, inject, setupOrg, SETUP_BODY, type TestApp } from './helpers.js';
+import {
+  buildTestApp,
+  inject,
+  memberCookie,
+  setupOrg,
+  SETUP_BODY,
+  type TestApp,
+} from './helpers.js';
 
 let ctx: TestApp;
 afterEach(async () => {
@@ -125,6 +132,82 @@ describe('RBAC guard', () => {
       cookie: adminCookie,
     });
     expect(viewerManagerPlus.statusCode).toBe(403);
+  });
+});
+
+// A guard on `preHandler` runs after schema validation, so a caller who could
+// never open the door still read the zod field errors off it — the shape of
+// the request it guards. Every internal guard now sits on `preValidation`, the
+// public surface's rule, and refuses before a word of the body is read.
+describe('guards refuse before the body is validated', () => {
+  /** Wrong in every field it has, and missing the ones it has not. */
+  const JUNK = { name: 42, category: 'not-a-category', status: 7 };
+
+  // One door per guard, each with a body schema that would refuse JUNK.
+  it.each([
+    ['/api/v1/assets', 'requireAction'],
+    ['/api/v1/me/password', 'requireAuth'],
+    ['/api/v1/me/mfa/confirm', 'requireSession'],
+    ['/api/v1/api-tokens', 'the admin-only guard'],
+  ])('answers an anonymous POST %s (%s) with 401 and no field detail', async (url) => {
+    ctx = await buildTestApp();
+    await setupOrg(ctx.app);
+
+    const res = await ctx.app.inject({ method: 'POST', url, body: JUNK });
+    expect(res.statusCode, res.body).toBe(401);
+    expect(res.json().error.code).toBe('unauthorized');
+    expect(res.json().error.fields).toBeUndefined();
+  });
+
+  it('answers a signed-in role without the grant with 403, not the schema', async () => {
+    ctx = await buildTestApp();
+    await setupOrg(ctx.app);
+    const viewer = await memberCookie(ctx.db, 'viewer');
+
+    const asset = await inject(ctx.app, {
+      method: 'POST',
+      url: '/api/v1/assets',
+      cookie: viewer,
+      body: JUNK,
+    });
+    expect(asset.statusCode, asset.body).toBe(403);
+    expect(asset.json().error.code).toBe('forbidden');
+    expect(asset.json().error.fields).toBeUndefined();
+
+    const token = await inject(ctx.app, {
+      method: 'POST',
+      url: '/api/v1/api-tokens',
+      cookie: viewer,
+      body: JUNK,
+    });
+    expect(token.statusCode, token.body).toBe(403);
+    expect(token.json().error.code).toBe('admin_only');
+  });
+
+  it('still validates for somebody the guard lets through', async () => {
+    ctx = await buildTestApp();
+    const admin = await setupOrg(ctx.app);
+
+    const junk = await inject(ctx.app, {
+      method: 'POST',
+      url: '/api/v1/assets',
+      cookie: admin,
+      body: JUNK,
+    });
+    expect(junk.statusCode).toBe(422);
+    expect(junk.json().error.code).toBe('validation');
+    expect(Object.keys(junk.json().error.fields)).toEqual(
+      expect.arrayContaining(['name', 'category']),
+    );
+
+    const valid = await inject(ctx.app, {
+      method: 'POST',
+      url: '/api/v1/assets',
+      cookie: admin,
+      body: { name: 'MacBook Pro', category: 'laptops', status: 'available' },
+    });
+    expect(valid.statusCode, valid.body).toBe(200);
+    expect(valid.json().asset.name).toBe('MacBook Pro');
   });
 });
 

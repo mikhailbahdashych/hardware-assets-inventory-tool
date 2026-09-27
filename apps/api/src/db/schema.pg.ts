@@ -102,6 +102,13 @@ export const members = pgTable(
     mfaSecret: text('mfa_secret'),
     /** Set when a first code verified. Null with a secret set = mid-enrolment. */
     mfaConfirmedAt: text('mfa_confirmed_at'),
+    /**
+     * The time step (unix seconds / 30) of the last authenticator code
+     * accepted, and nothing at or before it is accepted again — RFC 6238 §5.2,
+     * a code works once. NULL = nothing accepted yet. Belongs to the secret:
+     * wherever the secret is cleared, this goes with it.
+     */
+    mfaLastStep: integer('mfa_last_step'),
     theme: text('theme').notNull().default('light'),
     density: text('density').notNull().default('comfortable'),
     widgetsJson: text('widgets_json').notNull().default('{}'),

@@ -62,6 +62,15 @@ export async function buildApp(opts: BuildAppOptions): Promise<FastifyInstance> 
   app.setSerializerCompiler(serializerCompiler);
 
   registerErrorHandler(app);
+  // Every response, not only the attachment downloads that set it for
+  // themselves: a browser must never sniff API JSON, the SPA document or an
+  // error envelope into a type it can run. `onSend` fires for all of them —
+  // routes, fastify-static, the not-found handler and the error handler alike —
+  // and `reply.header` replaces rather than appends, so a route that already
+  // said so still sends it once.
+  app.addHook('onSend', async (_request, reply) => {
+    reply.header('x-content-type-options', 'nosniff');
+  });
   await app.register(fastifyCookie);
   registerOriginGuard(app, deps.config); // before session/rate-limit: cheapest rejection first
   registerSessionAuth(app, deps);

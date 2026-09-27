@@ -62,13 +62,22 @@ export async function findValidToken(
   return token;
 }
 
+/**
+ * Spends a token, and says whether this call was the one that spent it. The
+ * row the caller found with {@link findValidToken} may be stale by now — a
+ * second request racing the same token read it unconsumed too — so the
+ * condition is in the UPDATE itself and the database decides. `false` means
+ * somebody else got there first; callers refuse as they would a spent token.
+ */
 export async function consumeToken(
   db: DbOrTx,
   tokenId: string,
   now: Date = new Date(),
-): Promise<void> {
-  await db
+): Promise<boolean> {
+  const spent = await db
     .update(authTokens)
     .set({ consumedAt: nowIso(now) })
-    .where(eq(authTokens.id, tokenId));
+    .where(and(eq(authTokens.id, tokenId), isNull(authTokens.consumedAt)))
+    .returning({ id: authTokens.id });
+  return spent.length > 0;
 }
