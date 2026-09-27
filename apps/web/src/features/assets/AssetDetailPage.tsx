@@ -122,8 +122,10 @@ export function AssetDetailPage({ permissions }: AssetDetailPageProps) {
   }
 
   const { asset, customFields, history, attachments, auditTrail } = detail.data;
-  // An asset stores a currency only when it differs from the organization's,
-  // so null here means "the org's" — that one is the rule, not a fallback.
+  // Every asset registered now stores the currency it was entered in
+  // (the API writes the workspace default when none is named). NULL is a row
+  // from before that, and for those "the workspace's" is the only reading
+  // there ever was — the rule for legacy rows, not a rescue for new ones.
   const currency = asset.currency ?? orgMeta(meta.data).defaultCurrency;
   const byId = statusMap(workflow.data.statuses);
   const status = statusInfo(byId, asset.status);

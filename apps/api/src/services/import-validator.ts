@@ -136,8 +136,8 @@ function planAssets(rows: Record<string, string>[], context: ImportContext): Imp
       else purchasePriceCents = parsed.cents;
     }
 
-    // Blank currency is the design's normal case: an asset stores one only when
-    // it differs from the organization default, so NULL is a meaning, not a gap.
+    // Blank currency is the design's normal case: it means the workspace
+    // default, which the commit writes onto the row (see `writeAssets`).
     let currency: Currency | null = null;
     const currencyCell = cell(row, 'currency');
     if (currencyCell !== '') {

@@ -28,6 +28,7 @@ import {
   HISTORY_DAYS,
   HOLDINGS,
   OFFBOARDING_DAYS_AGO,
+  ORG_CURRENCY,
   ORG_NAME,
   PEOPLE,
 } from '@/db/demo-data.js';
@@ -300,7 +301,7 @@ async function seedSettings(tx: DbOrTx, now: Date): Promise<void> {
   await tx.insert(orgSettings).values({
     id: 1,
     orgName: ORG_NAME,
-    defaultCurrency: 'EUR',
+    defaultCurrency: ORG_CURRENCY,
     assetTagPrefix: 'AST',
     warrantyLeadDays: 45,
     logRetentionMonths: 12,
@@ -487,8 +488,8 @@ async function seedAssets(
       purchaseDate: todayDate(at(asset.purchasedDaysAgo)),
       // Money is integer cents everywhere; the dataset speaks whole euros.
       purchasePriceCents: asset.priceEuros * 100,
-      // Null means "the organization default", which is what the UI renders.
-      currency: null,
+      // A price keeps the currency it was paid in on its own row.
+      currency: ORG_CURRENCY,
       supplier: asset.supplier,
       warrantyUntil: asset.warrantyInDays === null ? null : todayDate(at(-asset.warrantyInDays)),
       createdAt: nowIso(added),

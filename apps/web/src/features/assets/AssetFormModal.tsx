@@ -216,6 +216,8 @@ export function AssetFormModal({
         status,
         // Blank is "number it for me": the API mints the tag when none is sent.
         assetTag: tagValue || undefined,
+        // No currency control on the form: the API stores the workspace's
+        // default as it stands today, so the price keeps it.
         currency: null,
         assignedToEmployeeId:
           status === ASSIGNED_STATUS ? blankToNull(form.assignedToEmployeeId) : null,

@@ -13,6 +13,8 @@ import type {
  * never reach a real inbox.
  */
 export const ORG_NAME = 'Northwind Robotics';
+/** The workspace default, and the currency every seeded price was paid in. */
+export const ORG_CURRENCY = 'EUR';
 export const EMAIL_DOMAIN = 'northwind.example';
 
 /** How far back the story starts. Old enough to have a history worth reading. */
