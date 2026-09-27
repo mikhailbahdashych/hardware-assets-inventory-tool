@@ -20,11 +20,11 @@ export default defineConfig({
     host: process.env.VITE_HOST ?? 'localhost',
     proxy: {
       // The slash is load-bearing: a proxy key matches by prefix, so `/api`
-      // also caught `/api-tokens` — a client route that merely begins with the
-      // same letters — and handed a reload of that page to the API, which
-      // answered 404 JSON. The API's namespace is everything under `/api/`,
-      // and nothing else. (`plugins/static-spa.ts` is the same rule server-side;
-      // there is no test harness for this file, so this comment is the net.)
+      // also caught `/api-tokens` and `/api-docs` — client routes that merely
+      // begin with the same letters — and handed a reload of either page to
+      // the API, which answered 404 JSON. The API's namespace is everything
+      // under `/api/`, and nothing else. (`plugins/static-spa.ts` is the same
+      // rule server-side; `src/devProxy.test.ts` names both pages.)
       '/api/': 'http://localhost:3000',
     },
   },
