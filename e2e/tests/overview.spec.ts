@@ -214,3 +214,26 @@ test('exports the whole workspace as JSON', async ({ page }) => {
   // No secrets in a file people email around.
   expect(await response.text()).not.toContain('$argon2');
 });
+
+test('the API reference draws every operation the live document declares', async ({ page }) => {
+  await signIn(page);
+  // The document itself, fetched without a token as an integrator would. The
+  // page's unit tests read a captured copy; this is the live one, so a route
+  // added to the public surface is checked here the day it lands.
+  const spec = (await (await page.request.get('/api/public/openapi.json')).json()) as {
+    paths: Record<string, Record<string, unknown>>;
+  };
+
+  // A load of the URL, not a click: the production server has to answer this
+  // `/api`-adjacent path with the app rather than the API's 404.
+  await page.goto('/api-docs');
+
+  const routes = Object.entries(spec.paths).flatMap(([path, item]) =>
+    Object.keys(item).map((method) => `${method.toUpperCase()} ${path}`),
+  );
+  expect(routes.length).toBeGreaterThan(0);
+  for (const route of routes) {
+    await expect(page.getByRole('article', { name: route, exact: true })).toBeVisible();
+  }
+  await expect(page.getByRole('article')).toHaveCount(routes.length);
+});
