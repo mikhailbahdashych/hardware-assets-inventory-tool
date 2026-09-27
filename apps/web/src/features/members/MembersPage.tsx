@@ -93,7 +93,10 @@ export function MembersPage({ permissions, memberId, viewerRole }: MembersPagePr
             onError: (error) => toast.show(error.message, 'err'),
           }),
       });
-    } else {
+    } else if (member.id !== memberId) {
+      // Your own password changes through Account, with the current one as
+      // proof; a link or a password you set yourself would skip it, and the
+      // API refuses both.
       items.push({
         label: 'Copy password reset link',
         onSelect: () =>
@@ -109,13 +112,10 @@ export function MembersPage({ permissions, memberId, viewerRole }: MembersPagePr
             onError: (error) => toast.show(error.message, 'err'),
           }),
       });
-      // Your own password changes through Account, with the current one as proof.
-      if (member.id !== memberId) {
-        items.push({
-          label: 'Set a password',
-          onSelect: () => setDialog({ kind: 'password', member }),
-        });
-      }
+      items.push({
+        label: 'Set a password',
+        onSelect: () => setDialog({ kind: 'password', member }),
+      });
     }
 
     // Unlike role and removal, this *is* allowed on your own account: locking

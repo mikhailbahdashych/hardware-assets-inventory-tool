@@ -11,6 +11,7 @@ import {
   INVITED_SUMMARY,
   LINKED_SUMMARY,
   MAYA,
+  employeesRoute,
   membersRoute,
   ROLES,
   session,
@@ -257,6 +258,8 @@ describe('inviting a member', () => {
     const api = renderApp(
       {
         ...ADMIN_ROUTES,
+        // Nobody signs in as Maya yet, so she is somebody this invitation may name.
+        'GET /members': membersRoute([ADMIN_SUMMARY, INVITED_SUMMARY]),
         'POST /members/invites': {
           body: {
             member: INVITED_SUMMARY,
@@ -286,6 +289,23 @@ describe('inviting a member', () => {
     expect(link).toHaveValue('http://localhost:3000/accept-invite?token=abc123');
     await userEvent.click(screen.getByRole('button', { name: 'Copy' }));
     expect(writeText).toHaveBeenCalledWith('http://localhost:3000/accept-invite?token=abc123');
+  });
+
+  it('does not offer an employee somebody already signs in as', async () => {
+    const jonas = { ...MAYA, id: 'emp-2', firstName: 'Jonas', lastName: 'Weber' };
+    renderApp(
+      {
+        ...ADMIN_ROUTES,
+        'GET /employees': employeesRoute([MAYA, { ...jonas, displayName: 'Jonas Weber' }]),
+      },
+      '/members',
+    );
+
+    await userEvent.click(await screen.findByRole('button', { name: /invite member/i }));
+    await userEvent.click(await screen.findByRole('combobox', { name: /link to employee/i }));
+    // Maya Lindqvist is linked to member-3; one person, one account.
+    expect(await screen.findByRole('option', { name: 'Jonas Weber' })).toBeInTheDocument();
+    expect(screen.queryByRole('option', { name: MAYA.displayName })).toBeNull();
   });
 
   it('offers every role the workspace has, with the words it gave them', async () => {
@@ -466,11 +486,14 @@ describe('the row actions', () => {
     expect(screen.queryByRole('menuitem', { name: 'Reset two-factor' })).toBeNull();
   });
 
-  it('never offers to remove you, or to change your own role', async () => {
+  it('never offers to remove you, change your own role, or reset your own password', async () => {
     renderApp(ADMIN_ROUTES, '/members');
     await openMenu('tomasz@acme.io');
 
-    expect(screen.getByRole('menuitem', { name: /reset link/i })).toBeInTheDocument();
+    // Your own password changes from the sidebar, with the current one as
+    // proof — a link you issue yourself would skip it, and the API refuses.
+    expect(screen.queryByRole('menuitem', { name: /reset link/i })).toBeNull();
+    expect(screen.getByRole('menuitem', { name: /reset two-factor/i })).toBeInTheDocument();
     expect(screen.queryByRole('menuitem', { name: /change role/i })).toBeNull();
     expect(screen.queryByRole('menuitem', { name: /remove/i })).toBeNull();
   });

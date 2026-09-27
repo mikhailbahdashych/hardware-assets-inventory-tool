@@ -41,6 +41,19 @@ const lostTheAsset = () =>
   );
 
 /**
+ * The third: two invitations or links raced for one employee. Also not a form
+ * error — the field is fine, somebody else got there first — so it carries the
+ * code the pre-check in `services/members.ts` raises, with the sentence that is
+ * true without knowing who won.
+ */
+const employeeTaken = () =>
+  new AppError(
+    409,
+    'employee_linked',
+    'Another member was linked to that employee a moment ago. Reload to see who.',
+  );
+
+/**
  * Constraint identifier → the answer that constraint has a name for. Two keys
  * per constraint, because the engines name the same one differently and neither
  * name is ours to choose.
@@ -62,10 +75,12 @@ const REGISTRY: Record<string, () => AppError> = {
   'employees.email': () => invalidFields(DUPLICATE_EMPLOYEE_EMAIL),
   'members.email': () => invalidFields(DUPLICATE_MEMBER_EMAIL),
   'assignments.asset_id': lostTheAsset,
+  'members.employee_id': employeeTaken,
   assets_asset_tag_unique: () => invalidFields(DUPLICATE_ASSET_TAG),
   employees_email_unique: () => invalidFields(DUPLICATE_EMPLOYEE_EMAIL),
   members_email_unique: () => invalidFields(DUPLICATE_MEMBER_EMAIL),
   assignments_one_active_per_asset: lostTheAsset,
+  members_one_per_employee: employeeTaken,
 };
 
 /** The libsql driver puts the columns in the message, and nowhere else. */

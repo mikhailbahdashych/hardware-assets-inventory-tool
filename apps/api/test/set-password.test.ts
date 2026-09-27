@@ -106,6 +106,23 @@ describe('POST /api/v1/members/:id/password', () => {
     expect(JSON.parse(event!.params).memberName).toBe('Grace Chen');
   });
 
+  it('refuses a reset link for your own account, for the same reason', async () => {
+    ctx = await buildTestApp();
+    const admin = await setupOrg(ctx.app);
+    const me = await inject(ctx.app, { method: 'GET', url: '/api/v1/auth/me', cookie: admin });
+
+    const res = await inject(ctx.app, {
+      method: 'POST',
+      url: `/api/v1/members/${me.json().member.id as string}/reset-link`,
+      cookie: admin,
+    });
+    expect(res.statusCode).toBe(409);
+    expect(res.json().error.code).toBe('self_reset_link');
+    expect(res.json().error.message).toBe(
+      'Change your own password from the sidebar — it asks for your current one.',
+    );
+  });
+
   it('refuses your own account: knowing the current password is that door', async () => {
     ctx = await buildTestApp();
     const admin = await setupOrg(ctx.app);

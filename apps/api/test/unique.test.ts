@@ -172,6 +172,40 @@ describe('translateUniqueViolation', () => {
     expect(translated!.code).toBe('asset_unavailable');
   });
 
+  it('answers the link 409 when the one-member-per-employee index is what refused', async () => {
+    ctx = await buildTestApp();
+    const cookie = await setupOrg(ctx.app);
+    const employee = (
+      await inject(ctx.app, {
+        method: 'POST',
+        url: '/api/v1/employees',
+        cookie,
+        body: { firstName: 'Grace', lastName: 'Chen', email: 'grace.chen@acme.io' },
+      })
+    ).json().employee as { id: string };
+
+    // Two invitations racing for one employee: on Postgres both read the
+    // employee unlinked, and the partial unique index refuses the second.
+    const link = (email: string) =>
+      ctx.db.insert(members).values({
+        id: newId(),
+        email,
+        displayName: 'Grace Chen',
+        passwordHash: null,
+        role: 'viewer',
+        status: 'invited',
+        employeeId: employee.id,
+        createdAt: at,
+        updatedAt: at,
+      });
+    await link('grace@acme.io');
+
+    const translated = translateUniqueViolation(await violation(() => link('g.chen@acme.io')));
+    expect(translated).toBeInstanceOf(AppError);
+    expect(translated!.statusCode).toBe(409);
+    expect(translated!.code).toBe('employee_linked');
+  });
+
   it('says nothing about a constraint it does not know, or an error that is not one', async () => {
     ctx = await buildTestApp();
     await setupOrg(ctx.app);

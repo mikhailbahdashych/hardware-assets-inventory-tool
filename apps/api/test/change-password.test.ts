@@ -1,6 +1,7 @@
 import { eq } from 'drizzle-orm';
 import { afterEach, describe, expect, it } from 'vitest';
 import { auditEvents } from '@/db/schema.js';
+import { issueAuthToken } from '@/services/auth-tokens.js';
 import {
   buildTestApp,
   inject,
@@ -92,13 +93,13 @@ describe('POST /api/v1/me/password', () => {
     ctx = await buildTestApp();
     const cookie = await setupOrg(ctx.app);
     const me = await inject(ctx.app, { method: 'GET', url: '/api/v1/auth/me', cookie });
-    const id = me.json().member.id as string;
-    const link = await inject(ctx.app, {
-      method: 'POST',
-      url: `/api/v1/members/${id}/reset-link`,
-      cookie,
-    });
-    const token = new URL(link.json().resetUrl as string).searchParams.get('token')!;
+    // Another admin issued it: nobody may issue their own.
+    const token = await issueAuthToken(
+      ctx.db,
+      me.json().member.id as string,
+      'password_reset',
+      new Date(),
+    );
 
     await changePassword(cookie, {
       currentPassword: SETUP_BODY.password,

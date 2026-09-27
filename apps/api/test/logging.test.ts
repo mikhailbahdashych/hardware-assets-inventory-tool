@@ -1,5 +1,7 @@
 import { Writable } from 'node:stream';
 import { afterEach, describe, expect, it } from 'vitest';
+import { loadConfig } from '@/config.js';
+import { logBoot } from '@/services/boot.js';
 import { redactSensitiveUrl } from '@/lib/logging.js';
 import { buildTestApp, inject, type TestApp } from './helpers.js';
 
@@ -92,5 +94,58 @@ describe('redactSensitiveUrl', () => {
     expect(redactSensitiveUrl('')).toBe('');
     // A token that itself looks like a path stays fully covered.
     expect(redactSensitiveUrl('/api/v1/auth/invite/a/b/c')).toBe('/api/v1/auth/invite/[redacted]');
+  });
+});
+
+/**
+ * The deploy test's finding: nothing in `docker logs` said which database the
+ * instance had engaged, where its uploads were going, or that migrations ran.
+ * One line at boot says all three, and never the password in DATABASE_URL.
+ */
+describe('the boot line', () => {
+  /** The line `logBoot` writes through a real app's logger, read back. */
+  async function bootLine(
+    env: Record<string, string>,
+    applied: number,
+  ): Promise<Record<string, unknown>> {
+    const { lines, stream } = captureLog();
+    ctx = await buildTestApp({ LOG_LEVEL: 'info' }, undefined, stream);
+    logBoot(ctx.app.log, loadConfig({ DATA_DIR: '/data', ...env }), applied);
+    const booted = lines
+      .map((line) => JSON.parse(line) as Record<string, unknown>)
+      .filter((line) => line.msg === 'database and storage engaged');
+    expect(booted).toHaveLength(1);
+    return booted[0]!;
+  }
+
+  it('names the SQLite file’s directory, the local uploads and the migrations it ran', async () => {
+    const line = await bootLine({}, 3);
+    expect(line).toMatchObject({
+      engine: 'sqlite',
+      database: '/data',
+      storage: 'local',
+      uploads: '/data/uploads',
+      migrationsApplied: 3,
+    });
+  });
+
+  it('names the Postgres host and the bucket, and not the password', async () => {
+    const line = await bootLine(
+      {
+        DATABASE_URL: 'postgres://inventory:s3cret-pw@db.internal:5432/inventory',
+        S3_BUCKET: 'acme-inventory',
+        S3_REGION: 'eu-central-1',
+      },
+      0,
+    );
+    expect(line).toMatchObject({
+      engine: 'postgres',
+      database: 'db.internal:5432/inventory',
+      storage: 's3',
+      bucket: 'acme-inventory',
+      region: 'eu-central-1',
+      migrationsApplied: 0,
+    });
+    expect(JSON.stringify(line)).not.toContain('s3cret-pw');
   });
 });

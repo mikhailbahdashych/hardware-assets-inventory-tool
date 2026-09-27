@@ -75,7 +75,7 @@ describe('setting a password outright', () => {
     // Your own password changes through Account, with the current one in hand.
     const own = await memberRow('tomasz@acme.io');
     await userEvent.click(within(own).getByRole('button', { name: 'Actions for Tomasz Kowalski' }));
-    expect(screen.getByRole('menuitem', { name: 'Copy password reset link' })).toBeInTheDocument();
+    expect(screen.getByRole('menuitem', { name: 'Reset two-factor' })).toBeInTheDocument();
     expect(screen.queryByRole('menuitem', { name: 'Set a password' })).not.toBeInTheDocument();
     await userEvent.keyboard('{Escape}');
 

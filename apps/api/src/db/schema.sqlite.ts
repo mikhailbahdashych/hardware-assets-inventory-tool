@@ -96,7 +96,15 @@ export const members = sqliteTable(
     createdAt: text('created_at').notNull(),
     updatedAt: text('updated_at').notNull(),
   },
-  (table) => [index('members_employee_idx').on(table.employeeId)],
+  // One member per employee: the link is how personal notices find their
+  // reader and where an invitee's name comes from, so two accounts on one
+  // person would each get the other's inbox. Partial, because most members
+  // are linked to nobody.
+  (table) => [
+    uniqueIndex('members_one_per_employee')
+      .on(table.employeeId)
+      .where(sql`employee_id IS NOT NULL`),
+  ],
 );
 
 /**

@@ -89,6 +89,43 @@ describe('login rate limiting', () => {
     }
     expect(last).toBe(429);
   });
+
+  // One office behind one NAT is one address. Counting the people who got in
+  // locked the eleventh colleague out for a quarter of an hour.
+  it('does not count a sign-in that worked', async () => {
+    ctx = await buildTestApp();
+    await setupOrg(ctx.app);
+    const codes: number[] = [];
+    for (let i = 0; i < 11; i++) {
+      const res = await ctx.app.inject({
+        method: 'POST',
+        url: '/api/v1/auth/login',
+        body: { email: SETUP_BODY.email, password: SETUP_BODY.password },
+      });
+      codes.push(res.statusCode);
+    }
+    expect(codes).toEqual(Array.from({ length: 11 }, () => 200));
+  });
+
+  it('keeps refusing the right password once the failures have spent the budget', async () => {
+    ctx = await buildTestApp();
+    await setupOrg(ctx.app);
+    for (let i = 0; i < 10; i++) {
+      const res = await ctx.app.inject({
+        method: 'POST',
+        url: '/api/v1/auth/login',
+        body: { email: SETUP_BODY.email, password: 'wrong-password' },
+      });
+      expect(res.statusCode).toBe(401);
+    }
+    const right = await ctx.app.inject({
+      method: 'POST',
+      url: '/api/v1/auth/login',
+      body: { email: SETUP_BODY.email, password: SETUP_BODY.password },
+    });
+    expect(right.statusCode).toBe(429);
+    expect(right.json().error.code).toBe('rate_limited');
+  });
 });
 
 describe('RBAC guard', () => {

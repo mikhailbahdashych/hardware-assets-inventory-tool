@@ -3,6 +3,7 @@ import {
   ASSIGNED_STATUS,
   CURRENCY_LABELS,
   DATE_ONLY,
+  isCalendarDate,
   matchEnumValue,
   parsePriceToCents,
   type AssetCategory,
@@ -269,6 +270,10 @@ function readDate(
   if (value === '') return null;
   if (!DATE_ONLY.test(value)) {
     fail(column, `"${value}" is not a date — write it as YYYY-MM-DD.`);
+    return null;
+  }
+  if (!isCalendarDate(value)) {
+    fail(column, `"${value}" is not a day on the calendar — check the month and the day.`);
     return null;
   }
   return value;

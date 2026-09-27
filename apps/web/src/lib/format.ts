@@ -1,3 +1,5 @@
+import { DATE_ONLY, isCalendarDate } from '@inventory/shared';
+
 // Display formatting for dates, durations, money, and names.
 // All date rendering is UTC-based: date-only strings ("YYYY-MM-DD") parse as
 // UTC midnight, so output never depends on the viewer's timezone.
@@ -38,16 +40,31 @@ export function formatLogTime(iso: string): string {
   return `${day} ${time}`;
 }
 
+/**
+ * A stored date — date-only or a timestamp, both callers exist — drawn with
+ * `options`, or drawn as written when it is not a day the calendar has. Rows from before the API checked the calendar
+ * still exist, and `new Date('2026-13-45')` throws inside Intl and takes the
+ * page with it, while `2026-02-30` quietly rolls over to Mar 2. The raw string
+ * is the honest value: an em dash would claim nothing is stored, and a date is
+ * there — it is wrong, and the person who can fix it needs to see which one.
+ * The notification renderer's `day()` makes the same call.
+ */
+function formatStoredDate(date: string, options: Intl.DateTimeFormatOptions): string {
+  const parsed = new Date(date);
+  const real = DATE_ONLY.test(date) ? isCalendarDate(date) : !Number.isNaN(parsed.getTime());
+  return real ? utcFormat(parsed, options) : date;
+}
+
 /** "Mar 2023" — table cells for purchased/warranty. */
 export function formatMonthYear(date: string | null | undefined): string {
   if (!date) return '—';
-  return utcFormat(new Date(date), { month: 'short', year: 'numeric' });
+  return formatStoredDate(date, { month: 'short', year: 'numeric' });
 }
 
 /** "Feb 3, 2024" — detail cards and holder info. */
 export function formatFullDate(date: string | null | undefined): string {
   if (!date) return '—';
-  return utcFormat(new Date(date), { month: 'short', day: 'numeric', year: 'numeric' });
+  return formatStoredDate(date, { month: 'short', day: 'numeric', year: 'numeric' });
 }
 
 /** "2 yrs 6 mo" / "3 mo" / "12 days" — holding durations. Minimum "1 day". */

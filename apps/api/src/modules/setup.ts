@@ -14,14 +14,21 @@ import { createSession, setSessionCookie } from '@/services/sessions.js';
 
 /** First-run setup: creates the organization and its first admin, signs them in. */
 export function registerSetupRoutes(app: FastifyInstance, deps: AppDeps): void {
-  app
-    .withTypeProvider<ZodTypeProvider>()
-    .post('/api/v1/setup', { schema: { body: setupInput } }, async (request, reply) => {
-      const [existing] = await deps.db.select().from(orgSettings);
-      if (existing) {
-        throw new AppError(409, 'already_initialized', 'This instance is already set up.');
-      }
-
+  app.withTypeProvider<ZodTypeProvider>().post(
+    '/api/v1/setup',
+    {
+      schema: { body: setupInput },
+      // Before validation, like every guard here: on a live instance this
+      // door is closed, and a closed door does not read an anonymous caller
+      // back the fields a setup body would need.
+      preValidation: async () => {
+        const [existing] = await deps.db.select().from(orgSettings);
+        if (existing) {
+          throw new AppError(409, 'already_initialized', 'This instance is already set up.');
+        }
+      },
+    },
+    async (request, reply) => {
       const now = deps.now();
       const passwordHash = await hashPassword(request.body.password);
       const memberId = newId();
@@ -71,5 +78,6 @@ export function registerSetupRoutes(app: FastifyInstance, deps: AppDeps): void {
       const session = await createSession(deps.db, memberId, now);
       setSessionCookie(reply, session.raw, session.expiresAt, deps.config);
       return { member: serializeMember(member) };
-    });
+    },
+  );
 }
