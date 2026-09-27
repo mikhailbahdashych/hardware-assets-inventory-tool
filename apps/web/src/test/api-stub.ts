@@ -8,14 +8,18 @@ import {
   type WorkflowPayload,
   type WorkspaceRole,
 } from '@inventory/shared';
+import type { OpenApiDocument } from '@/types/openapi';
+import openapi from './openapi.json';
 
 export type StubResponse = { status?: number; body?: unknown };
 /**
  * The callable half of a handler: a route that answers from the request. Named
  * so a test can wrap one — "fail once, then answer properly" is how the retry
  * assertions are written, and that needs the fixture route to be callable.
+ * It may answer later, too: a promise the test settles is how a page is held
+ * in its loading state long enough to look at it.
  */
-export type StubRoute = (body: unknown, search: string) => StubResponse;
+export type StubRoute = (body: unknown, search: string) => StubResponse | Promise<StubResponse>;
 export type StubHandler = StubResponse | StubRoute;
 /**
  * Keyed by "METHOD /path", e.g. "POST /auth/login". A key may carry a query
@@ -68,7 +72,7 @@ export function stubApi(routes: StubRoutes): ApiStub {
       }
 
       const { status = 200, body: responseBody } =
-        typeof handler === 'function' ? handler(body, search) : handler;
+        typeof handler === 'function' ? await handler(body, search) : handler;
       return new Response(responseBody === undefined ? null : JSON.stringify(responseBody), {
         status,
         headers: responseBody === undefined ? {} : { 'content-type': 'application/json' },
@@ -519,6 +523,18 @@ export const UNLIMITED_TOKEN = {
 };
 
 export const API_TOKENS = [LIVE_TOKEN, EXPIRED_TOKEN, UNLIMITED_TOKEN];
+
+/**
+ * The public surface's manual exactly as the API generates it: captured from a
+ * running dev server (`curl -s localhost:5173/api/public/openapi.json`, pretty-
+ * printed and run through prettier), never written by hand. The API reference
+ * page is tested against what `@fastify/swagger` actually writes — sixteen
+ * operations, bodies from the real zod schemas, and the placeholder responses
+ * it emits — so a shape the generator produces is a shape these tests have met.
+ * Recapture it the same way when the public surface changes; the e2e suite
+ * walks the live document, so a stale copy here cannot hide a missing route.
+ */
+export const OPENAPI_SPEC: OpenApiDocument = openapi;
 
 export const AUDIT_PAGE = {
   items: [

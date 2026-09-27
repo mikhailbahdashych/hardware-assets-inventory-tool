@@ -7,6 +7,7 @@ import { Spinner } from './components/ui';
 import { isAdmin } from './lib/roles';
 import { ActivityLogPage } from './features/admin/ActivityLogPage';
 import { AdminPage } from './features/admin/AdminPage';
+import { ApiDocsPage } from './features/api-docs/ApiDocsPage';
 import { ApiTokensPage } from './features/api-tokens/ApiTokensPage';
 import { AssetDetailPage } from './features/assets/AssetDetailPage';
 import { AssetsPage } from './features/assets/AssetsPage';
@@ -199,13 +200,19 @@ export function AppRoutes() {
             )
           }
         />
-        {/* The one page gated on the role itself rather than on an action:
+        {/* Gated on the role itself rather than on an action:
             minting a token that may write assets is workspace power by proxy,
             so it is deliberately not a grant a workspace can hand out. See
             `isAdmin` in lib/roles.ts, and the API's own guard. */}
         <Route
           path="/api-tokens"
           element={isAdmin(member.role) ? <ApiTokensPage /> : <Navigate to="/dashboard" replace />}
+        />
+        {/* The reference for what those tokens call, behind the same door:
+            the page is for whoever can mint the credential it documents. */}
+        <Route
+          path="/api-docs"
+          element={isAdmin(member.role) ? <ApiDocsPage /> : <Navigate to="/dashboard" replace />}
         />
         <Route
           path="/admin"

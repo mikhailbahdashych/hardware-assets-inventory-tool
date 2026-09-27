@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Link } from 'react-router';
 import { API_SCOPE_LABELS } from '@inventory/shared';
 import { useRevokeApiToken } from '@/api/mutations';
 import { useApiTokens } from '@/api/queries';
@@ -129,7 +130,7 @@ export function ApiTokensPage() {
           <p className={styles.summary}>
             Credentials for the systems that talk to this workspace without a person signing in.
             Each one reaches only what its scopes allow — the{' '}
-            <a href="/api/public/docs">API reference</a> is served by this instance.
+            <Link to="/api-docs">API reference</Link> names the scope every endpoint needs.
           </p>
         </div>
         <Button icon="plus" onClick={() => setCreating(true)}>

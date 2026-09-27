@@ -6,7 +6,7 @@ import type {
   RolesPayload,
   WorkflowPayload,
 } from '@inventory/shared';
-import { ApiError, apiFetch } from './client';
+import { ApiError, apiFetch, publicApiFetch } from './client';
 import type {
   Session,
   ApiTokenSummary,
@@ -26,6 +26,7 @@ import type {
   SearchPayload,
   SettingsPayload,
 } from '@/types/api';
+import type { OpenApiDocument } from '@/types/openapi';
 
 /**
  * The query-key catalog. Every cached read is listed here so invalidation
@@ -55,6 +56,7 @@ export const queryKeys = {
   dashboard: ['dashboard'] as const,
   audit: (filter: AuditFilter) => ['audit', filter] as const,
   apiTokens: ['api-tokens'] as const,
+  apiDocs: ['api-docs'] as const,
 };
 
 /**
@@ -328,15 +330,6 @@ export function useSettings() {
 }
 
 /**
- * One page of the activity log — a numbered page, fetched by `offset`, with the
- * filter and the offset both in the key so every page caches on its own.
- *
- * The log grows at the head, so a row that arrives while you read page two can
- * push another one onto it from page one. That is the accepted trade-off:
- * numbered pages you can navigate are worth more here than a snapshot that
- * never shifts, and nothing on this screen is read as a sequence.
- */
-/**
  * Every API token this workspace has minted. Admin-only, like the page —
  * deliberately unpaged: a workspace holds a handful of integrations, not a
  * list anybody scrolls.
@@ -349,6 +342,27 @@ export function useApiTokens() {
   });
 }
 
+/**
+ * The public surface's OpenAPI document, which the API reference page renders
+ * as it arrives. It is generated from the zod schemas that validate those
+ * routes, so reading it is how the page stays true without a copy to maintain.
+ */
+export function useApiDocs() {
+  return useQuery({
+    queryKey: queryKeys.apiDocs,
+    queryFn: () => publicApiFetch<OpenApiDocument>('/openapi.json'),
+  });
+}
+
+/**
+ * One page of the activity log — a numbered page, fetched by `offset`, with the
+ * filter and the offset both in the key so every page caches on its own.
+ *
+ * The log grows at the head, so a row that arrives while you read page two can
+ * push another one onto it from page one. That is the accepted trade-off:
+ * numbered pages you can navigate are worth more here than a snapshot that
+ * never shifts, and nothing on this screen is read as a sequence.
+ */
 export function useAuditLog(filter: AuditFilter) {
   return useQuery({
     queryKey: queryKeys.audit(filter),

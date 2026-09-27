@@ -41,10 +41,26 @@ export class MalformedApiResponse extends Error {
   }
 }
 
-export async function apiFetch<T = unknown>(path: string, options: ApiRequest = {}): Promise<T> {
+export function apiFetch<T = unknown>(path: string, options: ApiRequest = {}): Promise<T> {
+  return send<T>(`${API_BASE}${path}`, options);
+}
+
+/**
+ * A read from the public surface's root rather than from `/api/v1`. The app
+ * reads exactly one thing there — the generated manual the API reference page
+ * renders — and it goes through the same failure handling as every other read:
+ * that surface answers in the same envelope. No token is sent, because the
+ * document names no scope; a cookie rides along like on any same-origin
+ * request, and the public surface never looks at one.
+ */
+export function publicApiFetch<T = unknown>(path: string): Promise<T> {
+  return send<T>(`/api/public${path}`, {});
+}
+
+async function send<T>(url: string, options: ApiRequest): Promise<T> {
   const { method = 'GET', body, signal } = options;
 
-  const response = await fetch(`${API_BASE}${path}`, {
+  const response = await fetch(url, {
     method,
     credentials: 'same-origin',
     headers: body === undefined ? {} : { 'content-type': 'application/json' },
