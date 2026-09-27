@@ -116,6 +116,11 @@ describe('planning an asset import', () => {
     ['an unknown status', assetRow({ status: 'On fire' }), 'status'],
     ['a date that is not a date', assetRow({ purchase_date: '12/03/2023' }), 'purchase_date'],
     [
+      'a day the calendar does not have',
+      assetRow({ warranty_until: '2026-02-30' }),
+      'warranty_until',
+    ],
+    [
       'a price that is not a number',
       assetRow({ purchase_price: 'about two grand' }),
       'purchase_price',
@@ -292,6 +297,7 @@ describe('planning an employee import', () => {
     ['a missing name', employeeRow({ first_name: ' ' }), 'first_name'],
     ['an address that is not an email', employeeRow({ email: 'maya at acme' }), 'email'],
     ['a start date that is not a date', employeeRow({ start_date: '10.01.2022' }), 'start_date'],
+    ['a start date in month 13', employeeRow({ start_date: '2026-13-45' }), 'start_date'],
   ])('refuses %s', (_case, row, column) => {
     const plan = planEmployees([row]);
     expect(plan.report.errors[0]).toMatchObject({ row: 2, column });

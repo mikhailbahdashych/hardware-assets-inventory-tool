@@ -1,13 +1,11 @@
 import { z } from 'zod';
 import { CHECKIN_CONDITIONS, type AssignmentOutcome } from '../enums.js';
 import type { OutcomeInput } from '../types/assignments.js';
-import { nullableDate, nullableText } from './common.js';
+import { nullableDate, nullableText, requiredDate } from './common.js';
 
 // The three ways an asset changes hands or state. Assign and check-in are the
 // only operations that may create or close an ownership record; everything
 // else about an asset is an edit.
-
-const requiredDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Use the format YYYY-MM-DD');
 
 export const assignInput = z
   .object({

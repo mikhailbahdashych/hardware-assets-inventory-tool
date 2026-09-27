@@ -65,6 +65,19 @@ describe('date formats', () => {
     expect(formatFullDate('2024-02-03')).toBe('Feb 3, 2024');
     expect(formatFullDate(null)).toBe('—');
   });
+
+  // Rows stored before the schemas checked the calendar still exist. A value
+  // that is there but is not a day is drawn as written — an em dash would say
+  // nothing is stored, and a rolled-over "Mar 2" would say something false.
+  it.each(['2026-13-45', '2026-02-30'])('draws the stored %s as written, not a crash', (day) => {
+    expect(formatMonthYear(day)).toBe(day);
+    expect(formatFullDate(day)).toBe(day);
+  });
+
+  it('still reads a timestamp, which some callers pass', () => {
+    expect(formatFullDate('2026-09-27T10:00:00.000Z')).toBe('Sep 27, 2026');
+    expect(formatMonthYear('not a timestamp')).toBe('not a timestamp');
+  });
 });
 
 describe('formatDuration', () => {
