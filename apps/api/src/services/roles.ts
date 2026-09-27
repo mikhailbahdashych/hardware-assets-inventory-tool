@@ -16,7 +16,7 @@ import type { RoleActor, RoleRow } from '@/types/roles.js';
 import { members, rolePermissions, roles } from '@/db/schema.js';
 import { nowIso } from '@/lib/dates.js';
 import { AppError, invalidFields, notFound } from '@/lib/errors.js';
-import { writeAudit } from './audit.js';
+import { auditActor, writeAudit } from './audit.js';
 
 /**
  * Every rule about roles and what they may do, in one place. `members.role` has
@@ -175,8 +175,7 @@ export async function createRole(
       {
         type: 'auth',
         action: 'role.created',
-        actorMemberId: actor.id,
-        actorName: actor.displayName,
+        actor: auditActor(actor),
         params: { label: input.label },
       },
       now,
@@ -231,8 +230,7 @@ export async function updateRole(
       {
         type: 'auth',
         action: 'role.updated',
-        actorMemberId: actor.id,
-        actorName: actor.displayName,
+        actor: auditActor(actor),
         // The label *after* the patch, like every other update event.
         params: { label: values.label ?? current.label, changedFields },
       },
@@ -314,8 +312,7 @@ export async function replacePermissions(
       {
         type: 'auth',
         action: 'role.permissions_changed',
-        actorMemberId: actor.id,
-        actorName: actor.displayName,
+        actor: auditActor(actor),
         params: { added: added.length, removed: removed.length },
       },
       now,
@@ -356,8 +353,7 @@ export async function reorderRoles(
       {
         type: 'auth',
         action: 'role.reordered',
-        actorMemberId: actor.id,
-        actorName: actor.displayName,
+        actor: auditActor(actor),
       },
       now,
     );
@@ -415,8 +411,7 @@ export async function deleteRole(
       {
         type: 'auth',
         action: 'role.deleted',
-        actorMemberId: actor.id,
-        actorName: actor.displayName,
+        actor: auditActor(actor),
         params: {
           label: current.label,
           // Null rather than absent: "deleted, nobody to move" is a real

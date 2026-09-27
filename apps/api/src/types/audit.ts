@@ -22,6 +22,19 @@ export interface Actor {
 }
 
 /**
+ * Who an audit row is attributed to. A member and a token each carry the id
+ * the row points at and the name it snapshots; only an entry with no actor at
+ * all is the system's. A variant rather than three optional fields, because
+ * those let a member id arrive with no name and be stored as "system" under
+ * the kind "member". `auditActor` in `services/audit.ts` builds the first two
+ * from a service's `Actor`.
+ */
+export type AuditActor =
+  | { kind: 'member'; id: string; name: string }
+  | { kind: 'token'; id: string; name: string }
+  | { kind: 'system' };
+
+/**
  * One audit row as its caller describes it. The optional subject ids are the
  * columns the event may hang off; `params` is the structured payload the
  * shared renderer turns into a sentence.
@@ -29,19 +42,7 @@ export interface Actor {
 export interface AuditEntry {
   type: AuditType;
   action: string;
-  /** null for anonymous flows; `actorName` then reads 'system'. */
-  actorMemberId?: string | null;
-  /**
-   * The API token behind the mutation, on the public surface only. **A service
-   * a public route can reach must pass `actor.apiTokenId` here** — `writeAudit`
-   * derives `actorKind` from it, so a service that drops it writes a row
-   * carrying the token's name attributed to nobody, which reads as `system`.
-   * The assets, employees and assignments services are the ones that can be
-   * reached today, and `test/public-api.test.ts` sweeps every mutating public
-   * route to hold them to it.
-   */
-  actorApiTokenId?: string | null;
-  actorName?: string;
+  actor: AuditActor;
   assetId?: string | null;
   employeeId?: string | null;
   memberId?: string | null;

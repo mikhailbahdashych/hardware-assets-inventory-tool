@@ -3,7 +3,8 @@ import { afterEach, describe, expect, it } from 'vitest';
 import type { ApiScope, ApiTokenCreateInput } from '@inventory/shared';
 import { apiTokens, assets, auditEvents, members } from '@/db/schema.js';
 import { mintApiToken, revokeApiToken } from '@/services/api-tokens.js';
-import { writeAudit } from '@/services/audit.js';
+import { auditActor, writeAudit } from '@/services/audit.js';
+import type { AuditEntry } from '@/types/audit.js';
 import { buildTestApp, inject, setupOrg, type TestApp } from './helpers.js';
 
 // The door: `/api/public/v1` is reachable with a Bearer token and with nothing
@@ -548,15 +549,56 @@ describe('a token is an actor with no member row', () => {
     expect(byMember!.actorApiTokenId).toBe(null);
 
     // Nothing over HTTP writes an actorless row today, so this goes at the
-    // service the way `last-admin.test.ts` does: the 'system' arm is the
-    // default `writeAudit` has always carried, and it must keep its meaning.
-    await writeAudit(ctx.db, { type: 'system', action: 'system.settings_updated' });
+    // service the way `last-admin.test.ts` does. The system variant is the one
+    // entry with no actor at all, said out loud rather than left out, and it
+    // must keep its meaning: the name 'system' and neither id.
+    await writeAudit(ctx.db, {
+      type: 'system',
+      action: 'system.settings_updated',
+      actor: { kind: 'system' },
+    });
     const [anonymous] = await ctx.db
       .select()
       .from(auditEvents)
       .where(eq(auditEvents.action, 'system.settings_updated'));
     expect(anonymous!.actorName).toBe('system');
     expect(anonymous!.actorKind).toBe('system');
+    expect(anonymous!.actorMemberId).toBe(null);
+    expect(anonymous!.actorApiTokenId).toBe(null);
+  });
+
+  it('will not take a member or a token without a name, nor a named system', () => {
+    // The compiler is the proof. An entry with a member id and no name used to
+    // compile and was stored as 'system' under the kind 'member'; each line
+    // below is a type error now, and `npm run typecheck` fails the day one of
+    // them stops being one.
+    const refused: AuditEntry[] = [
+      // @ts-expect-error — a member is recorded under its name
+      { type: 'system', action: 'probe', actor: { kind: 'member', id: 'member-1' } },
+      // @ts-expect-error — and so is a token
+      { type: 'system', action: 'probe', actor: { kind: 'token', id: 'token-1' } },
+      // @ts-expect-error — while the system names nobody
+      { type: 'system', action: 'probe', actor: { kind: 'system', name: 'Ada' } },
+    ];
+    expect(refused).toHaveLength(3);
+  });
+
+  it('refuses a service actor that is neither a member nor a token', () => {
+    // `Actor.id` is null only for a token, so this is a caller broken — and it
+    // used to reach the log as a 'system' row carrying somebody's name.
+    expect(() => auditActor({ id: null, displayName: 'Ghost' })).toThrow(
+      'The actor "Ghost" has neither a member id nor an API token id.',
+    );
+    expect(auditActor({ id: null, displayName: 'Deploy bot', apiTokenId: 'token-1' })).toEqual({
+      kind: 'token',
+      id: 'token-1',
+      name: 'Deploy bot',
+    });
+    expect(auditActor({ id: 'member-1', displayName: 'Ada' })).toEqual({
+      kind: 'member',
+      id: 'member-1',
+      name: 'Ada',
+    });
   });
 
   it('stamps last used the moment the door opens', async () => {

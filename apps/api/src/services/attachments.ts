@@ -10,7 +10,7 @@ import { newId } from '@/lib/ids.js';
 import { AppError, notFound } from '@/lib/errors.js';
 import type { Actor } from '@/types/audit.js';
 import type { UploadedFile } from '@/types/attachments.js';
-import { writeAudit } from './audit.js';
+import { auditActor, writeAudit } from './audit.js';
 import { getSettings } from './settings.js';
 
 export type AttachmentRow = typeof attachments.$inferSelect;
@@ -179,8 +179,7 @@ export async function saveAttachment(
         {
           type: 'assets',
           action: 'asset.attachment_added',
-          actorMemberId: actor.id,
-          actorName: actor.displayName,
+          actor: auditActor(actor),
           assetId,
           params: { assetName: asset.name, assetTag: asset.assetTag, filename: file.filename },
         },
@@ -218,8 +217,7 @@ export async function deleteAttachment(
       {
         type: 'assets',
         action: 'asset.attachment_removed',
-        actorMemberId: actor.id,
-        actorName: actor.displayName,
+        actor: auditActor(actor),
         assetId: row.assetId,
         params: { assetName: asset.name, assetTag: asset.assetTag, filename: row.filename },
       },

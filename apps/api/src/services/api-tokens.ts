@@ -14,7 +14,7 @@ import { addDays, nowIso } from '@/lib/dates.js';
 import { notFound } from '@/lib/errors.js';
 import { newId } from '@/lib/ids.js';
 import { createRawToken, hashToken } from '@/lib/tokens.js';
-import { writeAudit } from './audit.js';
+import { auditActor, writeAudit } from './audit.js';
 
 // Every rule about API tokens, in one place. Two of them run through the whole
 // file: the raw value exists exactly once, in the response that minted it
@@ -91,8 +91,7 @@ export async function mintApiToken(
       {
         type: 'auth',
         action: 'token.created',
-        actorMemberId: actor.id,
-        actorName: actor.displayName,
+        actor: auditActor(actor),
         params: {
           name: input.name,
           // The reach as a number rather than eight labels: the log is a line,
@@ -133,8 +132,7 @@ export async function revokeApiToken(deps: AppDeps, actor: Actor, id: string): P
       {
         type: 'auth',
         action: 'token.revoked',
-        actorMemberId: actor.id,
-        actorName: actor.displayName,
+        actor: auditActor(actor),
         params: { name: row.name },
       },
       now,

@@ -3,7 +3,7 @@ import { loadConfig } from '@/config.js';
 import { createDb, describeStore } from '@/db/client.js';
 import { members } from '@/db/schema.js';
 import { resetMemberMfa } from '@/services/mfa.js';
-import { writeAudit } from '@/services/audit.js';
+import { auditActor, writeAudit } from '@/services/audit.js';
 
 /**
  * Break glass: clear one member's second factor from the command line.
@@ -59,8 +59,7 @@ async function main(): Promise<void> {
         {
           type: 'auth',
           action: 'member.mfa_reset',
-          actorMemberId: member.id,
-          actorName: member.displayName,
+          actor: auditActor(member),
           memberId: member.id,
           params: { memberName: member.displayName, viaCli: true },
         },

@@ -14,7 +14,7 @@ import { assets, employees } from '@/db/schema.js';
 import { nowIso } from '@/lib/dates.js';
 import { AppError } from '@/lib/errors.js';
 import { newId } from '@/lib/ids.js';
-import { writeAudit } from './audit.js';
+import { auditActor, writeAudit } from './audit.js';
 import { openAssignment } from './assignments.js';
 import { planImport } from './import-validator.js';
 import { getWorkflow } from './workflow.js';
@@ -83,8 +83,7 @@ export async function commitImport(
       {
         type: 'system',
         action: 'system.import_completed',
-        actorMemberId: actor.id,
-        actorName: actor.displayName,
+        actor: auditActor(actor),
         params: { kind: result.kind, created: result.created, updated: result.updated },
       },
       now,

@@ -12,7 +12,7 @@ import { newId } from '@/lib/ids.js';
 import { containsAny } from '@/lib/search.js';
 import { serializeEmployee, serializeHolding } from '@/lib/serialize.js';
 import type { Actor } from '@/types/audit.js';
-import { writeAudit } from './audit.js';
+import { auditActor, writeAudit } from './audit.js';
 import { employeeHistory } from './assignments.js';
 
 const EDITABLE = [
@@ -133,9 +133,7 @@ export async function createEmployee(deps: AppDeps, actor: Actor, input: Employe
       {
         type: 'people',
         action: 'employee.created',
-        actorMemberId: actor.id,
-        actorApiTokenId: actor.apiTokenId,
-        actorName: actor.displayName,
+        actor: auditActor(actor),
         employeeId: id,
         params: { employeeName, email: input.email },
       },
@@ -209,9 +207,7 @@ export async function updateEmployee(
         {
           type: 'people',
           action: 'employee.updated',
-          actorMemberId: actor.id,
-          actorApiTokenId: actor.apiTokenId,
-          actorName: actor.displayName,
+          actor: auditActor(actor),
           employeeId: id,
           params: { employeeName, changedFields },
         },
@@ -224,9 +220,7 @@ export async function updateEmployee(
         {
           type: 'people',
           action: 'employee.offboarding_started',
-          actorMemberId: actor.id,
-          actorApiTokenId: actor.apiTokenId,
-          actorName: actor.displayName,
+          actor: auditActor(actor),
           employeeId: id,
           // Offboarding without a return date is allowed; null records that.
           params: { employeeName, scheduledReturns, returnDueDate: patch.returnDueDate ?? null },
@@ -264,9 +258,7 @@ export async function deleteEmployee(deps: AppDeps, actor: Actor, id: string): P
       {
         type: 'people',
         action: 'employee.deleted',
-        actorMemberId: actor.id,
-        actorApiTokenId: actor.apiTokenId,
-        actorName: actor.displayName,
+        actor: auditActor(actor),
         params: { employeeName: `${employee.firstName} ${employee.lastName}` },
       },
       now,

@@ -126,8 +126,7 @@ export async function seedDemo(deps: AppDeps, options: DemoSeedOptions): Promise
       {
         type: 'system',
         action: 'system.setup_completed',
-        actorMemberId: founderId,
-        actorName: founderName,
+        actor: { kind: 'member', id: founderId, name: founderName },
         memberId: founderId,
         params: { orgName: ORG_NAME },
       },
@@ -151,8 +150,7 @@ export async function seedDemo(deps: AppDeps, options: DemoSeedOptions): Promise
       {
         type: 'system',
         action: 'system.settings_updated',
-        actorMemberId: founderId,
-        actorName: founderName,
+        actor: { kind: 'member', id: founderId, name: founderName },
         params: { changedFields: ['warrantyLeadDays'] },
       },
       at(6, 11, 20),
@@ -170,8 +168,7 @@ export async function seedDemo(deps: AppDeps, options: DemoSeedOptions): Promise
         {
           type: 'auth',
           action: 'auth.login',
-          actorMemberId: memberId,
-          actorName: `${person.firstName} ${person.lastName}`,
+          actor: { kind: 'member', id: memberId, name: `${person.firstName} ${person.lastName}` },
           memberId,
         },
         at(daysAgo, hour, 12),
@@ -364,8 +361,7 @@ async function auditPeopleAdded(
       {
         type: 'people',
         action: 'employee.created',
-        actorMemberId: actorId,
-        actorName,
+        actor: { kind: 'member', id: actorId, name: actorName },
         employeeId: id,
         params: { employeeName: `${person.firstName} ${person.lastName}` },
       },
@@ -435,8 +431,7 @@ async function seedMembers(
         {
           type: 'auth',
           action: 'member.invited',
-          actorMemberId: ctx.founderId,
-          actorName: ctx.founderName,
+          actor: { kind: 'member', id: ctx.founderId, name: ctx.founderName },
           memberId: id,
           // The label as the row spells it, snapshot at write time — the same
           // rule the members service follows, so a rename never rewrites the log.
@@ -454,8 +449,7 @@ async function seedMembers(
           {
             type: 'auth',
             action: 'member.joined',
-            actorMemberId: id,
-            actorName: displayName,
+            actor: { kind: 'member', id, name: displayName },
             memberId: id,
             params: { memberName: displayName },
           },
@@ -506,8 +500,7 @@ async function seedAssets(
       {
         type: 'assets',
         action: 'asset.created',
-        actorMemberId: actorId,
-        actorName,
+        actor: { kind: 'member', id: actorId, name: actorName },
         assetId: id,
         params: { assetName: asset.name, assetTag },
       },
@@ -596,8 +589,7 @@ async function seedHoldings(tx: DbOrTx, at: Clock, ctx: HoldingSeedContext): Pro
       {
         type: 'assets',
         action: 'asset.assigned',
-        actorMemberId: ctx.founderId,
-        actorName: ctx.founderName,
+        actor: { kind: 'member', id: ctx.founderId, name: ctx.founderName },
         assetId,
         employeeId,
         params: { assetName: asset.name, holderName },
@@ -658,8 +650,7 @@ async function seedHoldings(tx: DbOrTx, at: Clock, ctx: HoldingSeedContext): Pro
       {
         type: 'assets',
         action: 'asset.checked_in',
-        actorMemberId: ctx.founderId,
-        actorName: ctx.founderName,
+        actor: { kind: 'member', id: ctx.founderId, name: ctx.founderName },
         assetId,
         employeeId,
         params: { assetName: asset.name, holderName, outcome },
@@ -700,8 +691,7 @@ async function seedOffboarding(
       {
         type: 'people',
         action: 'employee.offboarding_started',
-        actorMemberId: actorId,
-        actorName,
+        actor: { kind: 'member', id: actorId, name: actorName },
         employeeId: id,
         params: { employeeName: displayName, scheduledReturns },
       },

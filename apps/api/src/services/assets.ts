@@ -20,7 +20,7 @@ import { containsAny } from '@/lib/search.js';
 import { serializeAsset, serializeAssignment } from '@/lib/serialize.js';
 import type { Actor } from '@/types/audit.js';
 import type { StatusMove } from '@/types/assets.js';
-import { writeAudit } from './audit.js';
+import { auditActor, writeAudit } from './audit.js';
 import { activeAssignment, assetHistory, openAssignment } from './assignments.js';
 import { listAttachments, storedNamesForAsset } from './attachments.js';
 import { computeNextTag } from './tag.js';
@@ -222,9 +222,7 @@ export async function createAsset(deps: AppDeps, actor: Actor, input: AssetCreat
       {
         type: 'assets',
         action: 'asset.created',
-        actorMemberId: actor.id,
-        actorApiTokenId: actor.apiTokenId,
-        actorName: actor.displayName,
+        actor: auditActor(actor),
         assetId: id,
         params: { assetName: input.name, assetTag },
       },
@@ -250,9 +248,7 @@ export async function createAsset(deps: AppDeps, actor: Actor, input: AssetCreat
         {
           type: 'assets',
           action: 'asset.assigned',
-          actorMemberId: actor.id,
-          actorApiTokenId: actor.apiTokenId,
-          actorName: actor.displayName,
+          actor: auditActor(actor),
           assetId: id,
           employeeId: holder.id,
           params: { assetName: input.name, assetTag, holderName },
@@ -346,9 +342,7 @@ export async function updateAsset(deps: AppDeps, actor: Actor, id: string, patch
         {
           type: 'assets',
           action: 'asset.updated',
-          actorMemberId: actor.id,
-          actorApiTokenId: actor.apiTokenId,
-          actorName: actor.displayName,
+          actor: auditActor(actor),
           assetId: id,
           params: { ...subject, changedFields },
         },
@@ -361,9 +355,7 @@ export async function updateAsset(deps: AppDeps, actor: Actor, id: string, patch
         {
           type: 'assets',
           action: 'asset.status_changed',
-          actorMemberId: actor.id,
-          actorApiTokenId: actor.apiTokenId,
-          actorName: actor.displayName,
+          actor: auditActor(actor),
           assetId: id,
           params: { ...subject, ...statusMove },
         },
@@ -401,9 +393,7 @@ export async function deleteAsset(deps: AppDeps, actor: Actor, id: string): Prom
       {
         type: 'assets',
         action: 'asset.deleted',
-        actorMemberId: actor.id,
-        actorApiTokenId: actor.apiTokenId,
-        actorName: actor.displayName,
+        actor: auditActor(actor),
         params: { assetName: asset.name, assetTag: asset.assetTag },
       },
       now,

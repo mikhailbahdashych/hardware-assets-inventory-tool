@@ -18,7 +18,7 @@ import { nowIso } from '@/lib/dates.js';
 import { newId } from '@/lib/ids.js';
 import { AppError, invalidFields, notFound } from '@/lib/errors.js';
 import { serializeAsset } from '@/lib/serialize.js';
-import { writeAudit } from './audit.js';
+import { auditActor, writeAudit } from './audit.js';
 import { notifyLinkedMember } from './notifications.js';
 import { assignableStatuses, requireStatus } from './workflow.js';
 
@@ -184,9 +184,7 @@ export async function assignAsset(
       {
         type: 'assets',
         action: 'asset.assigned',
-        actorMemberId: actor.id,
-        actorApiTokenId: actor.apiTokenId,
-        actorName: actor.displayName,
+        actor: auditActor(actor),
         assetId,
         employeeId: holder.id,
         params: {
@@ -278,9 +276,7 @@ export async function checkinAsset(
       {
         type: 'assets',
         action: 'asset.checked_in',
-        actorMemberId: actor.id,
-        actorApiTokenId: actor.apiTokenId,
-        actorName: actor.displayName,
+        actor: auditActor(actor),
         assetId,
         employeeId: open.employeeId,
         params: {

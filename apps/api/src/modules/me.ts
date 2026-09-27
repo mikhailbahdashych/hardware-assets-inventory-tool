@@ -10,7 +10,7 @@ import { hashPassword, verifyPassword } from '@/lib/password.js';
 import { serializeMember } from '@/lib/serialize.js';
 import { hashToken } from '@/lib/tokens.js';
 import { requireAuth, requireSession } from '@/plugins/rbac.js';
-import { writeAudit } from '@/services/audit.js';
+import { auditActor, writeAudit } from '@/services/audit.js';
 import { beginEnrolment, confirmEnrolment } from '@/services/mfa.js';
 import { SESSION_COOKIE } from '@/services/sessions.js';
 import { getSettings } from '@/services/settings.js';
@@ -106,8 +106,7 @@ export function registerMeRoutes(app: FastifyInstance, deps: AppDeps): void {
           {
             type: 'auth',
             action: 'auth.password_changed',
-            actorMemberId: member.id,
-            actorName: member.displayName,
+            actor: auditActor(member),
             memberId: member.id,
           },
           now,
@@ -143,8 +142,7 @@ export function registerMeRoutes(app: FastifyInstance, deps: AppDeps): void {
         {
           type: 'auth',
           action: 'member.mfa_enrolled',
-          actorMemberId: member.id,
-          actorName: member.displayName,
+          actor: auditActor(member),
           memberId: member.id,
           params: { memberName: member.displayName },
         },
