@@ -1,0 +1,1 @@
+ALTER TABLE `members` ADD `mfa_last_step` integer;

@@ -1,5 +1,5 @@
 import { randomInt } from 'node:crypto';
-import { and, count, eq, isNull } from 'drizzle-orm';
+import { and, count, eq, isNull, lt, or } from 'drizzle-orm';
 import { RECOVERY_CODE_COUNT } from '@inventory/shared';
 import type { Db, DbOrTx } from '@/types/db.js';
 import type { MfaEnrolment, MfaStatus } from '@/types/mfa.js';
@@ -81,12 +81,14 @@ export async function confirmEnrolment(
   if (!member.mfaSecret) {
     throw new AppError(409, 'mfa_not_started', 'Start setting up two-factor authentication first.');
   }
-  if (!verifyTotp(member.mfaSecret, code, now)) {
-    throw new AppError(422, 'mfa_code_invalid', 'That code is not right — try the current one.');
-  }
 
   const codes = Array.from({ length: RECOVERY_CODE_COUNT }, generateRecoveryCode);
   await db.transaction(async (tx) => {
+    // Accepted here counts as used: the code that proved the authenticator
+    // does not also get to sign in with it a few seconds later.
+    if (!(await acceptTotp(tx, member, code, now))) {
+      throw new AppError(422, 'mfa_code_invalid', 'That code is not right — try the current one.');
+    }
     await tx
       .update(members)
       .set({ mfaConfirmedAt: nowIso(now), updatedAt: nowIso(now) })
@@ -108,7 +110,7 @@ export async function verifyChallenge(
   now: Date,
 ): Promise<boolean> {
   const candidate = code.trim().toLowerCase();
-  if (member.mfaSecret && verifyTotp(member.mfaSecret, code, now)) return true;
+  if (await acceptTotp(db, member, code, now)) return true;
 
   const hash = hashToken(candidate);
   const [match] = await db
@@ -128,6 +130,42 @@ export async function verifyChallenge(
     .set({ usedAt: nowIso(now) })
     .where(eq(mfaRecoveryCodes.id, match.id));
   return true;
+}
+
+/**
+ * An authenticator code, accepted at most once — RFC 6238 §5.2. The step the
+ * code belongs to is recorded, and nothing at or before the recorded step is
+ * accepted again: monotonic rather than "not the last code", so an earlier
+ * code still inside the skew window is refused too once a later one was taken.
+ *
+ * The claim is one conditional UPDATE rather than a read and a write, so two
+ * requests racing the same code cannot both win: on SQLite the write gate puts
+ * one behind the other, on Postgres the second waits on the row lock and then
+ * matches nothing. Call it inside the transaction whose work the code buys, so
+ * a rollback un-spends it. A refusal is plain `false`, exactly what a wrong
+ * code answers — a spent code must not read differently from a bad one.
+ */
+async function acceptTotp(
+  db: DbOrTx,
+  member: MemberRow,
+  code: string,
+  now: Date,
+): Promise<boolean> {
+  if (!member.mfaSecret) return false;
+  const step = verifyTotp(member.mfaSecret, code, now);
+  if (step === null) return false;
+
+  const claimed = await db
+    .update(members)
+    .set({ mfaLastStep: step })
+    .where(
+      and(
+        eq(members.id, member.id),
+        or(isNull(members.mfaLastStep), lt(members.mfaLastStep, step)),
+      ),
+    )
+    .returning({ id: members.id });
+  return claimed.length > 0;
 }
 
 /** How many are left, for the UI to say so before somebody runs out. */
@@ -163,7 +201,7 @@ export async function unusedRecoveryCodeCounts(db: DbOrTx): Promise<Map<string, 
 export async function resetMemberMfa(db: DbOrTx, memberId: string, now: Date): Promise<void> {
   await db
     .update(members)
-    .set({ mfaSecret: null, mfaConfirmedAt: null, updatedAt: nowIso(now) })
+    .set({ mfaSecret: null, mfaConfirmedAt: null, mfaLastStep: null, updatedAt: nowIso(now) })
     .where(eq(members.id, memberId));
   await db.delete(mfaRecoveryCodes).where(eq(mfaRecoveryCodes.memberId, memberId));
   // Sessions go too, the same way a password reset ends them. An admin resets
@@ -234,7 +272,9 @@ export async function resetMemberRecoveryCodes(db: DbOrTx, memberId: string): Pr
  * sitting in the database in the meantime.
  */
 export async function wipeAllMfa(db: DbOrTx, now: Date): Promise<void> {
-  await db.update(members).set({ mfaSecret: null, mfaConfirmedAt: null, updatedAt: nowIso(now) });
+  await db
+    .update(members)
+    .set({ mfaSecret: null, mfaConfirmedAt: null, mfaLastStep: null, updatedAt: nowIso(now) });
   await db.delete(mfaRecoveryCodes);
 }
 

@@ -73,38 +73,48 @@ describe('totpCode', () => {
 
 describe('verifyTotp', () => {
   const now = new Date(1111111109 * 1000);
+  /** That moment as a time step: 1111111109 / 30, floored. */
+  const step = 37037036;
 
   it('accepts the code for this moment', () => {
-    expect(verifyTotp(RFC_SECRET, totpCode(RFC_SECRET, now), now)).toBe(true);
+    expect(verifyTotp(RFC_SECRET, totpCode(RFC_SECRET, now), now)).toBe(step);
   });
 
   it('accepts one step either side, because clocks drift', () => {
     const previous = totpCode(RFC_SECRET, new Date(now.getTime() - 30_000));
     const next = totpCode(RFC_SECRET, new Date(now.getTime() + 30_000));
-    expect(verifyTotp(RFC_SECRET, previous, now)).toBe(true);
-    expect(verifyTotp(RFC_SECRET, next, now)).toBe(true);
+    expect(verifyTotp(RFC_SECRET, previous, now)).toBe(step - 1);
+    expect(verifyTotp(RFC_SECRET, next, now)).toBe(step + 1);
+  });
+
+  it('names the step a code belongs to, not the step it arrived in', () => {
+    // What the replay guard records (RFC 6238 §5.2): the same code typed at
+    // :29 and again at :31 is one step, whichever window it lands in.
+    const code = totpCode(RFC_SECRET, now);
+    expect(verifyTotp(RFC_SECRET, code, new Date(now.getTime() + 30_000))).toBe(step);
+    expect(verifyTotp(RFC_SECRET, code, new Date(now.getTime() - 30_000))).toBe(step);
   });
 
   it('refuses two steps away, so the window stays a window', () => {
     const stale = totpCode(RFC_SECRET, new Date(now.getTime() - 90_000));
-    expect(verifyTotp(RFC_SECRET, stale, now)).toBe(false);
+    expect(verifyTotp(RFC_SECRET, stale, now)).toBeNull();
   });
 
   it('refuses anything that is not a live code', () => {
     for (const bad of ['', '000000', 'abcdef', '12345', '1234567', '  ']) {
-      expect(verifyTotp(RFC_SECRET, bad, now), bad).toBe(false);
+      expect(verifyTotp(RFC_SECRET, bad, now), bad).toBeNull();
     }
   });
 
   it('reads a code the way a person types it, spaces and all', () => {
     const code = totpCode(RFC_SECRET, now);
-    expect(verifyTotp(RFC_SECRET, ` ${code.slice(0, 3)} ${code.slice(3)} `, now)).toBe(true);
+    expect(verifyTotp(RFC_SECRET, ` ${code.slice(0, 3)} ${code.slice(3)} `, now)).toBe(step);
   });
 
   it('says no rather than throwing when the stored secret is unusable', () => {
     // A corrupt column must fail closed, not 500 the login route.
-    expect(verifyTotp('not-base32!', '123456', now)).toBe(false);
-    expect(verifyTotp('', '123456', now)).toBe(false);
+    expect(verifyTotp('not-base32!', '123456', now)).toBeNull();
+    expect(verifyTotp('', '123456', now)).toBeNull();
   });
 });
 
