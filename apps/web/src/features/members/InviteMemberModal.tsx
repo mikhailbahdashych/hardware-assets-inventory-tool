@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from 'react';
 import { fieldErrors } from '@/api/formErrors';
 import { useInviteMember } from '@/api/mutations';
-import { DROPDOWN_LIMIT, useEmployees, useRoles } from '@/api/queries';
+import { DROPDOWN_LIMIT, useEmployees, useMembers, useRoles } from '@/api/queries';
 import { leastPrivileged } from '@/lib/roles';
 import { Button, Dropdown, ErrorState, Field, Input, Modal } from '@/components/ui';
 import formStyles from '@/components/ui/FormModal.module.css';
@@ -23,6 +23,11 @@ export function InviteMemberModal({ onClose }: InviteMemberModalProps) {
   // A dropdown has no search box, so it asks for as many people as the
   // endpoint will give — see DROPDOWN_LIMIT for what happens past that.
   const employees = useEmployees({ limit: DROPDOWN_LIMIT, offset: 0 });
+  // Who already signs in as whom: one member per employee, so an employee
+  // somebody is linked to is not on offer. Read off the member list rather
+  // than a flag on every employee payload — the public API sends that shape
+  // too — and the API refuses (409 employee_linked) whatever this misses.
+  const members = useMembers({ limit: DROPDOWN_LIMIT, offset: 0 });
   const roles = useRoles();
   const invite = useInviteMember();
   const errors = fieldErrors(invite.error);
@@ -33,12 +38,23 @@ export function InviteMemberModal({ onClose }: InviteMemberModalProps) {
    * the two fields rather than the whole body: the email above it is typed, not
    * fetched, and a panel is no reason to throw it away.
    */
-  const failure = roles.isError ? roles.error : employees.isError ? employees.error : null;
+  const failure = roles.isError
+    ? roles.error
+    : employees.isError
+      ? employees.error
+      : members.isError
+        ? members.error
+        : null;
 
   function retry(): void {
     void roles.refetch();
     void employees.refetch();
+    void members.refetch();
   }
+
+  const linked = new Set(
+    (members.isSuccess ? members.data.members : []).map((member) => member.employeeId),
+  );
 
   // Until the admin picks one it is the least a new member can be given —
   // which is a question about the workspace's rows, not a slug this build can
@@ -129,10 +145,9 @@ export function InviteMemberModal({ onClose }: InviteMemberModalProps) {
                   value={employeeId}
                   options={[
                     { value: '', label: '— No link —' },
-                    ...(employees.isSuccess ? employees.data.employees : []).map((employee) => ({
-                      value: employee.id,
-                      label: employee.displayName,
-                    })),
+                    ...(employees.isSuccess ? employees.data.employees : [])
+                      .filter((employee) => !linked.has(employee.id))
+                      .map((employee) => ({ value: employee.id, label: employee.displayName })),
                   ]}
                   onChange={setEmployeeId}
                 />

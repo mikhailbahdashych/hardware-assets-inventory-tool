@@ -34,8 +34,13 @@ afterEach(async () => {
 
 /** The pre-squash folder cut down to what one release shipped. */
 function presquashAsOf(entries: number): string {
+  return folderAsOf(PG ? 'migrations-pg-presquash' : 'migrations-presquash', entries);
+}
+
+/** A migration folder cut down to its first `entries` migrations. */
+function folderAsOf(folder: string, entries: number): string {
   scratch = mkdtempSync(join(tmpdir(), 'inventory-presquash-'));
-  const source = join(MIGRATIONS_ROOT, PG ? 'migrations-pg-presquash' : 'migrations-presquash');
+  const source = join(MIGRATIONS_ROOT, folder);
   cpSync(source, scratch, { recursive: true });
   const journalPath = join(scratch, 'meta', '_journal.json');
   const journal = JSON.parse(readFileSync(journalPath, 'utf8')) as { entries: unknown[] };
@@ -129,5 +134,36 @@ describe('booting a fresh database', () => {
     expect(applied).toBe(rows.length);
     expect(applied).toBeGreaterThan(1);
     expect(await runMigrations(bare.db, MIGRATIONS_ROOT)).toBe(0);
+  });
+});
+
+describe('0002 on a workspace that already has two members on one employee', () => {
+  it('keeps the earliest link and unlinks the rest, rather than failing every boot', async () => {
+    bare = await bareDatabase();
+    await applyFolder(bare.db, folderAsOf(PG ? 'migrations-pg' : 'migrations', 2));
+    const at = (day: string) => `2026-01-0${day}T00:00:00.000Z`;
+    await query(
+      bare.db,
+      sql`INSERT INTO employees (id, first_name, last_name, email, status, created_at, updated_at)
+          VALUES ('emp-1', 'Grace', 'Chen', 'grace@acme.io', 'active', ${at('1')}, ${at('1')})`,
+    );
+    for (const [id, email, day] of [
+      ['m-late', 'g.chen@acme.io', '3'],
+      ['m-first', 'grace.chen@acme.io', '2'],
+    ] as const) {
+      await query(
+        bare.db,
+        sql`INSERT INTO members (id, email, display_name, role, status, employee_id, created_at, updated_at)
+            VALUES (${id}, ${email}, 'Grace Chen', 'viewer', 'invited', 'emp-1', ${at(day)}, ${at(day)})`,
+      );
+    }
+
+    await runMigrations(bare.db, MIGRATIONS_ROOT);
+
+    const links = await query(bare.db, sql`SELECT id, employee_id FROM members ORDER BY id`);
+    expect(links).toEqual([
+      { id: 'm-first', employee_id: 'emp-1' },
+      { id: 'm-late', employee_id: null },
+    ]);
   });
 });

@@ -181,6 +181,19 @@ describe('inviting a member', () => {
     expect(res.json().error.fields.email).toMatch(/already/i);
   });
 
+  it('refuses a second member for an employee somebody is already linked to', async () => {
+    ctx = await buildTestApp();
+    const admin = await setupOrg(ctx.app);
+    const employee = await createEmployee(admin);
+    await invite(admin, { employeeId: employee.id });
+
+    const second = await invite(admin, { email: 'jonas.weber@acme.io', employeeId: employee.id });
+    expect(second.statusCode).toBe(409);
+    expect(second.json().error.code).toBe('employee_linked');
+    expect(second.json().error.message).toMatch(/^Grace Chen is already linked to that employee/);
+    expect(await ctx.db.select().from(members)).toHaveLength(2);
+  });
+
   it('refuses to link an employee who does not exist', async () => {
     ctx = await buildTestApp();
     const admin = await setupOrg(ctx.app);
@@ -327,6 +340,23 @@ describe('changing a member', () => {
     expect(res.statusCode).toBe(422);
     expect(res.json().error.fields.role).toMatch(/nowhere/);
     expect((await ctx.db.select().from(members)).at(-1)!.role).toBe('manager');
+  });
+
+  it('refuses to link an employee another member already holds the link to', async () => {
+    ctx = await buildTestApp();
+    const admin = await setupOrg(ctx.app);
+    const employee = await createEmployee(admin);
+    await invite(admin, { employeeId: employee.id });
+    const { member } = (await invite(admin, { email: 'jonas.weber@acme.io' })).json();
+
+    const res = await inject(ctx.app, {
+      method: 'PATCH',
+      url: `/api/v1/members/${member.id}`,
+      cookie: admin,
+      body: { employeeId: employee.id },
+    });
+    expect(res.statusCode).toBe(409);
+    expect(res.json().error.code).toBe('employee_linked');
   });
 
   it('links and unlinks an employee record', async () => {

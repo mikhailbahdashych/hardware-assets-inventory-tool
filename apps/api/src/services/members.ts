@@ -91,7 +91,8 @@ export async function inviteMember(
     // Roles are rows, so the id on the form is checked against them here — the
     // schema can only say it is a non-empty string.
     const role = await requireRole(tx, input.role);
-    const employee = input.employeeId === null ? null : await requireEmployee(tx, input.employeeId);
+    const employee =
+      input.employeeId === null ? null : await requireUnlinkedEmployee(tx, input.employeeId);
 
     const id = newId();
     await tx.insert(members).values({
@@ -306,6 +307,7 @@ export async function updateMember(
     // undefined is absent ("leave the link alone"); null is the design's
     // "— No link —", which is a value.
     if (patch.employeeId !== undefined && patch.employeeId !== current.employeeId) {
+      if (patch.employeeId !== null) await requireUnlinkedEmployee(tx, patch.employeeId);
       values.employeeId = patch.employeeId;
     }
 
@@ -486,6 +488,28 @@ async function requireMember(tx: DbOrTx, id: string): Promise<MemberRow> {
 async function requireEmployee(tx: DbOrTx, id: string) {
   const [employee] = await tx.select().from(employees).where(eq(employees.id, id));
   if (!employee) throw invalidFields({ employeeId: 'That employee record no longer exists.' });
+  return employee;
+}
+
+/**
+ * An employee nobody signs in as yet. One member per employee is the index's
+ * rule (`members_one_per_employee`); this is the courtesy that names who holds
+ * the link, before anything is written. The caller's own row never matches:
+ * `updateMember` only asks when the link would change.
+ */
+async function requireUnlinkedEmployee(tx: DbOrTx, id: string) {
+  const employee = await requireEmployee(tx, id);
+  const [holder] = await tx
+    .select({ displayName: members.displayName })
+    .from(members)
+    .where(eq(members.employeeId, id));
+  if (holder) {
+    throw new AppError(
+      409,
+      'employee_linked',
+      `${holder.displayName} is already linked to that employee — unlink them first.`,
+    );
+  }
   return employee;
 }
 
