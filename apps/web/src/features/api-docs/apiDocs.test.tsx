@@ -188,10 +188,22 @@ describe('one operation, in full', () => {
     renderApp(workspace(), '/api-docs');
     const article = await card('delete', '/api/public/v1/assets/{id}');
 
+    // The 204 a delete declares, and not the generator's default 200 beside it.
+    const responses = within(article).getByRole('list', { name: 'Responses' });
+    expect(within(responses).getAllByRole('listitem')).toHaveLength(1);
+    expect(responses).toHaveTextContent('204');
+    expect(responses).toHaveTextContent('Done. No body.');
+    // No body declared, so no example drawn for one.
+    expect(within(article).queryByLabelText('Example 204')).toBeNull();
+  });
+
+  it('quotes a response the document leaves undescribed as the document has it', async () => {
+    renderApp(workspace(), '/api-docs');
+    const article = await card('get', '/api/public/v1/workflow');
+
     // The generator's placeholder, drawn as written: this page quotes the
     // document rather than improving on it.
     const responses = within(article).getByRole('list', { name: 'Responses' });
-    expect(within(responses).getAllByRole('listitem')).toHaveLength(1);
     expect(responses).toHaveTextContent('200');
     expect(responses).toHaveTextContent('Default Response');
   });

@@ -84,7 +84,7 @@
       "post": {
         "summary": "Create an asset",
         "tags": ["assets"],
-        "description": "Answers `{asset}`. An asset created as `assigned` opens its first ownership record in the same transaction, so `assignedToId` is required in that case. Requires the `assets:write` scope.",
+        "description": "Answers `{asset}`. An asset created as `assigned` opens its first ownership record in the same transaction, so `assignedToEmployeeId` is required in that case. Requires the `assets:write` scope.",
         "requestBody": {
           "required": true,
           "content": {
@@ -335,8 +335,8 @@
           }
         ],
         "responses": {
-          "200": {
-            "description": "Default Response"
+          "204": {
+            "description": "Done. No body."
           }
         }
       }
@@ -708,8 +708,8 @@
           }
         ],
         "responses": {
-          "200": {
-            "description": "Default Response"
+          "204": {
+            "description": "Done. No body."
           }
         }
       }

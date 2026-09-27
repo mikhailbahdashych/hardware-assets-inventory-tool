@@ -35,6 +35,8 @@ interface Operation {
   description?: string;
   tags?: string[];
   security?: Record<string, string[]>[];
+  requestBody?: { content: Record<string, { schema?: { properties?: Record<string, unknown> } }> };
+  responses?: Record<string, { description?: string; content?: unknown }>;
 }
 
 interface Spec {
@@ -110,6 +112,43 @@ describe('the OpenAPI document', () => {
         );
         expect(scope).toBeDefined();
       }
+    }
+  });
+
+  it('names, in prose, only body fields the body really has', async () => {
+    // A renamed field left behind in a sentence sends an integrator to a key
+    // the API ignores: `POST /assets` once said `assignedToId` of the field
+    // that is `assignedToEmployeeId`. A backticked camelCase word in a
+    // body-taking route's description is a field of that body, or a mistake.
+    ctx = await buildTestApp();
+    const spec = await fetchSpec();
+
+    for (const [path, methods] of Object.entries(spec.paths)) {
+      for (const [method, operation] of Object.entries(methods)) {
+        const schema = operation.requestBody?.content['application/json']?.schema;
+        if (schema === undefined) continue;
+        const fields = Object.keys(schema.properties ?? {});
+        const named = [...(operation.description ?? '').matchAll(/`([a-z]+[A-Z][A-Za-z]*)`/g)];
+        const unknown = named.map((match) => match[1]).filter((name) => !fields.includes(name!));
+        expect(`${method.toUpperCase()} ${path}: ${unknown.join(', ')}`).toBe(
+          `${method.toUpperCase()} ${path}: `,
+        );
+      }
+    }
+  });
+
+  it('documents the 204 a delete answers, not a 200 it never sends', async () => {
+    ctx = await buildTestApp();
+    const spec = await fetchSpec();
+
+    const deletes = Object.entries(spec.paths).flatMap(([path, methods]) =>
+      methods.delete === undefined ? [] : [{ path, responses: methods.delete.responses }],
+    );
+    expect(deletes).toHaveLength(2);
+    for (const { path, responses } of deletes) {
+      expect(`${path}: ${Object.keys(responses ?? {}).join(', ')}`).toBe(`${path}: 204`);
+      // No body, so no content to describe.
+      expect(responses?.['204']?.content).toBeUndefined();
     }
   });
 
