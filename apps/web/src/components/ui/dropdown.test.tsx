@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { useState } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 import { Dropdown } from './Dropdown';
+import { Modal } from './Modal';
 import type { DropdownOption } from './types/dropdown';
 
 const STATUSES: DropdownOption<string>[] = [
@@ -237,5 +238,26 @@ describe('an option with a second line', () => {
 
     await userEvent.click(trigger());
     expect(screen.getByRole('option', { name: /Admin/ })).toHaveTextContent('Full access');
+  });
+});
+
+describe('inside a modal', () => {
+  it('takes the first Escape for itself and leaves the modal open', async () => {
+    const onClose = vi.fn();
+    render(
+      <Modal title="Edit asset" onClose={onClose}>
+        <Harness />
+      </Modal>,
+    );
+    await userEvent.click(trigger());
+    expect(screen.getByRole('listbox')).toBeInTheDocument();
+
+    await userEvent.keyboard('{Escape}');
+    expect(screen.queryByRole('listbox')).toBeNull();
+    expect(onClose).not.toHaveBeenCalled();
+
+    // The next one is the modal's.
+    await userEvent.keyboard('{Escape}');
+    expect(onClose).toHaveBeenCalledTimes(1);
   });
 });

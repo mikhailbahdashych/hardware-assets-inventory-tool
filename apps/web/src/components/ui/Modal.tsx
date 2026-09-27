@@ -1,14 +1,23 @@
-import { useEffect, useId } from 'react';
+import { useEffect, useId, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { IconButton } from './IconButton';
 import type { ModalProps } from './types/modal';
 import styles from './Modal.module.css';
+
+/** What Tab can land on. Disabled controls and `tabindex="-1"` are skipped, as the browser would. */
+const FOCUSABLE =
+  'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
 /**
  * Design modal: rgba(10,10,14,.45) overlay, top-aligned card (offset varies
  * per modal), header with title/subtitle/X, bordered footer. Esc and
  * outside-click close. Footer children: first child is pushed left
  * (e.g. "* Required"), the rest align right.
+ *
+ * `aria-modal` promises that nothing behind the dialog is reachable, so Tab
+ * wraps inside the card rather than walking off into the page under the
+ * overlay. An Escape somebody inside already answered — an open `Dropdown`
+ * closing its list calls `preventDefault` — is theirs, not the modal's.
  */
 export function Modal({
   title,
@@ -21,10 +30,13 @@ export function Modal({
   children,
 }: ModalProps) {
   const titleId = useId();
+  // Null until the card mounts; the listener only runs after it has.
+  const card = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') onClose();
+      if (event.key === 'Escape' && !event.defaultPrevented) onClose();
+      if (event.key === 'Tab' && card.current) trapTab(event, card.current);
     };
     document.addEventListener('keydown', onKeyDown);
     return () => document.removeEventListener('keydown', onKeyDown);
@@ -43,6 +55,7 @@ export function Modal({
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
+        ref={card}
         className={styles.card}
         style={{ width, maxHeight }}
       >
@@ -63,4 +76,29 @@ export function Modal({
     </div>,
     document.body,
   );
+}
+
+/**
+ * Wraps Tab at the card's two ends and brings focus in from outside. Focus
+ * inside *another* dialog is left alone: that one is on top and owns it.
+ */
+function trapTab(event: KeyboardEvent, card: HTMLElement): void {
+  const focusable = [...card.querySelectorAll<HTMLElement>(FOCUSABLE)];
+  const first = focusable[0];
+  const last = focusable.at(-1);
+  if (!first || !last) return;
+
+  const active = document.activeElement;
+  const inside = active instanceof Node && card.contains(active);
+  if (!inside) {
+    if (active instanceof Element && active.closest('[role="dialog"]')) return;
+    event.preventDefault();
+    first.focus();
+  } else if (event.shiftKey && active === first) {
+    event.preventDefault();
+    last.focus();
+  } else if (!event.shiftKey && active === last) {
+    event.preventDefault();
+    first.focus();
+  }
 }
