@@ -87,6 +87,7 @@ describe('breadcrumbForPath', () => {
     expect(breadcrumbForPath('/custom-fields')).toBe('Custom fields');
     expect(breadcrumbForPath('/roles')).toBe('Roles');
     expect(breadcrumbForPath('/api-tokens')).toBe('API tokens');
+    expect(breadcrumbForPath('/api-docs')).toBe('API reference');
   });
 
   it('appends the detail label when one is known', () => {

@@ -98,12 +98,15 @@ describe('the SPA document carries a content security policy', () => {
   it('serves the app for a client route that merely begins with those letters', async () => {
     ctx = await buildTestApp({ WEB_DIST: writeDist(withInlineScript) });
 
-    // `/api-tokens` is a page. A prefix check without the slash swallowed it
-    // and answered a bookmark, a hard reload or a pasted link with the JSON
-    // 404 envelope — the app opened it fine, so only the URL bar found out.
-    const page = await ctx.app.inject({ method: 'GET', url: '/api-tokens' });
-    expect(page.statusCode).toBe(200);
-    expect(page.body).toContain('<div id="root">');
+    // `/api-tokens` and `/api-docs` are pages. A prefix check without the
+    // slash swallowed them and answered a bookmark, a hard reload or a pasted
+    // link with the JSON 404 envelope — the app opened them fine, so only the
+    // URL bar found out. Each is named, so a regression says which page broke.
+    for (const url of ['/api-tokens', '/api-docs']) {
+      const page = await ctx.app.inject({ method: 'GET', url });
+      expect(page.statusCode, url).toBe(200);
+      expect(page.body, url).toContain('<div id="root">');
+    }
 
     // The namespace itself is still the API's, and an unknown route under it
     // answers as the API rather than handing a client a page.

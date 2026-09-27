@@ -36,8 +36,8 @@ export function leastPrivileged(roles: WorkspaceRole[]): WorkspaceRole | undefin
 
 /**
  * Whether this member holds the system role. **The one gate in the app that
- * asks about a role rather than an action**, and it exists for one page: API
- * tokens. A grantable `tokens.manage` would rebuild the ladder the admin
+ * asks about a role rather than an action**, and it exists for API tokens —
+ * the page that mints them and the reference for what they call. A grantable `tokens.manage` would rebuild the ladder the admin
  * shield closed — a custom role that can mint an `assets:write` token holds
  * workspace power by proxy, through a credential no session check ever looks
  * at again — so it is deliberately not in `ACTIONS`, and the API's own guard

@@ -68,6 +68,9 @@ const SECTION_LABELS: Record<string, string> = {
   'custom-fields': 'Custom fields',
   roles: 'Roles',
   'api-tokens': 'API tokens',
+  // No sidebar item — it is reached from the API tokens page — but the
+  // topbar and the tab title still name where you are.
+  'api-docs': 'API reference',
   admin: 'Admin',
 };
 

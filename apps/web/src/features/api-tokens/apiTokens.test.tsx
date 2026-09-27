@@ -136,9 +136,15 @@ describe('the token list', () => {
     expect(await screen.findByText(/no api tokens yet/i)).toBeInTheDocument();
   });
 
-  it('points at the reference this instance is already serving', async () => {
+  it('points at the reference to read, and at the one to try calls in', async () => {
     renderApp(workspace(), '/api-tokens');
-    expect(await screen.findByRole('link', { name: /api reference/i })).toHaveAttribute(
+    const summary = await screen.findByText(/credentials for the systems/i);
+    // Read here, in the app's own styles; try there, in the page the API serves.
+    expect(within(summary).getByRole('link', { name: 'API reference' })).toHaveAttribute(
+      'href',
+      '/api-docs',
+    );
+    expect(within(summary).getByRole('link', { name: 'interactive reference' })).toHaveAttribute(
       'href',
       '/api/public/docs',
     );

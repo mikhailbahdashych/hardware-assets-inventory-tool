@@ -1,0 +1,875 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Inventory public API",
+    "description": "The curated, versioned surface an integration talks to. Mint a token on the API tokens page, send it as `Authorization: Bearer invt_…`, and every endpoint below opens for the scopes that token holds. Cookies are never consulted here; the internal `/api/v1` the app itself uses is not this and is not a contract.",
+    "version": "0.2.0"
+  },
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "description": "A token minted on the API tokens page. Shown once, when it is made."
+      }
+    },
+    "schemas": {}
+  },
+  "paths": {
+    "/api/public/v1/assets": {
+      "get": {
+        "summary": "List assets",
+        "tags": ["assets"],
+        "description": "One page of assets, newest first, each with its current holder. Answers `{assets, total, statusCounts}` — `total` counts the rows behind the filter, `statusCounts` ignores it. Requires the `assets:read` scope.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "query",
+            "name": "q",
+            "required": false
+          },
+          {
+            "schema": {
+              "default": 50,
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200
+            },
+            "in": "query",
+            "name": "limit",
+            "required": false
+          },
+          {
+            "schema": {
+              "default": 0,
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "in": "query",
+            "name": "offset",
+            "required": false
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "query",
+            "name": "status",
+            "required": false
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": ["true", "false"]
+            },
+            "in": "query",
+            "name": "assignable",
+            "required": false
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      },
+      "post": {
+        "summary": "Create an asset",
+        "tags": ["assets"],
+        "description": "Answers `{asset}`. An asset created as `assigned` opens its first ownership record in the same transaction, so `assignedToEmployeeId` is required in that case. Requires the `assets:write` scope.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 160
+                  },
+                  "category": {
+                    "type": "string",
+                    "enum": ["laptops", "desktops", "monitors", "phones", "peripherals"]
+                  },
+                  "status": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "assetTag": {
+                    "type": "string",
+                    "maxLength": 60
+                  },
+                  "model": {
+                    "nullable": true,
+                    "type": "string",
+                    "maxLength": 120
+                  },
+                  "serialNumber": {
+                    "nullable": true,
+                    "type": "string",
+                    "maxLength": 120
+                  },
+                  "purchaseDate": {
+                    "nullable": true,
+                    "type": "string"
+                  },
+                  "purchasePriceCents": {
+                    "default": null,
+                    "nullable": true,
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 100000000
+                  },
+                  "currency": {
+                    "default": null,
+                    "nullable": true,
+                    "type": "string",
+                    "enum": ["EUR", "USD", "GBP", "PLN"]
+                  },
+                  "supplier": {
+                    "nullable": true,
+                    "type": "string",
+                    "maxLength": 120
+                  },
+                  "warrantyUntil": {
+                    "nullable": true,
+                    "type": "string"
+                  },
+                  "notes": {
+                    "nullable": true,
+                    "type": "string",
+                    "maxLength": 4000
+                  },
+                  "customValues": {
+                    "type": "object",
+                    "additionalProperties": {
+                      "nullable": true,
+                      "type": "string"
+                    }
+                  },
+                  "assignedToEmployeeId": {
+                    "default": null,
+                    "nullable": true,
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "checkoutDate": {
+                    "nullable": true,
+                    "type": "string"
+                  }
+                },
+                "required": ["name", "category", "status"]
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/api/public/v1/assets/{id}": {
+      "get": {
+        "summary": "Read one asset",
+        "tags": ["assets"],
+        "description": "Answers `{asset, customFields, history, attachments, auditTrail}` — the ownership history in full and the last 20 events. Requires the `assets:read` scope.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "in": "path",
+            "name": "id",
+            "required": true
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      },
+      "patch": {
+        "summary": "Edit an asset",
+        "tags": ["assets"],
+        "description": "Answers `{asset}`. Absent fields are left alone and an explicit `null` clears one. A status move must be an edge this workspace’s workflow has; moving into or out of `assigned` is refused — assign and check in instead. Requires the `assets:write` scope.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 160
+                  },
+                  "category": {
+                    "type": "string",
+                    "enum": ["laptops", "desktops", "monitors", "phones", "peripherals"]
+                  },
+                  "status": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "assetTag": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 60
+                  },
+                  "model": {
+                    "nullable": true,
+                    "type": "string",
+                    "maxLength": 120
+                  },
+                  "serialNumber": {
+                    "nullable": true,
+                    "type": "string",
+                    "maxLength": 120
+                  },
+                  "purchaseDate": {
+                    "nullable": true,
+                    "type": "string"
+                  },
+                  "purchasePriceCents": {
+                    "nullable": true,
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 100000000
+                  },
+                  "currency": {
+                    "nullable": true,
+                    "type": "string",
+                    "enum": ["EUR", "USD", "GBP", "PLN"]
+                  },
+                  "supplier": {
+                    "nullable": true,
+                    "type": "string",
+                    "maxLength": 120
+                  },
+                  "warrantyUntil": {
+                    "nullable": true,
+                    "type": "string"
+                  },
+                  "notes": {
+                    "nullable": true,
+                    "type": "string",
+                    "maxLength": 4000
+                  },
+                  "customValues": {
+                    "type": "object",
+                    "additionalProperties": {
+                      "nullable": true,
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "in": "path",
+            "name": "id",
+            "required": true
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      },
+      "delete": {
+        "summary": "Delete an asset",
+        "tags": ["assets"],
+        "description": "Answers 204 with no body. An asset somebody is holding is refused — check it in first. Requires the `assets:write` scope.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "in": "path",
+            "name": "id",
+            "required": true
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Done. No body."
+          }
+        }
+      }
+    },
+    "/api/public/v1/assets/{id}/assign": {
+      "post": {
+        "summary": "Hand an asset to somebody",
+        "tags": ["assets"],
+        "description": "Answers `{asset}`. Needs an active employee and an asset in a status this workspace marks assignable, with nobody holding it. Requires the `assignments:write` scope.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "employeeId": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "checkoutDate": {
+                    "type": "string",
+                    "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+                  },
+                  "expectedReturnDate": {
+                    "nullable": true,
+                    "type": "string"
+                  },
+                  "notes": {
+                    "nullable": true,
+                    "type": "string",
+                    "maxLength": 1000
+                  }
+                },
+                "required": ["employeeId", "checkoutDate"]
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "in": "path",
+            "name": "id",
+            "required": true
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/api/public/v1/assets/{id}/checkin": {
+      "post": {
+        "summary": "Take an asset back",
+        "tags": ["assets"],
+        "description": "Answers `{asset}`. `newStatus` must be one the workspace marks a check-in target, and the return date may not precede the checkout. Requires the `assignments:write` scope.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "returnDate": {
+                    "type": "string",
+                    "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+                  },
+                  "newStatus": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "condition": {
+                    "default": null,
+                    "nullable": true,
+                    "type": "string",
+                    "enum": ["good", "needs_repair", "damaged"]
+                  },
+                  "notes": {
+                    "nullable": true,
+                    "type": "string",
+                    "maxLength": 1000
+                  }
+                },
+                "required": ["returnDate", "newStatus"]
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "in": "path",
+            "name": "id",
+            "required": true
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/api/public/v1/employees": {
+      "get": {
+        "summary": "List employees",
+        "tags": ["employees"],
+        "description": "One page of people, each with how many assets they hold. Answers `{employees, total}`. Requires the `employees:read` scope.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "query",
+            "name": "q",
+            "required": false
+          },
+          {
+            "schema": {
+              "default": 50,
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200
+            },
+            "in": "query",
+            "name": "limit",
+            "required": false
+          },
+          {
+            "schema": {
+              "default": 0,
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "in": "query",
+            "name": "offset",
+            "required": false
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      },
+      "post": {
+        "summary": "Create an employee",
+        "tags": ["employees"],
+        "description": "Answers `{employee}`. Email addresses are lowercased and are unique across the workspace. Requires the `employees:write` scope.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "firstName": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 80
+                  },
+                  "lastName": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 80
+                  },
+                  "email": {
+                    "type": "string",
+                    "format": "email",
+                    "pattern": "^(?!\\.)(?!.*\\.\\.)([A-Za-z0-9_'+\\-\\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
+                  },
+                  "jobTitle": {
+                    "nullable": true,
+                    "type": "string",
+                    "maxLength": 120
+                  },
+                  "department": {
+                    "nullable": true,
+                    "type": "string",
+                    "maxLength": 80
+                  },
+                  "location": {
+                    "nullable": true,
+                    "type": "string",
+                    "maxLength": 80
+                  },
+                  "employeeCode": {
+                    "nullable": true,
+                    "type": "string",
+                    "maxLength": 40
+                  },
+                  "startDate": {
+                    "nullable": true,
+                    "type": "string"
+                  }
+                },
+                "required": ["firstName", "lastName", "email"]
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/api/public/v1/employees/{id}": {
+      "get": {
+        "summary": "Read one employee",
+        "tags": ["employees"],
+        "description": "Answers `{employee, holdings, history}` — what they hold now, and what they have given back. Requires the `employees:read` scope.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "in": "path",
+            "name": "id",
+            "required": true
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      },
+      "patch": {
+        "summary": "Edit an employee",
+        "tags": ["employees"],
+        "description": "Answers `{employee}`. Absent fields are left alone and an explicit `null` clears one. Requires the `employees:write` scope.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "firstName": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 80
+                  },
+                  "lastName": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 80
+                  },
+                  "email": {
+                    "type": "string",
+                    "format": "email",
+                    "pattern": "^(?!\\.)(?!.*\\.\\.)([A-Za-z0-9_'+\\-\\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
+                  },
+                  "jobTitle": {
+                    "nullable": true,
+                    "type": "string",
+                    "maxLength": 120
+                  },
+                  "department": {
+                    "nullable": true,
+                    "type": "string",
+                    "maxLength": 80
+                  },
+                  "location": {
+                    "nullable": true,
+                    "type": "string",
+                    "maxLength": 80
+                  },
+                  "employeeCode": {
+                    "nullable": true,
+                    "type": "string",
+                    "maxLength": 40
+                  },
+                  "startDate": {
+                    "nullable": true,
+                    "type": "string"
+                  },
+                  "status": {
+                    "type": "string",
+                    "enum": ["active", "offboarding"]
+                  },
+                  "returnDueDate": {
+                    "nullable": true,
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "in": "path",
+            "name": "id",
+            "required": true
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      },
+      "delete": {
+        "summary": "Delete an employee",
+        "tags": ["employees"],
+        "description": "Answers 204 with no body. Somebody still holding an asset is refused; past holdings keep their name so history does not rewrite itself. Requires the `employees:write` scope.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "in": "path",
+            "name": "id",
+            "required": true
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Done. No body."
+          }
+        }
+      }
+    },
+    "/api/public/v1/workflow": {
+      "get": {
+        "summary": "Read the workflow",
+        "tags": ["workflow"],
+        "description": "Answers `{statuses, transitions}` — the vocabulary every `status` field on this surface is drawn from, and the moves between them. Statuses are rows a workspace edits, not a fixed list. Requires the `workflow:read` scope.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/api/public/v1/custom-fields": {
+      "get": {
+        "summary": "Read the custom field definitions",
+        "tags": ["custom-fields"],
+        "description": "Answers `{customFields}` — the keys and types an asset’s `customFields` object may carry. Requires the `custom-fields:read` scope.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/api/public/v1/audit": {
+      "get": {
+        "summary": "Read the activity log",
+        "tags": ["audit"],
+        "description": "One page of events, newest first, each already rendered to a sentence. Answers `{items, typeCounts, total}`; `typeCounts` covers the whole log, not the page. Requires the `audit:read` scope.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "enum": ["assets", "people", "auth", "system"]
+            },
+            "in": "query",
+            "name": "type",
+            "required": false
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": ["member", "token", "system"]
+            },
+            "in": "query",
+            "name": "actorKind",
+            "required": false
+          },
+          {
+            "schema": {
+              "default": 200,
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 500
+            },
+            "in": "query",
+            "name": "limit",
+            "required": false
+          },
+          {
+            "schema": {
+              "default": 0,
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "in": "query",
+            "name": "offset",
+            "required": false
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/api/public/v1/audit/export": {
+      "get": {
+        "summary": "Export the activity log",
+        "tags": ["audit"],
+        "description": "Answers `text/csv` as a download — the same rows through the same renderer the page uses. Requires the `audit:read` scope.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "enum": ["assets", "people", "auth", "system"]
+            },
+            "in": "query",
+            "name": "type",
+            "required": false
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": ["member", "token", "system"]
+            },
+            "in": "query",
+            "name": "actorKind",
+            "required": false
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    }
+  },
+  "servers": [
+    {
+      "url": "/"
+    }
+  ],
+  "tags": [
+    {
+      "name": "assets",
+      "description": "Devices, and handing them out."
+    },
+    {
+      "name": "employees",
+      "description": "The people an asset can be handed to."
+    },
+    {
+      "name": "workflow",
+      "description": "The statuses an asset can hold, and the moves between them."
+    },
+    {
+      "name": "custom-fields",
+      "description": "The extra fields this workspace records on an asset."
+    },
+    {
+      "name": "audit",
+      "description": "The activity log."
+    }
+  ]
+}

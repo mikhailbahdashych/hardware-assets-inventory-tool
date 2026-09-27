@@ -8,7 +8,7 @@ import type { ActionDefinition, PaletteGroup, PaletteInput, PaletteRow } from '.
 //
 // Assets and people are searched and capped by `GET /search` — four of each,
 // because past that the list stops being scannable and starts being a table.
-// The commands stay here and are still matched locally: they are nine strings
+// The commands stay here and are still matched locally: they are ten strings
 // this build already knows, and a round trip to filter them would be silly.
 
 const ACTIONS: ActionDefinition[] = [
@@ -57,6 +57,14 @@ const ACTIONS: ActionDefinition[] = [
     title: 'API tokens',
     icon: 'terminal',
     effect: { kind: 'navigate', to: '/api-tokens' },
+    adminOnly: true,
+  },
+  {
+    // Not in the sidebar — the API tokens page links to it — but the palette is
+    // a search, and an admin who knows the page exists should find it by name.
+    title: 'API reference',
+    icon: 'file',
+    effect: { kind: 'navigate', to: '/api-docs' },
     adminOnly: true,
   },
   {

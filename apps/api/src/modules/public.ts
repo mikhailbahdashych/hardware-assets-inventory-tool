@@ -76,6 +76,14 @@ const SPEC = '/api/public/openapi.json';
 const idParam = z.object({ id: z.string().min(1) });
 
 /**
+ * A 204's entry in the manual. Declared so a delete documents the status it
+ * answers rather than the generator's default 200 — and it is the one response
+ * schema this surface has, because it is the one with nothing to drop: no body
+ * goes through it, so the reason the others stay prose does not apply.
+ */
+const noBody = z.undefined().describe('Done. No body.');
+
+/**
  * How the document groups the surface: one tag per area, spelled as the first
  * half of the scopes that open it. The type is derived from the value, so
  * naming an area that has no tag is a compile error rather than a heading the
@@ -237,7 +245,7 @@ function registerV1(app: FastifyInstance, deps: AppDeps): void {
       'assets:write',
       'assets',
       'Create an asset',
-      'Answers `{asset}`. An asset created as `assigned` opens its first ownership record in the same transaction, so `assignedToId` is required in that case.',
+      'Answers `{asset}`. An asset created as `assigned` opens its first ownership record in the same transaction, so `assignedToEmployeeId` is required in that case.',
       { body: assetCreateInput },
     ),
     async (request) => ({ asset: await createAsset(deps, actorOf(request), request.body) }),
@@ -264,7 +272,7 @@ function registerV1(app: FastifyInstance, deps: AppDeps): void {
       'assets',
       'Delete an asset',
       'Answers 204 with no body. An asset somebody is holding is refused — check it in first.',
-      { params: idParam },
+      { params: idParam, response: { 204: noBody } },
     ),
     async (request, reply) => {
       const storedNames = await deleteAsset(deps, actorOf(request), request.params.id);
@@ -364,7 +372,7 @@ function registerV1(app: FastifyInstance, deps: AppDeps): void {
       'employees',
       'Delete an employee',
       'Answers 204 with no body. Somebody still holding an asset is refused; past holdings keep their name so history does not rewrite itself.',
-      { params: idParam },
+      { params: idParam, response: { 204: noBody } },
     ),
     async (request, reply) => {
       await deleteEmployee(deps, actorOf(request), request.params.id);
