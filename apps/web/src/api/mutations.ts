@@ -72,15 +72,15 @@ function useSessionMutation<TInput>(path: string) {
 }
 
 /**
- * The password step. Unlike the others it may *not* end in a session: an
- * account with an authenticator gets a challenge back, and `LoginPage` asks
- * for a code. Nothing is written to the cache until a session actually exists.
+ * A step that proves who somebody is — the password, or a reset link — and so
+ * may *not* end in a session: an account with an authenticator gets a
+ * challenge back, and the page asks for a code (`MfaChallenge`). Nothing is
+ * written to the cache until a session actually exists.
  */
-export function useLogin() {
+function useSignInStep<TInput>(path: string) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (input: LoginInput) =>
-      apiFetch<LoginResult>('/auth/login', { method: 'POST', body: input }),
+    mutationFn: (input: TInput) => apiFetch<LoginResult>(path, { method: 'POST', body: input }),
     onSuccess: async (result) => {
       if ('mfaRequired' in result) return;
       await queryClient.invalidateQueries({ queryKey: queryKeys.me });
@@ -88,6 +88,8 @@ export function useLogin() {
     },
   });
 }
+
+export const useLogin = () => useSignInStep<LoginInput>('/auth/login');
 
 /**
  * The code step: a challenge token plus an authenticator or recovery code.
@@ -168,8 +170,7 @@ export function useResetRecoveryCodes() {
 }
 export const useSetup = () => useSessionMutation<SetupInput>('/setup');
 export const useAcceptInvite = () => useSessionMutation<AcceptInviteInput>('/auth/accept-invite');
-export const useResetPassword = () =>
-  useSessionMutation<ResetPasswordInput>('/auth/reset-password');
+export const useResetPassword = () => useSignInStep<ResetPasswordInput>('/auth/reset-password');
 
 export function useLogout() {
   const queryClient = useQueryClient();

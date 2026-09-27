@@ -958,3 +958,59 @@ describe('a code works once — authenticator, recovery code or challenge', () =
     }
   });
 });
+
+describe('a reset link for somebody with an authenticator', () => {
+  /** A reset link for the admin, minted the way the Members page's door mints one. */
+  async function resetToken(email: string): Promise<string> {
+    const [row] = await ctx.db.select().from(members).where(eq(members.email, email));
+    return await issueAuthToken(ctx.db, row!.id, 'password_reset', new Date());
+  }
+
+  it('sets the password and then asks for the code, exactly as sign-in does', async () => {
+    ctx = await buildTestApp();
+    const cookie = await setupOrg(ctx.app);
+    await enrol(cookie, ADMIN.email);
+
+    const reset = await inject(ctx.app, {
+      method: 'POST',
+      url: '/api/v1/auth/reset-password',
+      body: { token: await resetToken(ADMIN.email), newPassword: 'Another-horse-battery2' },
+    });
+    expect(reset.statusCode, reset.body).toBe(200);
+    expect(reset.json()).toEqual({ mfaRequired: true, challengeToken: expect.any(String) });
+    // The link is half of it, like the password: no session until the code.
+    expect(reset.cookies.find((c) => c.name === 'inv_session')).toBeUndefined();
+    expect(await ctx.db.select().from(sessions)).toEqual([]);
+
+    const verified = await inject(ctx.app, {
+      method: 'POST',
+      url: '/api/v1/auth/mfa/verify',
+      body: { challengeToken: reset.json().challengeToken, code: await nextCode(ADMIN.email) },
+    });
+    expect(verified.statusCode, verified.body).toBe(200);
+    const me = await inject(ctx.app, {
+      method: 'GET',
+      url: '/api/v1/auth/me',
+      cookie: sessionCookie(verified),
+    });
+    expect(me.json().member.email).toBe(ADMIN.email);
+
+    // And the new password is the one that works now.
+    const signIn = await login({ email: ADMIN.email, password: 'Another-horse-battery2' });
+    expect(signIn.json().mfaRequired).toBe(true);
+  });
+
+  it('still signs straight in somebody with no authenticator', async () => {
+    ctx = await buildTestApp();
+    await setupOrg(ctx.app);
+
+    const reset = await inject(ctx.app, {
+      method: 'POST',
+      url: '/api/v1/auth/reset-password',
+      body: { token: await resetToken(ADMIN.email), newPassword: 'Another-horse-battery2' },
+    });
+    expect(reset.statusCode).toBe(200);
+    expect(reset.json().member.email).toBe(ADMIN.email);
+    expect(sessionCookie(reset)).toMatch(/^inv_session=/);
+  });
+});

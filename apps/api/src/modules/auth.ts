@@ -9,6 +9,7 @@ import {
   resetPasswordInput,
 } from '@inventory/shared';
 import type { AppDeps } from '@/types/app.js';
+import type { MfaChallengeResponse } from '@/types/auth.js';
 import { members, orgSettings, sessions } from '@/db/schema.js';
 import { AppError, invalidCredentials, invalidToken } from '@/lib/errors.js';
 import { nowIso } from '@/lib/dates.js';
@@ -32,6 +33,24 @@ import {
 const LOGIN_RATE = { max: 10, timeWindow: 15 * 60 * 1000 };
 const TOKEN_RATE = { max: 10, timeWindow: 60 * 60 * 1000 };
 
+/**
+ * A confirmed authenticator means what the caller just proved — a password, or
+ * a reset link — is only half of it. No session is created at all: the caller
+ * gets a short-lived challenge token and has to come back with a code for it.
+ * Every step that could otherwise end in a session asks here first, so none of
+ * them is a way round the second factor.
+ */
+async function mfaChallenge(
+  deps: AppDeps,
+  memberId: string,
+  now: Date,
+): Promise<MfaChallengeResponse> {
+  return {
+    mfaRequired: true,
+    challengeToken: await issueAuthToken(deps.db, memberId, 'mfa_challenge', now),
+  };
+}
+
 export function registerAuthRoutes(app: FastifyInstance, deps: AppDeps): void {
   const typed = app.withTypeProvider<ZodTypeProvider>();
 
@@ -54,15 +73,7 @@ export function registerAuthRoutes(app: FastifyInstance, deps: AppDeps): void {
         throw invalidCredentials();
       }
 
-      // A confirmed authenticator means the password is only half of it. The
-      // session is not created here at all — the caller gets a short-lived
-      // challenge token and has to come back with a code for it.
-      if (member.mfaConfirmedAt) {
-        return {
-          mfaRequired: true,
-          challengeToken: await issueAuthToken(deps.db, member.id, 'mfa_challenge', now),
-        };
-      }
+      if (member.mfaConfirmedAt) return await mfaChallenge(deps, member.id, now);
 
       await writeAudit(
         deps.db,
@@ -194,6 +205,10 @@ export function registerAuthRoutes(app: FastifyInstance, deps: AppDeps): void {
         await tx.delete(sessions).where(eq(sessions.memberId, updated.id));
         return updated;
       });
+
+      // The link proves an admin vouched for whoever holds it; it proves
+      // nothing about the authenticator. The password is set either way.
+      if (member.mfaConfirmedAt) return await mfaChallenge(deps, member.id, now);
 
       const session = await createSession(deps.db, member.id, now);
       setSessionCookie(reply, session.raw, session.expiresAt, deps.config);

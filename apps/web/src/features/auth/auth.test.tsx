@@ -137,3 +137,38 @@ describe('enrolling an authenticator', () => {
     await waitFor(() => expect(api.called('POST /me/mfa/confirm')).toBeDefined());
   });
 });
+
+describe('a reset link for somebody with an authenticator', () => {
+  it('asks for the code after saving the password, then lets them in', async () => {
+    let authenticated = false;
+    const api = renderApp(
+      {
+        'GET /meta': { body: READY_META },
+        'GET /auth/me': () => (authenticated ? session() : UNAUTHENTICATED),
+        'POST /auth/reset-password': {
+          body: { mfaRequired: true, challengeToken: 'challenge-2' },
+        },
+        'POST /auth/mfa/verify': () => {
+          authenticated = true;
+          return { body: { member: ADMIN_MEMBER } };
+        },
+      },
+      '/reset-password?token=reset-1',
+    );
+
+    await screen.findByRole('heading', { name: /choose a new password/i });
+    await userEvent.type(screen.getByLabelText(/new password/i), 'Another-horse-battery2');
+    await userEvent.click(screen.getByRole('button', { name: /save password/i }));
+
+    // The link set the password; it did not open a session.
+    await screen.findByRole('heading', { name: /two-factor authentication/i });
+    expect(screen.queryByRole('navigation')).toBeNull();
+    await userEvent.type(screen.getByLabelText(/authentication code/i), '123456');
+    await userEvent.click(screen.getByRole('button', { name: 'Verify' }));
+
+    expect(await screen.findByRole('navigation', { name: 'Inventory' })).toBeInTheDocument();
+    expect(api.called('POST /auth/mfa/verify')).toMatchObject({
+      body: { challengeToken: 'challenge-2', code: '123456' },
+    });
+  });
+});

@@ -3,7 +3,9 @@ import { useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router';
 import { fieldErrors } from '@/api/formErrors';
 import { useResetPassword } from '@/api/mutations';
+import { orgMeta, useMeta } from '@/api/queries';
 import { AuthField, AuthLayout, FormError } from './AuthLayout';
+import { MfaChallenge } from './LoginPage';
 import styles from './Auth.module.css';
 
 export function ResetPasswordPage() {
@@ -13,7 +15,19 @@ export function ResetPasswordPage() {
   const token = searchParams.get('token') ?? '';
   const reset = useResetPassword();
   const [newPassword, setNewPassword] = useState('');
+  // Both route sets that draw this page exist only once /meta has said the
+  // instance is set up, so the organization is known.
+  const org = orgMeta(useMeta().data);
+  /**
+   * Set when the password is saved and the account has an authenticator: the
+   * link proved an admin vouched for its holder, not that they hold the phone.
+   */
+  const [challengeToken, setChallengeToken] = useState<string | null>(null);
   const errors = fieldErrors(reset.error);
+
+  if (challengeToken) {
+    return <MfaChallenge challengeToken={challengeToken} orgName={org.orgName} />;
+  }
 
   if (!token) {
     return (
@@ -38,7 +52,15 @@ export function ResetPasswordPage() {
         style={{ display: 'contents' }}
         onSubmit={(event) => {
           event.preventDefault();
-          reset.mutate({ token, newPassword }, { onSuccess: () => navigate('/dashboard') });
+          reset.mutate(
+            { token, newPassword },
+            {
+              onSuccess: (result) => {
+                if ('mfaRequired' in result) setChallengeToken(result.challengeToken);
+                else navigate('/dashboard');
+              },
+            },
+          );
         }}
       >
         <FormError error={reset.error} />

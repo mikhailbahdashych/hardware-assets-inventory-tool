@@ -83,11 +83,12 @@ export function LoginPage() {
 }
 
 /**
- * The second step. One input takes either kind of code, because the server
+ * The second step — of a sign-in, or of a reset link, which ends the same way
+ * for an account with an authenticator. One input takes either kind of code, because the server
  * decides which by what matches — asking somebody to pick "authenticator" or
  * "recovery" before typing is a choice they should not have to make.
  */
-function MfaChallenge({ challengeToken, orgName }: MfaChallengeProps) {
+export function MfaChallenge({ challengeToken, orgName }: MfaChallengeProps) {
   const navigate = useNavigate();
   const verify = useMfaVerify();
   const refreshSession = useRefreshSession();
