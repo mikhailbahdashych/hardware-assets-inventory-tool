@@ -26,6 +26,7 @@ import type { TableColumn } from '@/types/table';
 import { formatFullDate, formatMonthYear } from '@/lib/format';
 import { AssignModal } from '../assets/AssignModal';
 import { CheckInModal } from '../assets/CheckInModal';
+import { assignmentNote } from '../assets/timeline';
 import { EmployeeFormModal } from './EmployeeFormModal';
 import type { EmployeeDetailPageProps } from './types/employeeDetailPage';
 import styles from './Employees.module.css';
@@ -179,20 +180,24 @@ export function EmployeeDetailPage({ permissions }: EmployeeDetailPageProps) {
           <div className={styles.note}>No previous assignments.</div>
         ) : (
           <div className={styles.history}>
-            {history.map((holding) => (
-              <button
-                key={holding.id}
-                type="button"
-                className={styles.historyRow}
-                onClick={() => navigate(`/assets/${holding.assetId}`)}
-              >
-                <span className={styles.historyText}>
-                  <span className={styles.holdingName}>{holding.assetName}</span>
-                  <span className={styles.holdingTag}>{holding.assetTag}</span>
-                </span>
-                <span className={styles.muted}>{historyRange(holding)}</span>
-              </button>
-            ))}
+            {history.map((holding) => {
+              const note = assignmentNote(holding);
+              return (
+                <button
+                  key={holding.id}
+                  type="button"
+                  className={styles.historyRow}
+                  onClick={() => navigate(`/assets/${holding.assetId}`)}
+                >
+                  <span className={styles.historyText}>
+                    <span className={styles.holdingName}>{holding.assetName}</span>
+                    <span className={styles.holdingTag}>{holding.assetTag}</span>
+                    {note && <span className={styles.historyNote}>{note}</span>}
+                  </span>
+                  <span className={styles.muted}>{historyRange(holding)}</span>
+                </button>
+              );
+            })}
           </div>
         )}
       </Card>

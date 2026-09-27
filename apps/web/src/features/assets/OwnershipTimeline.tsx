@@ -21,6 +21,7 @@ export function OwnershipTimeline({ history, assetCreatedAt }: OwnershipTimeline
           <span className={styles.body}>
             <span className={styles.title}>{entry.title}</span>
             <span className={styles.range}>{entry.range}</span>
+            {entry.note && <span className={styles.note}>{entry.note}</span>}
           </span>
         </li>
       ))}

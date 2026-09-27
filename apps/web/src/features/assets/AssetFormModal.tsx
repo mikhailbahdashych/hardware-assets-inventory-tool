@@ -27,6 +27,7 @@ import {
   Modal,
   Textarea,
 } from '@/components/ui';
+import { allowedTargets } from '@/lib/workflow';
 import { useToast } from '@/providers/ToastProvider';
 import type { AssetFormModalProps, AssetFormState } from './types/assetFormModal';
 import styles from '@/components/ui/FormModal.module.css';
@@ -154,11 +155,19 @@ export function AssetFormModal({
   // A new asset starts on the first status the workspace lists that assign and
   // check-in do not own; an untouched form has no choice of its own to keep.
   const status = form.status || (statuses.find((option) => !option.isSystem)?.id ?? '');
-  // A create may start an asset out as assigned (it opens the first ownership
-  // record); an edit may not move one in or out of that status.
-  const statusOptions = statuses.filter(
-    (option) => !editing || option.id !== ASSIGNED_STATUS || status === ASSIGNED_STATUS,
-  );
+  // Registering is not a transition, so a create may start an asset on any
+  // status the workspace has — `assigned` included, which opens the first
+  // ownership record. An edit is a move, and offers only where the workflow
+  // lets this asset go from where it stands (plus staying put): anything else
+  // the API refuses on save. `assigned` has no edges either way, which is what
+  // keeps assign and check-in its only doors.
+  const reachable =
+    editing && workflow.isSuccess
+      ? new Set([asset.status, ...allowedTargets(workflow.data, asset.status).map((to) => to.id)])
+      : null;
+  const statusOptions = reachable
+    ? statuses.filter((option) => reachable.has(option.id))
+    : statuses;
 
   // Definitions that have not arrived are none to render, and a field never
   // typed into has no entry. A definition this form never drew is simply not in
@@ -501,7 +510,7 @@ export function AssetFormModal({
                     }
                   />
                 ) : (
-                  <Field key={def.key} label={def.label}>
+                  <Field key={def.key} label={def.label} error={errors[`customValues.${def.key}`]}>
                     {(id) => (
                       <Input
                         id={id}
