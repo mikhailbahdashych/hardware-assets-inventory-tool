@@ -66,6 +66,20 @@ describe('reaching the API reference', () => {
     expect(within(dialog).getByRole('option', { name: /API reference/ })).toBeInTheDocument();
   });
 
+  it('leads back to the API tokens page, which the sidebar marks nothing for here', async () => {
+    renderApp(workspace(), '/api-docs');
+    await screen.findByRole('heading', { name: 'API reference' });
+    const nav = screen.getByRole('navigation', { name: 'Workspace' });
+
+    // The sidebar has its own "API tokens"; the way back is the page's own.
+    const back = screen
+      .getAllByRole('link', { name: 'API tokens' })
+      .find((link) => !nav.contains(link))!;
+    expect(back).toHaveAttribute('href', '/api-tokens');
+    await userEvent.click(back);
+    expect(await screen.findByRole('heading', { name: 'API tokens' })).toBeInTheDocument();
+  });
+
   it('is out of reach of a manager, even by URL', async () => {
     renderApp(
       {
@@ -142,10 +156,14 @@ describe('every operation the document declares is on the page', () => {
     renderApp(workspace(), '/api-docs');
     await card('get', '/api/public/v1/assets');
 
+    // Headed in words, read off the tag itself; the anchors keep the slug.
+    const names = ['Assets', 'Employees', 'Workflow', 'Custom fields', 'Audit'];
     const sections = screen.getAllByRole('region');
-    expect(sections.map((section) => section.getAttribute('aria-label'))).toEqual(
-      OPENAPI_SPEC.tags!.map((tag) => tag.name),
-    );
+    expect(sections.map((section) => section.getAttribute('aria-label'))).toEqual(names);
+    expect(OPENAPI_SPEC.tags!.map((tag) => tag.name)).toHaveLength(names.length);
+    expect(screen.getByRole('heading', { level: 2, name: 'Custom fields' })).toBeVisible();
+    expect(sections[3]).toHaveAttribute('id', 'tag-custom-fields');
+
     const assets = within(sections[0]!).getAllByRole('article');
     expect(assets).toHaveLength(7);
   });

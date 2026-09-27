@@ -2,7 +2,7 @@ import { Card, Pill } from '@/components/ui';
 import { BEARER_HEADER, isBearer } from './exampleFromSchema';
 import { OperationCard } from './OperationCard';
 import { withCode } from './prose';
-import { docSections, METHOD_COLORS } from './spec';
+import { docSections, humanizeTag, METHOD_COLORS } from './spec';
 import type { ReferenceProps } from './types/reference';
 import styles from './ApiDocs.module.css';
 
@@ -56,7 +56,7 @@ export function Reference({ spec }: ReferenceProps) {
           {sections.map((section) => (
             <div key={section.name}>
               <a className={styles.contentsTag} href={`#tag-${section.name}`}>
-                {section.name}
+                {humanizeTag(section.name)}
               </a>
               {section.operations.map(({ method, operation, anchor, path }) => (
                 <a key={anchor} className={styles.contentsItem} href={`#${anchor}`}>
@@ -75,11 +75,11 @@ export function Reference({ spec }: ReferenceProps) {
             <section
               key={section.name}
               id={`tag-${section.name}`}
-              aria-label={section.name}
+              aria-label={humanizeTag(section.name)}
               className={styles.section}
             >
               <div className={styles.sectionHead}>
-                <h2 className={styles.tag}>{section.name}</h2>
+                <h2 className={styles.tag}>{humanizeTag(section.name)}</h2>
                 {section.description !== undefined && (
                   <p className={styles.summary}>{withCode(section.description)}</p>
                 )}

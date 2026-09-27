@@ -2,7 +2,7 @@ import { useEffect } from 'react';
 import { useLocation } from 'react-router';
 import { useApiDocs } from '@/api/queries';
 import { PageContainer } from '@/components/app/PageContainer';
-import { Card, ErrorState, Spinner } from '@/components/ui';
+import { BackLink, Card, ErrorState, Spinner } from '@/components/ui';
 import { Reference } from './Reference';
 import styles from './ApiDocs.module.css';
 
@@ -33,7 +33,12 @@ export function ApiDocsPage() {
   }, [docs.isSuccess, hash]);
 
   return (
-    <PageContainer gap={16}>
+    // The Workspace pages' width, so following the link from API tokens does
+    // not move the header under the reader's eye.
+    <PageContainer maxWidth={1060} gap={16}>
+      {/* No sidebar item marks this page, so it carries its own way out, like
+          the detail pages do — back to the page that links here. */}
+      <BackLink to="/api-tokens">API tokens</BackLink>
       <div className={styles.intro}>
         <h1 className={styles.title}>API reference</h1>
         <p className={styles.summary}>

@@ -40,6 +40,17 @@ export function operationAnchor(method: HttpMethod, path: string): string {
 }
 
 /**
+ * A tag as a heading: `custom-fields` → `Custom fields`. Derived rather than
+ * looked up, so a tag the surface gains tomorrow is headed in words with no
+ * label map to forget. Only the first letter is raised — lowercasing the rest
+ * would turn an acronym in an already-worded tag into a word.
+ */
+export function humanizeTag(tag: string): string {
+  const words = tag.replace(/[-_]+/g, ' ');
+  return words.charAt(0).toUpperCase() + words.slice(1);
+}
+
+/**
  * Where an operation that carries no tag is filed — the name every OpenAPI
  * renderer, swagger-ui included, gives that group.
  */
