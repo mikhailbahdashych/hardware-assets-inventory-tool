@@ -53,6 +53,19 @@ describe('meta & setup', () => {
     expect(again.json().error.code).toBe('already_initialized');
   });
 
+  it('answers 409 before it reads the body, so a live instance names no fields', async () => {
+    ctx = await buildTestApp();
+    await setupOrg(ctx.app);
+    const junk = await ctx.app.inject({
+      method: 'POST',
+      url: '/api/v1/setup',
+      body: { orgName: 42, email: 'not an email' },
+    });
+    expect(junk.statusCode).toBe(409);
+    expect(junk.json().error.code).toBe('already_initialized');
+    expect(junk.json().error.fields).toBeUndefined();
+  });
+
   it('audits setup completion', async () => {
     ctx = await buildTestApp();
     await setupOrg(ctx.app);
