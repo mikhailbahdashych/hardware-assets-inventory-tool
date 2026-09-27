@@ -136,15 +136,17 @@ describe('the token list', () => {
     expect(await screen.findByText(/no api tokens yet/i)).toBeInTheDocument();
   });
 
-  it('points at the reference for what a token can call', async () => {
+  it('points at the reference to read, and at the one to try calls in', async () => {
     renderApp(workspace(), '/api-tokens');
-    // The in-app reference — which is itself where the interactive one is
-    // linked from. The sidebar carries a link of the same name, so ask the
-    // sentence rather than the page.
     const summary = await screen.findByText(/credentials for the systems/i);
+    // Read here, in the app's own styles; try there, in the page the API serves.
     expect(within(summary).getByRole('link', { name: 'API reference' })).toHaveAttribute(
       'href',
       '/api-docs',
+    );
+    expect(within(summary).getByRole('link', { name: 'interactive reference' })).toHaveAttribute(
+      'href',
+      '/api/public/docs',
     );
   });
 });

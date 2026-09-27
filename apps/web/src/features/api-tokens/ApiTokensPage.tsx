@@ -129,8 +129,10 @@ export function ApiTokensPage() {
           <h1 className={styles.title}>API tokens</h1>
           <p className={styles.summary}>
             Credentials for the systems that talk to this workspace without a person signing in.
-            Each one reaches only what its scopes allow — the{' '}
-            <Link to="/api-docs">API reference</Link> names the scope every endpoint needs.
+            Each one reaches only what its scopes allow: the{' '}
+            <Link to="/api-docs">API reference</Link> names the scope every endpoint needs, and
+            calls can be tried in the <a href="/api/public/docs">interactive reference</a> this
+            instance serves.
           </p>
         </div>
         <Button icon="plus" onClick={() => setCreating(true)}>

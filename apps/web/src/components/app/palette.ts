@@ -60,7 +60,8 @@ const ACTIONS: ActionDefinition[] = [
     adminOnly: true,
   },
   {
-    // Beside the tokens, behind the same door: what a token can call.
+    // Not in the sidebar — the API tokens page links to it — but the palette is
+    // a search, and an admin who knows the page exists should find it by name.
     title: 'API reference',
     icon: 'file',
     effect: { kind: 'navigate', to: '/api-docs' },

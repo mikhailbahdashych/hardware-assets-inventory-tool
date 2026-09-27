@@ -45,14 +45,17 @@ const card = (method: string, path: string) =>
   screen.findByRole('article', { name: `${method.toUpperCase()} ${path}` });
 
 describe('reaching the API reference', () => {
-  it('sits in the workspace half of the sidebar, marked current', async () => {
-    renderApp(workspace(), '/api-docs');
+  it('is reached from the API tokens page, not from the sidebar', async () => {
+    renderApp(workspace(), '/api-tokens');
     const nav = await screen.findByRole('navigation', { name: 'Workspace' });
-    expect(within(nav).getByRole('link', { name: 'API reference' })).toHaveAttribute(
-      'aria-current',
-      'page',
-    );
+    // The sidebar stays the workspace's pages; the reference is what the
+    // tokens page reads out to, so that is where its door is.
+    expect(within(nav).queryByRole('link', { name: 'API reference' })).toBeNull();
+
+    const summary = await screen.findByText(/credentials for the systems/i);
+    await userEvent.click(within(summary).getByRole('link', { name: 'API reference' }));
     expect(await screen.findByRole('heading', { name: 'API reference' })).toBeInTheDocument();
+    expect(within(nav).queryByRole('link', { name: 'API reference' })).toBeNull();
   });
 
   it('is in the command palette', async () => {
@@ -63,7 +66,7 @@ describe('reaching the API reference', () => {
     expect(within(dialog).getByRole('option', { name: /API reference/ })).toBeInTheDocument();
   });
 
-  it('is hidden from a manager, and out of reach even by URL', async () => {
+  it('is out of reach of a manager, even by URL', async () => {
     renderApp(
       {
         ...workspace(),
@@ -71,8 +74,7 @@ describe('reaching the API reference', () => {
       },
       '/api-docs',
     );
-    const nav = await screen.findByRole('navigation', { name: 'Workspace' });
-    expect(within(nav).queryByRole('link', { name: 'API reference' })).toBeNull();
+    // The door is locked, not merely unlinked.
     expect(await screen.findByRole('heading', { name: 'Dashboard' })).toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: 'API reference' })).toBeNull();
   });
@@ -86,9 +88,8 @@ describe('reaching the API reference', () => {
       },
       '/api-docs',
     );
-    const nav = await screen.findByRole('navigation', { name: 'Workspace' });
-    expect(within(nav).queryByRole('link', { name: 'API reference' })).toBeNull();
     expect(await screen.findByRole('heading', { name: 'Dashboard' })).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'API reference' })).toBeNull();
 
     await userEvent.keyboard('{Meta>}k{/Meta}');
     const dialog = await screen.findByRole('dialog');

@@ -17,7 +17,6 @@ describe('navSectionsFor', () => {
       'Custom fields',
       'Roles',
       'API tokens',
-      'API reference',
       'Admin',
     ]);
 
@@ -46,12 +45,10 @@ describe('navSectionsFor', () => {
     // API tokens is the one item no grant opens: minting a token that may
     // write assets is workspace power by proxy, so it is the admin role
     // itself that is asked, not a permission a workspace can hand out.
-    // The reference for what a token calls sits behind the same door.
     const everything = navSectionsFor(EVERYTHING, 'auditor');
     expect(everything.workspace.map((item) => item.label)).not.toContain('API tokens');
-    expect(everything.workspace.map((item) => item.label)).not.toContain('API reference');
-    expect(navSectionsFor(EVERYTHING, ADMIN_ROLE).workspace.map((item) => item.label)).toEqual(
-      expect.arrayContaining(['API tokens', 'API reference']),
+    expect(navSectionsFor(EVERYTHING, ADMIN_ROLE).workspace.map((item) => item.label)).toContain(
+      'API tokens',
     );
   });
 });
