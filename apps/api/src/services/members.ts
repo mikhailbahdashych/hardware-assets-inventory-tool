@@ -494,9 +494,9 @@ async function requireEmployee(tx: DbOrTx, id: string) {
 /**
  * An employee nobody signs in as yet. One member per employee is the index's
  * rule (`members_one_per_employee`); this is the courtesy that says so before
- * anything is written. The sentence names the person by the employee record —
- * the member holding the link may still be called by their email, which is not
- * who anybody asked about. The caller's own row never matches:
+ * anything is written. The sentence names the employee — the record being
+ * asked about — rather than the member holding the link, who may still be
+ * called by their email. The caller's own row never matches:
  * `updateMember` only asks when the link would change.
  */
 async function requireUnlinkedEmployee(tx: DbOrTx, id: string) {
@@ -509,7 +509,7 @@ async function requireUnlinkedEmployee(tx: DbOrTx, id: string) {
     throw new AppError(
       409,
       'employee_linked',
-      `${employee.firstName} ${employee.lastName} is already linked to that employee — unlink them first.`,
+      `${employee.firstName} ${employee.lastName} already has a member account — unlink it first.`,
     );
   }
   return employee;

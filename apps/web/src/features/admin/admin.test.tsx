@@ -302,6 +302,10 @@ describe('workspace settings', () => {
       screen.getByText(/everyone not yet enrolled — you included — will be asked to set up/i),
     ).toBeInTheDocument();
 
+    expect(screen.getByRole('button', { name: /require two-factor/i })).toHaveAttribute(
+      'data-variant',
+      'primary',
+    );
     await userEvent.click(screen.getByRole('button', { name: /require two-factor/i }));
     await waitFor(() => expect(api.called('PATCH /settings')).toBeDefined());
 
@@ -335,6 +339,11 @@ describe('workspace settings', () => {
       ),
     ).toBeInTheDocument();
 
+    // It deletes every secret in the workspace, so it looks like it.
+    expect(screen.getByRole('button', { name: 'Turn two-factor off' })).toHaveAttribute(
+      'data-variant',
+      'danger',
+    );
     await userEvent.click(screen.getByRole('button', { name: 'Turn two-factor off' }));
     await waitFor(() => expect(api.called('PATCH /settings')).toBeDefined());
     expect(api.called('PATCH /settings')!.body).toEqual({ mfaRequired: false });

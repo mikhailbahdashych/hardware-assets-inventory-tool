@@ -323,6 +323,9 @@ function SettingsForm({ settings, storageUsedBytes }: SettingsFormProps) {
           Discard
         </Button>
         <Button
+          // Turning two-factor off deletes every secret in the workspace, so
+          // the button that does it is the danger one.
+          variant={asking && !patch.mfaRequired ? 'danger' : 'primary'}
           disabled={!dirty || update.isPending}
           onClick={() => {
             if (mfaConfirm && !confirmingMfa) {
