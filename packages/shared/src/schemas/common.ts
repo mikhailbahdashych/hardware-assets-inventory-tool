@@ -30,6 +30,16 @@ export function isCalendarDate(value: string): boolean {
   );
 }
 
+/**
+ * What is wrong with a date-only string, in the words the schemas use, or null
+ * when it is a real day. For the values no schema types — a custom field's
+ * type is a row, so its values arrive as plain strings and the service checks.
+ */
+export function dateProblem(value: string): string | null {
+  if (!DATE_ONLY.test(value)) return DATE_FORMAT;
+  return isCalendarDate(value) ? null : NOT_A_DAY;
+}
+
 /** Shape first, then the calendar — one message each, never both at once. */
 const isDayIfShaped = (value: string) => !DATE_ONLY.test(value) || isCalendarDate(value);
 

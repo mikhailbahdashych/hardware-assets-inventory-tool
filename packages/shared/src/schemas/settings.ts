@@ -11,7 +11,7 @@ import {
 // alone"; `logRetentionMonths: null` is a value ("Forever"), not an absence.
 
 export const settingsPatchInput = z.object({
-  orgName: z.string().trim().min(1).max(120).optional(),
+  orgName: z.string().trim().min(1, 'Give the workspace a name.').max(120).optional(),
   defaultCurrency: z.enum(CURRENCIES).optional(),
   /**
    * Uppercased and letters/digits only: it becomes the literal head of every
