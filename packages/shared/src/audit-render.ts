@@ -212,7 +212,7 @@ export const AUDIT_ACTIONS = Object.keys(RENDERERS);
  * rather than an empty line — a log that hides events is worse than an ugly one.
  */
 export function renderAuditEvent(event: RenderableAuditEvent): string {
-  return RENDERERS[event.action]?.(event.params ?? {}) ?? event.action;
+  return RENDERERS[event.action]?.(event.params) ?? event.action;
 }
 
 /** Which filter pill an action belongs under in the activity log. */

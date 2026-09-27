@@ -5,8 +5,12 @@
  */
 export type AuditParams = Record<string, unknown>;
 
-/** The part of a stored audit event `renderAuditEvent` needs to make a sentence. */
+/**
+ * The part of a stored audit event `renderAuditEvent` needs to make a sentence.
+ * `params` is always there: `writeAudit` stores `{}` for an event with nothing
+ * to add, so a reader never has to invent one.
+ */
 export interface RenderableAuditEvent {
   action: string;
-  params?: AuditParams;
+  params: AuditParams;
 }
