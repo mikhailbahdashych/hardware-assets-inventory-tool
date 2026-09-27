@@ -8,7 +8,7 @@ import { RoleCards } from './RoleCards';
 import type { ChangeRoleModalProps } from './types/changeRoleModal';
 
 /** The same cards the invite form uses, so a role means one thing everywhere. */
-export function ChangeRoleModal({ member, onClose }: ChangeRoleModalProps) {
+export function ChangeRoleModal({ member, viewerRole, onClose }: ChangeRoleModalProps) {
   const [role, setRole] = useState(member.role);
   const toast = useToast();
   const update = useUpdateMember();
@@ -58,7 +58,7 @@ export function ChangeRoleModal({ member, onClose }: ChangeRoleModalProps) {
           The roles to choose from could not be loaded.
         </ErrorState>
       ) : (
-        <RoleCards name="change-role" value={role} onChange={setRole} />
+        <RoleCards name="change-role" value={role} onChange={setRole} viewerRole={viewerRole} />
       )}
     </Modal>
   );

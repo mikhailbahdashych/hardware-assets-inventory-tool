@@ -6,6 +6,7 @@ import {
   ADMIN_ROUTES,
   AUDIT_PAGE,
   DB_DOWN,
+  EVERY_ACTION,
   MANAGER_ACTIONS,
   session,
   SETTINGS,
@@ -270,6 +271,45 @@ describe('workspace settings', () => {
       returnReminders: false,
     });
     expect(await screen.findByText('Settings saved.')).toBeInTheDocument();
+  });
+
+  it('asks before requiring two-factor, then sends the admin to enrol', async () => {
+    let required = false;
+    const api = renderApp(
+      {
+        ...ADMIN_ROUTES,
+        'GET /auth/me': () => ({
+          body: { member: ADMIN_MEMBER, mustEnrolMfa: required, permissions: EVERY_ACTION },
+        }),
+        'PATCH /settings': () => {
+          required = true;
+          return { body: { settings: { ...SETTINGS, mfaRequired: true } } };
+        },
+        'POST /me/mfa/enroll': {
+          body: { secret: 'JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP', otpauthUri: 'otpauth://totp/x' },
+        },
+      },
+      '/admin',
+    );
+
+    await userEvent.click(
+      await screen.findByRole('switch', { name: /require two-factor authentication/i }),
+    );
+    await userEvent.click(screen.getByRole('button', { name: /save changes/i }));
+    // The first press says what is about to happen to everybody.
+    expect(api.called('PATCH /settings')).toBeUndefined();
+    expect(
+      screen.getByText(/everyone not yet enrolled — you included — will be asked to set up/i),
+    ).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole('button', { name: /require two-factor/i }));
+    await waitFor(() => expect(api.called('PATCH /settings')).toBeDefined());
+
+    // The session is read again, so the router knows enrolment is owed —
+    // rather than leaving the admin on a page every request now refuses.
+    expect(
+      await screen.findByRole('heading', { name: /set up two-factor authentication/i }),
+    ).toBeInTheDocument();
   });
 
   it('puts every field back the way it was when the edits are discarded', async () => {

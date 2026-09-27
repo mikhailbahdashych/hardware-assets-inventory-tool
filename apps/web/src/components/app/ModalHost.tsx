@@ -25,9 +25,15 @@ export function ModalHost({ member, permissions }: ModalHostProps) {
     case 'newAsset':
       return <AssetFormModal permissions={permissions} onClose={closeModal} />;
     case 'addEmployee':
-      return <EmployeeFormModal permissions={permissions} onClose={closeModal} />;
+      return (
+        <EmployeeFormModal
+          permissions={permissions}
+          viewerRole={member.role}
+          onClose={closeModal}
+        />
+      );
     case 'inviteMember':
-      return <InviteMemberModal onClose={closeModal} />;
+      return <InviteMemberModal viewerRole={member.role} onClose={closeModal} />;
     case 'import':
       return <ImportWizardModal onClose={closeModal} />;
     case 'widgets':

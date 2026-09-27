@@ -36,7 +36,11 @@ import styles from './Roles.module.css';
  * underneath.
  */
 export function RolesPage({ ownRole }: RolesPageProps) {
-  const roles = useRoles();
+  // Always read again on arrival. The sidebar keeps the roles cached for five
+  // minutes, and this is the page that edits them: drawing that copy as
+  // current — and editable — while `/roles` is failing is the empty-list lie
+  // told with stale rows instead.
+  const roles = useRoles('always');
 
   return (
     <PageContainer maxWidth={1060} gap={16}>

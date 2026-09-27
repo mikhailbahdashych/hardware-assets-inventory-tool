@@ -14,7 +14,7 @@ import type { InviteMemberModalProps } from './types/inviteMemberModal';
  * delivery mechanism, so this ends on it, shown once as copyable text — the
  * admin hands it over on a channel the workspace already trusts.
  */
-export function InviteMemberModal({ onClose }: InviteMemberModalProps) {
+export function InviteMemberModal({ viewerRole, onClose }: InviteMemberModalProps) {
   const [email, setEmail] = useState('');
   const [employeeId, setEmployeeId] = useState('');
   const [chosenRole, setChosenRole] = useState('');
@@ -155,7 +155,12 @@ export function InviteMemberModal({ onClose }: InviteMemberModalProps) {
             </Field>
 
             <Field label="Role" required>
-              <RoleCards name="invite-role" value={role} onChange={setChosenRole} />
+              <RoleCards
+                name="invite-role"
+                value={role}
+                onChange={setChosenRole}
+                viewerRole={viewerRole}
+              />
             </Field>
           </>
         )}

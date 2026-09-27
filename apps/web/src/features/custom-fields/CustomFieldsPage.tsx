@@ -33,7 +33,8 @@ export function CustomFieldsPage() {
   const [renaming, setRenaming] = useState<{ id: string; label: string } | null>(null);
 
   const toast = useToast();
-  const fields = useCustomFields();
+  // Read again on arrival — see useCustomFields in api/queries.ts.
+  const fields = useCustomFields('always');
   const create = useCreateCustomField();
   const update = useUpdateCustomField();
   const remove = useDeleteCustomField();

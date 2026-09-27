@@ -144,7 +144,10 @@ export function AppRoutes() {
         <Route path="/assets" element={<AssetsPage permissions={permissions} />} />
         <Route path="/assets/:id" element={<AssetDetailPage permissions={permissions} />} />
         <Route path="/employees" element={<EmployeesPage permissions={permissions} />} />
-        <Route path="/employees/:id" element={<EmployeeDetailPage permissions={permissions} />} />
+        <Route
+          path="/employees/:id"
+          element={<EmployeeDetailPage permissions={permissions} viewerRole={member.role} />}
+        />
         <Route path="/notifications" element={<NotificationsPage />} />
         <Route
           path="/members"

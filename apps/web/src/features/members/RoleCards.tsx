@@ -1,5 +1,6 @@
 import { useRoles } from '@/api/queries';
 import { RadioCard, Spinner } from '@/components/ui';
+import { offerableRoles } from '@/lib/roles';
 import type { RoleCardsProps } from './types/roleCards';
 import styles from './Members.module.css';
 
@@ -10,7 +11,7 @@ import styles from './Members.module.css';
  * a workspace that invented "Auditor" offers it here the moment it exists,
  * with the description its admin wrote.
  */
-export function RoleCards({ name, value, onChange }: RoleCardsProps) {
+export function RoleCards({ name, value, onChange, viewerRole }: RoleCardsProps) {
   const roles = useRoles();
 
   if (roles.data === undefined) {
@@ -23,7 +24,7 @@ export function RoleCards({ name, value, onChange }: RoleCardsProps) {
 
   return (
     <div className={styles.roleCards}>
-      {roles.data.roles.map((role) => (
+      {offerableRoles(roles.data.roles, viewerRole).map((role) => (
         <RadioCard
           key={role.id}
           name={name}

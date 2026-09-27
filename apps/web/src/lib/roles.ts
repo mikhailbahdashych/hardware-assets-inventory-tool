@@ -21,6 +21,16 @@ export function roleInfo(map: Map<string, WorkspaceRole>, id: string): RoleInfo 
 }
 
 /**
+ * The roles this viewer may hand somebody. Only an admin mints an admin — the
+ * API's `admin_shield` refuses anybody else, `members.manage` or not — so for
+ * everybody else the system role is not on offer: an affordance that matches
+ * the door behind it.
+ */
+export function offerableRoles(roles: WorkspaceRole[], viewerRole: string): WorkspaceRole[] {
+  return isAdmin(viewerRole) ? roles : roles.filter((role) => !isAdmin(role.id));
+}
+
+/**
  * The safest role to offer as an invitation's default: the one granting the
  * fewest actions, ties going to whichever the workspace lists first. That is
  * Viewer on a fresh instance and still the least on one that has invented five

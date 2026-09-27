@@ -37,7 +37,7 @@ function historyRange(holding: Holding): string {
   return holding.outcome ? `${range} · ${ASSIGNMENT_OUTCOME_LABELS[holding.outcome]}` : range;
 }
 
-export function EmployeeDetailPage({ permissions }: EmployeeDetailPageProps) {
+export function EmployeeDetailPage({ permissions, viewerRole }: EmployeeDetailPageProps) {
   const { id = '' } = useParams();
   const [editing, setEditing] = useState(false);
   const [assigning, setAssigning] = useState(false);
@@ -206,6 +206,7 @@ export function EmployeeDetailPage({ permissions }: EmployeeDetailPageProps) {
         <EmployeeFormModal
           employee={employee}
           permissions={permissions}
+          viewerRole={viewerRole}
           onClose={() => setEditing(false)}
           onDeleted={() => navigate('/employees', { replace: true })}
         />

@@ -56,6 +56,12 @@ const ADMIN_PREFIXES = [
   // Minting and revoking are audited too, and the page that lists them is the
   // only screen that would still be showing the row that has just gone.
   ['api-tokens'],
+  // The session itself: the routes render from it. Requiring two-factor makes
+  // `mustEnrolMfa` true for an admin who has no authenticator, and until this
+  // is read again the router keeps them on a page whose every request is now
+  // refused; resetting your own two-factor and editing a role's grants change
+  // it the same way.
+  ['me'],
 ];
 
 export function invalidateAdmin(queryClient: QueryClient): void {
