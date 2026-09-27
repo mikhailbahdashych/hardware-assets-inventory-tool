@@ -22,7 +22,7 @@ const idParam = z.object({ id: z.string().min(1) });
 export function registerCustomFieldRoutes(app: FastifyInstance, deps: AppDeps): void {
   const typed = app.withTypeProvider<ZodTypeProvider>();
 
-  typed.get('/api/v1/custom-fields', { preHandler: requireAuth }, async () => ({
+  typed.get('/api/v1/custom-fields', { preValidation: requireAuth }, async () => ({
     customFields: await listCustomFields(deps.db),
   }));
 
@@ -30,7 +30,7 @@ export function registerCustomFieldRoutes(app: FastifyInstance, deps: AppDeps): 
     '/api/v1/custom-fields',
     {
       schema: { body: customFieldCreateInput },
-      preHandler: requireAction('custom_fields.manage'),
+      preValidation: requireAction('custom_fields.manage'),
     },
     async (request) => {
       const now = deps.now();
@@ -79,7 +79,7 @@ export function registerCustomFieldRoutes(app: FastifyInstance, deps: AppDeps): 
     '/api/v1/custom-fields/:id',
     {
       schema: { params: idParam, body: customFieldPatchInput },
-      preHandler: requireAction('custom_fields.manage'),
+      preValidation: requireAction('custom_fields.manage'),
     },
     async (request) => {
       const now = deps.now();
@@ -122,7 +122,7 @@ export function registerCustomFieldRoutes(app: FastifyInstance, deps: AppDeps): 
 
   typed.delete(
     '/api/v1/custom-fields/:id',
-    { schema: { params: idParam }, preHandler: requireAction('custom_fields.manage') },
+    { schema: { params: idParam }, preValidation: requireAction('custom_fields.manage') },
     async (request, reply) => {
       const now = deps.now();
 

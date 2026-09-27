@@ -15,7 +15,7 @@ export function registerAdminRoutes(app: FastifyInstance, deps: AppDeps): void {
 
   typed.get(
     '/api/v1/audit',
-    { schema: { querystring: auditQuery }, preHandler: requireAction('audit.view') },
+    { schema: { querystring: auditQuery }, preValidation: requireAction('audit.view') },
     async (request) => auditPage(deps.db, request.query),
   );
 
@@ -23,7 +23,7 @@ export function registerAdminRoutes(app: FastifyInstance, deps: AppDeps): void {
     '/api/v1/audit/export',
     {
       schema: { querystring: auditExportQuery },
-      preHandler: requireAction('export.run'),
+      preValidation: requireAction('export.run'),
     },
     async (request, reply) => {
       const day = deps.now().toISOString().slice(0, 10);
@@ -36,20 +36,20 @@ export function registerAdminRoutes(app: FastifyInstance, deps: AppDeps): void {
 
   // `storageUsedBytes` rides beside the row rather than in it: it is a sum over
   // another table, not a column, and PATCH answers with the row alone.
-  typed.get('/api/v1/settings', { preHandler: requireAction('settings.manage') }, async () => ({
+  typed.get('/api/v1/settings', { preValidation: requireAction('settings.manage') }, async () => ({
     settings: await getSettings(deps.db),
     storageUsedBytes: await storageUsedBytes(deps.db),
   }));
 
   typed.patch(
     '/api/v1/settings',
-    { schema: { body: settingsPatchInput }, preHandler: requireAction('settings.manage') },
+    { schema: { body: settingsPatchInput }, preValidation: requireAction('settings.manage') },
     async (request) => ({ settings: await updateSettings(deps, request.member!, request.body) }),
   );
 
   typed.post(
     '/api/v1/workspace/delete',
-    { schema: { body: workspaceDeleteInput }, preHandler: requireAction('workspace.delete') },
+    { schema: { body: workspaceDeleteInput }, preValidation: requireAction('workspace.delete') },
     async (request, reply) => {
       await deleteWorkspace(deps, request.body.confirmText);
       // Their session went with everything else; clear the cookie so the

@@ -17,7 +17,7 @@ export function registerSearchRoutes(app: FastifyInstance, deps: AppDeps): void 
 
   typed.get(
     '/api/v1/search',
-    { schema: { querystring: searchQuery }, preHandler: requireAuth },
+    { schema: { querystring: searchQuery }, preValidation: requireAuth },
     async (request) => search(deps.db, request.query.q),
   );
 }

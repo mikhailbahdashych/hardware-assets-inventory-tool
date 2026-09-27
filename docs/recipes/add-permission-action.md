@@ -53,12 +53,12 @@ It asserts that `ACTION_GROUPS` partitions `ACTIONS` exactly — every action in
 ```ts
 typed.post(
   '/api/v1/locations',
-  { schema: { body: locationCreateInput }, preHandler: requireAction('locations.create') },
+  { schema: { body: locationCreateInput }, preValidation: requireAction('locations.create') },
   async (request) => ({ location: createLocation(deps, request.member!, request.body) }),
 );
 ```
 
-`requireAction` composes `requireAuth`, so it also carries the two-factor enrolment gate — never re-implement a guard's body, call the one below it. **A route with no action named on it is a route nothing guards**: reads are deliberately open to every authenticated member, so anything that mutates or is admin-only must name one.
+`requireAction` composes `requireAuth`, so it also carries the two-factor enrolment gate — never re-implement a guard's body, call the one below it. Attach it as `preValidation`, never `preHandler`: a `preHandler` runs after the schema, so an anonymous caller posting junk would read the field errors instead of a 401. **A route with no action named on it is a route nothing guards**: reads are deliberately open to every authenticated member, so anything that mutates or is admin-only must name one.
 
 The permission set is resolved per request in `apps/api/src/plugins/session.ts`, which is why a grant an admin made a second ago lands on the member's very next request with no session machinery involved.
 

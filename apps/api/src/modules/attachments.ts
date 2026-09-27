@@ -20,7 +20,7 @@ export function registerAttachmentRoutes(app: FastifyInstance, deps: AppDeps): v
     '/api/v1/assets/:id/attachments',
     {
       schema: { params: idParam },
-      preHandler: requireAction('assets.manage_attachments'),
+      preValidation: requireAction('assets.manage_attachments'),
     },
     async (request) => {
       const file = await request.file();
@@ -37,7 +37,7 @@ export function registerAttachmentRoutes(app: FastifyInstance, deps: AppDeps): v
 
   typed.get(
     '/api/v1/attachments/:id',
-    { schema: { params: idParam }, preHandler: requireAuth },
+    { schema: { params: idParam }, preValidation: requireAuth },
     async (request, reply) => {
       const [row] = await deps.db
         .select()
@@ -81,7 +81,7 @@ export function registerAttachmentRoutes(app: FastifyInstance, deps: AppDeps): v
     '/api/v1/attachments/:id',
     {
       schema: { params: idParam },
-      preHandler: requireAction('assets.manage_attachments'),
+      preValidation: requireAction('assets.manage_attachments'),
     },
     async (request, reply) => {
       await deleteAttachment(deps, request.member!, request.params.id);

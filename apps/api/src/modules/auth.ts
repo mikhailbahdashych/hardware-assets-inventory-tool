@@ -278,7 +278,7 @@ export function registerAuthRoutes(app: FastifyInstance, deps: AppDeps): void {
 
   // requireSession, not requireAuth: somebody mid-enrolment still needs to be
   // able to ask who they are — that answer is what puts the setup screen up.
-  typed.get('/api/v1/auth/me', { preHandler: requireSession }, async (request) => ({
+  typed.get('/api/v1/auth/me', { preValidation: requireSession }, async (request) => ({
     member: serializeMember(request.member!),
     // A sibling rather than part of the member: it is a fact about this member
     // *and* this workspace's policy, and a non-admin cannot read settings to

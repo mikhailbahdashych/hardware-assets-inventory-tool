@@ -28,11 +28,11 @@ const deleteQuery = z.object({ migrateTo: z.string().min(1).optional() });
 export function registerWorkflowRoutes(app: FastifyInstance, deps: AppDeps): void {
   const typed = app.withTypeProvider<ZodTypeProvider>();
 
-  typed.get('/api/v1/workflow', { preHandler: requireAuth }, async () => getWorkflow(deps.db));
+  typed.get('/api/v1/workflow', { preValidation: requireAuth }, async () => getWorkflow(deps.db));
 
   typed.post(
     '/api/v1/workflow/statuses',
-    { schema: { body: statusCreateSchema }, preHandler: requireAction('workflow.manage') },
+    { schema: { body: statusCreateSchema }, preValidation: requireAction('workflow.manage') },
     async (request, reply) =>
       reply.status(201).send({ status: await createStatus(deps, request.member!, request.body) }),
   );
@@ -41,7 +41,7 @@ export function registerWorkflowRoutes(app: FastifyInstance, deps: AppDeps): voi
     '/api/v1/workflow/statuses/:id',
     {
       schema: { params: idParam, body: statusPatchSchema },
-      preHandler: requireAction('workflow.manage'),
+      preValidation: requireAction('workflow.manage'),
     },
     async (request) => ({
       status: await updateStatus(deps, request.member!, request.params.id, request.body),
@@ -55,7 +55,7 @@ export function registerWorkflowRoutes(app: FastifyInstance, deps: AppDeps): voi
    */
   typed.put(
     '/api/v1/workflow/statuses/order',
-    { schema: { body: statusOrderSchema }, preHandler: requireAction('workflow.manage') },
+    { schema: { body: statusOrderSchema }, preValidation: requireAction('workflow.manage') },
     async (request) => ({
       statuses: await reorderStatuses(deps, request.member!, request.body.ids),
     }),
@@ -65,7 +65,7 @@ export function registerWorkflowRoutes(app: FastifyInstance, deps: AppDeps): voi
     '/api/v1/workflow/statuses/:id',
     {
       schema: { params: idParam, querystring: deleteQuery },
-      preHandler: requireAction('workflow.manage'),
+      preValidation: requireAction('workflow.manage'),
     },
     async (request, reply) => {
       await deleteStatus(deps, request.member!, request.params.id, request.query.migrateTo);
@@ -75,7 +75,7 @@ export function registerWorkflowRoutes(app: FastifyInstance, deps: AppDeps): voi
 
   typed.put(
     '/api/v1/workflow/transitions',
-    { schema: { body: transitionsPutSchema }, preHandler: requireAction('workflow.manage') },
+    { schema: { body: transitionsPutSchema }, preValidation: requireAction('workflow.manage') },
     async (request) => ({
       transitions: await replaceTransitions(deps, request.member!, request.body),
     }),

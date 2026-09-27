@@ -61,8 +61,8 @@ export function registerBearerAuth(app: FastifyInstance, deps: AppDeps): void {
  * vocabulary, because a token's reach is granted by name where a member's reads
  * are open.
  *
- * The lifecycle slot is load-bearing and is the one difference from
- * `requireAction`, which sits on `preHandler`. `preHandler` runs *after* schema
+ * The lifecycle slot is load-bearing, and `requireAction` and its siblings in
+ * `plugins/rbac.ts` sit in the same one. `preHandler` runs *after* schema
  * validation, so a guard there lets an anonymous caller POST junk and read back
  * 422 with the zod field errors — the request shape of a door they cannot open,
  * and a refusal that says more than "no". Attached at `preValidation` the

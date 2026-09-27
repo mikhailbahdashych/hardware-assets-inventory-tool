@@ -22,19 +22,19 @@ export function registerEmployeeRoutes(app: FastifyInstance, deps: AppDeps): voi
   // Paged and searched on the server, like the other two whole lists.
   typed.get(
     '/api/v1/employees',
-    { schema: { querystring: listQuery }, preHandler: requireAuth },
+    { schema: { querystring: listQuery }, preValidation: requireAuth },
     async (request) => listEmployees(deps.db, request.query),
   );
 
   typed.get(
     '/api/v1/employees/:id',
-    { schema: { params: idParam }, preHandler: requireAuth },
+    { schema: { params: idParam }, preValidation: requireAuth },
     async (request) => getEmployeeDetail(deps.db, request.params.id),
   );
 
   typed.post(
     '/api/v1/employees',
-    { schema: { body: employeeCreateInput }, preHandler: requireAction('employees.create') },
+    { schema: { body: employeeCreateInput }, preValidation: requireAction('employees.create') },
     async (request) => ({ employee: await createEmployee(deps, request.member!, request.body) }),
   );
 
@@ -42,7 +42,7 @@ export function registerEmployeeRoutes(app: FastifyInstance, deps: AppDeps): voi
     '/api/v1/employees/:id',
     {
       schema: { params: idParam, body: employeePatchInput },
-      preHandler: requireAction('employees.edit'),
+      preValidation: requireAction('employees.edit'),
     },
     async (request) => ({
       employee: await updateEmployee(deps, request.member!, request.params.id, request.body),
@@ -51,7 +51,7 @@ export function registerEmployeeRoutes(app: FastifyInstance, deps: AppDeps): voi
 
   typed.delete(
     '/api/v1/employees/:id',
-    { schema: { params: idParam }, preHandler: requireAction('employees.delete') },
+    { schema: { params: idParam }, preValidation: requireAction('employees.delete') },
     async (request, reply) => {
       await deleteEmployee(deps, request.member!, request.params.id);
       return reply.status(204).send();

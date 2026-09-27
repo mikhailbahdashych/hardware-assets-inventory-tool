@@ -33,7 +33,7 @@ export function registerMeRoutes(app: FastifyInstance, deps: AppDeps): void {
   const typed = app.withTypeProvider<ZodTypeProvider>();
   typed.patch(
     '/api/v1/me/prefs',
-    { schema: { body: prefsPatchInput }, preHandler: requireAuth },
+    { schema: { body: prefsPatchInput }, preValidation: requireAuth },
     async (request) => {
       const patch: Record<string, string> = {};
       if (request.body.theme) patch.theme = request.body.theme;
@@ -59,7 +59,7 @@ export function registerMeRoutes(app: FastifyInstance, deps: AppDeps): void {
     '/api/v1/me/password',
     {
       schema: { body: changePasswordInput },
-      preHandler: requireAuth,
+      preValidation: requireAuth,
       config: { rateLimit: PASSWORD_RATE },
     },
     async (request, reply) => {
@@ -121,7 +121,7 @@ export function registerMeRoutes(app: FastifyInstance, deps: AppDeps): void {
    * blocks everything else — it is the one thing somebody in that state is
    * allowed to do, and the way out of it.
    */
-  typed.post('/api/v1/me/mfa/enroll', { preHandler: requireSession }, async (request) => {
+  typed.post('/api/v1/me/mfa/enroll', { preValidation: requireSession }, async (request) => {
     const settings = await getSettings(deps.db);
     return await beginEnrolment(deps.db, request.member!, settings.orgName, deps.now());
   });
@@ -132,7 +132,7 @@ export function registerMeRoutes(app: FastifyInstance, deps: AppDeps): void {
    */
   typed.post(
     '/api/v1/me/mfa/confirm',
-    { schema: { body: mfaConfirmInput }, preHandler: requireSession },
+    { schema: { body: mfaConfirmInput }, preValidation: requireSession },
     async (request) => {
       const now = deps.now();
       const member = request.member!;
