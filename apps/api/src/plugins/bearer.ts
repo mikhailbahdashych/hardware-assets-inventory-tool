@@ -44,7 +44,12 @@ export function registerBearerAuth(app: FastifyInstance, deps: AppDeps): void {
     request.apiToken = null;
     if (!request.url.startsWith(PUBLIC_PREFIX)) return;
 
-    const raw = BEARER.exec(request.headers.authorization ?? '')?.[1]?.trim();
+    // No header is the anonymous caller, and reads the same as a header that
+    // is not a Bearer: nothing attaches, and `requireScope` is what refuses.
+    const match = BEARER.exec(request.headers.authorization ?? '');
+    if (!match) return;
+    // `(.+)` is not optional, so a match always carries group 1.
+    const raw = match[1]!.trim();
     if (!raw) return;
     request.apiToken = await resolveApiToken(deps.db, raw, deps.now());
   });

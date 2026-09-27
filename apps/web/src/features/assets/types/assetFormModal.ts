@@ -19,13 +19,19 @@ export interface AssetFormState {
   customValues: Record<string, string>;
 }
 
-export interface AssetFormModalProps {
-  /** Absent for a create. */
-  asset?: Asset;
-  customFields?: CustomFieldValue[];
+/**
+ * A create knows nothing yet; an edit knows the asset **and** its custom-field
+ * values. A union rather than two optional props, because an edit handed no
+ * values would open with every custom field blank — and save that blank over
+ * what is stored.
+ */
+export type AssetFormModalProps = {
   /** What the signed-in member may do, resolved server-side — see `can`. */
   permissions: Action[];
   onClose: () => void;
   /** Where to go once the asset is gone; defaults to just closing. */
   onDeleted?: () => void;
-}
+} & (
+  | { asset?: undefined; customFields?: undefined }
+  | { asset: Asset; customFields: CustomFieldValue[] }
+);

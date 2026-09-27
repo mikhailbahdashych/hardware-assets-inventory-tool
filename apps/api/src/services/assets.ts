@@ -20,7 +20,7 @@ import { containsAny } from '@/lib/search.js';
 import { serializeAsset, serializeAssignment } from '@/lib/serialize.js';
 import type { Actor } from '@/types/audit.js';
 import type { StatusMove } from '@/types/assets.js';
-import { writeAudit } from './audit.js';
+import { auditActor, writeAudit } from './audit.js';
 import { activeAssignment, assetHistory, openAssignment } from './assignments.js';
 import { listAttachments, storedNamesForAsset } from './attachments.js';
 import { computeNextTag } from './tag.js';
@@ -63,7 +63,7 @@ export const ASSET_SEARCH_FIELDS = [assets.name, assets.assetTag, assets.serialN
  * search-wide total under a pill would offer pages the filter has no rows for.
  */
 export async function listAssets(db: Db, query: AssetListQuery): Promise<AssetListPage> {
-  const search = containsAny(query.q ?? '', ASSET_SEARCH_FIELDS);
+  const search = containsAny(query.q, ASSET_SEARCH_FIELDS);
   const assignableIds = query.assignable
     ? (await assignableStatuses(db)).map((status) => status.id)
     : null;
@@ -102,7 +102,7 @@ export async function listAssets(db: Db, query: AssetListQuery): Promise<AssetLi
 
 export async function getAssetDetail(db: Db, id: string) {
   const [asset] = await db.select().from(assets).where(eq(assets.id, id));
-  if (!asset) throw notFound('That asset');
+  if (!asset) throw notFound('asset');
 
   const values = new Map(
     (await db.select().from(assetCustomValues).where(eq(assetCustomValues.assetId, id))).map(
@@ -192,7 +192,7 @@ export async function createAsset(deps: AppDeps, actor: Actor, input: AssetCreat
         .from(employees)
         .where(eq(employees.id, input.assignedToEmployeeId!));
       if (!found) {
-        throw invalidFields({ assignedToEmployeeId: 'That employee could not be found.' });
+        throw invalidFields({ assignedToEmployeeId: 'The employee could not be found.' });
       }
       holder = found;
     }
@@ -222,9 +222,7 @@ export async function createAsset(deps: AppDeps, actor: Actor, input: AssetCreat
       {
         type: 'assets',
         action: 'asset.created',
-        actorMemberId: actor.id,
-        actorApiTokenId: actor.apiTokenId,
-        actorName: actor.displayName,
+        actor: auditActor(actor),
         assetId: id,
         params: { assetName: input.name, assetTag },
       },
@@ -250,9 +248,7 @@ export async function createAsset(deps: AppDeps, actor: Actor, input: AssetCreat
         {
           type: 'assets',
           action: 'asset.assigned',
-          actorMemberId: actor.id,
-          actorApiTokenId: actor.apiTokenId,
-          actorName: actor.displayName,
+          actor: auditActor(actor),
           assetId: id,
           employeeId: holder.id,
           params: { assetName: input.name, assetTag, holderName },
@@ -273,7 +269,7 @@ export async function updateAsset(deps: AppDeps, actor: Actor, id: string, patch
 
   return await deps.db.transaction(async (tx) => {
     const [current] = await tx.select().from(assets).where(eq(assets.id, id));
-    if (!current) throw notFound('That asset');
+    if (!current) throw notFound('asset');
 
     const values: Record<string, unknown> = {};
     const changedFields: string[] = [];
@@ -346,9 +342,7 @@ export async function updateAsset(deps: AppDeps, actor: Actor, id: string, patch
         {
           type: 'assets',
           action: 'asset.updated',
-          actorMemberId: actor.id,
-          actorApiTokenId: actor.apiTokenId,
-          actorName: actor.displayName,
+          actor: auditActor(actor),
           assetId: id,
           params: { ...subject, changedFields },
         },
@@ -361,9 +355,7 @@ export async function updateAsset(deps: AppDeps, actor: Actor, id: string, patch
         {
           type: 'assets',
           action: 'asset.status_changed',
-          actorMemberId: actor.id,
-          actorApiTokenId: actor.apiTokenId,
-          actorName: actor.displayName,
+          actor: auditActor(actor),
           assetId: id,
           params: { ...subject, ...statusMove },
         },
@@ -385,7 +377,7 @@ export async function deleteAsset(deps: AppDeps, actor: Actor, id: string): Prom
 
   await deps.db.transaction(async (tx) => {
     const [asset] = await tx.select().from(assets).where(eq(assets.id, id));
-    if (!asset) throw notFound('That asset');
+    if (!asset) throw notFound('asset');
     if (await activeAssignment(tx, id)) {
       throw new AppError(
         409,
@@ -401,9 +393,7 @@ export async function deleteAsset(deps: AppDeps, actor: Actor, id: string): Prom
       {
         type: 'assets',
         action: 'asset.deleted',
-        actorMemberId: actor.id,
-        actorApiTokenId: actor.apiTokenId,
-        actorName: actor.displayName,
+        actor: auditActor(actor),
         params: { assetName: asset.name, assetTag: asset.assetTag },
       },
       now,

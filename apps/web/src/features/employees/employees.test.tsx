@@ -255,7 +255,7 @@ describe('employee detail', () => {
         ...ROUTES,
         'GET /employees/emp-9': {
           status: 404,
-          body: { error: { code: 'not_found', message: 'That employee could not be found.' } },
+          body: { error: { code: 'not_found', message: 'The employee could not be found.' } },
         },
       },
       '/employees/emp-9',
@@ -307,7 +307,7 @@ describe('a read that failed', () => {
     renderApp({ ...INVENTORY_ROUTES, 'GET /employees/emp-1': DB_DOWN }, '/employees/emp-1');
 
     const panel = await screen.findByRole('alert');
-    expect(within(panel).getByText(/this employee could not be loaded/i)).toBeInTheDocument();
+    expect(within(panel).getByText(/the employee could not be loaded/i)).toBeInTheDocument();
     expect(within(panel).getByText('The database is unavailable.')).toBeInTheDocument();
     // The bespoke panel this replaces had one thing worth keeping: a way out
     // of a page that cannot draw itself.

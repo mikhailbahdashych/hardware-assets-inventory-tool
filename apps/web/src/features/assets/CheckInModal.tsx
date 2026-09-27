@@ -7,7 +7,17 @@ import {
 import { fieldErrors } from '@/api/formErrors';
 import { useCheckinAsset } from '@/api/mutations';
 import { useWorkflow } from '@/api/queries';
-import { Button, Dropdown, Field, Input, Modal, SegmentedControl, Textarea } from '@/components/ui';
+import {
+  Button,
+  Dropdown,
+  ErrorState,
+  Field,
+  Input,
+  Modal,
+  SegmentedControl,
+  Spinner,
+  Textarea,
+} from '@/components/ui';
 import { checkinTargets } from '@/lib/workflow';
 import { useToast } from '@/providers/ToastProvider';
 import type { CheckInModalProps } from './types/checkInModal';
@@ -31,14 +41,19 @@ export function CheckInModal({ asset, onClose }: CheckInModalProps) {
   const checkin = useCheckinAsset(asset.id);
   const errors = fieldErrors(checkin.error);
 
-  // Destinations that have not arrived are none to offer; the first one is the
-  // default until somebody picks another, so the choice cannot live in state.
-  const destinations = checkinTargets(workflow.data?.statuses ?? []);
+  // Where a return may land is this workspace's to say, so a read that did not
+  // answer is reported where the choice would be (below), never drawn as a
+  // workspace with nowhere to land. The asset page never mounts this past a
+  // failed /workflow; the person's page reads none of its own, so there the
+  // modal's read is the only one. The first destination is the default until
+  // somebody picks another, so the choice cannot live in state.
+  const destinations = workflow.isSuccess ? checkinTargets(workflow.data.statuses) : [];
   const newStatus = chosen || (destinations[0]?.id ?? '');
 
   function submit(event: FormEvent) {
     event.preventDefault();
     checkin.mutate(
+      // A blank note is no note, which the column spells NULL.
       { returnDate, newStatus, condition, notes: notes.trim() || null },
       {
         onSuccess: ({ asset: updated }) => {
@@ -67,7 +82,7 @@ export function CheckInModal({ asset, onClose }: CheckInModalProps) {
           <Button
             type="submit"
             form="checkin-form"
-            disabled={checkin.isPending || newStatus === ''}
+            disabled={checkin.isPending || !workflow.isSuccess || newStatus === ''}
           >
             Check in asset
           </Button>
@@ -108,7 +123,13 @@ export function CheckInModal({ asset, onClose }: CheckInModalProps) {
         </div>
 
         <Field label="New status" required error={errors.newStatus}>
-          {destinations.length === 0 ? (
+          {workflow.isError ? (
+            <ErrorState error={workflow.error} onRetry={() => void workflow.refetch()}>
+              The statuses a returning asset can land in could not be loaded.
+            </ErrorState>
+          ) : !workflow.isSuccess ? (
+            <Spinner size={16} />
+          ) : destinations.length === 0 ? (
             <p className={formStyles.empty}>
               This workspace has no status for a returning asset to land in.
             </p>

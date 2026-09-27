@@ -14,7 +14,7 @@ import { assets, employees } from '@/db/schema.js';
 import { nowIso } from '@/lib/dates.js';
 import { AppError } from '@/lib/errors.js';
 import { newId } from '@/lib/ids.js';
-import { writeAudit } from './audit.js';
+import { auditActor, writeAudit } from './audit.js';
 import { openAssignment } from './assignments.js';
 import { planImport } from './import-validator.js';
 import { getWorkflow } from './workflow.js';
@@ -83,8 +83,7 @@ export async function commitImport(
       {
         type: 'system',
         action: 'system.import_completed',
-        actorMemberId: actor.id,
-        actorName: actor.displayName,
+        actor: auditActor(actor),
         params: { kind: result.kind, created: result.created, updated: result.updated },
       },
       now,
@@ -152,6 +151,9 @@ async function writeAssets(tx: DbOrTx, rows: PlannedAsset[], now: Date): Promise
           assetId: id,
           employeeId: holder.id,
           holderName: `${holder.firstName} ${holder.lastName}`,
+          // A spreadsheet does not say when its holder got the device. The
+          // purchase date is the earliest it can have been; without one, the
+          // import is the only handover this system witnessed.
           checkedOutAt: row.purchaseDate ?? at.slice(0, 10),
           expectedReturnDate: null,
           notes: IMPORT_NOTE,

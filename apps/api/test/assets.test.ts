@@ -399,6 +399,9 @@ describe('editing an asset', () => {
       body: { name: 'x' },
     });
     expect(missing.statusCode).toBe(404);
+    // The sentence stands alone — in a toast, under a panel, in a public-API
+    // response — so it names its subject without pointing at it.
+    expect(missing.json().error.message).toBe('The asset could not be found.');
 
     const viewer = await inject(ctx.app, {
       method: 'PATCH',

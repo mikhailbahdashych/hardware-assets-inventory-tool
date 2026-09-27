@@ -52,8 +52,7 @@ export function registerSetupRoutes(app: FastifyInstance, deps: AppDeps): void {
           {
             type: 'system',
             action: 'system.setup_completed',
-            actorMemberId: memberId,
-            actorName: request.body.name,
+            actor: { kind: 'member', id: memberId, name: request.body.name },
             memberId,
             params: { orgName: request.body.orgName },
           },

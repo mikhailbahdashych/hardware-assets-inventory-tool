@@ -6,13 +6,6 @@ import type { StatusInfo } from './types/workflow';
 // These four helpers are the whole vocabulary — labels, colours, and the two
 // questions the modals ask: where may this asset go, and where may it land.
 
-/**
- * What a screen renders before the query answers. The rule, not a rescue: a
- * workflow that has not arrived has no statuses to draw, and the pages that
- * need one wait for it rather than guessing.
- */
-export const EMPTY_WORKFLOW: WorkflowPayload = { statuses: [], transitions: [] };
-
 export function statusMap(statuses: WorkflowStatus[]): Map<string, WorkflowStatus> {
   return new Map(statuses.map((status) => [status.id, status]));
 }

@@ -84,6 +84,7 @@ export async function seedDemo(deps: AppDeps, options: DemoSeedOptions): Promise
 
   const signIn: DemoAccount[] = [];
 
+  // Most people in the dataset do not sign in, and have no account to ask.
   const founder = PEOPLE.find((person) => person.account?.role === 'admin');
   if (!founder) throw new Error('The demo dataset has no admin to attribute its history to.');
   // Kept as a plain string beside the actor rather than read back off it: the
@@ -125,8 +126,7 @@ export async function seedDemo(deps: AppDeps, options: DemoSeedOptions): Promise
       {
         type: 'system',
         action: 'system.setup_completed',
-        actorMemberId: founderId,
-        actorName: founderName,
+        actor: { kind: 'member', id: founderId, name: founderName },
         memberId: founderId,
         params: { orgName: ORG_NAME },
       },
@@ -150,8 +150,7 @@ export async function seedDemo(deps: AppDeps, options: DemoSeedOptions): Promise
       {
         type: 'system',
         action: 'system.settings_updated',
-        actorMemberId: founderId,
-        actorName: founderName,
+        actor: { kind: 'member', id: founderId, name: founderName },
         params: { changedFields: ['warrantyLeadDays'] },
       },
       at(6, 11, 20),
@@ -169,8 +168,7 @@ export async function seedDemo(deps: AppDeps, options: DemoSeedOptions): Promise
         {
           type: 'auth',
           action: 'auth.login',
-          actorMemberId: memberId,
-          actorName: `${person.firstName} ${person.lastName}`,
+          actor: { kind: 'member', id: memberId, name: `${person.firstName} ${person.lastName}` },
           memberId,
         },
         at(daysAgo, hour, 12),
@@ -363,8 +361,7 @@ async function auditPeopleAdded(
       {
         type: 'people',
         action: 'employee.created',
-        actorMemberId: actorId,
-        actorName,
+        actor: { kind: 'member', id: actorId, name: actorName },
         employeeId: id,
         params: { employeeName: `${person.firstName} ${person.lastName}` },
       },
@@ -397,6 +394,13 @@ async function seedMembers(
     // The founder's own row is the one the setup event was attributed to.
     const id = account.role === 'admin' ? ctx.founderId : newId();
     ids.set(person.key, id);
+    // Every account belongs to somebody `seedPeople` already filed, and the
+    // member row links to them. A miss is the dataset or the seeding order
+    // broken — a member quietly unlinked would be a demo telling a lie.
+    const employeeId = ctx.employeeIds.get(person.key);
+    if (employeeId === undefined) {
+      throw new Error(`demo-data: ${person.key} has an account but no employee row.`);
+    }
 
     const invitedAt = at(person.addedDaysAgo, 9, 30 + index);
     const active = account.status === 'active';
@@ -410,7 +414,7 @@ async function seedMembers(
       passwordHash: active ? ctx.passwordHash : null,
       role: account.role,
       status: account.status,
-      employeeId: ctx.employeeIds.get(person.key) ?? null,
+      employeeId,
       lastActiveAt: active ? nowIso(at(index, 8, 15)) : null,
       createdAt: nowIso(invitedAt),
       updatedAt: nowIso(invitedAt),
@@ -427,8 +431,7 @@ async function seedMembers(
         {
           type: 'auth',
           action: 'member.invited',
-          actorMemberId: ctx.founderId,
-          actorName: ctx.founderName,
+          actor: { kind: 'member', id: ctx.founderId, name: ctx.founderName },
           memberId: id,
           // The label as the row spells it, snapshot at write time — the same
           // rule the members service follows, so a rename never rewrites the log.
@@ -446,8 +449,7 @@ async function seedMembers(
           {
             type: 'auth',
             action: 'member.joined',
-            actorMemberId: id,
-            actorName: displayName,
+            actor: { kind: 'member', id, name: displayName },
             memberId: id,
             params: { memberName: displayName },
           },
@@ -498,8 +500,7 @@ async function seedAssets(
       {
         type: 'assets',
         action: 'asset.created',
-        actorMemberId: actorId,
-        actorName,
+        actor: { kind: 'member', id: actorId, name: actorName },
         assetId: id,
         params: { assetName: asset.name, assetTag },
       },
@@ -579,7 +580,7 @@ async function seedHoldings(tx: DbOrTx, at: Clock, ctx: HoldingSeedContext): Pro
         checkedOutAt: todayDate(out),
         expectedReturnDate:
           holding.dueInDays === undefined ? null : todayDate(at(-holding.dueInDays)),
-        notes: holding.notes ?? null,
+        notes: holding.notes,
       },
       out,
     );
@@ -588,8 +589,7 @@ async function seedHoldings(tx: DbOrTx, at: Clock, ctx: HoldingSeedContext): Pro
       {
         type: 'assets',
         action: 'asset.assigned',
-        actorMemberId: ctx.founderId,
-        actorName: ctx.founderName,
+        actor: { kind: 'member', id: ctx.founderId, name: ctx.founderName },
         assetId,
         employeeId,
         params: { assetName: asset.name, holderName },
@@ -620,6 +620,8 @@ async function seedHoldings(tx: DbOrTx, at: Clock, ctx: HoldingSeedContext): Pro
     if (!open) {
       throw new Error(`demo-data: ${holding.assetKey} has no open record to close.`);
     }
+    // The dataset's defaults, as `DemoHolding` documents them: a return that
+    // names nowhere else went back on the shelf, and came back fine.
     const newStatus = holding.returnedTo ?? 'available';
     // The same derivation the check-in endpoint uses, against the status the
     // holder had *then*. Somebody who is leaving now was not leaving in June,
@@ -638,7 +640,7 @@ async function seedHoldings(tx: DbOrTx, at: Clock, ctx: HoldingSeedContext): Pro
         returnedAt: todayDate(back),
         newStatus,
         condition: holding.condition ?? 'good',
-        notes: holding.notes ?? null,
+        notes: holding.notes,
         outcome,
       },
       back,
@@ -648,8 +650,7 @@ async function seedHoldings(tx: DbOrTx, at: Clock, ctx: HoldingSeedContext): Pro
       {
         type: 'assets',
         action: 'asset.checked_in',
-        actorMemberId: ctx.founderId,
-        actorName: ctx.founderName,
+        actor: { kind: 'member', id: ctx.founderId, name: ctx.founderName },
         assetId,
         employeeId,
         params: { assetName: asset.name, holderName, outcome },
@@ -690,8 +691,7 @@ async function seedOffboarding(
       {
         type: 'people',
         action: 'employee.offboarding_started',
-        actorMemberId: actorId,
-        actorName,
+        actor: { kind: 'member', id: actorId, name: actorName },
         employeeId: id,
         params: { employeeName: displayName, scheduledReturns },
       },

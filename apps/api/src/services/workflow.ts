@@ -18,7 +18,7 @@ import type { AssetStatusRow } from '@/types/workflow.js';
 import { assets, assetStatuses, assetStatusTransitions } from '@/db/schema.js';
 import { nowIso } from '@/lib/dates.js';
 import { AppError, invalidFields, notFound } from '@/lib/errors.js';
-import { writeAudit } from './audit.js';
+import { auditActor, writeAudit } from './audit.js';
 
 /**
  * Every rule about statuses and the moves between them, in one place. The
@@ -141,8 +141,7 @@ export async function createStatus(
       {
         type: 'system',
         action: 'workflow.status_created',
-        actorMemberId: actor.id,
-        actorName: actor.displayName,
+        actor: auditActor(actor),
         params: { label: input.label },
       },
       now,
@@ -163,7 +162,7 @@ export async function updateStatus(
   return await deps.db.transaction(async (tx) => {
     const rows = await statusRows(tx);
     const current = rows.find((row) => row.id === id);
-    if (!current) throw notFound('That status');
+    if (!current) throw notFound('status');
 
     // A system status may be renamed and recolored — those are presentation.
     // Its flags are not: assign and check-in are the only doors into and out
@@ -214,8 +213,7 @@ export async function updateStatus(
       {
         type: 'system',
         action: 'workflow.status_updated',
-        actorMemberId: actor.id,
-        actorName: actor.displayName,
+        actor: auditActor(actor),
         // The label *after* the patch, like every other update event.
         params: { label: values.label ?? current.label, changedFields },
       },
@@ -243,7 +241,7 @@ export async function deleteStatus(
   await deps.db.transaction(async (tx) => {
     const rows = await statusRows(tx);
     const current = rows.find((row) => row.id === id);
-    if (!current) throw notFound('That status');
+    if (!current) throw notFound('status');
     if (current.isSystem) {
       throw new AppError(
         409,
@@ -286,8 +284,7 @@ export async function deleteStatus(
       {
         type: 'system',
         action: 'workflow.status_deleted',
-        actorMemberId: actor.id,
-        actorName: actor.displayName,
+        actor: auditActor(actor),
         params: {
           label: current.label,
           // Null rather than absent: "deleted, nothing to move" is a real
@@ -354,8 +351,7 @@ export async function replaceTransitions(
       {
         type: 'system',
         action: 'workflow.transitions_updated',
-        actorMemberId: actor.id,
-        actorName: actor.displayName,
+        actor: auditActor(actor),
         params: { added, removed },
       },
       now,
@@ -395,8 +391,7 @@ export async function reorderStatuses(
       {
         type: 'system',
         action: 'workflow.statuses_reordered',
-        actorMemberId: actor.id,
-        actorName: actor.displayName,
+        actor: auditActor(actor),
       },
       now,
     );
@@ -429,7 +424,7 @@ async function requireMigrationTarget(
     throw invalidFields({ migrateTo: 'Assets are moved into Assigned by assigning them.' });
   }
   const [row] = await tx.select().from(assetStatuses).where(eq(assetStatuses.id, migrateTo));
-  if (!row) throw invalidFields({ migrateTo: 'That status could not be found.' });
+  if (!row) throw invalidFields({ migrateTo: 'The status could not be found.' });
   return row;
 }
 

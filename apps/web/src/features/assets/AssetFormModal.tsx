@@ -90,7 +90,7 @@ export function AssetFormModal({
 }: AssetFormModalProps) {
   const editing = asset !== undefined;
   const [form, setForm] = useState<AssetFormState>(
-    editing ? fromAsset(asset, customFields ?? []) : EMPTY,
+    editing ? fromAsset(asset, customFields) : EMPTY,
   );
   const [createAnother, setCreateAnother] = useState(false);
   const [priceError, setPriceError] = useState<string | null>(null);
@@ -144,6 +144,8 @@ export function AssetFormModal({
     setForm((current) => ({ ...current, [key]: value }));
 
   // The suggestion only fills an untouched field, so a typed tag survives it.
+  // One that has not arrived leaves the field blank, which the API reads as
+  // "number it for me" — the same answer the suggestion would have given.
   const tagValue = form.assetTag || (editing ? '' : (nextTag.data ?? ''));
   const holderLocked = editing && asset.status === ASSIGNED_STATUS;
   // Statuses that have not arrived are none to offer, and the form waits for
@@ -212,6 +214,7 @@ export function AssetFormModal({
       {
         ...shared,
         status,
+        // Blank is "number it for me": the API mints the tag when none is sent.
         assetTag: tagValue || undefined,
         currency: null,
         assignedToEmployeeId:
@@ -502,6 +505,7 @@ export function AssetFormModal({
                         id={id}
                         type={def.type === 'date' ? 'date' : 'text'}
                         inputMode={def.type === 'number' ? 'decimal' : undefined}
+                        // A field never typed into has no entry yet: an empty input.
                         value={form.customValues[def.key] ?? ''}
                         onChange={(event) =>
                           set('customValues', {

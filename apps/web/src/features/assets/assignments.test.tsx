@@ -412,6 +412,31 @@ describe('the employee side', () => {
     await waitFor(() => expect(api.called('POST /assets/asset-1/checkin')).toBeDefined());
   });
 
+  it('says the destinations could not be loaded, rather than that there are none', async () => {
+    // The asset page never mounts this modal past a failed /workflow; the
+    // person's page reads no workflow of its own, so here the modal's read is
+    // the only one, and its failure is the modal's to report.
+    let attempts = 0;
+    renderApp(
+      {
+        ...detailRoutes,
+        'GET /workflow': () => (attempts++ === 0 ? DB_DOWN : { body: WORKFLOW }),
+      },
+      '/employees/emp-1',
+    );
+    await userEvent.click(await screen.findByRole('button', { name: 'Check in →' }));
+
+    const dialog = await screen.findByRole('dialog');
+    const panel = await within(dialog).findByRole('alert');
+    expect(within(panel).getByText(/could not be loaded/i)).toBeInTheDocument();
+    expect(within(panel).getByText('The database is unavailable.')).toBeInTheDocument();
+    expect(within(dialog).queryByText(/no status for a returning asset/i)).toBeNull();
+    expect(within(dialog).getByRole('button', { name: 'Check in asset' })).toBeDisabled();
+
+    await userEvent.click(within(panel).getByRole('button', { name: 'Try again' }));
+    expect(await within(dialog).findByRole('button', { name: 'Available' })).toBeInTheDocument();
+  });
+
   it('assigns from the person, picking an asset instead of a person', async () => {
     const spare = { ...MONITOR, status: 'available' };
     const api = renderApp(

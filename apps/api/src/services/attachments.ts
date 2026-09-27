@@ -10,7 +10,7 @@ import { newId } from '@/lib/ids.js';
 import { AppError, notFound } from '@/lib/errors.js';
 import type { Actor } from '@/types/audit.js';
 import type { UploadedFile } from '@/types/attachments.js';
-import { writeAudit } from './audit.js';
+import { auditActor, writeAudit } from './audit.js';
 import { getSettings } from './settings.js';
 
 export type AttachmentRow = typeof attachments.$inferSelect;
@@ -105,7 +105,7 @@ export async function saveAttachment(
   file: UploadedFile,
 ): Promise<AttachmentRow> {
   const [asset] = await deps.db.select().from(assets).where(eq(assets.id, assetId));
-  if (!asset) throw notFound('That asset');
+  if (!asset) throw notFound('asset');
 
   const id = newId();
   const extension = extname(file.filename)
@@ -179,8 +179,7 @@ export async function saveAttachment(
         {
           type: 'assets',
           action: 'asset.attachment_added',
-          actorMemberId: actor.id,
-          actorName: actor.displayName,
+          actor: auditActor(actor),
           assetId,
           params: { assetName: asset.name, assetTag: asset.assetTag, filename: file.filename },
         },
@@ -203,12 +202,12 @@ export async function deleteAttachment(
   attachmentId: string,
 ): Promise<void> {
   const [row] = await deps.db.select().from(attachments).where(eq(attachments.id, attachmentId));
-  if (!row) throw notFound('That attachment');
+  if (!row) throw notFound('attachment');
   // attachments.asset_id is NOT NULL and cascades on delete, so the asset an
   // attachment names always exists. Reading it optionally would only hide the
   // day that stops being true — and write a nameless audit line.
   const [asset] = await deps.db.select().from(assets).where(eq(assets.id, row.assetId));
-  if (!asset) throw notFound('That asset');
+  if (!asset) throw notFound('asset');
 
   const now = deps.now();
   await deps.db.transaction(async (tx) => {
@@ -218,8 +217,7 @@ export async function deleteAttachment(
       {
         type: 'assets',
         action: 'asset.attachment_removed',
-        actorMemberId: actor.id,
-        actorName: actor.displayName,
+        actor: auditActor(actor),
         assetId: row.assetId,
         params: { assetName: asset.name, assetTag: asset.assetTag, filename: row.filename },
       },

@@ -47,6 +47,27 @@ describe('renderNotification', () => {
     ).toBe('AST-0007 · iPad was checked in from you');
   });
 
+  it('refuses a row its writer left a param out of, rather than rendering the hole', () => {
+    // Every kind has one writer in the API, and each always sends these. A
+    // missing one is that writer broken — "You were handed  · iPad" and "was
+    // due undefined" are sentences about a device nobody can identify.
+    expect(() =>
+      renderNotification({ kind: 'assignment.received', params: { assetName: 'iPad' } }),
+    ).toThrow('"assignment.received" notification has no "assetTag"');
+    expect(() =>
+      renderNotification({
+        kind: 'return.due',
+        params: { assetName: 'iPad', assetTag: 'AST-0007', overdue: false },
+      }),
+    ).toThrow('"return.due" notification has no "date"');
+    expect(() =>
+      renderNotification({
+        kind: 'warranty.expiring',
+        params: { assetName: 'Dock', assetTag: 'AST-0001' },
+      }),
+    ).toThrow('"warranty.expiring" notification has no "days"');
+  });
+
   it('renders an unknown kind as itself rather than hiding the row', () => {
     // The same deliberate fallback as the audit renderer: an inbox that hides
     // items is worse than an ugly one.

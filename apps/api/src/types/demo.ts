@@ -134,10 +134,12 @@ export interface DemoHolding {
   untilDaysAgo?: number;
   /** Only meaningful while open — what the Pending returns widget reads. */
   dueInDays?: number;
+  /** Absent means it came back `good`. */
   condition?: CheckinCondition;
   /**
-   * Where the asset lands at check-in. Only three statuses are reachable that
-   * way — `ordered` and `lost_stolen` are not things a return can produce.
+   * Where the asset lands at check-in; absent means `available`. Only three
+   * statuses are reachable that way — `ordered` and `lost_stolen` are not
+   * things a return can produce.
    */
   returnedTo?: DemoCheckinStatus;
   notes?: string;

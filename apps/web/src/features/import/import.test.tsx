@@ -83,6 +83,48 @@ describe('step 1 — the file', () => {
     expect(await within(dialog).findByText(/no data rows/i)).toBeInTheDocument();
     expect(within(dialog).getByRole('button', { name: /continue to mapping/i })).toBeDisabled();
   });
+
+  it('reports a header row it could not read, rather than a spreadsheet with no rows', async () => {
+    // One quote nobody closed runs the whole file into a single column name.
+    // What is broken is the file, and the wizard says so.
+    const { dialog } = await openWizard();
+    await userEvent.upload(
+      within(dialog).getByLabelText(/csv file/i),
+      csvFile('"asset_tag,name,category\nAST-2001,MacBook Air M3,Laptops'),
+    );
+    expect(
+      await within(dialog).findByText(
+        'The header row of that file opens a quote it never closes, so its columns cannot be read.',
+      ),
+    ).toBeInTheDocument();
+    expect(within(dialog).queryByText(/no data rows/i)).toBeNull();
+    expect(within(dialog).getByRole('button', { name: /continue to mapping/i })).toBeDisabled();
+  });
+
+  it('names the row an unclosed quote starts on, counting the header as row 1', async () => {
+    // Every row after the quote runs into one cell, so in a 5,000-row file the
+    // row it started on is the only place worth looking — and a spreadsheet
+    // numbers it with the header as row 1, like every other issue here.
+    const { dialog } = await openWizard();
+    await userEvent.upload(
+      within(dialog).getByLabelText(/csv file/i),
+      csvFile(
+        [
+          'asset_tag,name,category',
+          'AST-2001,MacBook Air M3,Laptops',
+          'AST-2002,Dell U2723QE,Monitors',
+          'AST-2003,"ThinkPad X1,Laptops',
+          'AST-2004,iPad Air,Tablets',
+        ].join('\n'),
+      ),
+    );
+    expect(
+      await within(dialog).findByText(
+        'Row 4 of that file opens a quote it never closes, so everything after it runs into one cell.',
+      ),
+    ).toBeInTheDocument();
+    expect(within(dialog).getByRole('button', { name: /continue to mapping/i })).toBeDisabled();
+  });
 });
 
 describe('step 2 — the column mapping', () => {

@@ -133,6 +133,7 @@ export function ActivityLogPanel() {
       <div className={styles.logToolbar}>
         <FilterPills
           options={options}
+          // No `?type=` in the URL is the unfiltered log, which is the All pill.
           value={type ?? 'all'}
           onChange={(value) => filter('type', value === 'all' ? '' : value)}
         />
@@ -141,6 +142,7 @@ export function ActivityLogPanel() {
         <div className={styles.actorFilter}>
           <Dropdown
             aria-label="Who acted"
+            // No `?actorKind=` is everybody — the "Anyone" option's empty value.
             value={actorKind ?? ''}
             options={[
               { value: '', label: 'Anyone' },

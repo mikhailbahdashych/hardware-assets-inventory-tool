@@ -16,6 +16,8 @@ import formStyles from '@/components/ui/FormModal.module.css';
  * pressing the button, the server's answer is the only one still true.
  */
 export function DeleteStatusModal({ status, destinations, onClose }: DeleteStatusModalProps) {
+  // The first destination until somebody picks another. Empty only when there
+  // is nowhere to move them, and "Move and delete" stays disabled on it.
   const [migrateTo, setMigrateTo] = useState(destinations[0]?.id ?? '');
 
   const toast = useToast();

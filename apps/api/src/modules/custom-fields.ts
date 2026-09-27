@@ -9,7 +9,7 @@ import { invalidFields, notFound } from '@/lib/errors.js';
 import { nowIso } from '@/lib/dates.js';
 import { newId } from '@/lib/ids.js';
 import { requireAction, requireAuth } from '@/plugins/rbac.js';
-import { writeAudit } from '@/services/audit.js';
+import { auditActor, writeAudit } from '@/services/audit.js';
 import { listCustomFields, serializeCustomField as serialize } from '@/services/custom-fields.js';
 
 const idParam = z.object({ id: z.string().min(1) });
@@ -60,8 +60,7 @@ export function registerCustomFieldRoutes(app: FastifyInstance, deps: AppDeps): 
           {
             type: 'system',
             action: 'custom_field.created',
-            actorMemberId: request.member!.id,
-            actorName: request.member!.displayName,
+            actor: auditActor(request.member!),
             params: { key, label: request.body.label, fieldType: request.body.type },
           },
           now,
@@ -90,7 +89,7 @@ export function registerCustomFieldRoutes(app: FastifyInstance, deps: AppDeps): 
           .select()
           .from(customFieldDefs)
           .where(eq(customFieldDefs.id, request.params.id));
-        if (!current) throw notFound('That field');
+        if (!current) throw notFound('field');
 
         // The key deliberately does not follow the label: stored values, CSV
         // headers and API payloads all hang off it.
@@ -105,8 +104,7 @@ export function registerCustomFieldRoutes(app: FastifyInstance, deps: AppDeps): 
           {
             type: 'system',
             action: 'custom_field.updated',
-            actorMemberId: request.member!.id,
-            actorName: request.member!.displayName,
+            actor: auditActor(request.member!),
             // The label *after* the patch: an untouched label is the stored one.
             params: { key: current.key, label: request.body.label ?? current.label },
           },
@@ -133,7 +131,7 @@ export function registerCustomFieldRoutes(app: FastifyInstance, deps: AppDeps): 
           .select()
           .from(customFieldDefs)
           .where(eq(customFieldDefs.id, request.params.id));
-        if (!current) throw notFound('That field');
+        if (!current) throw notFound('field');
 
         // Values cascade away with the definition — there is nowhere to keep
         // them once the column they described is gone.
@@ -143,8 +141,7 @@ export function registerCustomFieldRoutes(app: FastifyInstance, deps: AppDeps): 
           {
             type: 'system',
             action: 'custom_field.deleted',
-            actorMemberId: request.member!.id,
-            actorName: request.member!.displayName,
+            actor: auditActor(request.member!),
             params: { key: current.key, label: current.label },
           },
           now,

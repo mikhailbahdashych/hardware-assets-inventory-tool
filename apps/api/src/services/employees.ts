@@ -12,7 +12,7 @@ import { newId } from '@/lib/ids.js';
 import { containsAny } from '@/lib/search.js';
 import { serializeEmployee, serializeHolding } from '@/lib/serialize.js';
 import type { Actor } from '@/types/audit.js';
-import { writeAudit } from './audit.js';
+import { auditActor, writeAudit } from './audit.js';
 import { employeeHistory } from './assignments.js';
 
 const EDITABLE = [
@@ -60,7 +60,7 @@ export const EMPLOYEE_SEARCH_FIELDS = [
  * swap places across a page boundary.
  */
 export async function listEmployees(db: Db, query: ListQuery): Promise<EmployeeListPage> {
-  const search = containsAny(query.q ?? '', EMPLOYEE_SEARCH_FIELDS);
+  const search = containsAny(query.q, EMPLOYEE_SEARCH_FIELDS);
   const rows = await db
     .select()
     .from(employees)
@@ -92,7 +92,7 @@ export async function listEmployees(db: Db, query: ListQuery): Promise<EmployeeL
  */
 export async function getEmployeeDetail(db: Db, id: string) {
   const [employee] = await db.select().from(employees).where(eq(employees.id, id));
-  if (!employee) throw notFound('That employee');
+  if (!employee) throw notFound('employee');
 
   const records = (await employeeHistory(db, id)).map((row) =>
     serializeHolding(row.assignment, row.asset),
@@ -133,9 +133,7 @@ export async function createEmployee(deps: AppDeps, actor: Actor, input: Employe
       {
         type: 'people',
         action: 'employee.created',
-        actorMemberId: actor.id,
-        actorApiTokenId: actor.apiTokenId,
-        actorName: actor.displayName,
+        actor: auditActor(actor),
         employeeId: id,
         params: { employeeName, email: input.email },
       },
@@ -159,7 +157,7 @@ export async function updateEmployee(
 
   return await deps.db.transaction(async (tx) => {
     const [current] = await tx.select().from(employees).where(eq(employees.id, id));
-    if (!current) throw notFound('That employee');
+    if (!current) throw notFound('employee');
 
     const values: Record<string, unknown> = {};
     const changedFields: string[] = [];
@@ -209,9 +207,7 @@ export async function updateEmployee(
         {
           type: 'people',
           action: 'employee.updated',
-          actorMemberId: actor.id,
-          actorApiTokenId: actor.apiTokenId,
-          actorName: actor.displayName,
+          actor: auditActor(actor),
           employeeId: id,
           params: { employeeName, changedFields },
         },
@@ -224,9 +220,7 @@ export async function updateEmployee(
         {
           type: 'people',
           action: 'employee.offboarding_started',
-          actorMemberId: actor.id,
-          actorApiTokenId: actor.apiTokenId,
-          actorName: actor.displayName,
+          actor: auditActor(actor),
           employeeId: id,
           // Offboarding without a return date is allowed; null records that.
           params: { employeeName, scheduledReturns, returnDueDate: patch.returnDueDate ?? null },
@@ -247,7 +241,7 @@ export async function deleteEmployee(deps: AppDeps, actor: Actor, id: string): P
 
   await deps.db.transaction(async (tx) => {
     const [employee] = await tx.select().from(employees).where(eq(employees.id, id));
-    if (!employee) throw notFound('That employee');
+    if (!employee) throw notFound('employee');
     if ((await countHeldBy(tx, id)) > 0) {
       throw new AppError(
         409,
@@ -264,9 +258,7 @@ export async function deleteEmployee(deps: AppDeps, actor: Actor, id: string): P
       {
         type: 'people',
         action: 'employee.deleted',
-        actorMemberId: actor.id,
-        actorApiTokenId: actor.apiTokenId,
-        actorName: actor.displayName,
+        actor: auditActor(actor),
         params: { employeeName: `${employee.firstName} ${employee.lastName}` },
       },
       now,

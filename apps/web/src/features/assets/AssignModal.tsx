@@ -110,6 +110,7 @@ export function AssignModal(props: AssignModalProps) {
           .map((employee) => ({
             id: employee.id,
             title: employee.displayName,
+            // Both are nullable columns; neither is the design's em dash.
             subtitle: [employee.jobTitle, employee.location].filter(Boolean).join(' · ') || '—',
             avatarKey: employee.id,
           }))
@@ -143,6 +144,7 @@ export function AssignModal(props: AssignModalProps) {
     const input: AssignInput = {
       employeeId: props.mode === 'pick-employee' ? selected : props.employeeId,
       checkoutDate,
+      // Blank inputs are no date agreed and no note — NULL, as the columns say.
       expectedReturnDate: expectedReturnDate || null,
       notes: notes.trim() || null,
     };

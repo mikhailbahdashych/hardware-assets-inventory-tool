@@ -16,7 +16,7 @@ import type { RoleActor, RoleRow } from '@/types/roles.js';
 import { members, rolePermissions, roles } from '@/db/schema.js';
 import { nowIso } from '@/lib/dates.js';
 import { AppError, invalidFields, notFound } from '@/lib/errors.js';
-import { writeAudit } from './audit.js';
+import { auditActor, writeAudit } from './audit.js';
 
 /**
  * Every rule about roles and what they may do, in one place. `members.role` has
@@ -175,8 +175,7 @@ export async function createRole(
       {
         type: 'auth',
         action: 'role.created',
-        actorMemberId: actor.id,
-        actorName: actor.displayName,
+        actor: auditActor(actor),
         params: { label: input.label },
       },
       now,
@@ -197,7 +196,7 @@ export async function updateRole(
   return await deps.db.transaction(async (tx) => {
     const rows = await roleRows(tx);
     const current = rows.find((row) => row.id === id);
-    if (!current) throw notFound('That role');
+    if (!current) throw notFound('role');
     assertEditable(current, actor);
 
     const values: Partial<RoleRow> = {};
@@ -231,8 +230,7 @@ export async function updateRole(
       {
         type: 'auth',
         action: 'role.updated',
-        actorMemberId: actor.id,
-        actorName: actor.displayName,
+        actor: auditActor(actor),
         // The label *after* the patch, like every other update event.
         params: { label: values.label ?? current.label, changedFields },
       },
@@ -314,8 +312,7 @@ export async function replacePermissions(
       {
         type: 'auth',
         action: 'role.permissions_changed',
-        actorMemberId: actor.id,
-        actorName: actor.displayName,
+        actor: auditActor(actor),
         params: { added: added.length, removed: removed.length },
       },
       now,
@@ -356,8 +353,7 @@ export async function reorderRoles(
       {
         type: 'auth',
         action: 'role.reordered',
-        actorMemberId: actor.id,
-        actorName: actor.displayName,
+        actor: auditActor(actor),
       },
       now,
     );
@@ -380,7 +376,7 @@ export async function deleteRole(
 
   await deps.db.transaction(async (tx) => {
     const [current] = await tx.select().from(roles).where(eq(roles.id, id));
-    if (!current) throw notFound('That role');
+    if (!current) throw notFound('role');
     assertEditable(current, actor);
 
     const [holders] = await tx.select({ count: count() }).from(members).where(eq(members.role, id));
@@ -415,8 +411,7 @@ export async function deleteRole(
       {
         type: 'auth',
         action: 'role.deleted',
-        actorMemberId: actor.id,
-        actorName: actor.displayName,
+        actor: auditActor(actor),
         params: {
           label: current.label,
           // Null rather than absent: "deleted, nobody to move" is a real
@@ -435,6 +430,7 @@ async function readRole(tx: DbOrTx, row: RoleRow): Promise<WorkspaceRole> {
   const counts = await memberCounts(tx);
   return serialize(
     row,
+    // Absent from the grouped count means nobody holds it, as in `listRoles`.
     counts.get(row.id) ?? 0,
     row.isSystem
       ? [...ACTIONS]

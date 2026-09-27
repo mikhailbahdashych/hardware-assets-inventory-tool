@@ -21,7 +21,7 @@ import { newId } from '@/lib/ids.js';
 import { hashPassword } from '@/lib/password.js';
 import { containsAny } from '@/lib/search.js';
 import { serializeMemberSummary } from '@/lib/serialize.js';
-import { writeAudit } from './audit.js';
+import { auditActor, writeAudit } from './audit.js';
 import { issueAuthToken } from './auth-tokens.js';
 import { unusedRecoveryCodeCount, unusedRecoveryCodeCounts } from './mfa.js';
 import { requireRole } from './roles.js';
@@ -50,7 +50,7 @@ const SEARCHABLE = [members.displayName, members.email];
  * accounts sharing a display name cannot swap across a page boundary.
  */
 export async function listMembers(db: Db, query: ListQuery): Promise<MemberListPage> {
-  const search = containsAny(query.q ?? '', SEARCHABLE);
+  const search = containsAny(query.q, SEARCHABLE);
   const rows = await db
     .select({ member: members, employee: employees })
     .from(members)
@@ -116,8 +116,7 @@ export async function inviteMember(
       {
         type: 'auth',
         action: 'member.invited',
-        actorMemberId: actor.id,
-        actorName: actor.displayName,
+        actor: auditActor(actor),
         memberId: id,
         // The label, snapshotted: a role renamed next month must not rewrite
         // what this line already said.
@@ -150,8 +149,7 @@ export async function resendInvite(deps: AppDeps, actor: Actor, id: string): Pro
       {
         type: 'auth',
         action: 'member.invite_resent',
-        actorMemberId: actor.id,
-        actorName: actor.displayName,
+        actor: auditActor(actor),
         memberId: member.id,
         params: { email: member.email },
       },
@@ -218,8 +216,7 @@ export async function setMemberPassword(
       {
         type: 'auth',
         action: 'member.password_set',
-        actorMemberId: actor.id,
-        actorName: actor.displayName,
+        actor: auditActor(actor),
         memberId: member.id,
         params: { memberName: member.displayName },
       },
@@ -252,8 +249,7 @@ export async function issueResetLink(deps: AppDeps, actor: Actor, id: string): P
       {
         type: 'auth',
         action: 'member.reset_issued',
-        actorMemberId: actor.id,
-        actorName: actor.displayName,
+        actor: auditActor(actor),
         memberId: member.id,
         params: { memberName: member.displayName },
       },
@@ -318,8 +314,7 @@ export async function updateMember(
         {
           type: 'auth',
           action: 'member.role_changed',
-          actorMemberId: actor.id,
-          actorName: actor.displayName,
+          actor: auditActor(actor),
           memberId: id,
           params: {
             memberName: current.displayName,
@@ -337,8 +332,7 @@ export async function updateMember(
         {
           type: 'auth',
           action: 'member.link_changed',
-          actorMemberId: actor.id,
-          actorName: actor.displayName,
+          actor: auditActor(actor),
           memberId: id,
           employeeId: values.employeeId,
           // null is the sentence's "unlinked" branch, not a missing name.
@@ -382,8 +376,7 @@ export async function removeMember(deps: AppDeps, actor: Actor, id: string): Pro
       {
         type: 'auth',
         action: 'member.removed',
-        actorMemberId: actor.id,
-        actorName: actor.displayName,
+        actor: auditActor(actor),
         params: { memberName: member.displayName, email: member.email },
       },
       now,
@@ -402,7 +395,7 @@ async function readMember(tx: DbOrTx, id: string): Promise<MemberSummary> {
     .from(members)
     .leftJoin(employees, eq(members.employeeId, employees.id))
     .where(eq(members.id, id));
-  if (!row) throw notFound('That member');
+  if (!row) throw notFound('member');
   return serializeMemberSummary(
     row.member,
     row.employee,
@@ -476,7 +469,7 @@ async function assertNotLastAdmin(tx: DbOrTx, target: MemberRow): Promise<void> 
 
 async function requireMember(tx: DbOrTx, id: string): Promise<MemberRow> {
   const [member] = await tx.select().from(members).where(eq(members.id, id));
-  if (!member) throw notFound('That member');
+  if (!member) throw notFound('member');
   return member;
 }
 
@@ -498,6 +491,6 @@ async function requireFreeEmail(tx: DbOrTx, email: string): Promise<void> {
  * address without one is all local part, which is the right answer anyway.
  */
 function localPart(email: string): string {
-  const [local] = email.split('@');
-  return local ?? email;
+  // `split` never returns an empty array, so element 0 is always there.
+  return email.split('@')[0]!;
 }

@@ -44,6 +44,7 @@ import type { MembersDialog, MembersPageProps } from './types/membersPage';
 import styles from './Members.module.css';
 
 export function MembersPage({ permissions, memberId, viewerRole }: MembersPageProps) {
+  // Null while no dialog is open; each `dialog?.kind` below opens only its own.
   const [dialog, setDialog] = useState<MembersDialog | null>(null);
   const [page, setPage] = useState(1);
   // How many rows a page holds is the reader's choice, kept across visits.

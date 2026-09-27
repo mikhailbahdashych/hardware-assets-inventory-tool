@@ -19,5 +19,6 @@ export interface EmployeeFormModalProps {
   /** What the signed-in member may do, resolved server-side — see `can`. */
   permissions: Action[];
   onClose: () => void;
+  /** Where to go once the person is gone; defaults to just closing. */
   onDeleted?: () => void;
 }

@@ -16,7 +16,7 @@ import {
   resendInvite,
   updateMember,
 } from '@/services/members.js';
-import { writeAudit } from '@/services/audit.js';
+import { auditActor, writeAudit } from '@/services/audit.js';
 import { resetMemberMfa, resetMemberRecoveryCodes } from '@/services/mfa.js';
 
 const idParam = z.object({ id: z.string().min(1) });
@@ -105,8 +105,7 @@ export function registerMemberRoutes(app: FastifyInstance, deps: AppDeps): void 
           {
             type: 'auth',
             action: 'member.mfa_reset',
-            actorMemberId: request.member!.id,
-            actorName: request.member!.displayName,
+            actor: auditActor(request.member!),
             memberId: target.id,
             params: { memberName: target.displayName },
           },
@@ -142,8 +141,7 @@ export function registerMemberRoutes(app: FastifyInstance, deps: AppDeps): void 
           {
             type: 'auth',
             action: 'member.mfa_codes_reset',
-            actorMemberId: request.member!.id,
-            actorName: request.member!.displayName,
+            actor: auditActor(request.member!),
             memberId: target.id,
             // The name as it stands, snapshotted. Never a count, never a code.
             params: { memberName: target.displayName },

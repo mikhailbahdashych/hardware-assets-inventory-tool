@@ -7,7 +7,7 @@ import type { OrgSettingsRow } from '@/types/settings.js';
 import { orgSettings } from '@/db/schema.js';
 import { nowIso } from '@/lib/dates.js';
 import { AppError } from '@/lib/errors.js';
-import { writeAudit } from './audit.js';
+import { auditActor, writeAudit } from './audit.js';
 import { wipeAllMfa } from './mfa.js';
 
 /** In the order the Settings page draws them, which is the order the audit reads. */
@@ -75,8 +75,7 @@ export async function updateSettings(
       {
         type: 'system',
         action: 'system.settings_updated',
-        actorMemberId: actor.id,
-        actorName: actor.displayName,
+        actor: auditActor(actor),
         params: { changedFields },
       },
       now,

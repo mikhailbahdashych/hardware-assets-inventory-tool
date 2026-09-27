@@ -15,7 +15,7 @@ import { nowIso } from '@/lib/dates.js';
 import { DUMMY_HASH_PROMISE, hashPassword, verifyPassword } from '@/lib/password.js';
 import { serializeMember } from '@/lib/serialize.js';
 import { requireSession } from '@/plugins/rbac.js';
-import { writeAudit } from '@/services/audit.js';
+import { auditActor, writeAudit } from '@/services/audit.js';
 import { consumeToken, findValidToken, issueAuthToken } from '@/services/auth-tokens.js';
 import { requireRole } from '@/services/roles.js';
 import { replenishRecoveryCodes, verifyChallenge } from '@/services/mfa.js';
@@ -69,8 +69,7 @@ export function registerAuthRoutes(app: FastifyInstance, deps: AppDeps): void {
         {
           type: 'auth',
           action: 'auth.login',
-          actorMemberId: member.id,
-          actorName: member.displayName,
+          actor: auditActor(member),
           memberId: member.id,
         },
         now,
@@ -122,8 +121,7 @@ export function registerAuthRoutes(app: FastifyInstance, deps: AppDeps): void {
           {
             type: 'auth',
             action: 'auth.login',
-            actorMemberId: member.id,
-            actorName: member.displayName,
+            actor: auditActor(member),
             memberId: member.id,
           },
           now,
@@ -137,8 +135,7 @@ export function registerAuthRoutes(app: FastifyInstance, deps: AppDeps): void {
               type: 'auth',
               action: 'member.mfa_codes_regenerated',
               // The member themselves: nobody asked for this, the sign-in did.
-              actorMemberId: member.id,
-              actorName: member.displayName,
+              actor: auditActor(member),
               memberId: member.id,
               params: { memberName: member.displayName },
             },
@@ -189,8 +186,7 @@ export function registerAuthRoutes(app: FastifyInstance, deps: AppDeps): void {
           {
             type: 'auth',
             action: 'auth.password_reset',
-            actorMemberId: updated.id,
-            actorName: updated.displayName,
+            actor: auditActor(updated),
             memberId: updated.id,
           },
           now,
@@ -263,8 +259,7 @@ export function registerAuthRoutes(app: FastifyInstance, deps: AppDeps): void {
           {
             type: 'auth',
             action: 'member.joined',
-            actorMemberId: updated.id,
-            actorName: updated.displayName,
+            actor: auditActor(updated),
             memberId: updated.id,
             // The name arrives with the invitation being accepted — without it
             // the activity log could only say "A member joined".
