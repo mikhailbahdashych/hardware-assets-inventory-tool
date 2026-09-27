@@ -245,13 +245,14 @@ describe('issuing a password reset link', () => {
   it('is the polite recovery path, and it is admin-only', async () => {
     ctx = await buildTestApp();
     const admin = await setupOrg(ctx.app);
-    const me = (await ctx.db.select().from(members))[0]!;
+    await memberCookie(ctx.db, 'viewer');
+    const viewer = (await ctx.db.select().from(members).where(eq(members.role, 'viewer')))[0]!;
 
     expect(
       (
         await inject(ctx.app, {
           method: 'POST',
-          url: `/api/v1/members/${me.id}/reset-link`,
+          url: `/api/v1/members/${viewer.id}/reset-link`,
           cookie: await memberCookie(ctx.db, 'manager'),
         })
       ).statusCode,
@@ -259,7 +260,7 @@ describe('issuing a password reset link', () => {
 
     const res = await inject(ctx.app, {
       method: 'POST',
-      url: `/api/v1/members/${me.id}/reset-link`,
+      url: `/api/v1/members/${viewer.id}/reset-link`,
       cookie: admin,
     });
     expect(res.statusCode).toBe(200);

@@ -466,11 +466,14 @@ describe('the row actions', () => {
     expect(screen.queryByRole('menuitem', { name: 'Reset two-factor' })).toBeNull();
   });
 
-  it('never offers to remove you, or to change your own role', async () => {
+  it('never offers to remove you, change your own role, or reset your own password', async () => {
     renderApp(ADMIN_ROUTES, '/members');
     await openMenu('tomasz@acme.io');
 
-    expect(screen.getByRole('menuitem', { name: /reset link/i })).toBeInTheDocument();
+    // Your own password changes from the sidebar, with the current one as
+    // proof — a link you issue yourself would skip it, and the API refuses.
+    expect(screen.queryByRole('menuitem', { name: /reset link/i })).toBeNull();
+    expect(screen.getByRole('menuitem', { name: /reset two-factor/i })).toBeInTheDocument();
     expect(screen.queryByRole('menuitem', { name: /change role/i })).toBeNull();
     expect(screen.queryByRole('menuitem', { name: /remove/i })).toBeNull();
   });

@@ -162,6 +162,19 @@ export async function resendInvite(deps: AppDeps, actor: Actor, id: string): Pro
 }
 
 /**
+ * Both admin recovery doors refuse the admin's own account: the self-service
+ * change requires the current password, and an admin's stolen session must not
+ * get to skip that by setting one or by handing itself a link.
+ */
+function ownPassword(code: 'self_password_set' | 'self_reset_link'): AppError {
+  return new AppError(
+    409,
+    code,
+    'Change your own password from the sidebar — it asks for your current one.',
+  );
+}
+
+/**
  * The other recovery door: an admin sets the password outright and hands it
  * over however the company already talks — a password manager, a hallway.
  * Refused on your own account on purpose: the self-service change requires the
@@ -176,13 +189,7 @@ export async function setMemberPassword(
   newPassword: string,
 ): Promise<void> {
   const now = deps.now();
-  if (id === actor.id) {
-    throw new AppError(
-      409,
-      'self_password_set',
-      'Change your own password from the sidebar — it asks for your current one.',
-    );
-  }
+  if (id === actor.id) throw ownPassword('self_password_set');
   const passwordHash = await hashPassword(newPassword);
   await deps.db.transaction(async (tx) => {
     const member = await requireMember(tx, id);
@@ -232,6 +239,9 @@ export async function setMemberPassword(
  */
 export async function issueResetLink(deps: AppDeps, actor: Actor, id: string): Promise<ResetLink> {
   const now = deps.now();
+  // A link you hand yourself sets a password without the current one — the
+  // same door as setting it outright, refused for the same reason.
+  if (id === actor.id) throw ownPassword('self_reset_link');
 
   const raw = await deps.db.transaction(async (tx) => {
     const member = await requireMember(tx, id);
