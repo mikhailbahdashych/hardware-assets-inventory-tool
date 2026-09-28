@@ -190,8 +190,31 @@ describe('inviting a member', () => {
     const second = await invite(admin, { email: 'jonas.weber@acme.io', employeeId: employee.id });
     expect(second.statusCode).toBe(409);
     expect(second.json().error.code).toBe('employee_linked');
-    expect(second.json().error.message).toMatch(/^Grace Chen is already linked to that employee/);
+    expect(second.json().error.message).toBe(
+      'Grace Chen already has a member account — unlink it first.',
+    );
     expect(await ctx.db.select().from(members)).toHaveLength(2);
+  });
+
+  it('names the linked employee, not a member still called by their email', async () => {
+    ctx = await buildTestApp();
+    const admin = await setupOrg(ctx.app);
+    const employee = await createEmployee(admin);
+    // Invited with no link, so the account is still named by its address…
+    const { member } = (await invite(admin)).json();
+    await inject(ctx.app, {
+      method: 'PATCH',
+      url: `/api/v1/members/${member.id}`,
+      cookie: admin,
+      body: { employeeId: employee.id },
+    });
+
+    // …which is not who anybody is asking about.
+    const second = await invite(admin, { email: 'jonas.weber@acme.io', employeeId: employee.id });
+    expect(second.statusCode).toBe(409);
+    expect(second.json().error.message).toBe(
+      'Grace Chen already has a member account — unlink it first.',
+    );
   });
 
   it('refuses to link an employee who does not exist', async () => {

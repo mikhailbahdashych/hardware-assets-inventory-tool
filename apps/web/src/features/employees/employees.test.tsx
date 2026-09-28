@@ -197,6 +197,30 @@ describe('employee list', () => {
     );
   });
 
+  it('does not offer Admin as the invitation role to somebody below admin', async () => {
+    renderApp(
+      {
+        ...ROUTES,
+        'GET /auth/me': session({ ...ADMIN_MEMBER, role: 'manager' }, [
+          ...MANAGER_ACTIONS,
+          'members.manage',
+        ]),
+      },
+      '/employees',
+    );
+    await screen.findByText('Maya Lindqvist');
+    await userEvent.click(screen.getByRole('button', { name: /add employee/i }));
+    const dialog = await screen.findByRole('dialog');
+    await userEvent.click(within(dialog).getByRole('checkbox', { name: /also invite/i }));
+
+    await userEvent.click(within(dialog).getByRole('combobox', { name: /^role$/i }));
+    const offered = within(await screen.findByRole('listbox')).getAllByRole('option');
+    expect(offered.map((option) => option.textContent)).not.toContainEqual(
+      expect.stringMatching(/^Admin/),
+    );
+    expect(offered).not.toHaveLength(0);
+  });
+
   it('hides the invite section from a role that cannot invite', async () => {
     renderApp(
       {

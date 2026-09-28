@@ -14,8 +14,8 @@ export function registerMetaRoutes(app: FastifyInstance, deps: AppDeps): void {
       needsSetup: false,
       version: pkg.version,
       orgName: settings.orgName,
-      // Assets store a currency only when it differs from the organization's;
-      // the UI needs this to render every other price.
+      // Every asset created since stores its own currency; this is the
+      // fallback for rows from before that, which stored NULL.
       defaultCurrency: settings.defaultCurrency,
     };
   });

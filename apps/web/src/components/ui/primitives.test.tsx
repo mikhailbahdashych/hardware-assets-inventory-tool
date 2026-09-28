@@ -91,6 +91,42 @@ describe('Modal', () => {
     expect(onClose).toHaveBeenCalledTimes(2);
   });
 
+  it('leaves an Escape something inside already answered to that thing', () => {
+    const onClose = vi.fn();
+    render(
+      <Modal title="Edit asset" onClose={onClose}>
+        <input aria-label="Inner" onKeyDown={(event) => event.preventDefault()} />
+      </Modal>,
+    );
+    fireEvent.keyDown(screen.getByLabelText('Inner'), { key: 'Escape' });
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it('keeps Tab inside the dialog, wrapping at both ends', async () => {
+    render(
+      <>
+        <button type="button">Behind the overlay</button>
+        <Modal title="Assign" onClose={() => {}} footer={<button type="button">Save</button>}>
+          <input aria-label="Name" />
+        </Modal>
+      </>,
+    );
+    const close = screen.getByRole('button', { name: 'Close' });
+    const save = screen.getByRole('button', { name: 'Save' });
+
+    save.focus();
+    await userEvent.tab();
+    expect(close).toHaveFocus();
+
+    await userEvent.tab({ shift: true });
+    expect(save).toHaveFocus();
+
+    // Focus that starts outside the dialog is brought into it.
+    screen.getByRole('button', { name: 'Behind the overlay' }).focus();
+    await userEvent.tab();
+    expect(close).toHaveFocus();
+  });
+
   it('has a working close button', async () => {
     const onClose = vi.fn();
     render(

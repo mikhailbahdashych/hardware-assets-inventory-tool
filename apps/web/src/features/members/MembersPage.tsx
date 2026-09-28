@@ -326,7 +326,11 @@ export function MembersPage({ permissions, memberId, viewerRole }: MembersPagePr
       )}
 
       {dialog?.kind === 'role' && (
-        <ChangeRoleModal member={dialog.member} onClose={() => setDialog(null)} />
+        <ChangeRoleModal
+          member={dialog.member}
+          viewerRole={viewerRole}
+          onClose={() => setDialog(null)}
+        />
       )}
       {dialog?.kind === 'remove' && (
         <RemoveMemberModal member={dialog.member} onClose={() => setDialog(null)} />

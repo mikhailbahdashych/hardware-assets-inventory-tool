@@ -39,6 +39,15 @@ async function setRequireMfa(page: Page, required: boolean): Promise<void> {
   await expect(toggle).toHaveAttribute('aria-checked', String(!required));
   await toggle.click();
   await page.getByRole('button', { name: 'Save changes' }).click();
+  // Either direction asks once more: on sends everybody without an
+  // authenticator — this admin included — to enrol; off deletes every secret.
+  if (required) {
+    await expect(page.getByText(/will be asked to set up an authenticator/)).toBeVisible();
+    await page.getByRole('button', { name: 'Require two-factor' }).click();
+  } else {
+    await expect(page.getByText(/recovery code in the workspace will be deleted/)).toBeVisible();
+    await page.getByRole('button', { name: 'Turn two-factor off' }).click();
+  }
   await expect(page.getByText('Settings saved.')).toBeVisible();
 }
 
@@ -46,9 +55,8 @@ test('two-factor: enrol, spend a code, and be handed a fresh set at sign-in', as
   await signIn(page);
   await setRequireMfa(page, true);
 
-  // The requirement is read per request, so a reload is all it takes for the
-  // signed-in admin to meet the one screen they are now allowed on.
-  await page.reload();
+  // Saving re-reads the session, so the signed-in admin meets the one screen
+  // they are now allowed on without reloading anything.
   await expect(
     page.getByRole('heading', { name: 'Set up two-factor authentication' }),
   ).toBeVisible();

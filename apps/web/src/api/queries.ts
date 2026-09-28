@@ -229,12 +229,21 @@ export function useEmployee(id: string) {
   });
 }
 
-export function useCustomFields() {
+/**
+ * The three five-minute caches below — custom fields, the workflow, the roles —
+ * take `refetchOnMount`. Every screen that only draws a pill or a field from
+ * them keeps TanStack's default (`true`: refetch once stale); the page that
+ * edits one passes `'always'`, so it reads the payload again on arrival and a
+ * failing API shows its panel there, rather than stale rows that look current
+ * and editable.
+ */
+export function useCustomFields(refetchOnMount: true | 'always' = true) {
   return useQuery({
     queryKey: queryKeys.customFields,
     queryFn: async () =>
       (await apiFetch<{ customFields: CustomFieldDef[] }>('/custom-fields')).customFields,
     staleTime: 5 * 60 * 1000,
+    refetchOnMount,
   });
 }
 
@@ -244,11 +253,12 @@ export function useCustomFields() {
  * Cached like the custom-field definitions: rarely edited, needed everywhere.
  * Any workflow write invalidates it (see api/invalidate.ts).
  */
-export function useWorkflow() {
+export function useWorkflow(refetchOnMount: true | 'always' = true) {
   return useQuery({
     queryKey: queryKeys.workflow,
     queryFn: () => apiFetch<WorkflowPayload>('/workflow'),
     staleTime: 5 * 60 * 1000,
+    refetchOnMount,
   });
 }
 
@@ -258,11 +268,12 @@ export function useWorkflow() {
  * label and a colour only because a row says so, and the Members page draws one
  * per person. The Roles page edits the same payload it renders.
  */
-export function useRoles() {
+export function useRoles(refetchOnMount: true | 'always' = true) {
   return useQuery({
     queryKey: queryKeys.roles,
     queryFn: () => apiFetch<RolesPayload>('/roles'),
     staleTime: 5 * 60 * 1000,
+    refetchOnMount,
   });
 }
 

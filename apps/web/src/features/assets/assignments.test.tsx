@@ -380,11 +380,94 @@ describe('the asset detail record', () => {
     expect(input.getAttribute('accept')).not.toContain('.svg');
   });
 
+  it('removes a file only on a second, explicit press', async () => {
+    const api = renderApp(
+      { ...detailRoutes, 'DELETE /attachments/file-1': { status: 204 } },
+      '/assets/asset-1',
+    );
+    await userEvent.click(
+      await screen.findByRole('button', { name: 'Remove invoice-ast-0142.pdf' }),
+    );
+    expect(api.called('DELETE /attachments/file-1')).toBeUndefined();
+
+    await userEvent.click(screen.getByRole('button', { name: 'Remove for good' }));
+    await waitFor(() => expect(api.called('DELETE /attachments/file-1')).toBeDefined());
+  });
+
   it('hides the upload and remove affordances from a viewer', async () => {
     renderApp({ ...detailRoutes, ...viewer }, '/assets/asset-1');
     await screen.findByRole('heading', { name: 'MacBook Pro 14"' });
     expect(screen.queryByRole('button', { name: 'Upload' })).toBeNull();
     expect(screen.queryByRole('button', { name: /remove invoice/i })).toBeNull();
+  });
+});
+
+describe('what was written down at checkout and check-in', () => {
+  const noted = {
+    checkoutNotes: 'With charger',
+    checkinCondition: 'needs_repair',
+    checkinNotes: 'Cracked hinge',
+  };
+
+  it('is shown under the holding on the asset’s timeline', async () => {
+    renderApp(
+      {
+        ...detailRoutes,
+        'GET /assets/asset-1': {
+          body: {
+            ...LAPTOP_DETAIL,
+            history: [LAPTOP_DETAIL.history[0], { ...LAPTOP_DETAIL.history[1], ...noted }],
+          },
+        },
+      },
+      '/assets/asset-1',
+    );
+    expect(
+      await screen.findByText(
+        'Checkout note: With charger · Returned: Needs repair — Cracked hinge',
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it('is shown under the past holding in the employee’s history', async () => {
+    renderApp(
+      {
+        ...detailRoutes,
+        'GET /employees/emp-1': {
+          body: { ...MAYA_DETAIL, history: [{ ...MAYA_DETAIL.history[0], ...noted }] },
+        },
+      },
+      '/employees/emp-1',
+    );
+    expect(
+      await screen.findByText(
+        'Checkout note: With charger · Returned: Needs repair — Cracked hinge',
+      ),
+    ).toBeInTheDocument();
+  });
+});
+
+describe('the edit form’s Status choice', () => {
+  it('offers only where the workflow lets this asset go', async () => {
+    renderApp(
+      {
+        ...detailRoutes,
+        'GET /assets/asset-1': {
+          body: { ...LAPTOP_DETAIL, asset: { ...LAPTOP, status: 'available' }, history: [] },
+        },
+        'GET /workflow': {
+          body: { ...WORKFLOW, transitions: [{ from: 'available', to: 'in_repair' }] },
+        },
+      },
+      '/assets/asset-1',
+    );
+    await screen.findByRole('heading', { name: 'MacBook Pro 14"' });
+    await userEvent.click(screen.getByRole('button', { name: 'Edit' }));
+    const dialog = await screen.findByRole('dialog');
+
+    await userEvent.click(within(dialog).getByRole('combobox', { name: /status/i }));
+    const offered = within(await screen.findByRole('listbox')).getAllByRole('option');
+    expect(offered.map((option) => option.textContent)).toEqual(['Available', 'In repair']);
   });
 });
 

@@ -97,6 +97,13 @@ describe('formatDuration', () => {
     expect(formatDuration('2026-08-04', '2026-08-16')).toBe('12 days');
     expect(formatDuration('2026-08-16', '2026-08-16')).toBe('1 day');
   });
+
+  it('draws the em dash, never "NaN days", when either end is not a real day', () => {
+    expect(formatDuration('2026-13-45', '2026-08-16')).toBe('—');
+    expect(formatDuration('2024-02-03', 'not a date')).toBe('—');
+    // Rolled over by the parser, so it would have printed a plausible lie.
+    expect(formatDuration('2026-02-30', '2026-03-05')).toBe('—');
+  });
 });
 
 describe('formatCurrency', () => {

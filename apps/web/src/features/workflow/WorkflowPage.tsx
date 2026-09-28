@@ -36,7 +36,8 @@ import styles from './Workflow.module.css';
  * routes.tsx, and by `workflow.manage` on every endpoint underneath.
  */
 export function WorkflowPage() {
-  const workflow = useWorkflow();
+  // Read again on arrival — see useCustomFields in api/queries.ts.
+  const workflow = useWorkflow('always');
 
   return (
     <PageContainer maxWidth={1060} gap={16}>

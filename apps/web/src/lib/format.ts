@@ -50,9 +50,15 @@ export function formatLogTime(iso: string): string {
  * The notification renderer's `day()` makes the same call.
  */
 function formatStoredDate(date: string, options: Intl.DateTimeFormatOptions): string {
+  const parsed = realDay(date);
+  return parsed ? utcFormat(parsed, options) : date;
+}
+
+/** The stored value as a `Date`, or null when it names no day the calendar has. */
+function realDay(date: string): Date | null {
   const parsed = new Date(date);
   const real = DATE_ONLY.test(date) ? isCalendarDate(date) : !Number.isNaN(parsed.getTime());
-  return real ? utcFormat(parsed, options) : date;
+  return real ? parsed : null;
 }
 
 /** "Mar 2023" — table cells for purchased/warranty. */
@@ -67,10 +73,17 @@ export function formatFullDate(date: string | null | undefined): string {
   return formatStoredDate(date, { month: 'short', day: 'numeric', year: 'numeric' });
 }
 
-/** "2 yrs 6 mo" / "3 mo" / "12 days" — holding durations. Minimum "1 day". */
+/**
+ * "2 yrs 6 mo" / "3 mo" / "12 days" — holding durations. Minimum "1 day".
+ * Between an impossible stored date and anything there is no length of time,
+ * so that is the em dash: the dates themselves are drawn raw beside it, which
+ * is where the wrong one shows.
+ */
 export function formatDuration(from: string, to?: string | null): string {
-  const start = new Date(from);
-  const end = to ? new Date(to) : new Date();
+  const start = realDay(from);
+  // No end is "still going": measured up to now.
+  const end = to ? realDay(to) : new Date();
+  if (!start || !end) return '—';
   let months =
     (end.getUTCFullYear() - start.getUTCFullYear()) * 12 +
     (end.getUTCMonth() - start.getUTCMonth());

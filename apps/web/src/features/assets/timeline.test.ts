@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Assignment } from '@/types/api';
-import { buildTimeline } from './timeline';
+import { assignmentNote, buildTimeline } from './timeline';
 
 const NOW = new Date('2026-08-16T12:00:00.000Z');
 const ADDED = '2023-03-12T09:00:00.000Z';
@@ -130,5 +130,46 @@ describe('buildTimeline', () => {
       NOW,
     );
     expect(entries[0]!.title).toBe('Maya Lindqvist');
+  });
+});
+
+describe('assignmentNote', () => {
+  it('is nothing when nothing was written down', () => {
+    expect(assignmentNote(record({}))).toBeNull();
+  });
+
+  it('says what was noted at checkout and what came back', () => {
+    expect(
+      assignmentNote(
+        record({
+          checkoutNotes: 'With charger and sleeve',
+          returnedAt: '2024-01-28',
+          checkinCondition: 'needs_repair',
+          checkinNotes: 'Cracked hinge',
+        }),
+      ),
+    ).toBe('Checkout note: With charger and sleeve · Returned: Needs repair — Cracked hinge');
+  });
+
+  it('names the condition alone, and a return note alone', () => {
+    expect(assignmentNote(record({ checkinCondition: 'good' }))).toBe('Returned: Good');
+    expect(assignmentNote(record({ checkinNotes: 'Left at reception' }))).toBe(
+      'Returned: Left at reception',
+    );
+  });
+});
+
+describe('the note on a timeline entry', () => {
+  it('rides along under the holder it belongs to', () => {
+    const entries = buildTimeline(
+      [record({ checkedOutAt: '2024-02-03', checkoutNotes: 'Loaner while repaired' })],
+      ADDED,
+      NOW,
+    );
+    expect(entries[0]).toMatchObject({
+      title: 'Maya Lindqvist',
+      note: 'Checkout note: Loaner while repaired',
+    });
+    expect(entries.at(-1)!.note).toBeNull();
   });
 });

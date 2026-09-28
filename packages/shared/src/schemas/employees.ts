@@ -6,7 +6,7 @@ import { email, nullableDate, nullableText } from './common.js';
 // own (that is a member — see schemas/auth.ts). Email is the identity used to
 // match CSV imports and member invites, so it is required and lowercased.
 
-const personName = z.string().trim().min(1).max(80);
+const personName = z.string().trim().min(1, 'Enter a name.').max(80);
 
 /** New people are always Active; offboarding is a deliberate edit. */
 export const employeeCreateInput = z.object({

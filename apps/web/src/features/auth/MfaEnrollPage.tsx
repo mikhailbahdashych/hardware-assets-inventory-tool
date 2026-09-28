@@ -25,9 +25,9 @@ export function MfaEnrollPage({ member }: MfaEnrollPageProps) {
 
   const { mutate: begin } = enroll;
   useEffect(() => {
-    // One secret per visit to this screen. Re-entering replaces an abandoned
-    // one, which is the API's rule too — a half-scanned QR should not haunt
-    // somebody's next attempt.
+    // Asked on every mount, and safe to: until it is confirmed the API hands
+    // back the secret it already minted, so a reload after scanning the QR
+    // code shows the same one the authenticator saved.
     begin();
   }, [begin]);
 

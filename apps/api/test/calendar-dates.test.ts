@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { assets, members } from '@/db/schema.js';
+import { assetCustomValues, assets, members } from '@/db/schema.js';
 import { mintApiToken } from '@/services/api-tokens.js';
 import { buildTestApp, inject, setupOrg, type TestApp } from './helpers.js';
 
@@ -112,5 +112,30 @@ describe('an impossible date', () => {
     });
     expect(res.statusCode).toBe(200);
     expect(res.json().asset.purchaseDate).toBe('2024-02-29');
+  });
+
+  it.each([
+    ['2026-13-45', 'That day is not on the calendar — check the month and the day.'],
+    ['2026-02-30', 'That day is not on the calendar — check the month and the day.'],
+    ['next tuesday', 'Use the format YYYY-MM-DD'],
+  ])('is refused as a custom date field value (%s)', async (day, message) => {
+    ctx = await buildTestApp();
+    const { cookie, id } = await workspaceWithAsset();
+    await inject(ctx.app, {
+      method: 'POST',
+      url: '/api/v1/custom-fields',
+      cookie,
+      body: { label: 'Leased until', type: 'date' },
+    });
+
+    const res = await inject(ctx.app, {
+      method: 'PATCH',
+      url: `/api/v1/assets/${id}`,
+      cookie,
+      body: { customValues: { leased_until: day } },
+    });
+    expect(res.statusCode).toBe(422);
+    expect(res.json().error.fields['customValues.leased_until']).toBe(message);
+    expect(await ctx.db.select().from(assetCustomValues)).toEqual([]);
   });
 });

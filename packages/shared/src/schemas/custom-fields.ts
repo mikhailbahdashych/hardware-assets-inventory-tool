@@ -6,14 +6,14 @@ import { CUSTOM_FIELD_TYPES } from '../enums.js';
 // label once and never changes, so renaming a field is safe.
 
 export const customFieldCreateInput = z.object({
-  label: z.string().trim().min(1).max(60),
+  label: z.string().trim().min(1, 'Give the field a name.').max(60),
   type: z.enum(CUSTOM_FIELD_TYPES),
 });
 export type CustomFieldCreateInput = z.infer<typeof customFieldCreateInput>;
 
 /** The type is fixed once values exist under it; only presentation may change. */
 export const customFieldPatchInput = z.object({
-  label: z.string().trim().min(1).max(60).optional(),
+  label: z.string().trim().min(1, 'Give the field a name.').max(60).optional(),
   sortOrder: z.number().int().min(0).max(999).optional(),
 });
 export type CustomFieldPatchInput = z.infer<typeof customFieldPatchInput>;

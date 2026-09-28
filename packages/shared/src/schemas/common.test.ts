@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { isCalendarDate, nullableDate, requiredDate } from './common.js';
+import { dateProblem, isCalendarDate, nullableDate, requiredDate } from './common.js';
 
 // A date-only value has to be a day the calendar has, not merely eight digits
 // and two dashes: `2026-13-45` used to pass, get stored, and take the Assets
@@ -45,5 +45,15 @@ describe('the date schemas', () => {
     expect(nullableDate.parse('2024-02-29')).toBe('2024-02-29');
     expect(requiredDate.parse('2024-02-29')).toBe('2024-02-29');
     expect(nullableDate.parse('')).toBeNull();
+  });
+});
+
+describe('dateProblem', () => {
+  it('names the shape, then the calendar, and nothing for a real day', () => {
+    expect(dateProblem('next tuesday')).toBe('Use the format YYYY-MM-DD');
+    expect(dateProblem('2026-02-30')).toBe(
+      'That day is not on the calendar — check the month and the day.',
+    );
+    expect(dateProblem('2028-02-29')).toBeNull();
   });
 });

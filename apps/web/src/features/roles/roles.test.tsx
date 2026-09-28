@@ -478,6 +478,22 @@ describe('a read that failed', () => {
     expect(screen.getByRole('heading', { name: 'Roles', level: 1 })).toBeInTheDocument();
   });
 
+  it('reads the roles again on arrival, rather than drawing a cached copy as current', async () => {
+    let down = false;
+    renderApp(
+      { ...workspace().routes, 'GET /roles': () => (down ? DB_DOWN : { body: ROLES }) },
+      '/dashboard',
+    );
+    // The sidebar reads the roles too, so they are cached before the page is.
+    const nav = await screen.findByRole('navigation', { name: 'Workspace' });
+    down = true;
+    await userEvent.click(within(nav).getByRole('link', { name: 'Roles' }));
+
+    const panel = await screen.findByRole('alert');
+    expect(within(panel).getByText(/the roles could not be loaded/i)).toBeInTheDocument();
+    expect(screen.queryByRole('table', { name: 'Permissions' })).toBeNull();
+  });
+
   it('reads the roles again when the panel’s retry is pressed', async () => {
     let attempts = 0;
     const api = renderApp(

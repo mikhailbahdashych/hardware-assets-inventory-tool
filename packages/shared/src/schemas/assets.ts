@@ -8,7 +8,7 @@ import { nullableDate, nullableText } from './common.js';
 // optional field means NULL; on a patch, absent means "leave alone" and an
 // explicit null means "clear it".
 
-const name = z.string().trim().min(1).max(160);
+const name = z.string().trim().min(1, 'Give the asset a name.').max(160);
 const priceCents = z.number().int().min(0).max(MAX_PRICE_CENTS);
 
 /** Blank means "let the server generate the next tag from the org prefix". */

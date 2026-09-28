@@ -432,6 +432,32 @@ describe('the row actions', () => {
     );
   });
 
+  it('does not offer Admin to somebody below admin, in either picker', async () => {
+    renderApp(
+      {
+        ...ADMIN_ROUTES,
+        // members.manage without the admin role: the API refuses to mint an
+        // admin from here (admin_shield), so the cards must not offer one.
+        'GET /auth/me': session({ ...ADMIN_MEMBER, id: 'member-9', role: 'manager' }, [
+          ...MANAGER_ACTIONS,
+          'members.manage',
+        ]),
+      },
+      '/members',
+    );
+
+    await openMenu('maya.lindqvist@acme.io');
+    await userEvent.click(screen.getByRole('menuitem', { name: /change role/i }));
+    expect(await screen.findByRole('radio', { name: /manager/i })).toBeInTheDocument();
+    expect(screen.queryByRole('radio', { name: /^admin/i })).toBeNull();
+    await userEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+
+    await userEvent.click(screen.getByRole('button', { name: /invite member/i }));
+    await screen.findByRole('dialog', { name: /invite member/i });
+    expect(await screen.findByRole('radio', { name: /viewer/i })).toBeInTheDocument();
+    expect(screen.queryByRole('radio', { name: /^admin/i })).toBeNull();
+  });
+
   it('changes a role through the same cards the invite uses', async () => {
     const api = renderApp(
       { ...ADMIN_ROUTES, 'PATCH /members/member-3': { body: { member: {} } } },

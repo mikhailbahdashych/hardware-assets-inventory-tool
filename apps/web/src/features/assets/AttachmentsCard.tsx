@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react';
 import { ATTACHMENT_ACCEPT, can } from '@inventory/shared';
 import { useDeleteAttachment, useUploadAttachment } from '@/api/mutations';
-import { Card, Icon, IconButton } from '@/components/ui';
+import { Button, Card, Icon, IconButton } from '@/components/ui';
 import { formatFileSize } from '@/lib/format';
 import { useToast } from '@/providers/ToastProvider';
 import type { AttachmentsCardProps } from './types/attachmentsCard';
@@ -16,6 +16,7 @@ export function AttachmentsCard({ assetId, attachments, permissions }: Attachmen
   // Null until the input mounts — what the `?.` on it below reads.
   const input = useRef<HTMLInputElement>(null);
   const [failure, setFailure] = useState<string | null>(null);
+  const [confirmingRemove, setConfirmingRemove] = useState<string | null>(null);
   const toast = useToast();
   const upload = useUploadAttachment(assetId);
   const remove = useDeleteAttachment();
@@ -80,18 +81,35 @@ export function AttachmentsCard({ assetId, attachments, permissions }: Attachmen
                 {attachment.filename}
               </a>
               <span className={styles.size}>{formatFileSize(attachment.sizeBytes)}</span>
-              {editable && (
-                <IconButton
-                  icon="x"
-                  label={`Remove ${attachment.filename}`}
-                  size={22}
-                  onClick={() =>
-                    remove.mutate(attachment.id, {
-                      onSuccess: () => toast.show(`${attachment.filename} removed.`, 'ok'),
-                    })
-                  }
-                />
-              )}
+              {/* Two steps, like revoking a token or deleting a custom field:
+                  the × arms the row's own button, and that button does it. A
+                  removed file is gone from storage, and nothing brings it back. */}
+              {editable &&
+                (confirmingRemove === attachment.id ? (
+                  <Button
+                    variant="danger"
+                    size="sm"
+                    disabled={remove.isPending}
+                    onClick={() =>
+                      remove.mutate(attachment.id, {
+                        onSuccess: () => {
+                          toast.show(`${attachment.filename} removed.`, 'ok');
+                          setConfirmingRemove(null);
+                        },
+                        onError: (error) => toast.show(error.message, 'err'),
+                      })
+                    }
+                  >
+                    Remove for good
+                  </Button>
+                ) : (
+                  <IconButton
+                    icon="x"
+                    label={`Remove ${attachment.filename}`}
+                    size={22}
+                    onClick={() => setConfirmingRemove(attachment.id)}
+                  />
+                ))}
             </div>
           ))}
         </div>

@@ -14,7 +14,7 @@ import {
 } from '@/api/mutations';
 import { useRoles } from '@/api/queries';
 import { Button, Checkbox, Dropdown, ErrorState, Field, Input, Modal } from '@/components/ui';
-import { leastPrivileged } from '@/lib/roles';
+import { leastPrivileged, offerableRoles } from '@/lib/roles';
 // Inviting is a members concern; this form borrows it rather than growing a
 // second way to show a one-time link.
 import { CopyLinkModal } from '@/features/members/CopyLinkModal';
@@ -47,6 +47,7 @@ const blankToNull = (value: string) => (value.trim() === '' ? null : value.trim(
 export function EmployeeFormModal({
   employee,
   permissions,
+  viewerRole,
   onClose,
   onDeleted,
 }: EmployeeFormModalProps) {
@@ -90,7 +91,7 @@ export function EmployeeFormModal({
   const invite = useInviteMember();
 
   const roles = useRoles();
-  const roleOptions = roles.isSuccess ? roles.data.roles : [];
+  const roleOptions = roles.isSuccess ? offerableRoles(roles.data.roles, viewerRole) : [];
   const suggestedRole = leastPrivileged(roleOptions);
   const inviteRole = chosenRole === '' && suggestedRole ? suggestedRole.id : chosenRole;
 

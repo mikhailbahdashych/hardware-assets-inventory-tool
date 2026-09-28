@@ -33,10 +33,8 @@ export function mfaStatus(required: boolean, member: Pick<MemberRow, 'mfaConfirm
 }
 
 /**
- * Starts enrolment: a fresh secret, stored unconfirmed. Re-entering enrolment
- * replaces the previous unconfirmed secret, because somebody who abandoned a
- * half-scanned QR and came back should get a clean one rather than a secret
- * their authenticator may or may not still hold.
+ * Starts enrolment: a secret stored unconfirmed, minted once. Asking again
+ * before confirming answers the same secret — see the note in the body.
  */
 export async function beginEnrolment(
   db: DbOrTx,
@@ -50,6 +48,19 @@ export async function beginEnrolment(
       'mfa_already_enrolled',
       'This account already has an authenticator. An admin has to reset it before a new one can be added.',
     );
+  }
+
+  // A secret already minted and not yet confirmed is handed back as it is.
+  // The enrolment screen asks on every mount, and a reload after scanning the
+  // QR code used to replace the secret the authenticator had just saved — so
+  // the code it then showed could never confirm anything. Admin resets and
+  // turning the requirement off both clear the column, which is what starts a
+  // genuinely new enrolment.
+  if (member.mfaSecret) {
+    return {
+      secret: member.mfaSecret,
+      otpauthUri: otpauthUri(member.mfaSecret, member.email, orgName),
+    };
   }
 
   const secret = generateTotpSecret();

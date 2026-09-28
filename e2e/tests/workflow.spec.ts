@@ -58,21 +58,23 @@ test('an admin adds a status and rewires the graph around it', async ({ page }) 
   await expect(page.getByRole('checkbox', { name: 'Available → Retired' })).not.toBeChecked();
 });
 
-test('the API refuses the move the admin took off the graph', async ({ page }) => {
+test('the edit form offers only the moves left on the graph', async ({ page }) => {
   await signIn(page);
   await page.goto('/assets');
   await page.getByRole('row').filter({ hasText: 'AST-0001' }).click();
   await expect(page.getByRole('heading', { name: 'MacBook Pro 14"' })).toBeVisible();
 
-  // The form offers every status — it is the server that owns the graph, and
-  // it says so in the admin's own vocabulary.
+  // The admin took Available → Retired off the graph, so the form does not
+  // offer it — a choice the API would only refuse on save.
   await page.getByRole('button', { name: 'Edit' }).click();
   const dialog = page.getByRole('dialog');
-  await choose(page, dialog, 'Status', 'Retired');
-  await dialog.getByRole('button', { name: 'Save changes' }).click();
-  await expect(dialog.getByRole('alert')).toContainText(
-    'The workflow does not allow Available → Retired.',
-  );
+  await dialog.getByRole('combobox', { name: 'Status' }).click();
+  await expect(page.getByRole('option', { name: 'On loan' })).toBeVisible();
+  await expect(page.getByRole('option', { name: 'Retired' })).toHaveCount(0);
+  // The first Escape is the list's; the dialog stays open.
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('listbox')).toBeHidden();
+  await expect(dialog).toBeVisible();
 
   // The move that replaced it goes through.
   await choose(page, dialog, 'Status', 'On loan');

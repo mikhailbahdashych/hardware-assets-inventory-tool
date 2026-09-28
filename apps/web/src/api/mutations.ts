@@ -127,7 +127,7 @@ export function useRefreshSession(): () => Promise<void> {
   };
 }
 
-/** Begins enrolment — a fresh secret, not yet confirmed. */
+/** Begins enrolment — or resumes it: a pending secret comes back as it was. */
 export function useMfaEnroll() {
   return useMutation({
     mutationFn: () => apiFetch<MfaEnrolment>('/me/mfa/enroll', { method: 'POST' }),

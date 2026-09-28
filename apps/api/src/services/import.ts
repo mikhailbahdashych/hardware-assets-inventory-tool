@@ -17,6 +17,7 @@ import { newId } from '@/lib/ids.js';
 import { auditActor, writeAudit } from './audit.js';
 import { openAssignment } from './assignments.js';
 import { planImport } from './import-validator.js';
+import { getSettings } from './settings.js';
 import { getWorkflow } from './workflow.js';
 
 /** Note left on the ownership records an import opens, so history says why. */
@@ -108,6 +109,10 @@ async function writeAssets(tx: DbOrTx, rows: PlannedAsset[], now: Date): Promise
     );
   }
 
+  // A blank currency cell is the workspace default at the time of the import,
+  // written down — the same rule `createAsset` follows.
+  const { defaultCurrency } = await getSettings(tx);
+
   for (const row of rows) {
     const id = newId();
     await tx.insert(assets).values({
@@ -123,7 +128,7 @@ async function writeAssets(tx: DbOrTx, rows: PlannedAsset[], now: Date): Promise
       status: row.status === ASSIGNED_STATUS ? free.id : row.status,
       purchaseDate: row.purchaseDate,
       purchasePriceCents: row.purchasePriceCents,
-      currency: row.currency,
+      currency: row.currency ?? defaultCurrency,
       supplier: row.supplier,
       warrantyUntil: row.warrantyUntil,
       notes: row.notes,

@@ -70,3 +70,11 @@
   color: var(--muted);
   margin-top: 1px;
 }
+
+/* What was written down: the range's muted voice, on a line of its own. */
+.note {
+  font-size: 11.5px;
+  color: var(--muted);
+  margin-top: 2px;
+  overflow-wrap: anywhere;
+}

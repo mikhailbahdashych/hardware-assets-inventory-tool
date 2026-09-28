@@ -1,5 +1,10 @@
 import { and, count, desc, eq, inArray, isNull, ne } from 'drizzle-orm';
-import { ASSIGNED_STATUS, type AssetCreateInput, type AssetPatchInput } from '@inventory/shared';
+import {
+  ASSIGNED_STATUS,
+  dateProblem,
+  type AssetCreateInput,
+  type AssetPatchInput,
+} from '@inventory/shared';
 import type { AppDeps } from '@/types/app.js';
 import type { Db, DbOrTx } from '@/types/db.js';
 import type { AssetListPage, AssetListQuery } from '@/types/assets.js';
@@ -23,6 +28,7 @@ import type { StatusMove } from '@/types/assets.js';
 import { auditActor, writeAudit } from './audit.js';
 import { activeAssignment, assetHistory, openAssignment } from './assignments.js';
 import { listAttachments, storedNamesForAsset } from './attachments.js';
+import { getSettings } from './settings.js';
 import { computeNextTag } from './tag.js';
 import { assignableStatuses, requireStatus, transitionAllowed } from './workflow.js';
 
@@ -208,7 +214,10 @@ export async function createAsset(deps: AppDeps, actor: Actor, input: AssetCreat
       serialNumber: input.serialNumber,
       purchaseDate: input.purchaseDate,
       purchasePriceCents: input.purchasePriceCents,
-      currency: input.currency,
+      // A price is kept in the currency it was entered in. Left out, that is
+      // the workspace's default *today* — stored, not implied, so changing the
+      // default later cannot relabel a price already on file.
+      currency: input.currency ?? (await getSettings(tx)).defaultCurrency,
       supplier: input.supplier,
       warrantyUntil: input.warrantyUntil,
       notes: input.notes,
@@ -417,6 +426,10 @@ async function applyCustomValues(
   for (const [key, value] of Object.entries(values)) {
     const def = defs.get(key);
     if (!def) throw invalidFields({ [`customValues.${key}`]: 'That custom field does not exist.' });
+    // A date field's value is a day the calendar has, for the reason every
+    // other date is: the browser's formatter throws on `2026-13-45`.
+    const problem = def.type === 'date' && value !== null ? dateProblem(value) : null;
+    if (problem) throw invalidFields({ [`customValues.${key}`]: problem });
 
     const where = and(
       eq(assetCustomValues.assetId, assetId),

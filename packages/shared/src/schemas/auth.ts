@@ -25,10 +25,10 @@ const password = z
       /[^A-Za-z0-9]/.test(value),
     { error: PASSWORD_HINT },
   );
-const name = z.string().trim().min(1).max(120);
+const name = z.string().trim().min(1, 'Enter your name.').max(120);
 
 export const setupInput = z.object({
-  orgName: z.string().trim().min(1).max(120),
+  orgName: z.string().trim().min(1, 'Give the workspace a name.').max(120),
   name,
   email,
   password,

@@ -387,6 +387,22 @@ describe('a read that failed', () => {
     expect(screen.getByRole('heading', { name: 'Workflow', level: 1 })).toBeInTheDocument();
   });
 
+  it('reads the workflow again on arrival, rather than drawing a cached copy as current', async () => {
+    let down = false;
+    renderApp(
+      { ...ADMIN_ROUTES, 'GET /workflow': () => (down ? DB_DOWN : { body: WORKFLOW }) },
+      '/assets',
+    );
+    // The Assets page's pills read the workflow, so it is cached first.
+    await screen.findByRole('button', { name: /^Available/ });
+    down = true;
+    const nav = screen.getByRole('navigation', { name: 'Workspace' });
+    await userEvent.click(within(nav).getByRole('link', { name: 'Workflow' }));
+
+    const panel = await screen.findByRole('alert');
+    expect(within(panel).getByText(/the workflow could not be loaded/i)).toBeInTheDocument();
+  });
+
   it('reads the workflow again when the panel’s retry is pressed', async () => {
     let attempts = 0;
     const api = renderApp(
