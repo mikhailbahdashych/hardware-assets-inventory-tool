@@ -80,7 +80,7 @@ terraform apply  -var bucket_force_destroy=true
 terraform destroy
 ```
 
-Two commands, and the order matters. `force_destroy` is read from **state**, not from the command line at destroy time, so `terraform destroy -var bucket_force_destroy=true` on its own will still fail on a bucket with objects in it. The `apply` is what writes the flag down; the `destroy` is what uses it.
+Two commands, and the order matters. `force_destroy` is read from **state**, not from the command line at destroy time, so `terraform destroy -var bucket_force_destroy=true` on its own will still fail on a bucket with objects in it. The `apply` is what writes the flag down; the `destroy` is what uses it. It takes about three minutes — the last measured destroy (27 September 2026) took 2m32s.
 
 The first one's plan looks larger than it is: it reports **3 to change**, with the bucket policy's and the instance role's policy JSON drawn as removed. Both are built from policy-document data sources that name the bucket, and a bucket with a pending change makes Terraform re-read them at apply time — nothing is being rewritten, and the apply itself reports `1 changed`, the bucket.
 
