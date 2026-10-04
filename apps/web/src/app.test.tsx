@@ -59,6 +59,36 @@ describe('first-run setup', () => {
     });
   });
 
+  it('puts a refused field under its input, and not again in a banner', async () => {
+    renderApp(
+      {
+        'GET /meta': { body: { needsSetup: true, version: '0.1.0' } },
+        'GET /auth/me': UNAUTHENTICATED,
+        'POST /setup': {
+          status: 422,
+          body: {
+            error: {
+              code: 'validation',
+              message: 'Request validation failed.',
+              fields: { password: 'Use at least 10 characters.' },
+            },
+          },
+        },
+      },
+      '/setup',
+    );
+
+    await screen.findByRole('heading', { name: /set up inventory/i });
+    await userEvent.type(screen.getByLabelText(/organization name/i), 'Acme Corp');
+    await userEvent.type(screen.getByLabelText(/your name/i), 'Tomasz Kowalski');
+    await userEvent.type(screen.getByLabelText(/email/i), 'tomasz@acme.io');
+    await userEvent.type(screen.getByLabelText(/password/i), 'short');
+    await userEvent.click(screen.getByRole('button', { name: /create workspace/i }));
+
+    expect(await screen.findByText('Use at least 10 characters.')).toBeInTheDocument();
+    expect(screen.queryByText('Request validation failed.')).toBeNull();
+  });
+
   it('keeps the setup screen unreachable once initialized', async () => {
     renderApp({ 'GET /meta': { body: READY_META }, 'GET /auth/me': UNAUTHENTICATED }, '/setup');
     expect(

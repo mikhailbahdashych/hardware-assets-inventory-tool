@@ -32,7 +32,15 @@ export function SetupPage() {
           );
         }}
       >
-        <FormError error={setup.error} />
+        {/* A 422 that names a field is said under that field; the banner is
+            for the refusals that belong to the form as a whole. */}
+        <FormError
+          error={
+            !errors.orgName && !errors.name && !errors.email && !errors.password
+              ? setup.error
+              : null
+          }
+        />
         <AuthField
           label="Organization name"
           value={orgName}

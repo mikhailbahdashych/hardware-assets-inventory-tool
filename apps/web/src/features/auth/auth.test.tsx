@@ -172,3 +172,32 @@ describe('a reset link for somebody with an authenticator', () => {
     });
   });
 });
+
+describe('a reset link refused on its field', () => {
+  it('puts the refusal under the password, and not again in a banner', async () => {
+    renderApp(
+      {
+        'GET /meta': { body: READY_META },
+        'GET /auth/me': UNAUTHENTICATED,
+        'POST /auth/reset-password': {
+          status: 422,
+          body: {
+            error: {
+              code: 'validation',
+              message: 'Request validation failed.',
+              fields: { newPassword: 'Use at least 10 characters.' },
+            },
+          },
+        },
+      },
+      '/reset-password?token=reset-1',
+    );
+
+    await screen.findByRole('heading', { name: /choose a new password/i });
+    await userEvent.type(screen.getByLabelText(/new password/i), 'short');
+    await userEvent.click(screen.getByRole('button', { name: /save password/i }));
+
+    expect(await screen.findByText('Use at least 10 characters.')).toBeInTheDocument();
+    expect(screen.queryByText('Request validation failed.')).toBeNull();
+  });
+});
