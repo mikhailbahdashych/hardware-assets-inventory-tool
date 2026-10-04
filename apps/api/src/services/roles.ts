@@ -1,6 +1,7 @@
 import { asc, count, eq, sql } from 'drizzle-orm';
 import {
   ACTIONS,
+  ADMIN_ROLE,
   MAX_ROLES,
   roleSlug,
   type Action,
@@ -17,6 +18,7 @@ import { members, rolePermissions, roles } from '@/db/schema.js';
 import { nowIso } from '@/lib/dates.js';
 import { AppError, invalidFields, notFound } from '@/lib/errors.js';
 import { auditActor, writeAudit } from './audit.js';
+import { assertAdminActor } from './members.js';
 
 /**
  * Every rule about roles and what they may do, in one place. `members.role` has
@@ -394,7 +396,7 @@ export async function deleteRole(
           `${memberCount} ${memberCount === 1 ? 'member holds' : 'members hold'} this role. Choose which role to move them to first.`,
         );
       }
-      destination = await requireMigrationTarget(tx, id, migrateTo);
+      destination = await requireMigrationTarget(tx, actor, id, migrateTo);
       await tx
         .update(members)
         .set({ role: destination.id, updatedAt: nowIso(now) })
@@ -402,7 +404,7 @@ export async function deleteRole(
     } else if (migrateTo !== undefined) {
       // Nobody to move, but a destination the admin cannot have meant is still
       // worth saying out loud rather than silently ignoring.
-      destination = await requireMigrationTarget(tx, id, migrateTo);
+      destination = await requireMigrationTarget(tx, actor, id, migrateTo);
     }
 
     await tx.delete(roles).where(eq(roles.id, id));
@@ -474,13 +476,24 @@ function assertLabelFree(rows: RoleRow[], slug: string, label: string): void {
 /**
  * Where the members of a deleted role go. Never itself; Admin is allowed,
  * because promoting the last two people in a department is a choice somebody
- * may genuinely mean.
+ * may genuinely mean — but only an admin may mean it. Moving a role's holders
+ * into Admin is minting admins, and `roles.manage` is a grant any role can
+ * hold: without the shield here, deleting a role would be the ladder that
+ * `assertAdminActor` closes on every member door. Asked whether or not anybody
+ * would move, because the destination is what the caller is claiming.
  */
-async function requireMigrationTarget(tx: DbOrTx, id: string, migrateTo: string): Promise<RoleRow> {
+async function requireMigrationTarget(
+  tx: DbOrTx,
+  actor: RoleActor,
+  id: string,
+  migrateTo: string,
+): Promise<RoleRow> {
   if (migrateTo === id) {
     throw invalidFields({ migrateTo: 'Choose a different role to move these members to.' });
   }
-  return await requireRole(tx, migrateTo, 'migrateTo');
+  const destination = await requireRole(tx, migrateTo, 'migrateTo');
+  if (destination.id === ADMIN_ROLE) await assertAdminActor(tx, actor);
+  return destination;
 }
 
 /**
