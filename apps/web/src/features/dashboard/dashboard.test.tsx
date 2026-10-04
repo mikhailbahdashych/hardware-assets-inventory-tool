@@ -99,7 +99,26 @@ describe('the widget cards', () => {
     expect(card.getByText(/Assigned MacBook Pro 14" to Maya Lindqvist/)).toBeInTheDocument();
     // Two of the three events are theirs, which is why this counts.
     expect(card.getAllByText(/Tomasz Kowalski/)).toHaveLength(2);
-    expect(card.getByRole('link', { name: 'Audit log' })).toHaveAttribute('href', '/activity');
+    // Named as the page it opens is named.
+    expect(card.getByRole('link', { name: 'Activity log' })).toHaveAttribute('href', '/activity');
+  });
+
+  it('is not drawn at all for a member who may not read the log', async () => {
+    renderApp(
+      { ...DASHBOARD_ROUTES, 'GET /dashboard': { body: { ...DASHBOARD, recentActivity: null } } },
+      '/dashboard',
+    );
+    await screen.findByRole('heading', { name: 'Assets by category' });
+
+    // The API sends null — absent by permission — and neither the card nor its
+    // link to a page they would be refused is drawn; nor is "nothing yet".
+    expect(screen.queryByRole('heading', { name: 'Recent activity' })).toBeNull();
+    // (The stubbed session is an admin's, so the sidebar's own link stays.)
+    const outsideNav = screen
+      .queryAllByRole('link', { name: /activity log|audit log/i })
+      .filter((link) => !link.closest('nav'));
+    expect(outsideNav).toEqual([]);
+    expect(screen.queryByText(/nothing has happened yet/i)).toBeNull();
   });
 
   it('colours a warranty by how soon it runs out, and opens the asset', async () => {

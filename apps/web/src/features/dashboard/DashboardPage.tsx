@@ -58,7 +58,11 @@ export function DashboardPage({ member }: DashboardPageProps) {
           <div className={styles.columns}>
             <div className={styles.column}>
               {shows('category') && <CategoryBars data={dashboard.data} />}
-              {shows('activity') && <RecentActivity data={dashboard.data} />}
+              {/* Null is the API saying this member may not read the log —
+                  so no card, and no link to a page that would refuse them. */}
+              {shows('activity') && dashboard.data.recentActivity !== null && (
+                <RecentActivity items={dashboard.data.recentActivity} />
+              )}
             </div>
             <div className={styles.column}>
               {shows('warranty') && <WarrantyExpirations data={dashboard.data} />}
@@ -146,17 +150,17 @@ function CategoryBars({ data }: CategoryBarsProps) {
   );
 }
 
-function RecentActivity({ data }: RecentActivityProps) {
+function RecentActivity({ items }: RecentActivityProps) {
   return (
     <section className={styles.card}>
       <div className={styles.cardHead}>
         <h2 className={styles.cardTitle}>Recent activity</h2>
         <Link to="/activity" className={styles.cardLink}>
-          Audit log
+          Activity log
         </Link>
       </div>
       <div className={styles.rows}>
-        {data.recentActivity.map((event) => (
+        {items.map((event) => (
           <div key={event.id} className={styles.activityRow}>
             <span className={styles.activityDot} data-sv={AUDIT_TYPE_COLORS[event.type]} />
             {/* One renderer for the trail, the log, the export and this. */}
@@ -167,7 +171,7 @@ function RecentActivity({ data }: RecentActivityProps) {
             <span className={styles.activityWhen}>{formatRelativeTime(event.at)}</span>
           </div>
         ))}
-        {data.recentActivity.length === 0 && <EmptyState>Nothing has happened yet.</EmptyState>}
+        {items.length === 0 && <EmptyState>Nothing has happened yet.</EmptyState>}
       </div>
     </section>
   );

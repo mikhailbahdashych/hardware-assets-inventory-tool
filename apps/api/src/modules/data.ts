@@ -22,8 +22,8 @@ import { getWorkflow } from '@/services/workflow.js';
 export function registerDataRoutes(app: FastifyInstance, deps: AppDeps): void {
   const typed = app.withTypeProvider<ZodTypeProvider>();
 
-  typed.get('/api/v1/dashboard', { preValidation: requireAuth }, async () =>
-    dashboardPayload(deps.db, deps.now()),
+  typed.get('/api/v1/dashboard', { preValidation: requireAuth }, async (request) =>
+    dashboardPayload(deps.db, deps.now(), request.permissions.has('audit.view')),
   );
 
   typed.get(

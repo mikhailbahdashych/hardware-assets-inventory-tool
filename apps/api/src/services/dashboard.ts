@@ -1,4 +1,4 @@
-import { and, asc, count, desc, eq, isNotNull, isNull, sql } from 'drizzle-orm';
+import { and, asc, count, desc, eq, isNotNull, isNull, ne, sql } from 'drizzle-orm';
 import { ASSET_CATEGORIES } from '@inventory/shared';
 import type { Db } from '@/types/db.js';
 import type {
@@ -19,14 +19,32 @@ const PENDING_RETURN_ROWS = 5;
 
 /**
  * The design's warranty window. Deliberately independent of the
- * `warrantyLeadDays` setting, which is only about when email goes out: the
- * dashboard is a place to look, not a notification.
+ * `warrantyLeadDays` setting, which is only about when the inbox notice is
+ * written: the dashboard is a place to look, not a notification.
  */
 const WARRANTY_WINDOW_DAYS = 90;
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
-export async function dashboardPayload(db: Db, now: Date): Promise<DashboardPayload> {
+/**
+ * The sign-in event is in the log for the log's sake. On a dashboard it is
+ * noise that drowns the eight lines in "Signed in", so the feed leaves it out
+ * and the activity log keeps every one.
+ */
+const NOT_IN_FEED = 'auth.login';
+
+/**
+ * `canReadLog` is whether the caller holds `audit.view`. The feed is eight
+ * rows of the activity log — invites, password sets, token mints included —
+ * so a member who may not open the log is not handed its head either. Their
+ * payload says `null`, absent by permission, rather than an empty list that
+ * would read as "nothing has happened".
+ */
+export async function dashboardPayload(
+  db: Db,
+  now: Date,
+  canReadLog: boolean,
+): Promise<DashboardPayload> {
   const rows = await db
     .select({ status: assets.status, category: assets.category, count: count() })
     .from(assets)
@@ -64,13 +82,16 @@ export async function dashboardPayload(db: Db, now: Date): Promise<DashboardPayl
     assetCount,
     statusCounts,
     categoryCounts,
-    recentActivity: (
-      await db
-        .select()
-        .from(auditEvents)
-        .orderBy(desc(auditEvents.at), desc(auditEvents.id))
-        .limit(RECENT_ACTIVITY)
-    ).map(toAuditItem),
+    recentActivity: canReadLog
+      ? (
+          await db
+            .select()
+            .from(auditEvents)
+            .where(ne(auditEvents.action, NOT_IN_FEED))
+            .orderBy(desc(auditEvents.at), desc(auditEvents.id))
+            .limit(RECENT_ACTIVITY)
+        ).map(toAuditItem)
+      : null,
     warrantyExpirations: await warrantyExpirations(db, now),
     pendingReturns: await pendingReturns(db),
   };

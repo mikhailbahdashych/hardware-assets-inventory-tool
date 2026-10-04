@@ -47,7 +47,12 @@ export interface DashboardPayload {
   statusCounts: StatusCount[];
   /** Every category in enum order, so the bars keep their places. */
   categoryCounts: CategoryCount[];
-  recentActivity: AuditItem[];
+  /**
+   * The newest log lines, sign-ins left out — or `null` for a member without
+   * `audit.view`: absent by permission, never an empty list that would claim
+   * nothing has happened.
+   */
+  recentActivity: AuditItem[] | null;
   warrantyExpirations: WarrantyExpiry[];
   pendingReturns: PendingReturn[];
 }
