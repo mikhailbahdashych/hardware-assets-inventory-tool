@@ -217,7 +217,15 @@ async function seedApiToken(deps: AppDeps, actor: Actor): Promise<void> {
 
   const bot: Actor = { id: null, displayName: resolved.name, apiTokenId: resolved.id };
   const delivery = await createAsset(deps, bot, assetCreateInput.parse(DEMO_TOKEN_DELIVERY));
-  await updateAsset(deps, bot, delivery.id, { serialNumber: DEMO_TOKEN_SERIAL });
+  // The bot is a token, so its scope rather than a role is what it holds —
+  // the public surface's answer, though this edit moves no status anyway.
+  await updateAsset(
+    deps,
+    bot,
+    delivery.id,
+    { serialNumber: DEMO_TOKEN_SERIAL },
+    { mayChangeStatus: true },
+  );
 }
 
 /**

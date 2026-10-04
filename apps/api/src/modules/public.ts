@@ -261,7 +261,11 @@ function registerV1(app: FastifyInstance, deps: AppDeps): void {
       { params: idParam, body: assetPatchInput },
     ),
     async (request) => ({
-      asset: await updateAsset(deps, actorOf(request), request.params.id, request.body),
+      // Scopes, not actions: `assets:write` covers a status move here, where
+      // the internal surface asks for `assets.change_status` beside the edit.
+      asset: await updateAsset(deps, actorOf(request), request.params.id, request.body, {
+        mayChangeStatus: true,
+      }),
     }),
   );
 

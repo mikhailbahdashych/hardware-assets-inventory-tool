@@ -4,7 +4,8 @@ import { z } from 'zod';
 import { assetCreateInput, assetPatchInput, assignInput, checkinInput } from '@inventory/shared';
 import type { AppDeps } from '@/types/app.js';
 import type { AssignRequest, CheckinRequest } from '@/types/assets.js';
-import { requireAction, requireAuth } from '@/plugins/rbac.js';
+import { requireAction, requireAnyAction, requireAuth } from '@/plugins/rbac.js';
+import { forbidden } from '@/lib/errors.js';
 import { assetListQuery } from '@/lib/search.js';
 import {
   createAsset,
@@ -49,15 +50,30 @@ export function registerAssetRoutes(app: FastifyInstance, deps: AppDeps): void {
     async (request) => ({ asset: await createAsset(deps, request.member!, request.body) }),
   );
 
+  /**
+   * Two grants share this door. Moving the status is `assets.change_status` —
+   * the Roles page's box and the detail page's button — and every other key is
+   * `assets.edit`. The guard refuses a caller holding neither before the body
+   * is validated; the handler asks for `assets.edit` once it can see a key that
+   * needs it, and the service asks for `assets.change_status` against the row
+   * it read, because only that row says whether a sent status is a move — the
+   * edit form resends the status it was opened with on every save.
+   */
   typed.patch(
     '/api/v1/assets/:id',
     {
       schema: { params: idParam, body: assetPatchInput },
-      preValidation: requireAction('assets.edit'),
+      preValidation: requireAnyAction('assets.edit', 'assets.change_status'),
     },
-    async (request) => ({
-      asset: await updateAsset(deps, request.member!, request.params.id, request.body),
-    }),
+    async (request) => {
+      const editsMore = Object.keys(request.body).some((key) => key !== 'status');
+      if (editsMore && !request.permissions.has('assets.edit')) throw forbidden();
+      return {
+        asset: await updateAsset(deps, request.member!, request.params.id, request.body, {
+          mayChangeStatus: request.permissions.has('assets.change_status'),
+        }),
+      };
+    },
   );
 
   typed.delete(

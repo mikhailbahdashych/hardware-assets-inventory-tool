@@ -41,6 +41,15 @@ export interface StatusMove {
   to: string;
 }
 
+/**
+ * What the caller may do beyond editing. A status move is its own grant
+ * (`assets.change_status`) on the internal surface; on the public one the
+ * `assets:write` scope covers it, so that surface passes `true`.
+ */
+export interface UpdateAssetOptions {
+  mayChangeStatus: boolean;
+}
+
 /** Every per-asset route is addressed the same way, so the shape is named once. */
 export interface AssetIdParams {
   id: string;

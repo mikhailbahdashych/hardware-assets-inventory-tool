@@ -17,14 +17,14 @@ import {
   employees,
   orgSettings,
 } from '@/db/schema.js';
-import { AppError, invalidFields, notFound } from '@/lib/errors.js';
+import { AppError, forbidden, invalidFields, notFound } from '@/lib/errors.js';
 import { DUPLICATE_ASSET_TAG } from '@/lib/unique.js';
 import { nowIso, todayDate } from '@/lib/dates.js';
 import { newId } from '@/lib/ids.js';
 import { containsAny } from '@/lib/search.js';
 import { serializeAsset, serializeAssignment } from '@/lib/serialize.js';
 import type { Actor } from '@/types/audit.js';
-import type { StatusMove } from '@/types/assets.js';
+import type { StatusMove, UpdateAssetOptions } from '@/types/assets.js';
 import { auditActor, writeAudit } from './audit.js';
 import { activeAssignment, assetHistory, openAssignment } from './assignments.js';
 import { listAttachments, storedNamesForAsset } from './attachments.js';
@@ -273,7 +273,13 @@ export async function createAsset(deps: AppDeps, actor: Actor, input: AssetCreat
   });
 }
 
-export async function updateAsset(deps: AppDeps, actor: Actor, id: string, patch: AssetPatchInput) {
+export async function updateAsset(
+  deps: AppDeps,
+  actor: Actor,
+  id: string,
+  patch: AssetPatchInput,
+  { mayChangeStatus }: UpdateAssetOptions,
+) {
   const now = deps.now();
 
   return await deps.db.transaction(async (tx) => {
@@ -303,6 +309,9 @@ export async function updateAsset(deps: AppDeps, actor: Actor, id: string, patch
 
     let statusMove: StatusMove | null = null;
     if (patch.status && patch.status !== current.status) {
+      // Asked here, against the row this transaction read, rather than at the
+      // door: a status sent back unchanged is not a move and needs no grant.
+      if (!mayChangeStatus) throw forbidden();
       const to = await requireStatus(tx, patch.status);
       // The status the asset is leaving. A slug with no row would be a broken
       // invariant — a deleted status takes its assets somewhere — so the same

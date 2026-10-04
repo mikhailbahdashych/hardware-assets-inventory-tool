@@ -57,3 +57,19 @@ export function requireAction(action: Action) {
     if (!request.permissions.has(action)) throw forbidden();
   };
 }
+
+/**
+ * Route preValidation for a door that more than one grant opens, where which
+ * one a request needs depends on its body — `PATCH /assets/:id`, whose status
+ * key is `assets.change_status` and every other key `assets.edit`. The body is
+ * not parsed yet, so this answers only the question it can: a caller holding
+ * none of them is refused here, before validation, exactly as
+ * {@link requireAction} would; the handler then asks for the specific grant
+ * once it knows what the body carries.
+ */
+export function requireAnyAction(...actions: [Action, ...Action[]]) {
+  return async (request: FastifyRequest, reply: FastifyReply): Promise<void> => {
+    await requireAuth(request, reply);
+    if (!actions.some((action) => request.permissions.has(action))) throw forbidden();
+  };
+}
