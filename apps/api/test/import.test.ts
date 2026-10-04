@@ -257,3 +257,50 @@ describe('committing an employee import', () => {
     expect(rows[0]!.firstName).toBe('Maja');
   });
 });
+
+describe('the size of a file the import takes', () => {
+  /**
+   * A row with every asset column filled, about 450 bytes of JSON — so five
+   * thousand of them are well past Fastify's 1 MiB default body limit, which
+   * used to refuse a file around 4,500 rows short of the schema's own cap.
+   */
+  const fullRow = (n: number) => ({
+    asset_tag: `AST-${String(n).padStart(5, '0')}`,
+    name: 'MacBook Pro 14" M3 Pro 18GB 512GB Space Black',
+    category: 'Laptops',
+    serial_number: `C02XK${String(n).padStart(7, '0')}`,
+    status: 'Available',
+    assigned_to_email: '',
+    purchase_date: '2026-03-12',
+    purchase_price: '2340.00',
+    currency: 'EUR',
+    supplier: 'Apple Business, Ireland',
+    warranty_until: '2029-03-12',
+    notes:
+      'Imaged with the standard engineering profile; charger and sleeve in the box, AppleCare+ on the invoice.',
+  });
+  const rows = (count: number) => Array.from({ length: count }, (_, i) => fullRow(i + 1));
+
+  it('validates a file at the schema’s cap of 5,000 rows', async () => {
+    ctx = await buildTestApp();
+    const admin = await setupOrg(ctx.app);
+    const body = { kind: 'assets', rows: rows(5000) };
+    expect(JSON.stringify(body).length).toBeGreaterThan(1024 * 1024);
+
+    const res = await post('/import/validate', admin, body);
+    expect(res.statusCode, res.body.slice(0, 200)).toBe(200);
+    expect(res.json().report).toMatchObject({ totalRows: 5000, validCount: 5000 });
+  });
+
+  it('refuses 5,001 rows with the schema’s own answer, not a 413, on both routes', async () => {
+    ctx = await buildTestApp();
+    const admin = await setupOrg(ctx.app);
+    const body = { kind: 'assets', rows: rows(5001) };
+
+    for (const url of ['/import/validate', '/import/commit']) {
+      const res = await post(url, admin, body);
+      expect(`${url} → ${res.statusCode}`).toBe(`${url} → 422`);
+      expect(res.json().error.code).toBe('validation');
+    }
+  });
+});
