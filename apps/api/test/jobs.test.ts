@@ -366,3 +366,131 @@ describe('nightly maintenance', () => {
     expect((await ctx.db.select().from(auditEvents)).length).toBeGreaterThan(0);
   });
 });
+
+describe('a dedupe key outlives its inbox row while it is still doing a job', () => {
+  const later = (days: number) => new Date(MONDAY.getTime() + days * 86_400_000);
+  const keyedRows = async () =>
+    (await ctx.db.select().from(notifications)).filter((row) => row.dedupeKey !== null);
+
+  async function leadOf(admin: string, days: number) {
+    const res = await inject(ctx.app, {
+      method: 'PATCH',
+      url: '/api/v1/settings',
+      cookie: admin,
+      body: { warrantyLeadDays: days },
+    });
+    if (res.statusCode !== 200) throw new Error(`settings failed: ${res.body}`);
+  }
+
+  async function overdueAssignment(admin: string) {
+    const maya = await createEmployee(admin);
+    await linkMember(maya.id);
+    const asset = await createAsset(admin, {
+      name: 'MacBook Pro 14"',
+      status: 'assigned',
+      assignedToEmployeeId: maya.id,
+      checkoutDate: '2026-01-09',
+    });
+    await inject(ctx.app, {
+      method: 'PATCH',
+      url: `/api/v1/employees/${maya.id}`,
+      cookie: admin,
+      body: { status: 'offboarding', returnDueDate: day(MONDAY, -4) },
+    });
+    return asset;
+  }
+
+  it('does not send a long-lead warranty alert a second time once its row is past ninety days', async () => {
+    const admin = await withApp();
+    await leadOf(admin, 180);
+    await createAsset(admin, { name: 'Laptop', warrantyUntil: day(MONDAY, 170) });
+    expect((await runWarrantyScan(ctx.deps, MONDAY)).sent).toBe(1);
+
+    // Past the inbox horizon, and the warranty is still 70 days out.
+    await runMaintenance(ctx.deps, later(100));
+    expect((await runWarrantyScan(ctx.deps, later(100))).sent).toBe(0);
+  });
+
+  it('does not repeat an overdue reminder every ninety days while the asset stays out', async () => {
+    const admin = await withApp();
+    await overdueAssignment(admin);
+    expect((await runReturnReminders(ctx.deps, MONDAY)).sent).toBe(1);
+
+    await runMaintenance(ctx.deps, later(91));
+    expect((await runReturnReminders(ctx.deps, later(91))).sent).toBe(0);
+  });
+
+  it('still re-arms on a corrected date, and lets the superseded key go', async () => {
+    const admin = await withApp();
+    await leadOf(admin, 180);
+    const asset = await createAsset(admin, { name: 'Laptop', warrantyUntil: day(MONDAY, 170) });
+    await runWarrantyScan(ctx.deps, MONDAY);
+    await inject(ctx.app, {
+      method: 'PATCH',
+      url: `/api/v1/assets/${asset.id}`,
+      cookie: admin,
+      body: { warrantyUntil: day(MONDAY, 175) },
+    });
+    expect((await runWarrantyScan(ctx.deps, MONDAY)).sent).toBe(1);
+
+    // The old date's key can never be asked for again; the new one still can.
+    expect((await runMaintenance(ctx.deps, later(100))).notificationRowsPruned).toBe(1);
+    expect((await keyedRows()).map((row) => row.dedupeKey)).toEqual([
+      `warranty:${asset.id}:${day(MONDAY, 175)}`,
+    ]);
+  });
+
+  it('prunes a keyed row once its subject is finished: warranty passed, asset gone, asset returned', async () => {
+    const admin = await withApp();
+    await leadOf(admin, 365);
+    await createAsset(admin, { name: 'Passes', warrantyUntil: day(MONDAY, 95) });
+    const gone = await createAsset(admin, { name: 'Deleted', warrantyUntil: day(MONDAY, 300) });
+    const returned = await overdueAssignment(admin);
+    await runWarrantyScan(ctx.deps, MONDAY);
+    await runReturnReminders(ctx.deps, MONDAY);
+    expect(await keyedRows()).toHaveLength(3);
+
+    await inject(ctx.app, { method: 'DELETE', url: `/api/v1/assets/${gone.id}`, cookie: admin });
+    await inject(ctx.app, {
+      method: 'POST',
+      url: `/api/v1/assets/${returned.id}/checkin`,
+      cookie: admin,
+      body: { returnDate: day(MONDAY, 0), newStatus: 'available' },
+    });
+
+    await runMaintenance(ctx.deps, later(100));
+    expect(await keyedRows()).toEqual([]);
+  });
+
+  it('keeps the inbox at ninety days: an older keyed row is memory, not reading', async () => {
+    const admin = await withApp();
+    const me = await inject(ctx.app, { method: 'GET', url: '/api/v1/auth/me', cookie: admin });
+    const memberId = me.json().member.id as string;
+    const asset = await createAsset(admin, { name: 'Laptop', warrantyUntil: day(MONDAY, 60) });
+    const at = (days: number) => new Date(MONDAY.getTime() - days * 86_400_000).toISOString();
+    await ctx.db.insert(notifications).values([
+      {
+        id: 'memory',
+        memberId,
+        kind: 'warranty.expiring',
+        params: '{}',
+        dedupeKey: `warranty:${asset.id}:${day(MONDAY, 60)}`,
+        createdAt: at(120),
+      },
+      { id: 'recent', memberId, kind: 'warranty.expiring', params: '{}', createdAt: at(10) },
+    ]);
+
+    // Maintenance keeps the live key...
+    await runMaintenance(ctx.deps, MONDAY);
+    expect((await keyedRows()).map((row) => row.id)).toEqual(['memory']);
+    // ...and the inbox does not show or count it.
+    const inbox = await inject(ctx.app, {
+      method: 'GET',
+      url: '/api/v1/notifications',
+      cookie: admin,
+    });
+    expect(inbox.json().notifications.map((row: { id: string }) => row.id)).toEqual(['recent']);
+    expect(inbox.json().total).toBe(1);
+    expect(inbox.json().unreadCount).toBe(1);
+  });
+});
