@@ -8,13 +8,20 @@
     <script>
       // Apply theme + density before first paint to avoid a flash.
       // localStorage mirrors the signed-in member's server-side preference.
+      // Blocked storage throws on read; that is "nothing stored", not a crash.
+      // The API hashes this script into its CSP from the build, so editing it
+      // needs no hash updated by hand.
       (function () {
-        var theme = localStorage.getItem('inv.theme');
+        var theme = null;
+        var density = null;
+        try {
+          theme = localStorage.getItem('inv.theme');
+          density = localStorage.getItem('inv.density');
+        } catch (e) {}
         if (theme !== 'light' && theme !== 'dark') {
           theme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
         }
         document.documentElement.dataset.theme = theme;
-        var density = localStorage.getItem('inv.density');
         document.documentElement.dataset.density =
           density === 'compact' ? 'compact' : 'comfortable';
       })();
