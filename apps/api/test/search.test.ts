@@ -129,4 +129,30 @@ describe('the palette search', () => {
       department: 'Design',
     });
   });
+
+  it('finds non-ASCII text typed exactly as it is stored, on either engine', async () => {
+    ctx = await buildTestApp();
+    const admin = await setupOrg(ctx.app);
+    await createEmployee(admin, {
+      firstName: 'Łukasz',
+      lastName: 'Émile',
+      email: 'lukasz@acme.io',
+    });
+    await createAsset(admin, { name: 'Écran Øresund' });
+
+    for (const q of ['Łukasz', 'Émile', 'Łukasz Émile']) {
+      const res = await inject(ctx.app, {
+        method: 'GET',
+        url: `/api/v1/search?q=${encodeURIComponent(q)}`,
+        cookie: admin,
+      });
+      expect(res.json().employees, q).toHaveLength(1);
+    }
+    const list = await inject(ctx.app, {
+      method: 'GET',
+      url: `/api/v1/assets?q=${encodeURIComponent('Écran Ø')}`,
+      cookie: admin,
+    });
+    expect(list.json().assets).toHaveLength(1);
+  });
 });
