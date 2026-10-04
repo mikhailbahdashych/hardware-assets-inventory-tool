@@ -117,11 +117,11 @@ describe('the definitions list', () => {
     );
     const row = await rowFor('hostname');
 
-    await userEvent.click(within(row).getByRole('button', { name: 'Rename' }));
-    const input = within(row).getByLabelText('Rename Hostname');
+    await userEvent.click(within(row).getByRole('button', { name: 'Rename Hostname' }));
+    const input = within(row).getByLabelText('New name for Hostname');
     await userEvent.clear(input);
     await userEvent.type(input, 'Machine name');
-    await userEvent.click(within(row).getByRole('button', { name: 'Save' }));
+    await userEvent.click(within(row).getByRole('button', { name: 'Save Hostname' }));
 
     await waitFor(() => expect(api.called('PATCH /custom-fields/cf-2')).toBeDefined());
     expect(api.called('PATCH /custom-fields/cf-2')!.body).toMatchObject({ label: 'Machine name' });
@@ -134,11 +134,60 @@ describe('the definitions list', () => {
     );
     const row = await rowFor('hostname');
 
-    await userEvent.click(within(row).getByRole('button', { name: 'Delete' }));
+    await userEvent.click(within(row).getByRole('button', { name: 'Delete Hostname' }));
     expect(api.called('DELETE /custom-fields/cf-2')).toBeUndefined();
 
-    await userEvent.click(within(row).getByRole('button', { name: 'Delete values too' }));
+    await userEvent.click(within(row).getByRole('button', { name: 'Delete values too: Hostname' }));
     await waitFor(() => expect(api.called('DELETE /custom-fields/cf-2')).toBeDefined());
+  });
+
+  it('disarms the second step on Escape or when focus leaves it', async () => {
+    renderApp(workspace().routes, '/custom-fields');
+    const row = await rowFor('hostname');
+
+    await userEvent.click(within(row).getByRole('button', { name: 'Delete Hostname' }));
+    const armed = within(row).getByRole('button', { name: /values too/i });
+    expect(armed).toHaveFocus();
+    await userEvent.keyboard('{Escape}');
+    expect(within(row).getByRole('button', { name: 'Delete Hostname' })).toBeInTheDocument();
+
+    await userEvent.click(within(row).getByRole('button', { name: 'Delete Hostname' }));
+    await userEvent.tab();
+    expect(within(row).getByRole('button', { name: 'Delete Hostname' })).toBeInTheDocument();
+  });
+
+  it('says why a rename failed, in the server’s words', async () => {
+    renderApp(
+      workspace(undefined, {
+        'PATCH /custom-fields/cf-2': {
+          status: 409,
+          body: { error: { code: 'conflict', message: 'A field with that name already exists.' } },
+        },
+      }).routes,
+      '/custom-fields',
+    );
+    const row = await rowFor('hostname');
+    await userEvent.click(within(row).getByRole('button', { name: 'Rename Hostname' }));
+    await userEvent.type(within(row).getByLabelText('New name for Hostname'), 'x{Enter}');
+    expect(await screen.findByText('A field with that name already exists.')).toBeInTheDocument();
+  });
+
+  it('says why a delete failed, in the server’s words', async () => {
+    renderApp(
+      workspace(undefined, { 'DELETE /custom-fields/cf-2': DB_DOWN }).routes,
+      '/custom-fields',
+    );
+    const row = await rowFor('hostname');
+    await userEvent.click(within(row).getByRole('button', { name: 'Delete Hostname' }));
+    await userEvent.click(within(row).getByRole('button', { name: /values too/i }));
+    expect(await screen.findByText('The database is unavailable.')).toBeInTheDocument();
+  });
+
+  it('says why a create failed under the form, when no field is to blame', async () => {
+    renderApp(workspace(undefined, { 'POST /custom-fields': DB_DOWN }).routes, '/custom-fields');
+    await userEvent.type(await screen.findByLabelText(/new field/i), 'Warranty provider');
+    await userEvent.click(screen.getByRole('button', { name: 'Add field' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('The database is unavailable.');
   });
 });
 

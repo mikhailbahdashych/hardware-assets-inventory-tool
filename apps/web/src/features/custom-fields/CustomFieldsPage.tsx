@@ -10,6 +10,7 @@ import { useCustomFields } from '@/api/queries';
 import { PageContainer } from '@/components/app/PageContainer';
 import { Button, Card, Dropdown, ErrorState, Field, Input, Spinner } from '@/components/ui';
 import { useToast } from '@/providers/ToastProvider';
+import formStyles from '@/components/ui/FormModal.module.css';
 import styles from './CustomFields.module.css';
 
 /**
@@ -39,6 +40,12 @@ export function CustomFieldsPage() {
   const update = useUpdateCustomField();
   const remove = useDeleteCustomField();
   const errors = fieldErrors(create.error);
+  // Writes fail in the server's words, like every other write in the app.
+  const failed = (error: Error) => toast.show(error.message, 'err');
+
+  function rename(id: string, next: string) {
+    update.mutate({ id, label: next }, { onSuccess: () => setRenaming(null), onError: failed });
+  }
 
   function submit(event: FormEvent) {
     event.preventDefault();
@@ -90,16 +97,13 @@ export function CustomFieldsPage() {
                   {renaming?.id === field.id ? (
                     <Input
                       value={renaming.label}
-                      aria-label={`Rename ${field.label}`}
+                      aria-label={`New name for ${field.label}`}
                       autoFocus
                       onChange={(event) => setRenaming({ id: field.id, label: event.target.value })}
                       onKeyDown={(event) => {
                         if (event.key !== 'Enter') return;
                         event.preventDefault();
-                        update.mutate(
-                          { id: field.id, label: renaming.label },
-                          { onSuccess: () => setRenaming(null) },
-                        );
+                        rename(field.id, renaming.label);
                       }}
                     />
                   ) : (
@@ -115,13 +119,9 @@ export function CustomFieldsPage() {
                   {renaming?.id === field.id ? (
                     <Button
                       size="sm"
+                      aria-label={`Save ${field.label}`}
                       disabled={update.isPending}
-                      onClick={() =>
-                        update.mutate(
-                          { id: field.id, label: renaming.label },
-                          { onSuccess: () => setRenaming(null) },
-                        )
-                      }
+                      onClick={() => rename(field.id, renaming.label)}
                     >
                       Save
                     </Button>
@@ -129,18 +129,36 @@ export function CustomFieldsPage() {
                     <Button
                       variant="ghost"
                       size="sm"
+                      aria-label={`Rename ${field.label}`}
                       onClick={() => setRenaming({ id: field.id, label: field.label })}
                     >
                       Rename
                     </Button>
                   )}
+                  {/* Two steps, because deleting takes the values. The armed
+                      step takes focus so a keyboard user is on it, and
+                      Escape or leaving it disarms — a confirm that stays
+                      armed behind your back is not a confirm. */}
                   <Button
                     variant="danger"
                     size="sm"
+                    aria-label={
+                      confirmingDelete === field.id
+                        ? `Delete values too: ${field.label}`
+                        : `Delete ${field.label}`
+                    }
                     disabled={remove.isPending}
-                    onClick={() => {
+                    onBlur={() => setConfirmingDelete(null)}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Escape' && confirmingDelete === field.id) {
+                        setConfirmingDelete(null);
+                      }
+                    }}
+                    onClick={(event) => {
                       if (confirmingDelete !== field.id) {
                         setConfirmingDelete(field.id);
+                        // Safari does not focus a clicked button; blur needs it.
+                        event.currentTarget.focus();
                         return;
                       }
                       remove.mutate(field.id, {
@@ -148,6 +166,7 @@ export function CustomFieldsPage() {
                           toast.show(`Deleted "${field.label}" and its values.`, 'ok');
                           setConfirmingDelete(null);
                         },
+                        onError: failed,
                       });
                     }}
                   >
@@ -158,6 +177,13 @@ export function CustomFieldsPage() {
             </div>
           )}
 
+          {/* A failure no field is to blame for — a 409, a dead database —
+              still has to be said somewhere, or Add field just goes quiet. */}
+          {create.error && errors.label === undefined && (
+            <div className={formStyles.formError} role="alert">
+              {create.error.message}
+            </div>
+          )}
           <form className={styles.add} onSubmit={submit} noValidate>
             <Field label="New field" error={errors.label}>
               {(id) => (
