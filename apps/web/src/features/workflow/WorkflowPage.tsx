@@ -276,7 +276,9 @@ function MatrixCard({ statuses, transitions }: MatrixCardProps) {
   const columns: TableColumn<WorkflowStatus>[] = [
     {
       header: 'From ↓ · To →',
-      width: 'minmax(120px, 1fr)',
+      // Twice a target column's share: it holds a whole pill, where the
+      // targets hold a checkbox and a header that may wrap.
+      width: 'minmax(150px, 2fr)',
       render: (from) => (
         <Pill sv={from.color} dot>
           {from.label}
