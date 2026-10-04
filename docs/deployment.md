@@ -1,10 +1,8 @@
 # Deploying it
 
-Production light: **one container, one volume, and a reverse proxy you put in front of it.** A small VM is enough — the app is a single Node process over a SQLite file, and the only thing that grows on its own is the attachments directory.
+Production light: **one container, one volume, and a reverse proxy you put in front of it.** A small VM is enough — a single Node process over a SQLite file, where only the attachments grow on their own. The image ships no proxy and terminates no TLS, on purpose: certificates, redirects and HTTP/2 are your edge's job, and this guide is the contract between it and the container.
 
-The image ships no proxy and terminates no TLS, on purpose. Certificates, redirects, HTTP/2 and whatever else your edge already does are the edge's job; this guide is the contract between it and the container, and it is short.
-
-**Single replica, always.** The scheduled jobs run in-process and SQLite is one file, so two containers on one volume would both fire the nightly jobs and both write the database. Scale the machine, not the count.
+**Single replica, always.** The scheduled jobs run in-process, so two containers would both fire them — on either engine. Scale the machine, not the count.
 
 ## DNS
 
@@ -14,9 +12,7 @@ One A record, pointing at the host's public address:
 inventory.example.com.   A   203.0.113.10
 ```
 
-An AAAA record too if the host has IPv6. Nothing exotic — no wildcard, no CNAME chain.
-
-Do it **first**. Both proxies below get their certificate over an HTTP-01 challenge, which is a certificate authority resolving that name and connecting to it on port 80. The record has to be right before the proxy first starts: a name that does not resolve to this host is a refused issuance, and repeated failures are themselves rate-limited by the authority.
+An AAAA record too if the host has IPv6. Do it **first**: both proxies below get their certificate over an HTTP-01 challenge, which is a certificate authority resolving that name and connecting to it on port 80. The record has to be right before the proxy first starts: a name that does not resolve to this host is a refused issuance, and repeated failures are themselves rate-limited by the authority.
 
 ```bash
 dig +short inventory.example.com
@@ -77,13 +73,13 @@ Four rules, and the app asks for nothing else.
 - **The origin guard.** Every mutating request is checked: the browser's `Origin` (or `Referer`) must parse to the same origin as `APP_URL`, exactly, or it is a 403. That is the CSRF stance here — same-origin only, no tokens — and because it compares against that one value and nothing else, a wrong `APP_URL` is not a warning you can live with, it is an app where nothing saves. `/setup` included: get it wrong and the very first screen refuses. The 403 names the origin the instance expects, which is the fastest way to see what you typed. `www.` counts. The port counts. `http` versus `https` counts.
 - **Secure cookies.** An `https://` value marks the session cookie `Secure` on its own; nothing else has to be set. `COOKIE_SECURE` overrides that, and exists for the deployment whose public scheme `APP_URL` does not describe.
 
-The default is `http://localhost:3000`, which is right for a laptop and wrong for everything else. A production instance still carrying it prints a warning to stderr on boot naming this variable — expected, and harmless, when you really are trying it on localhost.
+The default, `http://localhost:3000`, is right for a laptop only; a production instance still carrying it prints a boot warning naming this variable.
 
 **4. `TRUST_PROXY` names the proxy — and is never set without one.** It decides what the app believes the client's address is, and the rate limits are keyed on that: ten **failed** sign-ins per 15 minutes per address (the password step and the two-factor code each keep their own count; a sign-in that succeeds costs nothing), and ten uses an hour per address of invitation and reset links. Changing your own password is limited as well, ten tries an hour, but per member rather than per address.
 
-Behind a proxy without it, every request in the world arrives as the proxy's own address and shares one bucket — ten bad passwords from one stranger lock the whole workspace out for fifteen minutes. Set on an instance with nothing in front of it, it is worse: `X-Forwarded-For` is then a header any client writes for itself, so an attacker takes a fresh address per attempt and the limits stop existing. That is why it is off by default and per deployment.
+Behind a proxy without it, every request arrives as the proxy's own address and shares one bucket — ten bad passwords from one stranger lock the whole workspace out for fifteen minutes. Set with nothing in front, it is worse: `X-Forwarded-For` is then a header any client writes, so an attacker takes a fresh address per attempt and the limits stop existing. It is also what fills the `ip` field of every log line.
 
-**An address, and not `true`, which is the value most guides print.** `true` means "trust every entry in `X-Forwarded-For`", and the app then reads the left-most one as the client — correct only for a proxy that _replaces_ the header. The nginx block below appends instead: `$proxy_add_x_forwarded_for` is "whatever arrived, plus the address I saw", so under `true` a caller who sends their own `X-Forwarded-For` names their own address, takes a fresh rate-limit bucket per request, and writes your log for you. So name the proxy: `loopback,uniquelocal` covers a proxy on the same host reaching the app over the loopback mapping or Docker's private bridge — safe exactly because the port mapping above binds `127.0.0.1`, so nothing else can reach the app to be trusted; the two lines are a pair. A proxy with a fixed address is more precise still: `TRUST_PROXY=203.0.113.7`, or a subnet like `10.0.0.0/16` for a load balancer. **A hop count (`1`, `2`) is refused at boot**: fastify disabled the numeric form (GHSA-3m5p-2c4r-xxw2) because a count cannot verify _who_ connected — anybody reaching the app directly could claim enough hops — and an instance still carrying one would otherwise run with its limits silently collapsed into one bucket. The boot error names this paragraph. This is also what decides the `ip` field in every request log line, which is the other reason to want it right.
+**Name the proxy — an address, not `true`.** `true` trusts every `X-Forwarded-For` entry and reads the left-most as the client, which is only correct for a proxy that _replaces_ the header; the nginx block below appends, so under `true` a caller writes their own address and gets a fresh bucket per request. `loopback,uniquelocal` covers a proxy on the same host — safe precisely because the port mapping above binds `127.0.0.1`; the two lines are a pair. A fixed address (`203.0.113.7`) or a subnet (`10.0.0.0/16`) is more precise still. **A hop count (`1`, `2`) is refused at boot**: fastify disabled the numeric form (GHSA-3m5p-2c4r-xxw2) because a count cannot verify who connected.
 
 ## The proxy itself
 
@@ -99,14 +95,12 @@ inventory.example.com {
 }
 ```
 
-That is genuinely the whole file. Caddy obtains and renews the certificate itself, redirects `http://` to `https://`, keeps the original `Host` header, and sets `X-Forwarded-For` and `X-Forwarded-Proto` on its own — the entire contract above, by default. It has no request body limit, so a 10 MB attachment goes through untouched.
+That is the whole file: Caddy obtains and renews the certificate, redirects to `https://`, keeps `Host` and sets `X-Forwarded-For` — the entire contract above, by default — and has no body limit to trip a 10 MB attachment. An `email you@example.com` global block gets you expiry warnings; issuance works without one.
 
 ```bash
 caddy validate --config /etc/caddy/Caddyfile
 systemctl reload caddy
 ```
-
-Add a global block with `email you@example.com` above the site if you want the certificate authority to have an address for expiry warnings; issuance works without one.
 
 ### nginx
 
@@ -164,9 +158,7 @@ server {
 nginx -t && systemctl reload nginx
 ```
 
-`X-Forwarded-Proto` is there by convention rather than necessity — the app takes its scheme from `APP_URL`, not from a header a client could write.
-
-Neither block sends `Strict-Transport-Security`, and neither does the app. HSTS is a promise about your whole domain, including every other name under it, so it belongs to whoever owns the domain rather than to this guide.
+`X-Forwarded-Proto` is convention, not necessity — the app takes its scheme from `APP_URL`. Neither block sends `Strict-Transport-Security`, and neither does the app. HSTS is a promise about your whole domain, including every other name under it, so it belongs to whoever owns the domain rather than to this guide.
 
 ## Firewall
 
@@ -180,9 +172,7 @@ ufw allow 80,443/tcp
 ufw enable
 ```
 
-**Port 80 stays open** even though everything on it redirects: it is where the certificate renewal challenge lands.
-
-**Port 3000 must not be reachable from outside**, and the port mapping is what settles that, not the firewall. Docker publishes a port by writing DNAT rules that are consulted before ufw's rules are, so `ufw deny 3000` on a port published to `0.0.0.0` is a rule nobody reads. Binding the mapping to `127.0.0.1:3000:3000` is the fix, because there is then nothing on the public interface to filter.
+**Port 80 stays open** even though everything on it redirects: it is where the renewal challenge lands. **Port 3000 must not be reachable from outside**, and the port mapping is what settles that, not the firewall. Docker publishes a port by writing DNAT rules that are consulted before ufw's rules are, so `ufw deny 3000` on a port published to `0.0.0.0` is a rule nobody reads. Binding the mapping to `127.0.0.1:3000:3000` is the fix, because there is then nothing on the public interface to filter.
 
 If your proxy runs in Docker too, better still: delete the `ports:` block entirely, put both containers on one network, and let the proxy reach `inventory:3000`. The app then has no host port at all.
 
@@ -203,11 +193,7 @@ The cold copy is the one to automate. In root's crontab:
 30 3 * * * find /srv/inventory/backups -maxdepth 1 -name 'data-*' -mtime +30 -exec rm -rf {} +
 ```
 
-`mkdir -p /srv/inventory/backups` first, and note the `\%` — cron reads a bare `%` as a newline and would hand `date` nothing.
-
-That is a few seconds of downtime at 03:15, in exchange for a copy that is certainly consistent: a stopped container has flushed the WAL. For no downtime at all, `docs/backup-restore.md` has the hot `.backup` variant, which takes a proper snapshot of a live database from a throwaway container on the same volume.
-
-Then get the copies off the machine — rsync, a bucket, anything. A backup on the same disk survives a mistake, not a dead disk. And restore one once, early, so you know the procedure works before you need it.
+`mkdir -p /srv/inventory/backups` first, and keep the `\%` — cron reads a bare `%` as a newline. A few seconds of downtime buys a copy that is certainly consistent (a stopped container has flushed the WAL); [`backup-restore.md`](backup-restore.md) has the hot `.backup` variant for none. Then get the copies off the machine — rsync, a bucket, anything. A backup on the same disk survives a mistake, not a dead disk. And restore one once, early, so you know the procedure works before you need it.
 
 ## Upgrades
 
@@ -217,10 +203,11 @@ docker compose pull
 docker compose up -d
 ```
 
-That is the whole procedure. **Migrations run at every boot and are idempotent**, so there is no separate step, no maintenance mode and nothing to remember. v0.1.0 and v0.2.0 upgrade the same way: v0.3.0 collapsed the migration history they carry, and the migrator recognises it, finishes it and carries on. A history it does not recognise — written by a build that is neither a release nor this version — stops the boot before anything changes, with a sentence beginning `This database's migration history has N entries this version does not recognise` that ends by saying how to move the data out.
+That is the whole procedure: **migrations run at every boot and are idempotent**, with no separate step and no maintenance mode. This section is the one place the upgrade path is written down; the README, the infrastructure README and the development guide link here.
+
+**From v0.1.0 or v0.2.0, too.** v0.3.0 collapsed the migration history into one `0000_init` per engine; the migrator recognises the older history, finishes it with the pre-squash migrations shipped beside the new ones, records `0000_init` as applied and carries on. A history it does not recognise — a build that is neither a release nor this version — stops the boot **before changing anything**, with a sentence beginning `This database's migration history has N entries this version does not recognise` that ends by saying how to move the data out.
 
 - **Read the [release notes](https://github.com/mikhailbahdashych/hardware-assets-inventory-tool/releases)** for every version you are crossing. A breaking change — an environment variable that means something new, a feature that went away — is written there and nowhere else.
-
 - **Back up first** if the nightly copy is hours old. Migrations are forward-only — there is no down step — so going back to an older image after one has run means restoring the directory, not pulling the previous tag.
 - **Pin the tag if you want to choose your moment.** A release publishes `:X.Y.Z`, `:X.Y` and `:latest`, for amd64 and arm64; `image: …:0.3.0` in the compose file makes `pull` a decision instead of a surprise. Take `X.Y.Z` from the newest `vX.Y.Z` on the repository's [packages page](https://github.com/mikhailbahdashych/hardware-assets-inventory-tool/pkgs/container/hardware-assets-inventory-tool) — a pinned tag older than what runs is a downgrade, and migrations do not run backwards.
 - **Watch it come up**: `docker compose logs -f inventory`. The first JSON line of every boot is `"msg":"database and storage engaged"`, naming the `engine`, the `database`, the `storage` and `migrationsApplied` — how many migrations this boot ran, which is the line that says the upgrade did something.
@@ -232,24 +219,20 @@ That is the whole procedure. **Migrations run at every boot and are idempotent**
 curl -fsS https://inventory.example.com/api/v1/healthz    # → {"ok":true}
 ```
 
-`/api/v1/healthz` runs a query against the database before it answers, so it speaks for the process **and** its file. It says nothing about the proxy, the certificate or the disk — check those where they live.
-
-The image carries its own healthcheck, so this works with no monitoring at all: every 30 seconds, 5-second timeout, 10-second grace at start, three strikes, hitting `127.0.0.1:3000/api/v1/healthz` with node's own `fetch` (there is no curl in the image and no reason to add one).
+`/api/v1/healthz` runs a query before it answers, so it speaks for the process **and** its database — not for the proxy, the certificate or the disk. The image carries its own healthcheck: every 30 seconds, 5-second timeout, 10-second grace at start, three strikes, hitting `127.0.0.1:3000/api/v1/healthz` with node's own `fetch` (there is no curl in the image and no reason to add one).
 
 ```bash
 docker compose ps                                                       # the health column
 docker inspect --format '{{.State.Health.Status}}' "$(docker compose ps -q inventory)"
 ```
 
-Docker will not restart an unhealthy container on its own — `restart: unless-stopped` acts on a process that exited, not on a failing probe. A watchdog is your monitoring's job.
-
-`GET /api/v1/meta` is public and says the version and whether setup has run, which is the cheap thing to curl after an upgrade. Logs are pino JSON on stdout in production (`docker compose logs -f inventory`), and they hold no secrets: the one route with a raw token in its path is redacted before a line is written.
+Docker will not restart an unhealthy container — `restart: unless-stopped` acts on an exit, not a failing probe; a watchdog is your monitoring's job. `GET /api/v1/meta` is public and says the version and whether setup has run, which is the cheap thing to curl after an upgrade. Logs are pino JSON on stdout in production (`docker compose logs -f inventory`), and they hold no secrets: the one route with a raw token in its path is redacted before a line is written.
 
 ## Moving up
 
-When one machine stops being the answer — more people than a single process should serve, attachments outgrowing the volume, or a compliance line that wants the database managed — the full-scale AWS build lives in `infrastructure/`: flat Terraform for a VPC, an EC2 instance running this same image, RDS PostgreSQL and a private S3 bucket for attachments. Its README carries the variables, the running cost and the teardown.
+When one machine stops being the answer, [`infrastructure/`](../infrastructure/README.md) is flat Terraform for AWS: an EC2 instance running this same image, RDS PostgreSQL and a private S3 bucket. Its README carries the variables, the cost and the teardown.
 
-Moving an existing workspace across is an export and an import, not a migration: **there is no automated SQLite→PostgreSQL data path before 1.0.** Admin → Settings → **Export all data** reads the whole workspace out as JSON, and the CSV import writes people and assets into a fresh instance — employees first, because asset rows reference their holder's email. Ownership history, attachment bytes and passwords do not travel that way; the export deliberately holds no hashes, so members are re-invited on the new instance. If that is more than you are willing to lose, stay on production light until the path exists. This is a pre-1.0 product, and that is the honest state of it.
+**There is no automated SQLite → PostgreSQL data path before 1.0.** Moving a workspace across is an export and an import: **Export all data** reads it out as JSON, and the CSV import writes people, then assets, into the new instance. Ownership history, attachment bytes and passwords do not travel that way (members are re-invited). If that is more than you can lose, stay on production light until the path exists.
 
 ## When it does not work
 
@@ -257,7 +240,7 @@ Moving an existing workspace across is an export and an import, not a migration:
 
 **Ten bad logins locked everybody out.** `TRUST_PROXY` is unset behind a proxy, so every request shares the proxy's address and its bucket. Name the proxy — `loopback,uniquelocal` for one on the same host — and restart. (It refuses to boot on a hop count like `1`, the pre-0.2 form: name an address instead.)
 
-**The container prints "The data directory … is not writable" and exits — and under `restart: unless-stopped`, again and again.** Compose restarts it on every exit, so the logs fill with the same lines until the directory is fixed. The mounted directory is not writable by uid 1000. `chown -R 1000:1000 /srv/inventory/data`, or take the one-run root heal the message itself prints.
+**The container prints "The data directory … is not writable" and exits — again and again under `restart: unless-stopped`.** The mounted directory is not writable by uid 1000. `chown -R 1000:1000 /srv/inventory/data`, or heal it in one run as root: `docker compose run --rm --user root inventory node -e ''` takes ownership and drops back to uid 1000, and normal starts work after it.
 
 **502 from the proxy.** Nothing is listening where the proxy looks. `docker compose ps` for the state, then `curl -sS http://127.0.0.1:3000/api/v1/healthz` from the host — if that answers, the proxy has the wrong address; if it does not, `docker compose logs inventory` has the reason.
 

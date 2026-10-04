@@ -13,8 +13,6 @@ Two ways. They do the same thing — the whole app, hot reload, a demo workspace
 
 If you just want to look at the app, either is fine. If you are going to work on it, prefer native.
 
----
-
 ## Native
 
 ```bash
@@ -28,9 +26,7 @@ npm run dev
 
 Open **<http://localhost:5173>**.
 
-Two processes start: the API on `:3000` and Vite on `:5173`, which proxies `/api` to it. **Open the Vite port**, not the API's — the app is served from there in development, and session cookies and invitation links are built around that origin.
-
-The API binds to `127.0.0.1` on purpose. It is only ever reached through the proxy, and a dev instance listening on every interface is an un-set-up workspace offered to everyone else on the network.
+Two processes start: the API on `:3000` and Vite on `:5173`, which proxies `/api` to it. **Open the Vite port** — the app is served from there in development, and cookies and links are built around that origin. The API binds to `127.0.0.1` on purpose. It is only ever reached through the proxy, and a dev instance listening on every interface is an un-set-up workspace offered to everyone else on the network.
 
 ## Docker
 
@@ -50,13 +46,9 @@ Open **<http://localhost:5173>**. Same two processes, same ports, inside one con
 
 > This is not the deployment. [`docker-compose.yml`](../docker-compose.yml) is — it runs the built image with no toolchain in it and no source mounted. `docker-compose.dev.yml` exists to give you tsx and vite without installing them.
 
----
-
 ## The demo workspace
 
-A fresh instance is empty and lands on `/setup`, where you create an organization and its first admin. That is the real first-run experience, and it takes ten seconds.
-
-It also means every screen is empty, and this app is largely about history — who held what, what changed, what is about to expire. `npm run seed:demo` fills it in:
+A fresh instance is empty and lands on `/setup` — the real first run, ten seconds long, but every screen is then empty, and this app is largely about history. `npm run seed:demo` fills it in:
 
 ```
 Northwind Robotics is ready in /path/to/repo/data
@@ -71,13 +63,11 @@ grace.chen@northwind.example    Demo-password1  (auditor)
 
 Sign in as any of the four to see what that role can do — the viewer has no mutation affordances anywhere, the manager has no Admin section, and Auditor is the role the demo workspace invented for itself on the Roles page: two ticks, so the activity log and the export open and nothing else does.
 
-Every date is relative to the moment you ran it, so warranties are always about to lapse and returns are always about to fall due. It refuses to touch a workspace that already has data — and npm follows that sentence with a few `npm error … Lifecycle script failed` lines, which are npm reporting the exit code, not a second problem; `npm run seed:demo -- --reset` replaces one. The `--` is not decoration: without it npm reads `--reset` as a flag of its own and the seeder never sees it, which looks exactly like the refusal you were trying to answer. That holds in Docker too, where the whole command is `docker compose -f docker-compose.dev.yml run --rm app npm run seed:demo -- --reset`.
+Every date is relative to the moment you ran it, so warranties are always about to lapse. It refuses a workspace that already has data (the `npm error … Lifecycle script failed` lines after that sentence are npm reporting the exit code, not a second problem); `npm run seed:demo -- --reset` replaces one. The `--` matters: without it npm keeps `--reset` for itself and the seeder never sees it. In Docker: `docker compose -f docker-compose.dev.yml run --rm app npm run seed:demo -- --reset`.
 
 **Starting over completely:** delete `./data` natively, or `docker compose -f docker-compose.dev.yml down -v` in Docker. Both leave you at `/setup` again.
 
-**A `./data` from before v0.3.0 is brought forward, not replayed.** The incremental migration history was collapsed into a single `0000_init` per engine for that release, so an older database carries the hashes of migrations that no longer exist. At boot the migrator recognises that history — every hash it holds is one of the pre-squash migrations v0.1.0 and v0.2.0 shipped, or one a later pre-squash checkout ran — finishes it off with those migrations (kept in `apps/api/src/migrations-presquash/` and `migrations-pg-presquash/` for this alone), checks that every table `0000_init` creates is there, records `0000_init` as applied and carries on from `0001`. A history holding anything else stops the boot with a sentence saying so and changes nothing; deleting `./data` and reseeding is still the answer for a dev workspace in that state.
-
----
+**A `./data` from before v0.3.0 is brought forward at boot, not replayed** — the same path an upgraded install takes, described once in the deployment guide's [Upgrades](deployment.md#upgrades). A history it does not recognise stops the boot and changes nothing; for a dev workspace, deleting `./data` and reseeding is the answer.
 
 ## Everything else you can run
 
@@ -86,15 +76,14 @@ npm test                 # unit + API integration, all workspaces
 npm run e2e              # Playwright against a production build
 npm run lint             # ESLint
 npm run typecheck        # tsc across workspaces
-npm run format           # Prettier
+npm run format           # Prettier (CI runs format:check)
 npm run build            # production build
+npm run test:pg          # the API suite against PostgreSQL on :5433
 ```
 
 In Docker, put `docker compose -f docker-compose.dev.yml run --rm app` in front of any of them.
 
 **`http://localhost:5173/kitchen-sink`** is the design system — tokens, type scale, icons, every primitive in every state, in both themes and densities. It is a dev-only route. Open it beside anything you are changing to the UI.
-
----
 
 ## When it does not work
 
@@ -110,12 +99,10 @@ In Docker, put `docker compose -f docker-compose.dev.yml run --rm app` in front 
 
 **The app loads but every request 403s.** You opened `:3000` instead of `:5173`. The origin guard rejects a mutation whose `Origin` is not the app's own, and in development the app's origin is Vite's.
 
----
-
 ## What lives where
 
 - `apps/web` — React SPA. Design system, pages, modals.
-- `apps/api` — Fastify + SQLite. REST under `/api/v1`, sessions, RBAC, the audit log.
+- `apps/api` — Fastify over SQLite or PostgreSQL. REST under `/api/v1`, the public API under `/api/public/v1`, sessions, RBAC, the audit log.
 - `packages/shared` — enums, label and colour maps, RBAC, zod schemas. Both apps import it.
 - `e2e` — Playwright, against a production build.
 - `./data` — the SQLite file and uploaded attachments. Gitignored; delete it to start over.
