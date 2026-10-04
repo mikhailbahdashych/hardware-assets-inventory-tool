@@ -59,7 +59,13 @@ export function registerDataRoutes(app: FastifyInstance, deps: AppDeps): void {
     {
       schema: { body: importValidateInput },
       bodyLimit: IMPORT_BODY_LIMIT,
-      preValidation: requireAction('import.run'),
+      // `onRequest`, not `preValidation`, on these two alone: they take ten
+      // times the default body, and the body is read and parsed between the
+      // two hooks — so a guard at `preValidation` would make the process
+      // buffer and parse 10 MB for a stranger before saying no. The session
+      // hook is global, and global hooks run before route-level ones, so the
+      // member and permissions are already resolved here.
+      onRequest: requireAction('import.run'),
     },
     async (request) => ({ report: await validateImport(deps, request.body) }),
   );
@@ -69,7 +75,13 @@ export function registerDataRoutes(app: FastifyInstance, deps: AppDeps): void {
     {
       schema: { body: importCommitInput },
       bodyLimit: IMPORT_BODY_LIMIT,
-      preValidation: requireAction('import.run'),
+      // `onRequest`, not `preValidation`, on these two alone: they take ten
+      // times the default body, and the body is read and parsed between the
+      // two hooks — so a guard at `preValidation` would make the process
+      // buffer and parse 10 MB for a stranger before saying no. The session
+      // hook is global, and global hooks run before route-level ones, so the
+      // member and permissions are already resolved here.
+      onRequest: requireAction('import.run'),
     },
     async (request) => commitImport(deps, request.member!, request.body),
   );

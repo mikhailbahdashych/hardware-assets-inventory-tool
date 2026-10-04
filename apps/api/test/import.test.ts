@@ -304,3 +304,42 @@ describe('the size of a file the import takes', () => {
     }
   });
 });
+
+describe('who pays for reading an import body', () => {
+  // These two routes alone take more than the 1 MiB default, so they decide
+  // who is asking before the body is read: an unparsed body cannot produce a
+  // parse error, so malformed JSON of import size answering 401/403 rather
+  // than 400 is the proof nothing was buffered and parsed for a stranger.
+  const junk = `{"kind":"assets","rows":[${'x'.repeat(2 * 1024 * 1024)}`;
+
+  it('refuses an anonymous caller before parsing a large body', async () => {
+    ctx = await buildTestApp();
+    await setupOrg(ctx.app);
+    for (const url of ['/api/v1/import/validate', '/api/v1/import/commit']) {
+      const res = await ctx.app.inject({
+        method: 'POST',
+        url,
+        headers: { 'content-type': 'application/json' },
+        payload: junk,
+      });
+      expect(`${url} → ${res.statusCode}`).toBe(`${url} → 401`);
+      expect(res.json().error.code).toBe('unauthorized');
+    }
+  });
+
+  it('refuses a member without import.run before parsing a large body', async () => {
+    ctx = await buildTestApp();
+    await setupOrg(ctx.app);
+    const viewer = await memberCookie(ctx.db, 'viewer');
+    for (const url of ['/api/v1/import/validate', '/api/v1/import/commit']) {
+      const res = await ctx.app.inject({
+        method: 'POST',
+        url,
+        headers: { 'content-type': 'application/json', cookie: viewer },
+        payload: junk,
+      });
+      expect(`${url} → ${res.statusCode}`).toBe(`${url} → 403`);
+      expect(res.json().error.code).toBe('forbidden');
+    }
+  });
+});
