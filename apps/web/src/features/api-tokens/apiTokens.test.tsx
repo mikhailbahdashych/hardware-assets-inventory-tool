@@ -216,6 +216,27 @@ describe('revoking a token', () => {
     );
     await waitFor(() => expect(api.called('DELETE /api-tokens/token-1')).toBeDefined());
   });
+
+  it('puts focus on the armed button, and disarms on Escape or when focus leaves', async () => {
+    renderApp(workspace(), '/api-tokens');
+    const arm = async () => {
+      await userEvent.click(
+        within(await rowFor(LIVE_TOKEN.name)).getByRole('button', {
+          name: `Actions for ${LIVE_TOKEN.name}`,
+        }),
+      );
+      await userEvent.click(await screen.findByRole('menuitem', { name: 'Revoke' }));
+    };
+
+    await arm();
+    expect(screen.getByRole('button', { name: /revoke for good/i })).toHaveFocus();
+    await userEvent.keyboard('{Escape}');
+    expect(screen.queryByRole('button', { name: /revoke for good/i })).toBeNull();
+
+    await arm();
+    await userEvent.tab();
+    expect(screen.queryByRole('button', { name: /revoke for good/i })).toBeNull();
+  });
 });
 
 describe('a read that failed', () => {

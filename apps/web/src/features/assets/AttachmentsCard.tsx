@@ -89,6 +89,13 @@ export function AttachmentsCard({ assetId, attachments, permissions }: Attachmen
                   <Button
                     variant="danger"
                     size="sm"
+                    // Armed means focused — a keyboard user is on it — and Escape or
+                    // leaving it disarms: a confirm left armed behind you is not one.
+                    autoFocus
+                    onBlur={() => setConfirmingRemove(null)}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Escape') setConfirmingRemove(null);
+                    }}
                     disabled={remove.isPending}
                     onClick={() =>
                       remove.mutate(attachment.id, {

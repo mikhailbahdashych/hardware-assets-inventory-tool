@@ -94,6 +94,13 @@ export function ApiTokensPage() {
           <Button
             variant="danger"
             size="sm"
+            // Armed means focused — a keyboard user is on it — and Escape or
+            // leaving it disarms: a confirm left armed behind you is not one.
+            autoFocus
+            onBlur={() => setConfirmingRevoke(null)}
+            onKeyDown={(event) => {
+              if (event.key === 'Escape') setConfirmingRevoke(null);
+            }}
             disabled={revoke.isPending}
             onClick={() =>
               revoke.mutate(token.id, {
