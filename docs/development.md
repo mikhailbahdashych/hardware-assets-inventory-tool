@@ -46,6 +46,8 @@ Open **<http://localhost:5173>**. Same two processes, same ports, inside one con
 
 `Ctrl-C` stops it. `docker compose -f docker-compose.dev.yml down -v` stops it and throws the data away.
 
+**On Linux, possibly: root-owned `node_modules` directories in your checkout.** The compose file shadows each workspace's `node_modules` with an anonymous volume, and Docker creates any missing mount point on the bind-mounted checkout as root. If a native `npm install` afterwards fails with `EACCES` on one of them, `sudo chown -R "$(id -u):$(id -g)" node_modules apps/*/node_modules packages/*/node_modules e2e/node_modules` hands them back. This has not been verified on a Linux host — Docker Desktop on macOS and Windows maps ownership and does not show it — so treat it as a likely cause rather than a known one.
+
 > This is not the deployment. [`docker-compose.yml`](../docker-compose.yml) is — it runs the built image with no toolchain in it and no source mounted. `docker-compose.dev.yml` exists to give you tsx and vite without installing them.
 
 ---
@@ -59,7 +61,7 @@ It also means every screen is empty, and this app is largely about history — w
 ```
 Northwind Robotics is ready in /path/to/repo/data
 
-26 assets · 12 employees · 19 ownership records · 79 logged events
+27 assets · 12 employees · 19 ownership records · 82 logged events
 
 ada.okafor@northwind.example    Demo-password1  (admin)
 marco.rossi@northwind.example   Demo-password1  (manager)
@@ -69,7 +71,7 @@ grace.chen@northwind.example    Demo-password1  (auditor)
 
 Sign in as any of the four to see what that role can do — the viewer has no mutation affordances anywhere, the manager has no Admin section, and Auditor is the role the demo workspace invented for itself on the Roles page: two ticks, so the activity log and the export open and nothing else does.
 
-Every date is relative to the moment you ran it, so warranties are always about to lapse and returns are always about to fall due. It refuses to touch a workspace that already has data; `npm run seed:demo -- --reset` replaces one. The `--` is not decoration: without it npm reads `--reset` as a flag of its own and the seeder never sees it, which looks exactly like the refusal you were trying to answer. That holds in Docker too, where the whole command is `docker compose -f docker-compose.dev.yml run --rm app npm run seed:demo -- --reset`.
+Every date is relative to the moment you ran it, so warranties are always about to lapse and returns are always about to fall due. It refuses to touch a workspace that already has data — and npm follows that sentence with a few `npm error … Lifecycle script failed` lines, which are npm reporting the exit code, not a second problem; `npm run seed:demo -- --reset` replaces one. The `--` is not decoration: without it npm reads `--reset` as a flag of its own and the seeder never sees it, which looks exactly like the refusal you were trying to answer. That holds in Docker too, where the whole command is `docker compose -f docker-compose.dev.yml run --rm app npm run seed:demo -- --reset`.
 
 **Starting over completely:** delete `./data` natively, or `docker compose -f docker-compose.dev.yml down -v` in Docker. Both leave you at `/setup` again.
 
