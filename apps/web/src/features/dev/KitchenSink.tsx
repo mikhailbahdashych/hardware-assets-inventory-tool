@@ -7,7 +7,7 @@ import {
   DEFAULT_ROLES,
   SEMANTIC_COLORS,
 } from '@inventory/shared';
-import { ApiError, HttpError } from '@/api/client';
+import { ApiError, HttpError, ServerUnreachable } from '@/api/client';
 import {
   Avatar,
   BackLink,
@@ -579,7 +579,13 @@ export function KitchenSink() {
             client read off the response when there was not. Only the bodiless
             one earns a third line, the hedged hint AppErrorBoundary already
             gives, because nothing answered to be quoted. */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))',
+            gap: 14,
+          }}
+        >
           <Card padding={false}>
             <ErrorState
               error={new ApiError(500, 'internal_error', 'The database is unavailable.')}
@@ -591,6 +597,17 @@ export function KitchenSink() {
           <Card padding={false}>
             <ErrorState
               error={new HttpError(502)}
+              onRetry={() => show('Would read it again', 'info')}
+            >
+              The asset list could not be loaded.
+            </ErrorState>
+          </Card>
+          {/* Nothing answered at all — fetch itself rejected. The bodiless kind
+              taken to its end, so it carries the same hint, not the browser's
+              "Failed to fetch". */}
+          <Card padding={false}>
+            <ErrorState
+              error={new ServerUnreachable(new TypeError('Failed to fetch'))}
               onRetry={() => show('Would read it again', 'info')}
             >
               The asset list could not be loaded.

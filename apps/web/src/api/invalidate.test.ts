@@ -6,7 +6,10 @@ describe('invalidateInventory', () => {
   it('refreshes the activity log and the members list, which inventory writes change too', () => {
     const client = new QueryClient();
     // Every inventory write is audited, and a member row names its linked employee.
-    for (const key of [['audit', { limit: 50 }], ['members', { limit: 50 }]]) {
+    for (const key of [
+      ['audit', { limit: 50 }],
+      ['members', { limit: 50 }],
+    ]) {
       client.setQueryData(key, {});
     }
     invalidateInventory(client);
