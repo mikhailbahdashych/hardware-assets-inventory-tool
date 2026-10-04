@@ -55,6 +55,39 @@ async function createAsset(cookie: string, body: Record<string, unknown>) {
 }
 
 describe('the inbox', () => {
+  it('pages rows that share one timestamp without repeating or dropping one', async () => {
+    ctx = await buildTestApp();
+    await setupOrg(ctx.app);
+    const cookie = await memberCookie(ctx.db, 'viewer');
+    const [me] = await ctx.db.select().from(members).where(eq(members.role, 'viewer'));
+    // What a scan writes: N rows in one go, all stamped with the same `now`.
+    // Inserted in an order unrelated to their ids, so nothing but a tiebreak
+    // in the query can line the pages up.
+    const at = nowIso(new Date('2026-09-20T06:00:00.000Z'));
+    const ids = Array.from({ length: 12 }, () => newId());
+    for (const id of ids) {
+      await ctx.db.insert(notifications).values({
+        id,
+        memberId: me!.id,
+        kind: 'assignment.received',
+        params: '{}',
+        createdAt: at,
+      });
+    }
+
+    const page = async (offset: number) =>
+      (
+        await inject(ctx.app, {
+          method: 'GET',
+          url: `/api/v1/notifications?limit=6&offset=${offset}`,
+          cookie,
+        })
+      ).json().notifications as { id: string }[];
+    const seen = [...(await page(0)), ...(await page(6))].map((row) => row.id);
+
+    expect(seen).toEqual([...ids].sort().reverse());
+  });
+
   it('hands an assignment notification to the linked member, and the check-in back', async () => {
     ctx = await buildTestApp();
     const cookie = await setupOrg(ctx.app);
