@@ -141,6 +141,36 @@ describe('the definitions list', () => {
     await waitFor(() => expect(api.called('DELETE /custom-fields/cf-2')).toBeDefined());
   });
 
+  it('hands focus to the next field’s Delete, and to the add form once none are left', async () => {
+    const { routes, fields } = workspace(undefined, {});
+    const drop = (id: string) => () => {
+      fields.splice(
+        fields.findIndex((field) => (field as { id: string }).id === id),
+        1,
+      );
+      return { status: 204 };
+    };
+    renderApp(
+      {
+        ...routes,
+        'DELETE /custom-fields/cf-1': drop('cf-1'),
+        'DELETE /custom-fields/cf-2': drop('cf-2'),
+      },
+      '/custom-fields',
+    );
+    const remove = async (label: string) => {
+      await userEvent.click(await screen.findByRole('button', { name: `Delete ${label}` }));
+      await userEvent.click(screen.getByRole('button', { name: `Delete values too: ${label}` }));
+    };
+
+    await remove('MDM enrolled');
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: 'Delete Hostname' })).toHaveFocus(),
+    );
+    await remove('Hostname');
+    await waitFor(() => expect(screen.getByLabelText(/new field/i)).toHaveFocus());
+  });
+
   it('disarms the second step on Escape or when focus leaves it', async () => {
     renderApp(workspace().routes, '/custom-fields');
     const row = await rowFor('hostname');

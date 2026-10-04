@@ -26,7 +26,7 @@ const GAP = 4;
  * cells their ellipsis) and the surrounding card clips to its border radius. A
  * menu rendered in place is a menu the row eats.
  */
-export function Menu({ label, items }: MenuProps) {
+export function Menu({ label, items, autoFocus }: MenuProps) {
   const [anchor, setAnchor] = useState<MenuAnchor | null>(null);
   // A ref is null until its element mounts, and the panel only exists while
   // open — which is what the `?.` on these two reads.
@@ -110,6 +110,7 @@ export function Menu({ label, items }: MenuProps) {
         aria-label={label}
         aria-haspopup="menu"
         aria-expanded={anchor !== null}
+        autoFocus={autoFocus}
         onClick={(event) => {
           // Rows are clickable; opening a menu is not opening the row.
           event.stopPropagation();

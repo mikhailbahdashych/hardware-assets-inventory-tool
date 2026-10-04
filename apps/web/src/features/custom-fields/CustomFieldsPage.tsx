@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react';
+import { useRef, useState, type FormEvent } from 'react';
 import {
   CUSTOM_FIELD_TYPE_LABELS,
   CUSTOM_FIELD_TYPES,
@@ -9,6 +9,7 @@ import { useCreateCustomField, useDeleteCustomField, useUpdateCustomField } from
 import { useCustomFields } from '@/api/queries';
 import { PageContainer } from '@/components/app/PageContainer';
 import { Button, Card, Dropdown, ErrorState, Field, Input, Spinner } from '@/components/ui';
+import { survivor } from '@/lib/survivor';
 import { useToast } from '@/providers/ToastProvider';
 import formStyles from '@/components/ui/FormModal.module.css';
 import styles from './CustomFields.module.css';
@@ -30,6 +31,11 @@ export function CustomFieldsPage() {
   const [label, setLabel] = useState('');
   const [type, setType] = useState<CustomFieldType>('text');
   const [confirmingDelete, setConfirmingDelete] = useState<string | null>(null);
+  // The row whose Delete takes focus as it mounts: the neighbour of the field
+  // just deleted. Null until one is.
+  const [refocus, setRefocus] = useState<string | null>(null);
+  // Null until the input mounts; it has whenever a delete can land.
+  const newField = useRef<HTMLInputElement>(null);
   // Null while no row is being renamed — what each `renaming?.id` below reads.
   const [renaming, setRenaming] = useState<{ id: string; label: string } | null>(null);
 
@@ -140,6 +146,9 @@ export function CustomFieldsPage() {
                       Escape or leaving it disarms — a confirm that stays
                       armed behind your back is not a confirm. */}
                   <Button
+                    // A new key remounts the button, which is what lets autoFocus act.
+                    key={refocus === field.id ? 'refocus' : 'delete'}
+                    autoFocus={refocus === field.id}
                     variant="danger"
                     size="sm"
                     aria-label={
@@ -165,6 +174,15 @@ export function CustomFieldsPage() {
                         onSuccess: () => {
                           toast.show(`Deleted "${field.label}" and its values.`, 'ok');
                           setConfirmingDelete(null);
+                          // Its neighbour's Delete, or the add form when it
+                          // was the last. (Escape needs nothing: the armed
+                          // step is this same button, so focus never left.)
+                          const next = survivor(
+                            fields.data.map((row) => row.id),
+                            field.id,
+                          );
+                          setRefocus(next);
+                          if (next === null) newField.current?.focus();
                         },
                         onError: failed,
                       });
@@ -188,6 +206,7 @@ export function CustomFieldsPage() {
             <Field label="New field" error={errors.label}>
               {(id) => (
                 <Input
+                  ref={newField}
                   id={id}
                   value={label}
                   placeholder="e.g. Warranty provider"

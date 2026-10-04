@@ -15,4 +15,9 @@ export interface MenuAnchor {
 export interface MenuProps {
   label: string;
   items: MenuItem[];
+  /**
+   * Focus the trigger as it mounts — for a page handing focus back to a row
+   * whose trigger was replaced (an armed confirm) or whose neighbour just left.
+   */
+  autoFocus?: boolean;
 }
