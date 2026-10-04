@@ -21,6 +21,8 @@ import type { QueryClient } from '@tanstack/react-query';
 // holder's inbox — and the person doing it may be that holder.
 // `search` is here because the command palette reads assets and employees
 // through it — the two lists it used to hold whole.
+// `audit` is here because every inventory write is audited, and `members`
+// because a member row names the employee it is linked to.
 const INVENTORY_PREFIXES = [
   ['assets'],
   ['asset'],
@@ -29,6 +31,8 @@ const INVENTORY_PREFIXES = [
   ['search'],
   ['dashboard'],
   ['notifications'],
+  ['audit'],
+  ['members'],
 ];
 
 export function invalidateInventory(queryClient: QueryClient): void {
