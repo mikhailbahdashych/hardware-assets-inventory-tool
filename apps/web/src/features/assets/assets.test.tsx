@@ -10,6 +10,7 @@ import {
   LAPTOP_DETAIL,
   MONITOR,
   READY_META,
+  EVERY_ACTION,
   session,
   VIEWER_ACTIONS,
   WORKFLOW,
@@ -387,6 +388,28 @@ describe('asset detail', () => {
 
     await waitFor(() => expect(api.called('PATCH /assets/asset-1')).toBeDefined());
     expect(api.called('PATCH /assets/asset-1')!.body).toMatchObject({ supplier: 'Dustin' });
+  });
+
+  it('locks the status for a role that may edit an asset but not move it', async () => {
+    const editor = EVERY_ACTION.filter((action) => action !== 'assets.change_status');
+    renderApp(
+      {
+        ...detailRoutes,
+        'GET /assets/asset-1': {
+          body: { ...LAPTOP_DETAIL, asset: { ...LAPTOP, status: 'available' }, history: [] },
+        },
+        'GET /auth/me': session({ ...ADMIN_MEMBER, role: 'editor' }, editor),
+      },
+      '/assets/asset-1',
+    );
+    await screen.findByRole('heading', { name: 'MacBook Pro 14"' });
+
+    await userEvent.click(screen.getByRole('button', { name: 'Edit' }));
+    const dialog = await screen.findByRole('dialog');
+    // The API refuses the move; a dropdown offering it would be a promise the
+    // door does not keep.
+    expect(within(dialog).getByLabelText(/status/i)).toBeDisabled();
+    expect(within(dialog).getByText(/your role cannot change/i)).toBeInTheDocument();
   });
 
   it('deletes only after a confirmation press, then returns to the list', async () => {

@@ -37,7 +37,9 @@ export function ModalHost({ member, permissions }: ModalHostProps) {
     case 'import':
       return <ImportWizardModal onClose={closeModal} />;
     case 'widgets':
-      return <CustomizeWidgetsModal member={member} onClose={closeModal} />;
+      return (
+        <CustomizeWidgetsModal member={member} permissions={permissions} onClose={closeModal} />
+      );
     case 'changePassword':
       return <ChangePasswordModal onClose={closeModal} />;
     case null:

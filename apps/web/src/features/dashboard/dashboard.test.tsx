@@ -1,7 +1,14 @@
 import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { ADMIN_MEMBER, DASHBOARD, DASHBOARD_ROUTES, DB_DOWN, session } from '@/test/api-stub';
+import {
+  ADMIN_MEMBER,
+  DASHBOARD,
+  DASHBOARD_ROUTES,
+  DB_DOWN,
+  EVERY_ACTION,
+  session,
+} from '@/test/api-stub';
 import { renderApp, resetAppState } from '@/test/render';
 
 afterEach(() => {
@@ -180,6 +187,24 @@ describe('customizing the dashboard', () => {
     // modal is still open, so the card is what has to be gone — not the name,
     // which its own toggle still carries.
     expect(screen.queryByRole('heading', { name: 'Warranty expirations' })).toBeNull();
+  });
+
+  it('does not offer the activity widget to somebody who may not read the log', async () => {
+    renderApp(
+      {
+        ...DASHBOARD_ROUTES,
+        'GET /auth/me': session(
+          ADMIN_MEMBER,
+          EVERY_ACTION.filter((action) => action !== 'audit.view'),
+        ),
+      },
+      '/dashboard',
+    );
+
+    await userEvent.click(await screen.findByRole('button', { name: /customize widgets/i }));
+    const dialog = await screen.findByRole('dialog');
+    expect(within(dialog).getByRole('switch', { name: 'Pending returns' })).toBeInTheDocument();
+    expect(within(dialog).queryByRole('switch', { name: 'Recent activity' })).toBeNull();
   });
 
   it('treats a widget nobody has toggled as visible', async () => {

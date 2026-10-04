@@ -149,6 +149,9 @@ export function AssetFormModal({
   // "number it for me" — the same answer the suggestion would have given.
   const tagValue = form.assetTag || (editing ? '' : (nextTag.data ?? ''));
   const holderLocked = editing && asset.status === ASSIGNED_STATUS;
+  // Moving a status is its own grant, and the API refuses a move without it.
+  // The form still resends the status it opened with, which the API allows.
+  const statusLocked = editing && !can(permissions, 'assets.change_status');
   // Statuses that have not arrived are none to offer, and the form waits for
   // them rather than defaulting to a status this workspace may not have.
   const statuses = workflow.isSuccess ? workflow.data.statuses : [];
@@ -344,13 +347,19 @@ export function AssetFormModal({
               label="Status"
               required
               error={errors.status}
-              hint={holderLocked ? 'Check the asset in to change its status.' : undefined}
+              hint={
+                holderLocked
+                  ? 'Check the asset in to change its status.'
+                  : statusLocked
+                    ? 'Your role cannot change an asset’s status.'
+                    : undefined
+              }
             >
               {(id) => (
                 <Dropdown
                   id={id}
                   value={status}
-                  disabled={holderLocked}
+                  disabled={holderLocked || statusLocked}
                   options={statusOptions.map((option) => ({
                     value: option.id,
                     label: option.label,

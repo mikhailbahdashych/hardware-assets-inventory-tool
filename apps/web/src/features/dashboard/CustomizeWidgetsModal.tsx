@@ -1,3 +1,4 @@
+import { can } from '@inventory/shared';
 import { useUpdatePrefs } from '@/api/mutations';
 import { Button, Modal, ToggleSwitch } from '@/components/ui';
 import { DASHBOARD_WIDGETS, isWidgetVisible } from './widgets';
@@ -9,8 +10,17 @@ import styles from './Dashboard.module.css';
  * server returns straight into the cache, so the page behind the modal
  * re-renders on the response without a refetch to wait for.
  */
-export function CustomizeWidgetsModal({ member, onClose }: CustomizeWidgetsModalProps) {
+export function CustomizeWidgetsModal({
+  member,
+  permissions,
+  onClose,
+}: CustomizeWidgetsModalProps) {
   const update = useUpdatePrefs();
+  // The API sends no activity to a member without `audit.view`, so a toggle
+  // for it would switch a widget that can never be drawn.
+  const offered = DASHBOARD_WIDGETS.filter(
+    (widget) => widget.key !== 'activity' || can(permissions, 'audit.view'),
+  );
 
   return (
     <Modal
@@ -28,7 +38,7 @@ export function CustomizeWidgetsModal({ member, onClose }: CustomizeWidgetsModal
         </>
       }
     >
-      {DASHBOARD_WIDGETS.map((widget) => (
+      {offered.map((widget) => (
         <div key={widget.key} className={styles.toggleRow}>
           <div className={styles.listText}>
             <div className={styles.toggleLabel}>{widget.label}</div>
