@@ -7,6 +7,7 @@ import {
   ADMIN_ROUTES,
   DB_DOWN,
   MANAGER_ACTIONS,
+  READY_META,
   ROLES,
   session,
   type StubRoutes,
@@ -434,6 +435,48 @@ describe('the permissions matrix', () => {
     // Saved is the new starting point: the draft re-seeds from what came back.
     await waitFor(() => expect(save()).toBeDisabled());
     expect(cell('Viewer', 'View the activity log')).toBeChecked();
+  });
+
+  it('says it saved, even though the save re-seeds the card that asked', async () => {
+    const { routes, roles } = workspace();
+    // The save stays pending until every admin read has come back. Holding one
+    // of them (`/meta`) lets the new grants arrive first — which re-keys the
+    // card, so the one that pressed Save is gone before the save settles.
+    let held = false;
+    let release: () => void = () => {};
+    renderApp(
+      {
+        ...routes,
+        'GET /meta': () =>
+          held
+            ? new Promise((resolve) => {
+                release = () => resolve({ body: READY_META });
+              })
+            : { body: READY_META },
+        'PUT /roles/permissions': (body) => {
+          const { grants } = body as { grants: { role: string; action: Action }[] };
+          for (const role of roles) {
+            if (role.isSystem) continue;
+            role.permissions = grants
+              .filter((grant) => grant.role === role.id)
+              .map((grant) => grant.action);
+          }
+          held = true;
+          return { body: { added: 1, removed: 0 } };
+        },
+      },
+      '/roles',
+    );
+    await screen.findByRole('table', { name: 'Permissions' });
+
+    await userEvent.click(cell('Viewer', 'View the activity log'));
+    await userEvent.click(screen.getByRole('button', { name: 'Save permissions' }));
+    // Re-seeded from the new grants while the save is still in flight.
+    await screen.findByText('Everything here is saved');
+    expect(screen.queryByText('Permissions saved.')).toBeNull();
+
+    release();
+    expect(await screen.findByText('Permissions saved.')).toBeInTheDocument();
   });
 
   it('locks the column of the role the reader holds, and only that one', async () => {

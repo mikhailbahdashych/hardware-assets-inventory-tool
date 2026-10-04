@@ -324,11 +324,14 @@ function PermissionsCard({ roles, ownRole }: PermissionsCardProps) {
           </Button>
           <Button
             disabled={!dirty || save.isPending}
+            // The promise, not mutate's callbacks: the save stays pending until
+            // the grants are read again, and the new grants re-key this card —
+            // so the observer holding those callbacks is gone before they run.
             onClick={() =>
-              save.mutate(grantsFromDraft(draft), {
-                onSuccess: () => toast.show('Permissions saved.', 'ok'),
-                onError: (error) => toast.show(error.message, 'err'),
-              })
+              void save.mutateAsync(grantsFromDraft(draft)).then(
+                () => toast.show('Permissions saved.', 'ok'),
+                (error: Error) => toast.show(error.message, 'err'),
+              )
             }
           >
             {save.isPending ? 'Saving…' : 'Save permissions'}
