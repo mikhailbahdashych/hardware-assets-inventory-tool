@@ -284,7 +284,12 @@ describe('employee detail', () => {
       },
       '/employees/emp-9',
     );
-    expect(await screen.findByText(/could not be found/i)).toBeInTheDocument();
+    expect(await screen.findByText('The employee could not be found.')).toBeInTheDocument();
+    // A missing record is a fact, not a failed read: nothing to retry, and
+    // "could not be loaded" would suggest trying again might find it.
+    expect(screen.queryByText(/could not be loaded/i)).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Try again' })).toBeNull();
+    expect(screen.getAllByRole('link', { name: 'Employees' })).toHaveLength(2);
   });
 });
 

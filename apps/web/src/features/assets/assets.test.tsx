@@ -500,6 +500,24 @@ describe('a read that failed', () => {
     expect(screen.getAllByRole('link', { name: 'Assets' })).toHaveLength(2);
   });
 
+  it('says an asset that does not exist is missing, with nothing to retry', async () => {
+    renderApp(
+      {
+        ...detailRoutes,
+        'GET /assets/asset-9': {
+          status: 404,
+          body: { error: { code: 'not_found', message: 'The asset could not be found.' } },
+        },
+      },
+      '/assets/asset-9',
+    );
+
+    expect(await screen.findByText('The asset could not be found.')).toBeInTheDocument();
+    expect(screen.queryByText(/could not be loaded/i)).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Try again' })).toBeNull();
+    expect(screen.getAllByRole('link', { name: 'Assets' })).toHaveLength(2);
+  });
+
   it('fails the asset page when the workflow that names its status fails', async () => {
     renderApp({ ...detailRoutes, 'GET /workflow': DB_DOWN }, '/assets/asset-1');
 
