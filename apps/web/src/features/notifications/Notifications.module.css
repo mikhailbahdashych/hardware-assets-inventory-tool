@@ -75,3 +75,16 @@
   font-size: 11.5px;
   color: var(--faint);
 }
+
+/* Read aloud, never drawn: the standard clip, so it takes no space in the row. */
+.visuallyHidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}

@@ -63,6 +63,9 @@ export function NotificationsPage() {
           <ul className={styles.list}>
             {inbox.data.notifications.map((row) => (
               <li key={row.id} className={styles.row} data-unread={row.readAt === null}>
+                {/* The weight and the accent edge are for the eye; this is
+                    the same fact for a screen reader. */}
+                {row.readAt === null && <span className={styles.visuallyHidden}>Unread</span>}
                 <span className={styles.sentence}>{renderNotification(row)}</span>
                 <span className={styles.time}>{formatRelativeTime(row.createdAt)}</span>
               </li>

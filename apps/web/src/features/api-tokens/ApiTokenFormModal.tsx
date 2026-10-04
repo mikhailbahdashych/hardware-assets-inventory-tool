@@ -159,7 +159,9 @@ export function ApiTokenFormModal({ onClose }: ApiTokenFormModalProps) {
         </Field>
 
         {create.error && !errors.name && !errors.scopes && (
-          <div className={formStyles.formError}>{create.error.message}</div>
+          <div className={formStyles.formError} role="alert">
+            {create.error.message}
+          </div>
         )}
       </form>
     </Modal>

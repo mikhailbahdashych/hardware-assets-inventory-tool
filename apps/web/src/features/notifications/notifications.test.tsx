@@ -56,6 +56,9 @@ describe('the notifications page', () => {
     expect(rows[0]).toHaveAttribute('data-unread', 'true');
     expect(rows[1]).toHaveTextContent('AST-0007 · Dell U2723QE was checked in from you');
     expect(rows[1]).toHaveAttribute('data-unread', 'false');
+    // Said, not only painted: a screen reader hears which one is new.
+    expect(within(rows[0]!).getByText('Unread')).toBeInTheDocument();
+    expect(within(rows[1]!).queryByText('Unread')).toBeNull();
 
     // Reading is a deliberate button now, not a side effect of looking.
     expect(api.called('POST /notifications/read')).toBeUndefined();
