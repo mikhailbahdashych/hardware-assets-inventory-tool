@@ -514,15 +514,26 @@ describe('a read that failed', () => {
     expect(api.calledAll('GET /audit')).toHaveLength(2);
   });
 
-  it('keeps the log for a reader who may not read the settings behind its footer', async () => {
+  it('does not ask for settings a reader of the log may not read', async () => {
     // `/activity` is gated on `audit.view`; `GET /settings` wants
-    // `settings.manage`. An Auditor holds the first and not the second, so a
-    // refusal there is expected — and the footer already hedges rather than
-    // naming a period nobody told it.
-    renderApp({ ...ADMIN_ROUTES, 'GET /settings': NOT_YOURS }, '/activity');
+    // `settings.manage`. An Auditor holds the first and not the second, so the
+    // page does not make the request it would be refused — and the footer
+    // hedges rather than naming a period nobody told it.
+    const api = renderApp(
+      {
+        ...ADMIN_ROUTES,
+        'GET /auth/me': session(
+          { ...ADMIN_MEMBER, role: 'auditor' },
+          EVERY_ACTION.filter((action) => action !== 'settings.manage'),
+        ),
+        'GET /settings': NOT_YOURS,
+      },
+      '/activity',
+    );
 
     expect(await screen.findByText(/retained for the configured period/)).toBeInTheDocument();
     expect(screen.queryByRole('alert')).toBeNull();
+    expect(api.called('GET /settings')).toBeUndefined();
   });
 
   it('still says the log is empty when the filter genuinely matches nothing', async () => {

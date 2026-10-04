@@ -5,6 +5,7 @@ import {
   AUDIT_TYPE_COLORS,
   AUDIT_TYPE_LABELS,
   AUDIT_TYPES,
+  can,
   LOG_RETENTION_LABELS,
   renderAuditEvent,
   type AuditActorKind,
@@ -30,6 +31,7 @@ import { usePage } from '@/lib/usePage';
 import { usePageSize } from '@/lib/usePageSize';
 import type { AuditLogItem } from '@/types/api';
 import type { TableColumn } from '@/types/table';
+import type { ActivityLogPanelProps } from './types/activityLog';
 import styles from './Admin.module.css';
 
 /** The API's own default page size, and the one the log starts at. */
@@ -77,7 +79,7 @@ const COLUMNS: TableColumn<AuditLogItem>[] = [
   },
 ];
 
-export function ActivityLogPanel() {
+export function ActivityLogPanel({ permissions }: ActivityLogPanelProps) {
   const [searchParams, setSearchParams] = useSearchParams();
   const { page, setPage, clampTo } = usePage();
   // How many rows a page holds is the reader's choice, kept across visits.
@@ -89,14 +91,15 @@ export function ActivityLogPanel() {
   // Read during render: a page the list no longer fills steps back before it is drawn.
   const pageCount = log.isSuccess ? clampTo(log.data.total, pageSize) : 1;
   /**
-   * The one query on this page whose failure is *not* the page's, and the
-   * exception apps/web/CLAUDE.md's own rule allows for: this page is gated on
-   * `audit.view` and `GET /settings` wants `settings.manage`, so an Auditor is
-   * refused here by design — exactly as `useMe()` is by a 401. The footer says
-   * "the configured period" rather than a number nobody told it, and failing a
-   * log that loaded perfectly well would be its own kind of lie.
+   * The one query on this page whose failure is *not* the page's: it only
+   * names the retention period in the footer. This page is gated on
+   * `audit.view` and `GET /settings` wants `settings.manage`, so a reader
+   * without the second (the seeded Auditor) is never sent to ask — and for
+   * them, or for anybody whose read fails, the footer says "the configured
+   * period" rather than a number nobody told it. Failing a log that loaded
+   * perfectly well over its footer would be its own kind of lie.
    */
-  const settings = useSettings();
+  const settings = useSettings(can(permissions, 'settings.manage'));
 
   /**
    * The pills stay reachable through a failure — they are how you ask for a

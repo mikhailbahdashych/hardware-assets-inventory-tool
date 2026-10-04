@@ -161,7 +161,7 @@ export function AppRoutes() {
           path="/activity"
           element={
             can(permissions, 'audit.view') ? (
-              <ActivityLogPage />
+              <ActivityLogPage permissions={permissions} />
             ) : (
               <Navigate to="/dashboard" replace />
             )

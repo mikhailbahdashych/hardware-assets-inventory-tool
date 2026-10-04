@@ -348,10 +348,15 @@ export function listParams(params: AssetListParams): string {
  * row: the storage usage beside it is what the Settings page's quota line
  * reads, and a hook that dropped it would need a second request to get it back.
  */
-export function useSettings() {
+/**
+ * `enabled` is for a page that reads the settings as an aside and whose reader
+ * may not hold `settings.manage` — it asks only when the answer can be yes.
+ */
+export function useSettings(enabled = true) {
   return useQuery({
     queryKey: queryKeys.settings,
     queryFn: () => apiFetch<SettingsPayload>('/settings'),
+    enabled,
   });
 }
 
