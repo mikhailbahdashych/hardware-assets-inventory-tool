@@ -7,6 +7,7 @@ import {
   ADMIN_ROUTES,
   DB_DOWN,
   MANAGER_ACTIONS,
+  READY_META,
   session,
   WORKFLOW,
   type StubRoutes,
@@ -214,6 +215,42 @@ describe('the statuses card', () => {
     });
   });
 
+  it('cannot send an order built from the list before the last move', async () => {
+    const { routes, statuses } = workspace();
+    // The re-read after a move is slow, which is the window a second click
+    // used to fall into: the move had landed, the list on screen had not.
+    let release: () => void = () => {};
+    let moved = false;
+    const api = renderApp(
+      {
+        ...routes,
+        'GET /workflow': () =>
+          moved
+            ? new Promise((resolve) => {
+                release = () => resolve({ body: { statuses, transitions: WORKFLOW.transitions } });
+              })
+            : { body: { statuses, transitions: WORKFLOW.transitions } },
+        'PUT /workflow/statuses/order': (body) => {
+          const { ids } = body as { ids: string[] };
+          statuses.sort((a, b) => ids.indexOf(a.id) - ids.indexOf(b.id));
+          moved = true;
+          return { body: { statuses } };
+        },
+      },
+      '/workflow',
+    );
+    const rows = await statusRows();
+
+    const up = within(rows[2]!).getByRole('button', { name: 'Move In repair up' });
+    await userEvent.click(up);
+    await waitFor(() => expect(api.calledAll('PUT /workflow/statuses/order')).toHaveLength(1));
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    // The list on screen is still the old one; its arrows must not act on it.
+    expect(up).toBeDisabled();
+    release();
+    await waitFor(() => expect(up).not.toBeDisabled());
+  });
+
   it('cannot move the first status up or the last one down', async () => {
     renderApp(workspace().routes, '/workflow');
     const rows = await statusRows();
@@ -345,6 +382,44 @@ describe('the transition matrix', () => {
       expect(screen.getByRole('button', { name: 'Save workflow' })).toBeDisabled(),
     );
     expect(cell('Available', 'Retired')).not.toBeChecked();
+  });
+
+  it('says it saved, even though the save re-seeds the card that asked', async () => {
+    let stored = WORKFLOW.transitions;
+    // The save stays pending until every read it touched has come back. Holding
+    // one of them (`/meta`) lets the new graph arrive first — which re-keys the
+    // card, so the one that pressed Save is gone before the save settles.
+    let held = false;
+    let release: () => void = () => {};
+    renderApp(
+      {
+        ...workspace().routes,
+        'GET /workflow': () => ({ body: { statuses: WORKFLOW.statuses, transitions: stored } }),
+        'GET /meta': () =>
+          held
+            ? new Promise((resolve) => {
+                release = () => resolve({ body: READY_META });
+              })
+            : { body: READY_META },
+        'PUT /workflow/transitions': (body) => {
+          stored = (body as { transitions: typeof stored }).transitions;
+          held = true;
+          return { body: { transitions: stored } };
+        },
+      },
+      '/workflow',
+    );
+    await screen.findByRole('table', { name: 'Transitions' });
+
+    await userEvent.click(cell('Available', 'Retired'));
+    await userEvent.click(screen.getByRole('button', { name: 'Save workflow' }));
+    // Re-seeded from the new graph while the save is still in flight.
+    await waitFor(() => expect(cell('Available', 'Retired')).not.toBeChecked());
+    await screen.findByText('Everything here is saved');
+    expect(screen.queryByText('Workflow saved.')).toBeNull();
+
+    release();
+    expect(await screen.findByText('Workflow saved.')).toBeInTheDocument();
   });
 
   it('redraws the diagram from the draft, before anything is saved', async () => {

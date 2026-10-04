@@ -6,7 +6,7 @@ import type { ModalContextValue, ModalProviderProps } from './types/modalProvide
  * The modals that belong to the app rather than to a record.
  *
  * Anything carrying a subject — assign, check in, change status, edit — stays
- * local state on the page that knows the subject. These six are different: the
+ * local state on the page that knows the subject. These seven are different: the
  * command palette can open four of them from anywhere, and two of them are
  * reachable from more than one screen. Without one owner they would be the same
  * boolean declared in three places.

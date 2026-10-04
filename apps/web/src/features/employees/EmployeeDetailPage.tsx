@@ -7,6 +7,7 @@ import {
   EMPLOYEE_STATUS_COLORS,
   EMPLOYEE_STATUS_LABELS,
 } from '@inventory/shared';
+import { ApiError } from '@/api/client';
 import { useEmployee } from '@/api/queries';
 import type { Holding } from '@/types/api';
 import { PageContainer } from '@/components/app/PageContainer';
@@ -51,10 +52,24 @@ export function EmployeeDetailPage({ permissions, viewerRole }: EmployeeDetailPa
    * This used to be its own panel saying "That employee could not be found."
    * for every failure alike, which was a diagnosis rather than a report: a 500
    * and a dropped connection are not a missing person. A 404 still says so, in
-   * the server's own sentence — "The employee could not be found.", the same
-   * register as this panel's line above it. What the old panel had right — a
+   * the server's own sentence and without a retry (the branch below). What the
+   * old panel had right — a
    * way out of a page that cannot draw itself — is the BackLink above it, kept.
    */
+  // A 404 is not a failed read but an answer: there is no such person. The
+  // server's sentence says so, the BackLink is the way on, and a retry would
+  // only suggest that asking again might find them.
+  if (detail.error instanceof ApiError && detail.error.status === 404) {
+    return (
+      <PageContainer variant="detail" maxWidth={1060} gap={16}>
+        <BackLink to="/employees">Employees</BackLink>
+        <Card padding={false}>
+          <EmptyState>{detail.error.message}</EmptyState>
+        </Card>
+      </PageContainer>
+    );
+  }
+
   if (detail.isError) {
     return (
       <PageContainer variant="detail" maxWidth={1060} gap={16}>
@@ -124,6 +139,8 @@ export function EmployeeDetailPage({ permissions, viewerRole }: EmployeeDetailPa
       header: '',
       width: '120px',
       align: 'right',
+      // Pinned: a scrolled table keeps the row's only door in view.
+      sticky: 'end',
       render: (holding) =>
         can(permissions, 'assets.checkin') ? (
           <button

@@ -1,5 +1,6 @@
 import { PageContainer } from '@/components/app/PageContainer';
 import { ActivityLogPanel } from './ActivityLogPanel';
+import type { ActivityLogPageProps } from './types/activityLog';
 import styles from './Admin.module.css';
 
 /**
@@ -12,7 +13,7 @@ import styles from './Admin.module.css';
  * grant to a role of its own (the seeded Auditor is exactly that), so the
  * subtitle says what gates the page rather than naming a role.
  */
-export function ActivityLogPage() {
+export function ActivityLogPage({ permissions }: ActivityLogPageProps) {
   return (
     <PageContainer maxWidth={1060} gap={16}>
       <div>
@@ -21,7 +22,7 @@ export function ActivityLogPage() {
           Everything that has happened in this workspace · visible to anyone whose role may read it
         </p>
       </div>
-      <ActivityLogPanel />
+      <ActivityLogPanel permissions={permissions} />
     </PageContainer>
   );
 }

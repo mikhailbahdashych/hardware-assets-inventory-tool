@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router';
 import { can, EMPLOYEE_STATUS_COLORS, EMPLOYEE_STATUS_LABELS } from '@inventory/shared';
 import { LIST_PAGE, useEmployees } from '@/api/queries';
@@ -21,6 +20,7 @@ import {
 import type { TableColumn } from '@/types/table';
 import { setParam } from '@/lib/searchParams';
 import { useDebouncedValue } from '@/lib/useDebouncedValue';
+import { usePage } from '@/lib/usePage';
 import { usePageSize } from '@/lib/usePageSize';
 import type { EmployeesPageProps } from './types/employeesPage';
 import styles from './Employees.module.css';
@@ -43,7 +43,8 @@ const COLUMNS: TableColumn<Employee>[] = [
   },
   {
     header: 'Email',
-    width: '1.3fr',
+    // A floor, so a table scrolled sideways never squeezes the address to nothing.
+    width: 'minmax(160px, 1.3fr)',
     render: (employee) => <span className={styles.muted}>{employee.email}</span>,
   },
   { header: 'Department', width: '130px', render: (employee) => employee.department ?? '—' },
@@ -70,7 +71,6 @@ const COLUMNS: TableColumn<Employee>[] = [
 
 export function EmployeesPage({ permissions }: EmployeesPageProps) {
   const [searchParams, setSearchParams] = useSearchParams();
-  const [page, setPage] = useState(1);
   // How many rows a page holds is the reader's choice, kept across visits.
   const [pageSize, setPageSize] = usePageSize('employees', LIST_PAGE);
   const navigate = useNavigate();
@@ -80,13 +80,14 @@ export function EmployeesPage({ permissions }: EmployeesPageProps) {
   const query = searchParams.get('q') ?? '';
   // The input stays instant; the request waits for the typing to stop.
   const debounced = useDebouncedValue(query);
+  // A different search is a different list; page three of it is not where
+  // anybody meant to land. Keyed on the debounced value, so a page picked
+  // while the typing settles is not carried onto the new list.
+  const { page, setPage, clampTo } = usePage(debounced);
   const setQuery = (value: string) => {
     const params = new URLSearchParams(searchParams);
     setParam(params, 'q', value);
     setSearchParams(params, { replace: true });
-    // A different search is a different list; page three of it is not where
-    // anybody meant to land.
-    setPage(1);
   };
 
   const employees = useEmployees({
@@ -95,6 +96,8 @@ export function EmployeesPage({ permissions }: EmployeesPageProps) {
     limit: pageSize,
     offset: (page - 1) * pageSize,
   });
+  // Read during render: a page the list no longer fills steps back before it is drawn.
+  const pageCount = employees.isSuccess ? clampTo(employees.data.total, pageSize) : 1;
 
   return (
     <PageContainer maxWidth={1060}>
@@ -145,7 +148,7 @@ export function EmployeesPage({ permissions }: EmployeesPageProps) {
           {/* A pager over a failure has nothing to page. */}
           <Pagination
             page={page}
-            pageCount={Math.ceil(employees.data.total / pageSize)}
+            pageCount={pageCount}
             onChange={setPage}
             rowsPerPage={{
               size: pageSize,

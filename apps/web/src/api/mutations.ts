@@ -216,7 +216,7 @@ export function useCreateAsset() {
   return useMutation({
     mutationFn: (input: AssetCreateInput) =>
       apiFetch<{ asset: Asset }>('/assets', { method: 'POST', body: input }),
-    onSuccess: () => invalidateInventory(queryClient),
+    onSuccess: () => void invalidateInventory(queryClient),
   });
 }
 
@@ -228,7 +228,7 @@ export function useUpdateAsset(id: string) {
         method: 'PATCH',
         body: input,
       }),
-    onSuccess: () => invalidateInventory(queryClient),
+    onSuccess: () => void invalidateInventory(queryClient),
   });
 }
 
@@ -236,7 +236,7 @@ export function useDeleteAsset() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (id: string) => apiFetch(`/assets/${encodeURIComponent(id)}`, { method: 'DELETE' }),
-    onSuccess: () => invalidateInventory(queryClient),
+    onSuccess: () => void invalidateInventory(queryClient),
   });
 }
 
@@ -245,7 +245,7 @@ export function useCreateEmployee() {
   return useMutation({
     mutationFn: (input: EmployeeCreateInput) =>
       apiFetch<{ employee: Employee }>('/employees', { method: 'POST', body: input }),
-    onSuccess: () => invalidateInventory(queryClient),
+    onSuccess: () => void invalidateInventory(queryClient),
   });
 }
 
@@ -257,7 +257,7 @@ export function useUpdateEmployee(id: string) {
         method: 'PATCH',
         body: input,
       }),
-    onSuccess: () => invalidateInventory(queryClient),
+    onSuccess: () => void invalidateInventory(queryClient),
   });
 }
 
@@ -266,7 +266,7 @@ export function useDeleteEmployee() {
   return useMutation({
     mutationFn: (id: string) =>
       apiFetch(`/employees/${encodeURIComponent(id)}`, { method: 'DELETE' }),
-    onSuccess: () => invalidateInventory(queryClient),
+    onSuccess: () => void invalidateInventory(queryClient),
   });
 }
 
@@ -281,7 +281,7 @@ export function useAssignAsset(assetId: string) {
         method: 'POST',
         body: input,
       }),
-    onSuccess: () => invalidateInventory(queryClient),
+    onSuccess: () => void invalidateInventory(queryClient),
   });
 }
 
@@ -293,7 +293,7 @@ export function useCheckinAsset(assetId: string) {
         method: 'POST',
         body: input,
       }),
-    onSuccess: () => invalidateInventory(queryClient),
+    onSuccess: () => void invalidateInventory(queryClient),
   });
 }
 
@@ -308,7 +308,7 @@ export function useUploadAttachment(assetId: string) {
         body,
       );
     },
-    onSuccess: () => invalidateInventory(queryClient),
+    onSuccess: () => void invalidateInventory(queryClient),
   });
 }
 
@@ -317,7 +317,7 @@ export function useDeleteAttachment() {
   return useMutation({
     mutationFn: (id: string) =>
       apiFetch(`/attachments/${encodeURIComponent(id)}`, { method: 'DELETE' }),
-    onSuccess: () => invalidateInventory(queryClient),
+    onSuccess: () => void invalidateInventory(queryClient),
   });
 }
 
@@ -360,11 +360,16 @@ function useWorkflowMutation<TInput, TResult>(request: (input: TInput) => Promis
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: request,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.workflow });
-      invalidateInventory(queryClient);
-      invalidateAdmin(queryClient);
-    },
+    // Returned, so the mutation stays pending until the workflow has been read
+    // again: the reorder arrows are disabled while pending, and a second click
+    // in the gap between the write landing and the list arriving would build
+    // its order from the list before the first move.
+    onSuccess: () =>
+      Promise.all([
+        queryClient.invalidateQueries({ queryKey: queryKeys.workflow }),
+        invalidateInventory(queryClient),
+        invalidateAdmin(queryClient),
+      ]),
   });
 }
 
@@ -439,6 +444,9 @@ function useRolesMutation<TInput, TResult>(request: (input: TInput) => Promise<T
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: request,
+    // Returned, so the mutation stays pending until the roles have been read
+    // again — the workflow's reason (see useWorkflowMutation), for the same
+    // reorder arrows.
     onSuccess: () => invalidateAdmin(queryClient),
   });
 }
@@ -506,7 +514,7 @@ function useAdminMutation<TInput, TResult>(request: (input: TInput) => Promise<T
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: request,
-    onSuccess: () => invalidateAdmin(queryClient),
+    onSuccess: () => void invalidateAdmin(queryClient),
   });
 }
 

@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -127,6 +128,41 @@ describe('Modal', () => {
     expect(close).toHaveFocus();
   });
 
+  it('moves focus into the dialog and gives it back to what had it on close', async () => {
+    function Harness() {
+      const [open, setOpen] = useState(false);
+      return (
+        <>
+          <button type="button" onClick={() => setOpen(true)}>
+            Open
+          </button>
+          {open && (
+            <Modal title="Assign" onClose={() => setOpen(false)}>
+              <p>Body</p>
+            </Modal>
+          )}
+        </>
+      );
+    }
+    render(<Harness />);
+    const opener = screen.getByRole('button', { name: 'Open' });
+    await userEvent.click(opener);
+    expect(screen.getByRole('dialog')).toHaveFocus();
+
+    await userEvent.keyboard('{Escape}');
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(opener).toHaveFocus();
+  });
+
+  it('leaves focus on a field the modal autofocuses', () => {
+    render(
+      <Modal title="Rename" onClose={() => {}}>
+        <input aria-label="Name" autoFocus />
+      </Modal>,
+    );
+    expect(screen.getByLabelText('Name')).toHaveFocus();
+  });
+
   it('has a working close button', async () => {
     const onClose = vi.fn();
     render(
@@ -170,6 +206,87 @@ describe('Menu', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Actions' }));
     await userEvent.click(document.body);
     expect(screen.queryByRole('menu')).toBeNull();
+  });
+
+  describe('from the keyboard', () => {
+    const three = [
+      { label: 'Change role', onSelect: vi.fn() },
+      { label: 'Issue reset link', onSelect: vi.fn() },
+      { label: 'Remove', onSelect: vi.fn(), danger: true },
+    ];
+
+    async function openByKeyboard() {
+      render(<Menu label="Actions" items={three} />);
+      const trigger = screen.getByRole('button', { name: 'Actions' });
+      trigger.focus();
+      await userEvent.keyboard('{Enter}');
+      return trigger;
+    }
+
+    it('puts focus on the first item when it opens', async () => {
+      await openByKeyboard();
+      expect(screen.getByRole('menuitem', { name: 'Change role' })).toHaveFocus();
+    });
+
+    it('moves with the arrows, stopping at both ends, and jumps with Home and End', async () => {
+      await openByKeyboard();
+      const item = (name: string) => screen.getByRole('menuitem', { name });
+
+      await userEvent.keyboard('{ArrowUp}');
+      expect(item('Change role')).toHaveFocus();
+      await userEvent.keyboard('{ArrowDown}');
+      expect(item('Issue reset link')).toHaveFocus();
+      await userEvent.keyboard('{ArrowDown}{ArrowDown}');
+      expect(item('Remove')).toHaveFocus();
+      await userEvent.keyboard('{Home}');
+      expect(item('Change role')).toHaveFocus();
+      await userEvent.keyboard('{End}');
+      expect(item('Remove')).toHaveFocus();
+    });
+
+    it('activates the focused item on Enter and on Space', async () => {
+      await openByKeyboard();
+      await userEvent.keyboard('{ArrowDown}{Enter}');
+      expect(three[1]!.onSelect).toHaveBeenCalledOnce();
+      expect(screen.queryByRole('menu')).toBeNull();
+
+      screen.getByRole('button', { name: 'Actions' }).focus();
+      await userEvent.keyboard('{Enter}');
+      await userEvent.keyboard(' ');
+      expect(three[0]!.onSelect).toHaveBeenCalledOnce();
+    });
+
+    it('gives focus back to the trigger on Escape', async () => {
+      const trigger = await openByKeyboard();
+      await userEvent.keyboard('{Escape}');
+      expect(screen.queryByRole('menu')).toBeNull();
+      expect(trigger).toHaveFocus();
+    });
+
+    it('hands focus to the trigger before running the item, so a dialog it opens can give it back', async () => {
+      let focusedDuringSelect: Element | null = null;
+      render(
+        <Menu
+          label="Actions"
+          items={[
+            {
+              label: 'Change role',
+              onSelect: () => (focusedDuringSelect = document.activeElement),
+            },
+          ]}
+        />,
+      );
+      const trigger = screen.getByRole('button', { name: 'Actions' });
+      trigger.focus();
+      await userEvent.keyboard('{Enter}{Enter}');
+      expect(focusedDuringSelect).toBe(trigger);
+    });
+
+    it('closes when Tab leaves it', async () => {
+      await openByKeyboard();
+      await userEvent.tab();
+      expect(screen.queryByRole('menu')).toBeNull();
+    });
   });
 
   it('marks a destructive item so it does not read like the others', async () => {
@@ -363,7 +480,7 @@ describe('Field', () => {
     expect(document.getElementById(describedBy!)).toHaveTextContent('Give the token a name.');
   });
 
-  it('says nothing of the sort while the field is fine', () => {
+  it('says nothing of the sort while the field is fine, but still reads out its hint', () => {
     render(
       <Field label="Name" hint="What holds it">
         {(id) => <Input id={id} defaultValue="" />}
@@ -371,7 +488,9 @@ describe('Field', () => {
     );
     const input = screen.getByRole('textbox', { name: 'Name' });
     expect(input).not.toHaveAttribute('aria-invalid');
-    expect(input).not.toHaveAttribute('aria-describedby');
+    // A hint is often the only reason a control is the way it is — a disabled
+    // one most of all — so it is described, not only painted.
+    expect(input).toHaveAccessibleDescription('What holds it');
   });
 
   it('does the same for the app’s only select', () => {
@@ -429,6 +548,26 @@ describe('DataTable', () => {
     );
     await userEvent.click(screen.getByText('MacBook Pro'));
     expect(onRowClick).toHaveBeenCalledWith({ name: 'MacBook Pro' });
+  });
+
+  it('pins a column marked sticky to the end, header and cells alike', () => {
+    render(
+      <DataTable
+        columns={[
+          ...columns,
+          { header: 'Actions', width: '40px', sticky: 'end', render: () => '···' },
+        ]}
+        rows={[{ name: 'MacBook Pro' }]}
+        rowKey={(r) => r.name}
+      />,
+    );
+    // Asserted as the attribute the stylesheet keys on: jsdom has no layout.
+    expect(screen.getByRole('columnheader', { name: 'Actions' })).toHaveAttribute(
+      'data-sticky',
+      'end',
+    );
+    expect(screen.getByRole('cell', { name: '···' })).toHaveAttribute('data-sticky', 'end');
+    expect(screen.getByRole('cell', { name: 'X' })).not.toHaveAttribute('data-sticky');
   });
 });
 

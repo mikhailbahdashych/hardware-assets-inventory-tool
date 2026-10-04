@@ -18,6 +18,11 @@
   max-width: calc(100vw - 48px);
 }
 
+/* Focused only so focus is inside the dialog; the card is not a control. */
+.card:focus {
+  outline: none;
+}
+
 .header {
   display: flex;
   align-items: flex-start;

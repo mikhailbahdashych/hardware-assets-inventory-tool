@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { Link } from 'react-router';
 import { API_SCOPE_LABELS } from '@inventory/shared';
 import { useRevokeApiToken } from '@/api/mutations';
@@ -15,6 +15,7 @@ import {
   Spinner,
 } from '@/components/ui';
 import { formatFullDate, formatRelativeTime } from '@/lib/format';
+import { survivor } from '@/lib/survivor';
 import { useToast } from '@/providers/ToastProvider';
 import type { ApiTokenSummary } from '@/types/api';
 import type { TableColumn } from '@/types/table';
@@ -32,6 +33,11 @@ import styles from './ApiTokens.module.css';
 export function ApiTokensPage() {
   const [creating, setCreating] = useState(false);
   const [confirmingRevoke, setConfirmingRevoke] = useState<string | null>(null);
+  // The row whose menu should take focus as it mounts: the one just disarmed,
+  // or the neighbour of the one just revoked. Null until either happens.
+  const [refocus, setRefocus] = useState<string | null>(null);
+  // Null until the button mounts; it always has by the time a revoke lands.
+  const newToken = useRef<HTMLButtonElement>(null);
 
   const toast = useToast();
   const tokens = useApiTokens();
@@ -86,6 +92,8 @@ export function ApiTokensPage() {
       // the table's edge the way it does on every other list.
       width: '130px',
       align: 'right',
+      // Pinned: a scrolled table keeps the row's only door in view.
+      sticky: 'end',
       render: (token) =>
         // Two steps, like deleting a custom field: the first opens the row's
         // own button, and the button is what does it. Every call using this
@@ -94,12 +102,34 @@ export function ApiTokensPage() {
           <Button
             variant="danger"
             size="sm"
+            // Armed means focused — a keyboard user is on it — and Escape or
+            // leaving it disarms: a confirm left armed behind you is not one.
+            autoFocus
+            onBlur={() => setConfirmingRevoke(null)}
+            onKeyDown={(event) => {
+              if (event.key !== 'Escape') return;
+              setConfirmingRevoke(null);
+              setRefocus(token.id);
+            }}
             disabled={revoke.isPending}
             onClick={() =>
               revoke.mutate(token.id, {
                 onSuccess: () => {
                   toast.show(`Revoked "${token.name}".`, 'ok');
                   setConfirmingRevoke(null);
+                  // The row is going; focus goes to its neighbour, or to the
+                  // way to mint another when it was the last.
+                  // The rows are drawn only from a list that arrived.
+                  if (!tokens.isSuccess) throw new Error('A token was revoked from no list.');
+                  const next = survivor(
+                    tokens.data.map((row) => row.id),
+                    token.id,
+                  );
+                  // Whichever it is, it is the only row that may take focus
+                  // as it mounts — the revoked row's menu remounting for the
+                  // moment before it leaves must not.
+                  setRefocus(next);
+                  if (next === null) newToken.current?.focus();
                 },
                 onError: (error) => toast.show(error.message, 'err'),
               })
@@ -109,12 +139,19 @@ export function ApiTokensPage() {
           </Button>
         ) : (
           <Menu
+            // A new key remounts the trigger, which is what lets autoFocus act.
+            key={refocus === token.id ? 'refocus' : 'menu'}
+            autoFocus={refocus === token.id}
             label={`Actions for ${token.name}`}
             items={[
               {
                 label: 'Revoke',
                 danger: true,
-                onSelect: () => setConfirmingRevoke(token.id),
+                onSelect: () => {
+                  setConfirmingRevoke(token.id);
+                  // A disarm by leaving the button must leave focus where it went.
+                  setRefocus(null);
+                },
               },
             ]}
           />
@@ -135,7 +172,7 @@ export function ApiTokensPage() {
             instance serves.
           </p>
         </div>
-        <Button icon="plus" onClick={() => setCreating(true)}>
+        <Button ref={newToken} icon="plus" onClick={() => setCreating(true)}>
           New token
         </Button>
       </div>

@@ -216,6 +216,76 @@ describe('revoking a token', () => {
     );
     await waitFor(() => expect(api.called('DELETE /api-tokens/token-1')).toBeDefined());
   });
+
+  it('puts focus on the armed button, and disarms on Escape or when focus leaves', async () => {
+    renderApp(workspace(), '/api-tokens');
+    const arm = async () => {
+      await userEvent.click(
+        within(await rowFor(LIVE_TOKEN.name)).getByRole('button', {
+          name: `Actions for ${LIVE_TOKEN.name}`,
+        }),
+      );
+      await userEvent.click(await screen.findByRole('menuitem', { name: 'Revoke' }));
+    };
+
+    await arm();
+    expect(screen.getByRole('button', { name: /revoke for good/i })).toHaveFocus();
+    await userEvent.keyboard('{Escape}');
+    expect(screen.queryByRole('button', { name: /revoke for good/i })).toBeNull();
+    // Back where the keyboard started, not on the body.
+    expect(
+      within(await rowFor(LIVE_TOKEN.name)).getByRole('button', {
+        name: `Actions for ${LIVE_TOKEN.name}`,
+      }),
+    ).toHaveFocus();
+
+    await arm();
+    await userEvent.tab();
+    expect(screen.queryByRole('button', { name: /revoke for good/i })).toBeNull();
+    // Leaving disarms, and leaves focus where it went.
+    expect(
+      screen.getByRole('button', { name: `Actions for ${LIVE_TOKEN.name}` }),
+    ).not.toHaveFocus();
+  });
+});
+
+describe('where focus goes after a revoke', () => {
+  it('lands on the next row’s menu, and on New token once the list is empty', async () => {
+    const tokens: { id: string; name: string }[] = [{ ...LIVE_TOKEN }, { ...EXPIRED_TOKEN }];
+    const revoke = (id: string) => () => {
+      tokens.splice(
+        tokens.findIndex((token) => token.id === id),
+        1,
+      );
+      return { status: 204 };
+    };
+    renderApp(
+      {
+        ...workspace(tokens),
+        [`DELETE /api-tokens/${LIVE_TOKEN.id}`]: revoke(LIVE_TOKEN.id),
+        [`DELETE /api-tokens/${EXPIRED_TOKEN.id}`]: revoke(EXPIRED_TOKEN.id),
+      },
+      '/api-tokens',
+    );
+    const revokeRow = async (name: string) => {
+      await userEvent.click(
+        within(await rowFor(name)).getByRole('button', { name: `Actions for ${name}` }),
+      );
+      await userEvent.click(await screen.findByRole('menuitem', { name: 'Revoke' }));
+      await userEvent.click(screen.getByRole('button', { name: /revoke for good/i }));
+    };
+
+    await revokeRow(LIVE_TOKEN.name);
+    await waitFor(() =>
+      expect(
+        screen.getByRole('button', { name: `Actions for ${EXPIRED_TOKEN.name}` }),
+      ).toHaveFocus(),
+    );
+
+    await waitFor(() => expect(screen.queryByText(LIVE_TOKEN.name)).toBeNull());
+    await revokeRow(EXPIRED_TOKEN.name);
+    await waitFor(() => expect(screen.getByRole('button', { name: /new token/i })).toHaveFocus());
+  });
 });
 
 describe('a read that failed', () => {

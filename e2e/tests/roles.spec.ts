@@ -163,14 +163,14 @@ test('deleting a role in use asks where its members go', async ({ page }) => {
   await page.getByRole('dialog').getByRole('button', { name: 'Save role' }).click();
   await expect(page.getByText('Grace Chen is now Contractor.')).toBeVisible();
 
-  // The first press asks for the delete plainly; the server is what knows
-  // somebody holds it, and only then does the form ask where they go.
+  // The row already counts who holds it, so the form opens on where they go —
+  // in plain words, not as an error the first press had to provoke.
   await page.goto('/roles');
   await expect(roleRow(page, 'Contractor')).toContainText('1 member');
   await page.getByRole('button', { name: /^Delete Contractor/ }).click();
   const dialog = page.getByRole('dialog');
-  await dialog.getByRole('button', { name: 'Delete role' }).click();
-  await expect(dialog.getByRole('alert')).toContainText('1 member holds this role');
+  await expect(dialog).toContainText('1 member holds Contractor');
+  await expect(dialog.getByRole('alert')).toHaveCount(0);
 
   await choose(page, dialog, 'Move them to', 'Auditor');
   await dialog.getByRole('button', { name: 'Move and delete' }).click();

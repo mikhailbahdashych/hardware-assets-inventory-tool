@@ -1,5 +1,5 @@
 import { fireEvent, render, screen } from '@testing-library/react';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ThemeProvider, useTheme } from './ThemeProvider';
 
 function Demo() {
@@ -22,6 +22,26 @@ describe('ThemeProvider', () => {
     window.localStorage.clear();
     delete document.documentElement.dataset.theme;
     delete document.documentElement.dataset.density;
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('keeps working when the browser refuses to store anything', () => {
+    // Private mode, blocked site data, a full quota: setItem throws.
+    vi.spyOn(window.localStorage, 'setItem').mockImplementation(() => {
+      throw new DOMException('The quota has been exceeded.', 'QuotaExceededError');
+    });
+    render(
+      <ThemeProvider>
+        <Demo />
+      </ThemeProvider>,
+    );
+    fireEvent.click(screen.getByText('toggle'));
+    fireEvent.click(screen.getByText('compact'));
+    expect(screen.getByTestId('state')).toHaveTextContent('dark/compact');
+    expect(document.documentElement.dataset.theme).toBe('dark');
   });
 
   it('adopts the pre-paint values from the html element', () => {

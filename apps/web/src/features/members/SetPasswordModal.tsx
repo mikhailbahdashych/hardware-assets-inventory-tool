@@ -88,7 +88,9 @@ export function SetPasswordModal({ member, onSet, onClose }: SetPasswordModalPro
           Every session of theirs is signed out the moment it is set.
         </p>
         {set.error && !errors.newPassword && (
-          <div className={formStyles.formError}>{set.error.message}</div>
+          <div className={formStyles.formError} role="alert">
+            {set.error.message}
+          </div>
         )}
       </form>
     </Modal>

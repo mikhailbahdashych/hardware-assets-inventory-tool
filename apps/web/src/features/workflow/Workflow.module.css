@@ -45,15 +45,19 @@
 
 /* The matrix's Save, beside its own card's heading rather than pinned: the
    grid is short, and a second sticky bar would fight the settings page's. */
+/* The Roles page's rule: the buttons and their note keep their width, and the
+   hint beside them is what wraps. */
 .actions {
   display: flex;
   align-items: center;
   gap: 8px;
+  flex-shrink: 0;
 }
 
 .actionsNote {
   font-size: 12px;
   color: var(--muted);
+  white-space: nowrap;
 }
 
 /* A grid this wide scrolls sideways rather than squeezing its columns into
@@ -70,13 +74,23 @@
   min-width: min-content;
 }
 
-/* The matrix and the diagram side by side: the same graph, edited on the left
-   and read on the right. The matrix scrolls inside its own column. */
+/* The column headers are the statuses themselves, so they wrap rather than
+   ellipsise: "Quarantined for audit" on two lines is a header, cut to
+   "Quarantined fo…" it is a guess. */
+.matrix [role='columnheader'] {
+  white-space: normal;
+}
+
+/* The matrix above, the diagram under it: the same graph, edited and then
+   read. Side by side, the diagram's 348px left the matrix too little room —
+   at 1440 an eighth status's column was cut in half behind a scroll nobody
+   saw. Stacked always rather than past a status count: one layout, no
+   threshold to tune, and the matrix grows with the workspace while the
+   diagram does not need to. */
 .graph {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 348px;
+  grid-template-columns: minmax(0, 1fr);
   gap: 14px;
-  align-items: start;
 }
 
 .diagram {
@@ -87,10 +101,14 @@
   padding: 10px 12px 12px;
 }
 
+/* The width it had beside the matrix, centred: a full-width diagram would be
+   taller than the screen and no easier to read. */
 .diagramCanvas {
   display: block;
   width: 100%;
+  max-width: 420px;
   height: auto;
+  margin: 0 auto;
 }
 
 .edge {

@@ -23,9 +23,34 @@ export class ApiError extends Error {
  * status and claim nothing else.
  */
 export class HttpError extends ApiError {
-  constructor(status: number) {
-    super(status, `http_${status}`, `The request failed with HTTP ${status}.`);
+  constructor(
+    status: number,
+    // Overridden only by `ServerUnreachable`, which has no status to read.
+    code = `http_${status}`,
+    message = `The request failed with HTTP ${status}.`,
+  ) {
+    super(status, code, message);
     this.name = 'HttpError';
+  }
+}
+
+/**
+ * No response at all: `fetch` itself rejected — the server is down, the
+ * network dropped, a proxy refused the connection. The browser's own words
+ * for that ("Failed to fetch", "NetworkError when attempting…", "Load
+ * failed") differ per engine and say nothing a self-hoster can act on, so
+ * this says what is known and keeps theirs as the `cause`.
+ *
+ * It is the bodiless kind taken to its end — nothing answered at all — so it
+ * is an `HttpError`, and `ErrorState` and `AppErrorBoundary` give it the same
+ * server-unreachable hint without learning a fourth class. Status 0 is what
+ * the platform reports for a request that never got one.
+ */
+export class ServerUnreachable extends HttpError {
+  constructor(cause: unknown) {
+    super(0, 'unreachable', 'The server could not be reached.');
+    this.name = 'ServerUnreachable';
+    this.cause = cause;
   }
 }
 
@@ -60,7 +85,7 @@ export function publicApiFetch<T = unknown>(path: string): Promise<T> {
 async function send<T>(url: string, options: ApiRequest): Promise<T> {
   const { method = 'GET', body, signal } = options;
 
-  const response = await fetch(url, {
+  const response = await request(url, {
     method,
     credentials: 'same-origin',
     headers: body === undefined ? {} : { 'content-type': 'application/json' },
@@ -78,7 +103,7 @@ async function send<T>(url: string, options: ApiRequest): Promise<T> {
  * deliberately sends no content-type header of its own.
  */
 export async function apiUpload<T = unknown>(path: string, body: FormData): Promise<T> {
-  const response = await fetch(`${API_BASE}${path}`, {
+  const response = await request(`${API_BASE}${path}`, {
     method: 'POST',
     credentials: 'same-origin',
     body,
@@ -86,6 +111,21 @@ export async function apiUpload<T = unknown>(path: string, body: FormData): Prom
   const payload = await readJson(response);
   if (!response.ok) throw toApiError(response, payload);
   return payload as T;
+}
+
+/**
+ * `fetch`, with its one rejection that is not ours to pass on translated: a
+ * request nothing answered becomes `ServerUnreachable`. An abort is the
+ * caller's own doing — TanStack cancelling a query it no longer needs — and
+ * goes through untouched.
+ */
+async function request(url: string, init: RequestInit): Promise<Response> {
+  try {
+    return await fetch(url, init);
+  } catch (error) {
+    if (init.signal?.aborted) throw error;
+    throw new ServerUnreachable(error);
+  }
 }
 
 /** Narrows a parsed body to the error envelope, or reports that it is not one. */

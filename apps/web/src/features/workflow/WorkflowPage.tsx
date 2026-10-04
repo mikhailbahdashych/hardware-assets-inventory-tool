@@ -181,6 +181,8 @@ function StatusesCard({ statuses }: StatusesCardProps) {
       header: '',
       width: '70px',
       align: 'right',
+      // Pinned: a scrolled table keeps the row's only door in view.
+      sticky: 'end',
       render: (status) => (
         <span className={styles.rowActions}>
           <IconButton
@@ -276,7 +278,9 @@ function MatrixCard({ statuses, transitions }: MatrixCardProps) {
   const columns: TableColumn<WorkflowStatus>[] = [
     {
       header: 'From ↓ · To →',
-      width: 'minmax(120px, 1fr)',
+      // Twice a target column's share: it holds a whole pill, where the
+      // targets hold a checkbox and a header that may wrap.
+      width: 'minmax(150px, 2fr)',
       render: (from) => (
         <Pill sv={from.color} dot>
           {from.label}
@@ -327,11 +331,14 @@ function MatrixCard({ statuses, transitions }: MatrixCardProps) {
           </Button>
           <Button
             disabled={!dirty || save.isPending}
+            // The promise, not mutate's callbacks: the save stays pending until
+            // the graph is read again, and the new graph re-keys this card — so
+            // the observer holding those callbacks is gone before they run.
             onClick={() =>
-              save.mutate(transitionsFromDraft(draft), {
-                onSuccess: () => toast.show('Workflow saved.', 'ok'),
-                onError: (error) => toast.show(error.message, 'err'),
-              })
+              void save.mutateAsync(transitionsFromDraft(draft)).then(
+                () => toast.show('Workflow saved.', 'ok'),
+                (error: Error) => toast.show(error.message, 'err'),
+              )
             }
           >
             {save.isPending ? 'Saving…' : 'Save workflow'}

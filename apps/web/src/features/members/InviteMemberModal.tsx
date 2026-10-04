@@ -166,7 +166,9 @@ export function InviteMemberModal({ viewerRole, onClose }: InviteMemberModalProp
         )}
 
         {invite.error && !errors.email && !errors.employeeId && (
-          <div className={formStyles.formError}>{invite.error.message}</div>
+          <div className={formStyles.formError} role="alert">
+            {invite.error.message}
+          </div>
         )}
       </form>
     </Modal>

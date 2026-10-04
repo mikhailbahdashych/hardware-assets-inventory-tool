@@ -1,10 +1,10 @@
-import { useState } from 'react';
 import { renderNotification } from '@inventory/shared';
 import { useMarkNotificationsRead } from '@/api/mutations';
 import { INBOX_PAGE, useNotifications } from '@/api/queries';
 import { PageContainer } from '@/components/app/PageContainer';
 import { Button, Card, EmptyState, ErrorState, Pagination, Spinner } from '@/components/ui';
 import { formatRelativeTime } from '@/lib/format';
+import { usePage } from '@/lib/usePage';
 import { usePageSize } from '@/lib/usePageSize';
 import styles from './Notifications.module.css';
 
@@ -15,10 +15,12 @@ import styles from './Notifications.module.css';
  * and the unread marks should survive the glance.
  */
 export function NotificationsPage() {
-  const [page, setPage] = useState(1);
+  const { page, setPage, clampTo } = usePage();
   // How many rows a page holds is the reader's choice, kept across visits.
   const [pageSize, setPageSize] = usePageSize('notifications', INBOX_PAGE);
   const inbox = useNotifications(pageSize, (page - 1) * pageSize);
+  // Read during render: a page the list no longer fills steps back before it is drawn.
+  const pageCount = inbox.isSuccess ? clampTo(inbox.data.total, pageSize) : 1;
   const markRead = useMarkNotificationsRead();
 
   return (
@@ -61,6 +63,9 @@ export function NotificationsPage() {
           <ul className={styles.list}>
             {inbox.data.notifications.map((row) => (
               <li key={row.id} className={styles.row} data-unread={row.readAt === null}>
+                {/* The weight and the accent edge are for the eye; this is
+                    the same fact for a screen reader. */}
+                {row.readAt === null && <span className={styles.visuallyHidden}>Unread</span>}
                 <span className={styles.sentence}>{renderNotification(row)}</span>
                 <span className={styles.time}>{formatRelativeTime(row.createdAt)}</span>
               </li>
@@ -77,7 +82,7 @@ export function NotificationsPage() {
       {inbox.isSuccess && (
         <Pagination
           page={page}
-          pageCount={Math.ceil(inbox.data.total / pageSize)}
+          pageCount={pageCount}
           onChange={setPage}
           rowsPerPage={{
             size: pageSize,

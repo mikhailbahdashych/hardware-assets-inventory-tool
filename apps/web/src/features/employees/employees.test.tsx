@@ -197,6 +197,38 @@ describe('employee list', () => {
     );
   });
 
+  it('closes on a failed invitation, saying the person was added, so a second press cannot add them twice', async () => {
+    const created = { ...MAYA, id: 'emp-9', displayName: 'Sofia Reyes', email: 'sofia@acme.io' };
+    const api = renderApp(
+      {
+        ...ROUTES,
+        'POST /employees': { body: { employee: created } },
+        'POST /members/invites': {
+          status: 409,
+          body: { error: { code: 'conflict', message: 'That email already signs in.' } },
+        },
+      },
+      '/employees',
+    );
+    await screen.findByText('Maya Lindqvist');
+
+    await userEvent.click(screen.getByRole('button', { name: /add employee/i }));
+    const dialog = await screen.findByRole('dialog');
+    await userEvent.type(within(dialog).getByLabelText(/first name/i), 'Sofia');
+    await userEvent.type(within(dialog).getByLabelText(/last name/i), 'Reyes');
+    await userEvent.type(within(dialog).getByLabelText(/work email/i), 'sofia@acme.io');
+    await userEvent.click(within(dialog).getByRole('checkbox', { name: /also invite/i }));
+    await userEvent.click(within(dialog).getByRole('button', { name: /add employee/i }));
+
+    expect(
+      await screen.findByText(
+        'Sofia Reyes was added, but the invitation failed: That email already signs in.',
+      ),
+    ).toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    expect(api.calledAll('POST /employees')).toHaveLength(1);
+  });
+
   it('does not offer Admin as the invitation role to somebody below admin', async () => {
     renderApp(
       {
@@ -284,7 +316,12 @@ describe('employee detail', () => {
       },
       '/employees/emp-9',
     );
-    expect(await screen.findByText(/could not be found/i)).toBeInTheDocument();
+    expect(await screen.findByText('The employee could not be found.')).toBeInTheDocument();
+    // A missing record is a fact, not a failed read: nothing to retry, and
+    // "could not be loaded" would suggest trying again might find it.
+    expect(screen.queryByText(/could not be loaded/i)).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Try again' })).toBeNull();
+    expect(screen.getAllByRole('link', { name: 'Employees' })).toHaveLength(2);
   });
 });
 

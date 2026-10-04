@@ -1,6 +1,6 @@
-import type { ComponentPropsWithoutRef } from 'react';
+import type { ComponentPropsWithRef } from 'react';
 
-export type InputProps = ComponentPropsWithoutRef<'input'> & {
+export type InputProps = ComponentPropsWithRef<'input'> & {
   /** JetBrains Mono — asset tags, serials, hostnames. */
   mono?: boolean;
 };

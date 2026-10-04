@@ -21,6 +21,8 @@ import type { QueryClient } from '@tanstack/react-query';
 // holder's inbox — and the person doing it may be that holder.
 // `search` is here because the command palette reads assets and employees
 // through it — the two lists it used to hold whole.
+// `audit` is here because every inventory write is audited, and `members`
+// because a member row names the employee it is linked to.
 const INVENTORY_PREFIXES = [
   ['assets'],
   ['asset'],
@@ -29,12 +31,19 @@ const INVENTORY_PREFIXES = [
   ['search'],
   ['dashboard'],
   ['notifications'],
+  ['audit'],
+  ['members'],
 ];
 
-export function invalidateInventory(queryClient: QueryClient): void {
-  for (const queryKey of INVENTORY_PREFIXES) {
-    queryClient.invalidateQueries({ queryKey });
-  }
+/**
+ * Resolves once every active query it touched has been read again — which a
+ * mutation's `onSuccess` can return, to stay pending until the screen shows
+ * what the write did. Callers that do not need to wait simply do not.
+ */
+export async function invalidateInventory(queryClient: QueryClient): Promise<void> {
+  await Promise.all(
+    INVENTORY_PREFIXES.map((queryKey) => queryClient.invalidateQueries({ queryKey })),
+  );
 }
 
 /**
@@ -64,8 +73,7 @@ const ADMIN_PREFIXES = [
   ['me'],
 ];
 
-export function invalidateAdmin(queryClient: QueryClient): void {
-  for (const queryKey of ADMIN_PREFIXES) {
-    queryClient.invalidateQueries({ queryKey });
-  }
+/** Resolves like `invalidateInventory`, once the admin queries are read again. */
+export async function invalidateAdmin(queryClient: QueryClient): Promise<void> {
+  await Promise.all(ADMIN_PREFIXES.map((queryKey) => queryClient.invalidateQueries({ queryKey })));
 }

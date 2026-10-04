@@ -167,11 +167,11 @@
   color: var(--neut);
 }
 
+/* Wraps rather than truncating: in a 210px column most summaries were cut to
+   "Assign an asset to an empl…", and the contents is how you find one. */
 .contentsSummary {
   min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
 }
 
 .sections {

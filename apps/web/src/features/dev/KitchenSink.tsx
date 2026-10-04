@@ -7,7 +7,8 @@ import {
   DEFAULT_ROLES,
   SEMANTIC_COLORS,
 } from '@inventory/shared';
-import { ApiError, HttpError } from '@/api/client';
+import { ApiError, HttpError, ServerUnreachable } from '@/api/client';
+import type { TableColumn } from '@/types/table';
 import {
   Avatar,
   BackLink,
@@ -227,6 +228,43 @@ export function KitchenSink() {
   const [demoSize, setDemoSize] = useState(50);
   const [role, setRole] = useState('viewer');
   const [toggles, setToggles] = useState({ warranty: true, returns: false });
+  const demoColumns: TableColumn<(typeof DEMO_ROWS)[number]>[] = [
+    {
+      header: 'Asset',
+      width: 'minmax(210px,1.6fr)',
+      render: (row) => (
+        <div>
+          <div style={{ fontWeight: 500, fontSize: 13 }}>{row.name}</div>
+          <div
+            style={{
+              fontFamily: 'var(--font-mono)',
+              fontSize: 11.5,
+              color: 'var(--muted)',
+              marginTop: 1,
+            }}
+          >
+            {row.tag}
+          </div>
+        </div>
+      ),
+    },
+    {
+      header: 'Serial',
+      width: '130px',
+      render: (row) => (
+        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 12 }}>{row.serial}</span>
+      ),
+    },
+    {
+      header: 'Status',
+      width: '110px',
+      render: (row) => (
+        <Pill sv={row.sv} dot>
+          {row.status}
+        </Pill>
+      ),
+    },
+  ];
   const [modal, setModal] = useState<'none' | 'plain' | 'scroll'>('none');
   const [category, setCategory] = useState('laptops');
   const [condition, setCondition] = useState('good');
@@ -444,6 +482,13 @@ export function KitchenSink() {
             61 days
           </Pill>
         </Row>
+        {/* Narrower than its words: a pill never outgrows its box, and the
+            words ellipsise rather than being sheared off by a cell's clip. */}
+        <div style={{ width: 130 }}>
+          <Pill sv="warn" dot>
+            Awaiting data destruction
+          </Pill>
+        </div>
       </Section>
 
       <Section title="Avatars">
@@ -482,6 +527,9 @@ export function KitchenSink() {
           />
           <Kbd>⌘K</Kbd>
           <Kbd>esc</Kbd>
+          {/* Walk it without the mouse: Tab to the square, Enter, and focus is on
+              the first item — ↑↓ stop at the ends, Home/End jump, Esc hands
+              focus back to the square, Tab closes it on the way past. */}
           <Menu
             label="Row actions"
             items={[
@@ -521,48 +569,51 @@ export function KitchenSink() {
 
       <Section title="Table">
         <DataTable
-          columns={[
-            {
-              header: 'Asset',
-              width: 'minmax(210px,1.6fr)',
-              render: (row: (typeof DEMO_ROWS)[number]) => (
-                <div>
-                  <div style={{ fontWeight: 500, fontSize: 13 }}>{row.name}</div>
-                  <div
-                    style={{
-                      fontFamily: 'var(--font-mono)',
-                      fontSize: 11.5,
-                      color: 'var(--muted)',
-                      marginTop: 1,
-                    }}
-                  >
-                    {row.tag}
-                  </div>
-                </div>
-              ),
-            },
-            {
-              header: 'Serial',
-              width: '130px',
-              render: (row) => (
-                <span style={{ fontFamily: 'var(--font-mono)', fontSize: 12 }}>{row.serial}</span>
-              ),
-            },
-            {
-              header: 'Status',
-              width: '110px',
-              render: (row) => (
-                <Pill sv={row.sv} dot>
-                  {row.status}
-                </Pill>
-              ),
-            },
-          ]}
+          columns={demoColumns}
           rows={[...DEMO_ROWS]}
           rowKey={(row) => row.tag}
           onRowClick={(row) => show(`Would open ${row.tag}`, 'info')}
           footer="3 assets"
         />
+        {/* The same table in a box narrower than its columns: it scrolls
+            sideways inside the card rather than clipping its right-hand edge,
+            and a long value still ellipsises — the cell, not the table, gives.
+            The first has no actions, so a soft edge on the right is the only
+            cue that it scrolls; the second pins its row menu (`sticky: 'end'`)
+            so the row's only door never scrolls away, with a separator only
+            while something can pass under it. */}
+        <div style={{ display: 'grid', gridTemplateColumns: '360px 400px', gap: 14 }}>
+          <DataTable
+            columns={demoColumns}
+            rows={[...DEMO_ROWS]}
+            rowKey={(row) => row.tag}
+            onRowClick={(row) => show(`Would open ${row.tag}`, 'info')}
+            footer="Narrower than its columns"
+          />
+          <DataTable
+            columns={[
+              ...demoColumns,
+              {
+                header: '',
+                width: '40px',
+                sticky: 'end',
+                render: (row) => (
+                  <Menu
+                    label={`Actions for ${row.tag}`}
+                    items={[
+                      { label: 'Change status', onSelect: () => {} },
+                      { label: 'Delete', onSelect: () => {}, danger: true },
+                    ]}
+                  />
+                ),
+              },
+            ]}
+            rows={[...DEMO_ROWS]}
+            rowKey={(row) => row.tag}
+            onRowClick={(row) => show(`Would open ${row.tag}`, 'info')}
+            footer="With its actions pinned"
+          />
+        </div>
         <Card padding={false}>
           <EmptyState>No assets match the current filter.</EmptyState>
         </Card>
@@ -576,7 +627,13 @@ export function KitchenSink() {
             client read off the response when there was not. Only the bodiless
             one earns a third line, the hedged hint AppErrorBoundary already
             gives, because nothing answered to be quoted. */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))',
+            gap: 14,
+          }}
+        >
           <Card padding={false}>
             <ErrorState
               error={new ApiError(500, 'internal_error', 'The database is unavailable.')}
@@ -588,6 +645,17 @@ export function KitchenSink() {
           <Card padding={false}>
             <ErrorState
               error={new HttpError(502)}
+              onRetry={() => show('Would read it again', 'info')}
+            >
+              The asset list could not be loaded.
+            </ErrorState>
+          </Card>
+          {/* Nothing answered at all — fetch itself rejected. The bodiless kind
+              taken to its end, so it carries the same hint, not the browser's
+              "Failed to fetch". */}
+          <Card padding={false}>
+            <ErrorState
+              error={new ServerUnreachable(new TypeError('Failed to fetch'))}
               onRetry={() => show('Would read it again', 'info')}
             >
               The asset list could not be loaded.

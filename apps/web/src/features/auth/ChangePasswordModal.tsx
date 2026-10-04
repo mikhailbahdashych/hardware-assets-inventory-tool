@@ -85,7 +85,9 @@ export function ChangePasswordModal({ onClose }: ChangePasswordModalProps) {
         </Field>
 
         {change.error && !errors.currentPassword && !errors.newPassword && (
-          <div className={formStyles.formError}>{change.error.message}</div>
+          <div className={formStyles.formError} role="alert">
+            {change.error.message}
+          </div>
         )}
       </form>
     </Modal>

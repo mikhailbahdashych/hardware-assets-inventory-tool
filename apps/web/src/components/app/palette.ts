@@ -1,5 +1,6 @@
 import { ASSET_CATEGORY_LABELS, can } from '@inventory/shared';
 import { isAdmin } from '@/lib/roles';
+import { navSectionsFor } from './nav';
 import { statusInfo, statusMap } from '@/lib/workflow';
 import type { ActionDefinition, PaletteGroup, PaletteInput, PaletteRow } from './types/palette';
 
@@ -8,8 +9,12 @@ import type { ActionDefinition, PaletteGroup, PaletteInput, PaletteRow } from '.
 //
 // Assets and people are searched and capped by `GET /search` — four of each,
 // because past that the list stops being scannable and starts being a table.
-// The commands stay here and are still matched locally: they are ten strings
+// The commands stay here and are still matched locally: they are a few strings
 // this build already knows, and a round trip to filter them would be silly.
+//
+// The pages are not listed here at all: they are the sidebar's own items, read
+// through the same permission filter (`navSectionsFor`), so the palette can
+// never offer a page the sidebar would not, nor miss one it gains.
 
 const ACTIONS: ActionDefinition[] = [
   {
@@ -42,23 +47,7 @@ const ACTIONS: ActionDefinition[] = [
     icon: 'key',
     effect: { kind: 'modal', modal: 'changePassword' },
   },
-  { title: 'Toggle theme', icon: 'moon', effect: { kind: 'theme' } },
-  {
-    // Its own page now, and one nobody lands on by accident — so the palette
-    // is how most people will reach it.
-    title: 'Custom fields',
-    icon: 'tag',
-    effect: { kind: 'navigate', to: '/custom-fields' },
-    requires: 'custom_fields.manage',
-  },
-  {
-    // Another page nobody lands on by accident, and the sidebar's bottom is a
-    // long way from wherever an admin is when they remember it.
-    title: 'API tokens',
-    icon: 'terminal',
-    effect: { kind: 'navigate', to: '/api-tokens' },
-    adminOnly: true,
-  },
+  { title: 'Toggle theme', icon: 'moon', effect: { kind: 'theme' }, keywords: ['dark', 'light'] },
   {
     // Not in the sidebar — the API tokens page links to it — but the palette is
     // a search, and an admin who knows the page exists should find it by name.
@@ -66,17 +55,16 @@ const ACTIONS: ActionDefinition[] = [
     icon: 'file',
     effect: { kind: 'navigate', to: '/api-docs' },
     adminOnly: true,
-  },
-  {
-    title: 'Admin settings',
-    icon: 'gear',
-    effect: { kind: 'navigate', to: '/admin/settings' },
-    requires: 'settings.manage',
+    keywords: ['docs', 'openapi'],
   },
 ];
 
-const matches = (query: string, title: string): boolean =>
-  query === '' || title.toLowerCase().includes(query);
+/**
+ * A command matches on its title or on any of its keywords. An absent list is
+ * a command with no other names, which is most of them.
+ */
+const matches = (query: string, title: string, keywords: string[] = []): boolean =>
+  query === '' || [title, ...keywords].some((word) => word.toLowerCase().includes(query));
 
 /**
  * The grouped result list. Groups with nothing in them are left out entirely
@@ -113,7 +101,7 @@ export function paletteGroups(input: PaletteInput): PaletteGroup[] {
       ? isAdmin(input.role)
       : action.requires === undefined || can(input.permissions, action.requires),
   )
-    .filter((action) => matches(query, action.title))
+    .filter((action) => matches(query, action.title, action.keywords))
     .map((action): PaletteRow => ({
       id: `action-${action.title}`,
       icon: action.icon,
@@ -123,10 +111,23 @@ export function paletteGroups(input: PaletteInput): PaletteGroup[] {
       effect: action.effect,
     }));
 
+  const sections = navSectionsFor(input.permissions, input.role);
+  const pages = [...sections.inventory, ...sections.workspace]
+    .filter((item) => matches(query, item.label, item.keywords))
+    .map((item): PaletteRow => ({
+      id: `page-${item.to}`,
+      icon: item.icon,
+      title: item.label,
+      subtitle: '',
+      hint: 'Page',
+      effect: { kind: 'navigate', to: item.to },
+    }));
+
   return [
     { label: 'Assets', rows: assets },
     { label: 'Employees', rows: employees },
     { label: 'Actions', rows: actions },
+    { label: 'Pages', rows: pages },
   ].filter((group) => group.rows.length > 0);
 }
 

@@ -7,6 +7,7 @@ import {
   ADMIN_ROUTES,
   DB_DOWN,
   MANAGER_ACTIONS,
+  READY_META,
   ROLES,
   session,
   type StubRoutes,
@@ -260,8 +261,47 @@ describe('the role form', () => {
 });
 
 describe('deleting a role', () => {
-  it('asks where the members go when the role somebody is deleting is held', async () => {
+  it('opens on where the members go when the page already knows somebody holds it', async () => {
     const { routes } = workspace();
+    const api = renderApp({ ...routes, 'DELETE /roles/manager': { status: 204 } }, '/roles');
+    const rows = await roleRows();
+
+    await userEvent.click(within(rows[1]!).getByRole('button', { name: 'Delete Manager' }));
+    const dialog = await screen.findByRole('dialog');
+    // The row said "1 member", so there is no refusal to provoke first — and
+    // nothing has gone wrong, so nothing is drawn as an error.
+    expect(within(dialog).getByText(/1 member holds Manager/)).toBeInTheDocument();
+    expect(within(dialog).queryByRole('alert')).toBeNull();
+    expect(within(dialog).queryByRole('button', { name: 'Delete role' })).toBeNull();
+    await choose(within(dialog), 'Move them to', 'Viewer');
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Move and delete' }));
+
+    await waitFor(() => expect(api.calledAll('DELETE /roles/manager')).toHaveLength(1));
+    expect(api.called('DELETE /roles/manager')!.search).toBe('?migrateTo=viewer');
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+  });
+
+  it('defaults the migration to the least-privileged destination, never Admin', async () => {
+    const { routes } = workspace();
+    const api = renderApp({ ...routes, 'DELETE /roles/manager': { status: 204 } }, '/roles');
+    const rows = await roleRows();
+
+    await userEvent.click(within(rows[1]!).getByRole('button', { name: 'Delete Manager' }));
+    const dialog = await screen.findByRole('dialog');
+
+    // Straight to the button: the preselected destination is the role granting
+    // the fewest actions, so a hasty "Move and delete" is a demotion at worst.
+    // Admin is first in the list, and defaulting there would make the same
+    // haste a mass promotion.
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Move and delete' }));
+
+    await waitFor(() => expect(api.calledAll('DELETE /roles/manager')).toHaveLength(1));
+    expect(api.called('DELETE /roles/manager')!.search).toBe('?migrateTo=viewer');
+  });
+
+  it('asks where they go when somebody took the role after the page counted', async () => {
+    const { routes, roles } = workspace();
+    roles.find((role) => role.id === 'manager')!.memberCount = 0;
     const api = renderApp(
       {
         ...routes,
@@ -294,48 +334,11 @@ describe('deleting a role', () => {
 
     await waitFor(() => expect(api.calledAll('DELETE /roles/manager')).toHaveLength(2));
     expect(api.calledAll('DELETE /roles/manager')[1]!.search).toBe('?migrateTo=viewer');
-    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
-  });
-
-  it('defaults the migration to the least-privileged destination, never Admin', async () => {
-    const { routes } = workspace();
-    const api = renderApp(
-      {
-        ...routes,
-        'DELETE /roles/manager': (_body, search) =>
-          search.includes('migrateTo')
-            ? { status: 204 }
-            : {
-                status: 409,
-                body: {
-                  error: {
-                    code: 'role_in_use',
-                    message: '3 members hold this role. Choose where to move them first.',
-                  },
-                },
-              },
-      },
-      '/roles',
-    );
-    const rows = await roleRows();
-
-    await userEvent.click(within(rows[1]!).getByRole('button', { name: 'Delete Manager' }));
-    const dialog = await screen.findByRole('dialog');
-    await userEvent.click(within(dialog).getByRole('button', { name: 'Delete role' }));
-    await within(dialog).findByText(/3 members hold this role/);
-
-    // Straight to the button: the preselected destination is the role granting
-    // the fewest actions, so a hasty "Move and delete" is a demotion at worst.
-    // Admin is first in the list, and defaulting there would make the same
-    // haste a mass promotion.
-    await userEvent.click(within(dialog).getByRole('button', { name: 'Move and delete' }));
-
-    await waitFor(() => expect(api.calledAll('DELETE /roles/manager')).toHaveLength(2));
-    expect(api.calledAll('DELETE /roles/manager')[1]!.search).toBe('?migrateTo=viewer');
   });
 
   it('deletes a role nobody holds in one press', async () => {
     const { routes, roles } = workspace();
+    roles.find((role) => role.id === 'viewer')!.memberCount = 0;
     const api = renderApp(
       {
         ...routes,
@@ -432,6 +435,48 @@ describe('the permissions matrix', () => {
     // Saved is the new starting point: the draft re-seeds from what came back.
     await waitFor(() => expect(save()).toBeDisabled());
     expect(cell('Viewer', 'View the activity log')).toBeChecked();
+  });
+
+  it('says it saved, even though the save re-seeds the card that asked', async () => {
+    const { routes, roles } = workspace();
+    // The save stays pending until every admin read has come back. Holding one
+    // of them (`/meta`) lets the new grants arrive first — which re-keys the
+    // card, so the one that pressed Save is gone before the save settles.
+    let held = false;
+    let release: () => void = () => {};
+    renderApp(
+      {
+        ...routes,
+        'GET /meta': () =>
+          held
+            ? new Promise((resolve) => {
+                release = () => resolve({ body: READY_META });
+              })
+            : { body: READY_META },
+        'PUT /roles/permissions': (body) => {
+          const { grants } = body as { grants: { role: string; action: Action }[] };
+          for (const role of roles) {
+            if (role.isSystem) continue;
+            role.permissions = grants
+              .filter((grant) => grant.role === role.id)
+              .map((grant) => grant.action);
+          }
+          held = true;
+          return { body: { added: 1, removed: 0 } };
+        },
+      },
+      '/roles',
+    );
+    await screen.findByRole('table', { name: 'Permissions' });
+
+    await userEvent.click(cell('Viewer', 'View the activity log'));
+    await userEvent.click(screen.getByRole('button', { name: 'Save permissions' }));
+    // Re-seeded from the new grants while the save is still in flight.
+    await screen.findByText('Everything here is saved');
+    expect(screen.queryByText('Permissions saved.')).toBeNull();
+
+    release();
+    expect(await screen.findByText('Permissions saved.')).toBeInTheDocument();
   });
 
   it('locks the column of the role the reader holds, and only that one', async () => {

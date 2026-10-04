@@ -394,6 +394,34 @@ describe('the asset detail record', () => {
     await waitFor(() => expect(api.called('DELETE /attachments/file-1')).toBeDefined());
   });
 
+  it('hands focus to Upload once the last file is removed', async () => {
+    renderApp(
+      { ...detailRoutes, 'DELETE /attachments/file-1': { status: 204 } },
+      '/assets/asset-1',
+    );
+    await userEvent.click(
+      await screen.findByRole('button', { name: 'Remove invoice-ast-0142.pdf' }),
+    );
+    await userEvent.click(screen.getByRole('button', { name: 'Remove for good' }));
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Upload' })).toHaveFocus());
+  });
+
+  it('puts focus on the armed remove, and disarms on Escape or when focus leaves', async () => {
+    renderApp(detailRoutes, '/assets/asset-1');
+    const arm = async () =>
+      userEvent.click(await screen.findByRole('button', { name: 'Remove invoice-ast-0142.pdf' }));
+
+    await arm();
+    expect(screen.getByRole('button', { name: 'Remove for good' })).toHaveFocus();
+    await userEvent.keyboard('{Escape}');
+    expect(screen.queryByRole('button', { name: 'Remove for good' })).toBeNull();
+    expect(screen.getByRole('button', { name: 'Remove invoice-ast-0142.pdf' })).toHaveFocus();
+
+    await arm();
+    await userEvent.tab();
+    expect(screen.queryByRole('button', { name: 'Remove for good' })).toBeNull();
+  });
+
   it('hides the upload and remove affordances from a viewer', async () => {
     renderApp({ ...detailRoutes, ...viewer }, '/assets/asset-1');
     await screen.findByRole('heading', { name: 'MacBook Pro 14"' });

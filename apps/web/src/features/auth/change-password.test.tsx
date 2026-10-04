@@ -44,7 +44,10 @@ describe('changing your own password', () => {
       },
     });
 
-    expect(await screen.findByText('Too many attempts. Try again later.')).toBeInTheDocument();
+    // Announced, not only painted.
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Too many attempts. Try again later.',
+    );
     expect(screen.getByRole('dialog')).toBeInTheDocument();
   });
 

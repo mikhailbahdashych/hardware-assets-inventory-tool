@@ -153,8 +153,10 @@ export function CommandPalette({ permissions, role, onClose }: CommandPalettePro
 
         <div className={styles.results} id={listId} role="listbox" ref={listRef}>
           {groups.map((group) => (
-            <div key={group.label}>
-              <div className={styles.groupLabel}>{group.label}</div>
+            <div key={group.label} role="group" aria-labelledby={`${listId}-${group.label}`}>
+              <div id={`${listId}-${group.label}`} className={styles.groupLabel}>
+                {group.label}
+              </div>
               {group.rows.map((row) => (
                 <button
                   key={row.id}

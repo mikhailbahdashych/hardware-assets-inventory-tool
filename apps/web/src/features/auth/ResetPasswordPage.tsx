@@ -63,7 +63,9 @@ export function ResetPasswordPage() {
           );
         }}
       >
-        <FormError error={reset.error} />
+        {/* A 422 that names the field is said under it; the banner is for the
+            refusals that belong to the form as a whole — an expired link. */}
+        <FormError error={!errors.newPassword ? reset.error : null} />
         <AuthField
           label="New password"
           type="password"

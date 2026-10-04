@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { ApiError, apiFetch } from './client';
+import { ApiError, apiFetch, HttpError, ServerUnreachable } from './client';
 
 function mockFetch(status: number, body?: unknown, contentType = 'application/json') {
   const response = new Response(body === undefined ? null : JSON.stringify(body), {
@@ -72,5 +72,25 @@ describe('apiFetch', () => {
     expect(error).toBeInstanceOf(ApiError);
     expect(error.status).toBe(502);
     expect(error.message).toBeTruthy();
+  });
+
+  it('reports a request nothing answered as unreachable, not as the browser’s "Failed to fetch"', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new TypeError('Failed to fetch')));
+    const error = (await apiFetch('/members').catch((e) => e)) as ApiError;
+    // The bodiless kind, so ErrorState and the boundary give it the
+    // server-unreachable hint without learning a fourth class.
+    expect(error).toBeInstanceOf(HttpError);
+    expect(error).toBeInstanceOf(ServerUnreachable);
+    expect(error.message).toBe('The server could not be reached.');
+    expect(error.cause).toBeInstanceOf(TypeError);
+  });
+
+  it('lets an abort through as the abort it was', async () => {
+    const abort = new DOMException('The operation was aborted.', 'AbortError');
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(abort));
+    const controller = new AbortController();
+    controller.abort();
+    const error = await apiFetch('/members', { signal: controller.signal }).catch((e) => e);
+    expect(error).toBe(abort);
   });
 });

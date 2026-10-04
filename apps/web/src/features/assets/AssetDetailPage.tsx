@@ -7,6 +7,7 @@ import {
   renderAuditEvent,
   type WorkflowStatus,
 } from '@inventory/shared';
+import { ApiError } from '@/api/client';
 import { orgMeta, useAsset, useMeta, useWorkflow } from '@/api/queries';
 import type { Asset, CustomFieldValue } from '@/types/api';
 import { PageContainer } from '@/components/app/PageContainer';
@@ -16,6 +17,7 @@ import {
   BackLink,
   Button,
   Card,
+  EmptyState,
   ErrorState,
   KeyValueRow,
   Pill,
@@ -80,8 +82,8 @@ export function AssetDetailPage({ permissions }: AssetDetailPageProps) {
    * This used to be its own panel saying "That asset could not be found." for
    * every failure alike, which was a diagnosis rather than a report: a 500 and
    * a dropped connection are not a missing asset. A 404 still says so, in the
-   * server's own sentence — "The asset could not be found.", the same register
-   * as this panel's line above it. What the old panel had right — a way out of
+   * server's own sentence and without a retry (the branch below). What the
+   * old panel had right — a way out of
    * a page that cannot draw itself — is the BackLink above it, kept.
    */
   const failure = detail.isError
@@ -96,6 +98,20 @@ export function AssetDetailPage({ permissions }: AssetDetailPageProps) {
     void detail.refetch();
     void meta.refetch();
     void workflow.refetch();
+  }
+
+  // A 404 is not a failed read but an answer: there is no such asset. The
+  // server's sentence says so, the BackLink is the way on, and a retry would
+  // only suggest that asking again might find it.
+  if (detail.error instanceof ApiError && detail.error.status === 404) {
+    return (
+      <PageContainer variant="detail" maxWidth={1060} gap={16}>
+        <BackLink to="/assets">Assets</BackLink>
+        <Card padding={false}>
+          <EmptyState>{detail.error.message}</EmptyState>
+        </Card>
+      </PageContainer>
+    );
   }
 
   if (failure !== null) {

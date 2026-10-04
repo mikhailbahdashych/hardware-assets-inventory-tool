@@ -10,6 +10,7 @@ import {
   LAPTOP_DETAIL,
   MONITOR,
   READY_META,
+  EVERY_ACTION,
   session,
   VIEWER_ACTIONS,
   WORKFLOW,
@@ -82,6 +83,26 @@ describe('asset list', () => {
     const searches = api.calledAll('GET /assets').map((call) => call.search);
     expect(searches.at(-1)).toContain('q=dell');
     expect(searches).toHaveLength(2);
+  });
+
+  it('goes back to page one when the search settles, not on the keystroke', async () => {
+    const many = Array.from({ length: 120 }, (_, index) => ({
+      ...LAPTOP,
+      id: `asset-${index}`,
+      name: `Device ${String(index).padStart(3, '0')}`,
+      assetTag: `AST-${String(index).padStart(4, '0')}`,
+      serialNumber: `SN${index}`,
+    }));
+    const api = renderApp({ ...INVENTORY_ROUTES, 'GET /assets': assetsRoute(many) }, '/assets');
+    await screen.findByText('Device 000');
+
+    // A page picked while the search is still settling belongs to the old
+    // list; the new one starts at its first page.
+    await userEvent.type(screen.getByLabelText(/filter assets/i), 'Device');
+    await userEvent.click(screen.getByRole('button', { name: '2' }));
+    await waitFor(() => expect(api.calledAll('GET /assets').at(-1)!.search).toContain('q=Device'));
+    expect(api.calledAll('GET /assets').at(-1)!.search).toContain('offset=0');
+    expect(screen.getByRole('button', { name: '1' })).toHaveAttribute('aria-current', 'page');
   });
 
   it('asks for one page at a time and pages through the rest', async () => {
@@ -369,6 +390,31 @@ describe('asset detail', () => {
     expect(api.called('PATCH /assets/asset-1')!.body).toMatchObject({ supplier: 'Dustin' });
   });
 
+  it('locks the status for a role that may edit an asset but not move it', async () => {
+    const editor = EVERY_ACTION.filter((action) => action !== 'assets.change_status');
+    renderApp(
+      {
+        ...detailRoutes,
+        'GET /assets/asset-1': {
+          body: { ...LAPTOP_DETAIL, asset: { ...LAPTOP, status: 'available' }, history: [] },
+        },
+        'GET /auth/me': session({ ...ADMIN_MEMBER, role: 'editor' }, editor),
+      },
+      '/assets/asset-1',
+    );
+    await screen.findByRole('heading', { name: 'MacBook Pro 14"' });
+
+    await userEvent.click(screen.getByRole('button', { name: 'Edit' }));
+    const dialog = await screen.findByRole('dialog');
+    // The API refuses the move; a dropdown offering it would be a promise the
+    // door does not keep.
+    expect(within(dialog).getByLabelText(/status/i)).toBeDisabled();
+    // Announced on the control, so "disabled" comes with its reason.
+    expect(within(dialog).getByLabelText(/status/i)).toHaveAccessibleDescription(
+      /your role cannot change/i,
+    );
+  });
+
   it('deletes only after a confirmation press, then returns to the list', async () => {
     const api = renderApp(
       { ...detailRoutes, 'DELETE /assets/asset-1': { status: 204 } },
@@ -477,6 +523,24 @@ describe('a read that failed', () => {
     // Two of them now: the sidebar's, and the page's own way out of a
     // screen that cannot draw itself — the one thing the bespoke panel
     // this replaces had worth keeping.
+    expect(screen.getAllByRole('link', { name: 'Assets' })).toHaveLength(2);
+  });
+
+  it('says an asset that does not exist is missing, with nothing to retry', async () => {
+    renderApp(
+      {
+        ...detailRoutes,
+        'GET /assets/asset-9': {
+          status: 404,
+          body: { error: { code: 'not_found', message: 'The asset could not be found.' } },
+        },
+      },
+      '/assets/asset-9',
+    );
+
+    expect(await screen.findByText('The asset could not be found.')).toBeInTheDocument();
+    expect(screen.queryByText(/could not be loaded/i)).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Try again' })).toBeNull();
     expect(screen.getAllByRole('link', { name: 'Assets' })).toHaveLength(2);
   });
 

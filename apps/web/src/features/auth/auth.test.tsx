@@ -62,6 +62,28 @@ describe('signing in with a second factor', () => {
     expect(screen.queryByRole('heading', { name: /save your recovery codes/i })).toBeNull();
   });
 
+  it('offers a way back to the sign-in form from the code screen', async () => {
+    renderApp(
+      {
+        'GET /meta': { body: READY_META },
+        'GET /auth/me': UNAUTHENTICATED,
+        'POST /auth/login': { body: { mfaRequired: true, challengeToken: 'challenge-1' } },
+      },
+      '/login',
+    );
+    await screen.findByRole('heading', { name: /sign in to inventory/i });
+    await userEvent.type(screen.getByLabelText(/email/i), 'tomasz@acme.io');
+    await userEvent.type(screen.getByLabelText(/password/i), 'correct-horse-battery');
+    await userEvent.click(screen.getByRole('button', { name: /^sign in$/i }));
+    await screen.findByRole('heading', { name: /two-factor authentication/i });
+
+    // The wrong account, or no phone to hand: somebody has to be able to leave.
+    await userEvent.click(screen.getByRole('link', { name: 'Back to sign in' }));
+    expect(
+      await screen.findByRole('heading', { name: /sign in to inventory/i }),
+    ).toBeInTheDocument();
+  });
+
   it('stops to hand over a reissued set before letting anybody in', async () => {
     let authenticated = false;
     await signInWithMfa({
@@ -170,5 +192,34 @@ describe('a reset link for somebody with an authenticator', () => {
     expect(api.called('POST /auth/mfa/verify')).toMatchObject({
       body: { challengeToken: 'challenge-2', code: '123456' },
     });
+  });
+});
+
+describe('a reset link refused on its field', () => {
+  it('puts the refusal under the password, and not again in a banner', async () => {
+    renderApp(
+      {
+        'GET /meta': { body: READY_META },
+        'GET /auth/me': UNAUTHENTICATED,
+        'POST /auth/reset-password': {
+          status: 422,
+          body: {
+            error: {
+              code: 'validation',
+              message: 'Request validation failed.',
+              fields: { newPassword: 'Use at least 10 characters.' },
+            },
+          },
+        },
+      },
+      '/reset-password?token=reset-1',
+    );
+
+    await screen.findByRole('heading', { name: /choose a new password/i });
+    await userEvent.type(screen.getByLabelText(/new password/i), 'short');
+    await userEvent.click(screen.getByRole('button', { name: /save password/i }));
+
+    expect(await screen.findByText('Use at least 10 characters.')).toBeInTheDocument();
+    expect(screen.queryByText('Request validation failed.')).toBeNull();
   });
 });

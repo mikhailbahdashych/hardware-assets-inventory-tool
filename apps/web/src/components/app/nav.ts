@@ -16,7 +16,13 @@ const INVENTORY_ITEMS: GatedNavItem[] = [
 // door it opens.
 const WORKSPACE_ITEMS: GatedNavItem[] = [
   { label: 'Members', to: '/members', icon: 'shieldCheck' },
-  { label: 'Activity log', to: '/activity', icon: 'activity', requires: 'audit.view' },
+  {
+    label: 'Activity log',
+    to: '/activity',
+    icon: 'activity',
+    requires: 'audit.view',
+    keywords: ['audit', 'history'],
+  },
   { label: 'Workflow', to: '/workflow', icon: 'workflow', requires: 'workflow.manage' },
   {
     label: 'Custom fields',
@@ -26,7 +32,14 @@ const WORKSPACE_ITEMS: GatedNavItem[] = [
   },
   { label: 'Roles', to: '/roles', icon: 'key', requires: 'roles.manage' },
   { label: 'API tokens', to: '/api-tokens', icon: 'terminal', adminOnly: true },
-  { label: 'Admin', to: '/admin', icon: 'gear', requires: 'settings.manage' },
+  {
+    label: 'Admin',
+    to: '/admin',
+    icon: 'gear',
+    requires: 'settings.manage',
+    // What the page holds, for the palette — it used to be "Admin settings".
+    keywords: ['settings', 'workspace'],
+  },
 ];
 
 function allowed(items: GatedNavItem[], permissions: Action[], role: string): NavItem[] {

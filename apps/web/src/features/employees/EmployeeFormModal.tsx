@@ -154,15 +154,20 @@ export function EmployeeFormModal({
         // Two requests, deliberately: if the invitation fails the person is
         // still on file and can be invited from the Members page. Rolling the
         // record back to keep the pair atomic would throw away typed-in work.
+        // A failed invitation closes the form all the same: the employee
+        // exists now, and a form left open is a second press away from
+        // creating them twice.
         invite.mutate(
           { email: created.email, role: inviteRole, employeeId: created.id },
           {
             onSuccess: ({ inviteUrl: url }) => setInviteUrl(url),
-            onError: (error) =>
+            onError: (error) => {
               toast.show(
                 `${created.displayName} was added, but the invitation failed: ${error.message}`,
                 'err',
-              ),
+              );
+              onClose();
+            },
           },
         );
       },

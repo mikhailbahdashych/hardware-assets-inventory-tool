@@ -8,14 +8,12 @@ import type { DeleteRoleModalProps } from './types/deleteRoleModal';
 import formStyles from '@/components/ui/FormModal.module.css';
 
 /**
- * Deleting a role, in the order the facts arrive. The first press asks for the
- * delete plainly; if anybody still holds the role the API refuses with a 409
- * that says how many, and only then does this ask where they should go.
- *
- * The count comes from the server rather than from the member list, because
- * between opening the modal and pressing the button the server's answer is the
- * only one still true — and invited members count too, so a list filtered to
- * the people who have actually signed in would undercount.
+ * Deleting a role, in the order the facts arrive. The row already says how
+ * many members hold it (`memberCount`, the server's own count, invitations
+ * included), so a held role opens straight on where they should go — in plain
+ * words, because nothing has gone wrong. A role the page counted as empty asks
+ * for the delete plainly; if somebody took it since, the API refuses with a
+ * 409 that says how many, and the same picker appears under its sentence.
  */
 export function DeleteRoleModal({ role, destinations, onClose }: DeleteRoleModalProps) {
   // Preselected: the destination granting the fewest actions — the invite
@@ -29,7 +27,8 @@ export function DeleteRoleModal({ role, destinations, onClose }: DeleteRoleModal
   const remove = useDeleteRole();
   // The one refusal this modal answers rather than reports: it means the delete
   // needs a destination, which is the second half of this form.
-  const inUse = remove.error instanceof ApiError && remove.error.code === 'role_in_use';
+  const refusedInUse = remove.error instanceof ApiError && remove.error.code === 'role_in_use';
+  const inUse = role.memberCount > 0 || refusedInUse;
 
   const submit = (destination?: string) =>
     remove.mutate(
@@ -75,6 +74,12 @@ export function DeleteRoleModal({ role, destinations, onClose }: DeleteRoleModal
           <div className={formStyles.formError} role="alert">
             {remove.error.message}
           </div>
+        )}
+        {inUse && !refusedInUse && (
+          <p className={formStyles.empty}>
+            {role.memberCount} {role.memberCount === 1 ? 'member holds' : 'members hold'}{' '}
+            {role.label}. Choose the role they move to; the delete happens with the move.
+          </p>
         )}
         {inUse ? (
           <Field label="Move them to" required>

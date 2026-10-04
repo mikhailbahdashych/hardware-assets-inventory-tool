@@ -30,6 +30,7 @@ import {
 } from '@/components/ui';
 import type { MenuItem } from '@/components/ui';
 import { formatRelativeTime } from '@/lib/format';
+import { usePage } from '@/lib/usePage';
 import { usePageSize } from '@/lib/usePageSize';
 import { roleInfo, roleMap } from '@/lib/roles';
 import { useModals } from '@/providers/ModalProvider';
@@ -46,12 +47,14 @@ import styles from './Members.module.css';
 export function MembersPage({ permissions, memberId, viewerRole }: MembersPageProps) {
   // Null while no dialog is open; each `dialog?.kind` below opens only its own.
   const [dialog, setDialog] = useState<MembersDialog | null>(null);
-  const [page, setPage] = useState(1);
+  const { page, setPage, clampTo } = usePage();
   // How many rows a page holds is the reader's choice, kept across visits.
   const [pageSize, setPageSize] = usePageSize('members', LIST_PAGE);
   const toast = useToast();
   const { openModal } = useModals();
   const members = useMembers({ limit: pageSize, offset: (page - 1) * pageSize });
+  // Read during render: a page the list no longer fills steps back before it is drawn.
+  const pageCount = members.isSuccess ? clampTo(members.data.total, pageSize) : 1;
   // A role pill has words and a colour only because a row says so.
   const roles = useRoles();
   const resend = useResendInvite();
@@ -174,10 +177,9 @@ export function MembersPage({ permissions, memberId, viewerRole }: MembersPagePr
    * the payload is the same for everybody, because reads are open, and the
    * gate is the affordance — as it is for every other admin control here.
    *
-   * The other widths shrank to make room for it, because they have to: this
-   * page is 960 wide by the design's own note, the table clips its overflow
-   * (that clip is what gives the cells their ellipsis), and a seventh column
-   * that did not fit would take the `···` button off the right-hand edge.
+   * The other widths shrank to make room for it: this page is 960 wide by the
+   * design's own note, and below that the table scrolls sideways rather than
+   * showing the `···` button only to somebody who thinks to scroll.
    */
   function columnsFor(byRoleId: Map<string, WorkspaceRole>): TableColumn<MemberSummary>[] {
     return [
@@ -256,6 +258,8 @@ export function MembersPage({ permissions, memberId, viewerRole }: MembersPagePr
       {
         header: '',
         width: '40px',
+        // Pinned: a scrolled table keeps the row's only door in view.
+        sticky: 'end',
         render: (member) => {
           if (!manages) return null;
           const items = rowActions(member);
@@ -310,7 +314,7 @@ export function MembersPage({ permissions, memberId, viewerRole }: MembersPagePr
 
           <Pagination
             page={page}
-            pageCount={Math.ceil(members.data.total / pageSize)}
+            pageCount={pageCount}
             onChange={setPage}
             rowsPerPage={{
               size: pageSize,

@@ -3,6 +3,7 @@ import { ATTACHMENT_ACCEPT, can } from '@inventory/shared';
 import { useDeleteAttachment, useUploadAttachment } from '@/api/mutations';
 import { Button, Card, Icon, IconButton } from '@/components/ui';
 import { formatFileSize } from '@/lib/format';
+import { survivor } from '@/lib/survivor';
 import { useToast } from '@/providers/ToastProvider';
 import type { AttachmentsCardProps } from './types/attachmentsCard';
 import styles from './Attachments.module.css';
@@ -17,6 +18,11 @@ export function AttachmentsCard({ assetId, attachments, permissions }: Attachmen
   const input = useRef<HTMLInputElement>(null);
   const [failure, setFailure] = useState<string | null>(null);
   const [confirmingRemove, setConfirmingRemove] = useState<string | null>(null);
+  // The row whose × should take focus as it mounts: the one just disarmed, or
+  // the neighbour of the one just removed. Null until either happens.
+  const [refocus, setRefocus] = useState<string | null>(null);
+  // Null until the button mounts; it has whenever a remove can land.
+  const uploadButton = useRef<HTMLButtonElement>(null);
   const toast = useToast();
   const upload = useUploadAttachment(assetId);
   const remove = useDeleteAttachment();
@@ -29,6 +35,7 @@ export function AttachmentsCard({ assetId, attachments, permissions }: Attachmen
           Attachments
           {editable && (
             <button
+              ref={uploadButton}
               type="button"
               className={styles.upload}
               disabled={upload.isPending}
@@ -89,12 +96,29 @@ export function AttachmentsCard({ assetId, attachments, permissions }: Attachmen
                   <Button
                     variant="danger"
                     size="sm"
+                    // Armed means focused — a keyboard user is on it — and Escape or
+                    // leaving it disarms: a confirm left armed behind you is not one.
+                    autoFocus
+                    onBlur={() => setConfirmingRemove(null)}
+                    onKeyDown={(event) => {
+                      if (event.key !== 'Escape') return;
+                      setConfirmingRemove(null);
+                      setRefocus(attachment.id);
+                    }}
                     disabled={remove.isPending}
                     onClick={() =>
                       remove.mutate(attachment.id, {
                         onSuccess: () => {
                           toast.show(`${attachment.filename} removed.`, 'ok');
                           setConfirmingRemove(null);
+                          // Its neighbour, or Upload when it was the last; and
+                          // only that row's × may take focus as it mounts.
+                          const next = survivor(
+                            attachments.map((row) => row.id),
+                            attachment.id,
+                          );
+                          setRefocus(next);
+                          if (next === null) uploadButton.current?.focus();
                         },
                         onError: (error) => toast.show(error.message, 'err'),
                       })
@@ -104,10 +128,17 @@ export function AttachmentsCard({ assetId, attachments, permissions }: Attachmen
                   </Button>
                 ) : (
                   <IconButton
+                    // A new key remounts the button, which is what lets autoFocus act.
+                    key={refocus === attachment.id ? 'refocus' : 'remove'}
+                    autoFocus={refocus === attachment.id}
                     icon="x"
                     label={`Remove ${attachment.filename}`}
                     size={22}
-                    onClick={() => setConfirmingRemove(attachment.id)}
+                    onClick={() => {
+                      setConfirmingRemove(attachment.id);
+                      // A disarm by leaving must leave focus where it went.
+                      setRefocus(null);
+                    }}
                   />
                 ))}
             </div>
