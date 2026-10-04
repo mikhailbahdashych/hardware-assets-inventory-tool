@@ -58,6 +58,8 @@ services:
 docker compose up -d
 ```
 
+`TZ` decides when the jobs fire — maintenance at 03:00, the warranty and return notices at 08:00 — but the jobs work out what "today" is in UTC. That only matters for a zone more than eight hours ahead of UTC: there, 08:00 local is still yesterday in UTC, and a notice is reckoned a day late.
+
 The file you downloaded also carries `build: .`, so from a checkout of the repo `docker compose up -d --build` deploys the image that checkout builds — the same deployment, from your own bytes. It tags that build with the `image:` name, so `docker images` then shows your build as `…:latest`; `GET /api/v1/meta` reports the version the running code says it is.
 
 **Finish `/setup` before you hand the address to anybody.** A fresh instance is empty and its first screen creates the organization and its first admin — it answers 409 to everyone afterwards, so whoever reaches it first is the admin. That is a ten-second window you should close yourself.
@@ -77,7 +79,7 @@ Four rules, and the app asks for nothing else.
 
 The default is `http://localhost:3000`, which is right for a laptop and wrong for everything else. A production instance still carrying it prints a warning to stderr on boot naming this variable — expected, and harmless, when you really are trying it on localhost.
 
-**4. `TRUST_PROXY` names the proxy — and is never set without one.** It decides what the app believes the client's address is, and the rate limits are keyed on that: ten sign-in attempts per 15 minutes, five password-reset requests an hour, ten invite or reset token uses an hour, each per address.
+**4. `TRUST_PROXY` names the proxy — and is never set without one.** It decides what the app believes the client's address is, and the rate limits are keyed on that: ten **failed** sign-ins per 15 minutes per address (the password step and the two-factor code each keep their own count; a sign-in that succeeds costs nothing), and ten uses an hour per address of invitation and reset links. Changing your own password is limited as well, ten tries an hour, but per member rather than per address.
 
 Behind a proxy without it, every request in the world arrives as the proxy's own address and shares one bucket — ten bad passwords from one stranger lock the whole workspace out for fifteen minutes. Set on an instance with nothing in front of it, it is worse: `X-Forwarded-For` is then a header any client writes for itself, so an attacker takes a fresh address per attempt and the limits stop existing. That is why it is off by default and per deployment.
 

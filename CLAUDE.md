@@ -69,6 +69,6 @@ Same two processes, same ports, your checkout bind-mounted so hot reload still w
 ## Where things are decided
 
 - Visual spec: **`/kitchen-sink`** (dev server) — tokens, type scale, icons, every primitive in every state.
-- Design tokens: `apps/web/src/styles/tokens.css` — the 25 custom properties everything else is built from; don't invent values, pick from these.
+- Design tokens: `apps/web/src/styles/tokens.css` — the 27 custom properties everything else is built from (25 per theme, plus the two font stacks); don't invent values, pick from these.
 - Permissions: `packages/shared/src/rbac.ts` (`can(role, action)`) — used by API guards and UI affordances alike.
 - How to make a common change: `docs/recipes/` — a checklist per change, each naming every file and the step people forget.

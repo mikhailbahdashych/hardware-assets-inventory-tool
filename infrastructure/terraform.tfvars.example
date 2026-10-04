@@ -29,6 +29,7 @@
 # app_url     = "https://inventory.example.com"
 # trust_proxy = "203.0.113.7" # or a CIDR like 10.0.0.0/8 for an in-network edge
 
-# Set true before `terraform destroy`, and only then: it lets the apply delete
-# every attachment version in the bucket without asking.
+# Only for tearing down. It is read from state, so: set it, `terraform apply`,
+# then `terraform destroy` — passing it to destroy alone changes nothing. It lets
+# that destroy delete every attachment version in the bucket without asking.
 # bucket_force_destroy = false

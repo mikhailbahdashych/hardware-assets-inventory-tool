@@ -2,7 +2,7 @@
 
 Your own name, colours and fonts. Roughly twenty minutes, and every step is one file.
 
-**Two things are already yours without touching code.** The organization name comes from first-run setup and shows in the sidebar, the login screen and every email — change it in Admin → Settings. The rest of this is about the product's own identity: the word "Inventory", the accent colour and the typefaces.
+**Two things are already yours without touching code.** The organization name comes from first-run setup and shows in the sidebar and on the sign-in screens — change it in Admin → Settings. The rest of this is about the product's own identity: the word "Inventory", the accent colour and the typefaces.
 
 ---
 

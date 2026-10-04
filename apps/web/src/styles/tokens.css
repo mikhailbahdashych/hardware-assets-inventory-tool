@@ -1,7 +1,7 @@
 /*
  * Design tokens — the single visual source of truth. Everything the app draws
- * is built from these 25 values; /kitchen-sink renders each one with the colour
- * it resolves to, per theme. Semantic pairs follow the `--{sv}` / `--{sv}-bg`
+ * is built from these 27 properties — 25 per theme, plus the two font stacks;
+ * /kitchen-sink renders each one with the value it resolves to, per theme. Semantic pairs follow the `--{sv}` / `--{sv}-bg`
  * convention: every status/role/type resolves to one of
  * ok | acc | warn | err | info | neut (see @inventory/shared enums).
  *
