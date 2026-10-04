@@ -23,7 +23,13 @@ export function registerNotificationRoutes(app: FastifyInstance, deps: AppDeps):
     '/api/v1/notifications',
     { schema: { querystring: inboxQuery }, preValidation: requireAuth },
     async (request) =>
-      listNotifications(deps.db, request.member!.id, request.query.limit, request.query.offset),
+      listNotifications(
+        deps.db,
+        request.member!.id,
+        deps.now(),
+        request.query.limit,
+        request.query.offset,
+      ),
   );
 
   app.post('/api/v1/notifications/read', { preValidation: requireAuth }, async (request, reply) => {

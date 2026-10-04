@@ -1,4 +1,4 @@
-import { and, asc, eq, gte, isNotNull, isNull, lt, lte } from 'drizzle-orm';
+import { and, asc, eq, exists, gte, isNotNull, isNull, lt, lte, not, or, sql } from 'drizzle-orm';
 import type { AppDeps } from '@/types/app.js';
 import type { JobResult, MaintenanceResult } from '@/types/jobs.js';
 import {
@@ -11,7 +11,7 @@ import {
   sessions,
 } from '@/db/schema.js';
 import { getSettings } from './settings.js';
-import { notifyActionHolders, notifyLinkedMember } from './notifications.js';
+import { inboxCutoff, notifyActionHolders, notifyLinkedMember } from './notifications.js';
 
 // The scheduled work, as three plain functions of (deps, now). node-cron only
 // decides when to call them — see scheduler.ts — so every rule here is testable
@@ -24,9 +24,6 @@ const RETURN_LEAD_DAYS = 3;
 
 /** How long a file with no row naming it is given before the sweep takes it. */
 const ORPHAN_GRACE_MS = DAY_MS;
-
-/** How long an inbox row is worth reading. The bell shows fifty; ninety days is history. */
-const INBOX_RETENTION_DAYS = 90;
 
 const skipped = (): JobResult => ({ sent: 0, skipped: 1 });
 
@@ -157,7 +154,8 @@ export async function runReturnReminders(deps: AppDeps, now: Date): Promise<JobR
 /**
  * Nightly tidying, and the only place rows are ever removed without somebody
  * asking: expired sessions, spent or expired tokens, audit events past the
- * workspace's retention, inbox rows older than ninety days, and files on the
+ * workspace's retention, inbox rows older than ninety days whose dedupe key no
+ * job can still ask for, and files on the
  * volume that no attachment row names. Retention is opt-out — `null` months
  * means forever — but the last two are not: neither is the workspace's data.
  */
@@ -192,14 +190,54 @@ export async function runMaintenance(deps: AppDeps, now: Date): Promise<Maintena
     ).length;
   }
 
-  // Every dedupe window is measured in days at most, so ninety days of inbox
-  // is kept for reading rather than for deciding — read or not; an inbox is
-  // not the audit log, which is the record and has its own retention.
-  const notificationCutoff = new Date(now.getTime() - INBOX_RETENTION_DAYS * DAY_MS);
+  // An inbox row past the reading horizon goes — unless its dedupe key is still
+  // one a job could ask for, because the row is the job's only memory of having
+  // asked, and deleting it would send the notice again (a warranty alert set up
+  // to 365 days ahead, an overdue return that stays out). The inbox no longer
+  // shows such a row (`inboxCutoff`); it lives until its subject is finished:
+  // the warranty date passes or changes, the asset goes, the assignment closes
+  // or its date moves. The keys are spelled here as the jobs above spell them —
+  // a new scheduled kind that must not repeat adds its own clause.
+  const today = dayOf(now);
+  const warrantyLive = exists(
+    deps.db
+      .select({ one: sql`1` })
+      .from(assets)
+      .where(
+        and(
+          gte(assets.warrantyUntil, today),
+          eq(
+            notifications.dedupeKey,
+            sql`'warranty:' || ${assets.id} || ':' || ${assets.warrantyUntil}`,
+          ),
+        ),
+      ),
+  );
+  const returnLive = exists(
+    deps.db
+      .select({ one: sql`1` })
+      .from(assignments)
+      .where(
+        and(
+          isNull(assignments.returnedAt),
+          eq(
+            notifications.dedupeKey,
+            sql`'return:' || ${assignments.id} || ':' || ${assignments.expectedReturnDate} || ':' || case when ${assignments.expectedReturnDate} < ${today} then 'overdue' else 'due' end`,
+          ),
+        ),
+      ),
+  );
+  // `or` is typed `| undefined` for its all-undefined call; two SQL operands, so the ! holds.
+  const stillAsked = or(warrantyLive, returnLive)!;
   const notificationRowsPruned = (
     await deps.db
       .delete(notifications)
-      .where(lt(notifications.createdAt, notificationCutoff.toISOString()))
+      .where(
+        and(
+          lt(notifications.createdAt, inboxCutoff(now)),
+          or(isNull(notifications.dedupeKey), not(stillAsked)),
+        ),
+      )
       .returning({ id: notifications.id })
   ).length;
 

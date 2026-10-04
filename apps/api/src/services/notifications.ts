@@ -1,4 +1,4 @@
-import { and, count, desc, eq, inArray, isNull, or } from 'drizzle-orm';
+import { and, count, desc, eq, gte, inArray, isNull, or } from 'drizzle-orm';
 import { ADMIN_ROLE, type Action, type NotificationParams } from '@inventory/shared';
 import type { NotificationsPayload } from '@inventory/shared';
 import type { NotifyInput } from '@/types/notifications.js';
@@ -90,32 +90,45 @@ export async function notifyActionHolders(
 }
 
 export const DEFAULT_INBOX_LIMIT = 50;
+
+/** How long an inbox row is worth reading. The bell shows fifty; ninety days is history. */
+const INBOX_RETENTION_DAYS = 90;
+
+/**
+ * The reading horizon. The inbox shows nothing older, and maintenance deletes
+ * anything older except a row whose dedupe key a job may still ask for — see
+ * `runMaintenance`. That row is memory, not reading, so it is not listed.
+ */
+export const inboxCutoff = (now: Date): string =>
+  new Date(now.getTime() - INBOX_RETENTION_DAYS * 24 * 60 * 60 * 1000).toISOString();
 export const MAX_INBOX_LIMIT = 200;
 
 export async function listNotifications(
   db: DbOrTx,
   memberId: string,
+  now: Date,
   limit: number = DEFAULT_INBOX_LIMIT,
   offset = 0,
 ): Promise<NotificationsPayload> {
+  const readable = and(
+    eq(notifications.memberId, memberId),
+    gte(notifications.createdAt, inboxCutoff(now)),
+  );
   const rows = await db
     .select()
     .from(notifications)
-    .where(eq(notifications.memberId, memberId))
+    .where(readable)
     // Total, with the id as the tiebreak: a scan writes its rows under one
     // `now`, and rows free to swap places would repeat or vanish at a page
     // boundary — the lists' rule, see apps/api/CLAUDE.md.
     .orderBy(desc(notifications.createdAt), desc(notifications.id))
     .limit(limit)
     .offset(offset);
-  const [total] = await db
-    .select({ value: count() })
-    .from(notifications)
-    .where(eq(notifications.memberId, memberId));
+  const [total] = await db.select({ value: count() }).from(notifications).where(readable);
   const [unread] = await db
     .select({ value: count() })
     .from(notifications)
-    .where(and(eq(notifications.memberId, memberId), isNull(notifications.readAt)));
+    .where(and(readable, isNull(notifications.readAt)));
   return {
     notifications: rows.map((row) => ({
       id: row.id,
