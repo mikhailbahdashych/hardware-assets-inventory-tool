@@ -1,7 +1,13 @@
+/* Inline-block rather than inline-flex so a pill narrower than its words can
+   ellipsise: text-overflow acts on a block's own text, never on a flex item's.
+   A pill never grows past its cell, and a long status reads "Awaiting data
+   dest…" instead of being sheared off mid-letter by the cell's clip. */
 .pill {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
+  display: inline-block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  vertical-align: middle;
   font-size: 11.5px;
   font-weight: 500;
   padding: 2px 8px;
@@ -49,9 +55,14 @@
 }
 
 .dot {
+  display: inline-block;
   width: 6px;
   height: 6px;
+  margin-right: 5px;
   border-radius: 50%;
   background: currentColor;
-  flex: none;
+  vertical-align: middle;
+  /* `middle` sits on half the x-height, a hair below the line box's centre
+     where the flex layout put it; this puts it back. */
+  translate: 0 -0.7px;
 }

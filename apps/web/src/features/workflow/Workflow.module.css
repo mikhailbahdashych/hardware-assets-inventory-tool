@@ -45,15 +45,19 @@
 
 /* The matrix's Save, beside its own card's heading rather than pinned: the
    grid is short, and a second sticky bar would fight the settings page's. */
+/* The Roles page's rule: the buttons and their note keep their width, and the
+   hint beside them is what wraps. */
 .actions {
   display: flex;
   align-items: center;
   gap: 8px;
+  flex-shrink: 0;
 }
 
 .actionsNote {
   font-size: 12px;
   color: var(--muted);
+  white-space: nowrap;
 }
 
 /* A grid this wide scrolls sideways rather than squeezing its columns into

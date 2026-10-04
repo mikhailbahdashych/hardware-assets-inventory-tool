@@ -482,6 +482,13 @@ export function KitchenSink() {
             61 days
           </Pill>
         </Row>
+        {/* Narrower than its words: a pill never outgrows its box, and the
+            words ellipsise rather than being sheared off by a cell's clip. */}
+        <div style={{ width: 130 }}>
+          <Pill sv="warn" dot>
+            Awaiting data destruction
+          </Pill>
+        </div>
       </Section>
 
       <Section title="Avatars">
