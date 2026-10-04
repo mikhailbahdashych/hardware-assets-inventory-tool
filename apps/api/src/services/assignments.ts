@@ -85,6 +85,8 @@ export async function openAssignment(
   return id;
 }
 
+const notHeld = () => new AppError(409, 'asset_not_assigned', 'Nobody is holding this asset.');
+
 /**
  * Closes an ownership record and lands the asset in its new status together —
  * the mirror image of openAssignment, and the only way an asset may leave
@@ -98,7 +100,11 @@ export async function closeAssignment(
   params: CloseAssignmentParams,
   now: Date,
 ): Promise<void> {
-  await tx
+  // Compare-and-set on the record still being open: two check-ins that both
+  // read it open (PostgreSQL, READ COMMITTED) must not both close it, or the
+  // second would write its status, its audit row and its notice over the
+  // first. The loser is told what the pre-check would have told it.
+  const closed = await tx
     .update(assignments)
     .set({
       returnedAt: params.returnedAt,
@@ -107,7 +113,9 @@ export async function closeAssignment(
       checkinNotes: params.notes ?? null,
       outcome: params.outcome,
     })
-    .where(eq(assignments.id, params.assignment.id));
+    .where(and(eq(assignments.id, params.assignment.id), isNull(assignments.returnedAt)))
+    .returning({ id: assignments.id });
+  if (closed.length === 0) throw notHeld();
   await tx
     .update(assets)
     .set({ status: params.newStatus, updatedAt: nowIso(now) })
@@ -230,7 +238,7 @@ export async function checkinAsset(
 
     const open = await activeAssignment(tx, assetId);
     if (!open) {
-      throw new AppError(409, 'asset_not_assigned', 'Nobody is holding this asset.');
+      throw notHeld();
     }
 
     // Where it lands has to be somewhere the workspace says an asset can come

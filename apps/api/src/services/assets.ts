@@ -346,7 +346,7 @@ export async function updateAsset(
     }
 
     values.updatedAt = nowIso(now);
-    await tx.update(assets).set(values).where(eq(assets.id, id));
+    await writeAssetRow(tx, current, values);
 
     // The audit line names the asset as it is *after* the edit, so an unchanged
     // field reads from the stored row rather than from the patch.
@@ -386,6 +386,38 @@ export async function updateAsset(
       await activeAssignment(tx, id),
     );
   });
+}
+
+/**
+ * The edit's one write. A status move is compare-and-set on the status this
+ * request read: on PostgreSQL under READ COMMITTED a check-in or an assign can
+ * commit between the read and this line, and an unconditional write would then
+ * land the asset somewhere its ownership rows disagree with — the one
+ * invariant, broken. On SQLite the write lock already keeps the two apart; the
+ * condition costs nothing there. Zero rows means somebody else moved it first.
+ */
+export async function writeAssetRow(
+  tx: DbOrTx,
+  current: AssetRow,
+  values: Record<string, unknown>,
+): Promise<void> {
+  const moving = values.status !== undefined;
+  const written = await tx
+    .update(assets)
+    .set(values)
+    .where(
+      moving
+        ? and(eq(assets.id, current.id), eq(assets.status, current.status))
+        : eq(assets.id, current.id),
+    )
+    .returning({ id: assets.id });
+  if (written.length === 0) {
+    throw new AppError(
+      409,
+      'asset_changed',
+      'Somebody changed this asset’s status a moment ago. Reload it and try again.',
+    );
+  }
 }
 
 /** Returns the stored file names the caller should unlink once the rows are gone. */

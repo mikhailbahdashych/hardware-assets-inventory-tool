@@ -142,7 +142,7 @@ Both refusals remove what they wrote. A file rejected for filling the disk must 
 
 ## The one invariant
 
-`assets.status = 'assigned'` ⇔ an open ownership row exists, and never two. Only `openAssignment` and `closeAssignment` (`src/services/assignments.ts`) may change that pairing — they each write both tables together, inside the caller's transaction. The partial unique index on `(asset_id) WHERE returned_at IS NULL` is the structural backstop.
+`assets.status = 'assigned'` ⇔ an open ownership row exists, and never two. Only `openAssignment` and `closeAssignment` (`src/services/assignments.ts`) may change that pairing — they each write both tables together, inside the caller's transaction. The partial unique index on `(asset_id) WHERE returned_at IS NULL` is the structural backstop. Both status writes that start from a row somebody read are **compare-and-set**, because PostgreSQL under READ COMMITTED lets two transactions read the same row: `closeAssignment` closes `WHERE returned_at IS NULL` and the loser gets the pre-check's 409 `asset_not_assigned`; an edit's status move writes `WHERE status = <what it read>` (`writeAssetRow`) and the loser gets 409 `asset_changed`. `test/stale-writes.test.ts` hands each the same stale row twice and races four check-ins over HTTP, on both engines.
 
 `test/assignments.test.ts` asserts it after **every step** of a seeded random sequence of assigns, check-ins, status edits, deletes and creates. If you add an operation that touches assets or assignments, add it to that sequence — a new operation that breaks the pairing should fail there, not in production.
 
