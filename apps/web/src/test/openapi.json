@@ -84,7 +84,7 @@
       "post": {
         "summary": "Create an asset",
         "tags": ["assets"],
-        "description": "Answers `{asset}`. An asset created as `assigned` opens its first ownership record in the same transaction, so `assignedToEmployeeId` is required in that case. Requires the `assets:write` scope.",
+        "description": "Answers `{asset}`. An asset created as `assigned` is a handover: it opens its first ownership record in the same transaction, so `assignedToEmployeeId` is required and must name an active person, the token needs the `assignments:write` scope as well, and the holder is sent the same notice an assign sends. Requires the `assets:write` scope.",
         "requestBody": {
           "required": true,
           "content": {

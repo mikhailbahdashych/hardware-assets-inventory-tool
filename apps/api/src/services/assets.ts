@@ -14,7 +14,6 @@ import {
   assignments,
   auditEvents,
   customFieldDefs,
-  employees,
   orgSettings,
 } from '@/db/schema.js';
 import { AppError, forbidden, invalidFields, notFound } from '@/lib/errors.js';
@@ -26,7 +25,7 @@ import { serializeAsset, serializeAssignment } from '@/lib/serialize.js';
 import type { Actor } from '@/types/audit.js';
 import type { StatusMove, UpdateAssetOptions } from '@/types/assets.js';
 import { auditActor, writeAudit } from './audit.js';
-import { activeAssignment, assetHistory, openAssignment } from './assignments.js';
+import { activeAssignment, assetHistory, handOver } from './assignments.js';
 import { listAttachments, storedNamesForAsset } from './attachments.js';
 import { getSettings } from './settings.js';
 import { computeNextTag } from './tag.js';
@@ -191,18 +190,6 @@ export async function createAsset(deps: AppDeps, actor: Actor, input: AssetCreat
     // insert-only. It just has to be a status that exists.
     await requireStatus(tx, input.status);
 
-    let holder: typeof employees.$inferSelect | null = null;
-    if (input.status === ASSIGNED_STATUS) {
-      const [found] = await tx
-        .select()
-        .from(employees)
-        .where(eq(employees.id, input.assignedToEmployeeId!));
-      if (!found) {
-        throw invalidFields({ assignedToEmployeeId: 'The employee could not be found.' });
-      }
-      holder = found;
-    }
-
     const id = newId();
     await tx.insert(assets).values({
       id,
@@ -238,29 +225,20 @@ export async function createAsset(deps: AppDeps, actor: Actor, input: AssetCreat
       now,
     );
 
-    if (holder) {
-      const holderName = `${holder.firstName} ${holder.lastName}`;
-      await openAssignment(
+    if (input.status === ASSIGNED_STATUS) {
+      // The same handover `POST /assets/:id/assign` makes: an active holder,
+      // the record, the audit row and the holder's notice. The schema's refine
+      // is what guarantees the id when the status is `assigned`.
+      await handOver(
         tx,
+        actor,
         {
-          assetId: id,
-          employeeId: holder.id,
-          holderName,
+          asset: { id, name: input.name, assetTag },
+          employeeId: input.assignedToEmployeeId!,
+          field: 'assignedToEmployeeId',
           // The create form makes the checkout date optional; leaving it out
           // means "handed over today", which is what this records.
           checkedOutAt: input.checkoutDate ?? todayDate(now),
-        },
-        now,
-      );
-      await writeAudit(
-        tx,
-        {
-          type: 'assets',
-          action: 'asset.assigned',
-          actor: auditActor(actor),
-          assetId: id,
-          employeeId: holder.id,
-          params: { assetName: input.name, assetTag, holderName },
         },
         now,
       );

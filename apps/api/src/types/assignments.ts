@@ -21,6 +21,20 @@ export interface OpenAssignmentParams {
   notes?: string | null;
 }
 
+/**
+ * A handover as both of its doors make it — assigning an asset that exists,
+ * and creating one already assigned. `field` is the input a refused holder is
+ * reported against, because the two forms call it different things.
+ */
+export interface HandOverParams {
+  asset: { id: string; name: string; assetTag: string };
+  employeeId: string;
+  field: string;
+  checkedOutAt: string;
+  expectedReturnDate?: string | null;
+  notes?: string | null;
+}
+
 /** Taking an asset back — the mirror image of {@link OpenAssignmentParams}. */
 export interface CloseAssignmentParams {
   /** The open ownership row being closed. */

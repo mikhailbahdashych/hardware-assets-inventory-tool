@@ -4,6 +4,7 @@ import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { jsonSchemaTransform, type ZodTypeProvider } from 'fastify-type-provider-zod';
 import { z } from 'zod';
 import {
+  ASSIGNED_STATUS,
   type ApiScope,
   assetCreateInput,
   assetPatchInput,
@@ -16,6 +17,7 @@ import pkg from '../../package.json';
 import type { AppDeps } from '@/types/app.js';
 import type { Actor } from '@/types/audit.js';
 import { requireScope } from '@/plugins/bearer.js';
+import { missingScope } from '@/lib/errors.js';
 import { assetListQuery, listQuery } from '@/lib/search.js';
 import {
   createAsset,
@@ -245,10 +247,19 @@ function registerV1(app: FastifyInstance, deps: AppDeps): void {
       'assets:write',
       'assets',
       'Create an asset',
-      'Answers `{asset}`. An asset created as `assigned` opens its first ownership record in the same transaction, so `assignedToEmployeeId` is required in that case.',
+      'Answers `{asset}`. An asset created as `assigned` is a handover: it opens its first ownership record in the same transaction, so `assignedToEmployeeId` is required and must name an active person, the token needs the `assignments:write` scope as well, and the holder is sent the same notice an assign sends.',
       { body: assetCreateInput },
     ),
-    async (request) => ({ asset: await createAsset(deps, actorOf(request), request.body) }),
+    async (request) => {
+      // A handover needs the handover scope, whichever route it came through.
+      if (
+        request.body.status === ASSIGNED_STATUS &&
+        !request.apiToken!.scopes.includes('assignments:write')
+      ) {
+        throw missingScope('assignments:write');
+      }
+      return { asset: await createAsset(deps, actorOf(request), request.body) };
+    },
   );
 
   typed.patch(

@@ -657,3 +657,32 @@ describe('the origin guard and the public surface', () => {
     expect(res.json().error.code).toBe('bad_origin');
   });
 });
+
+describe('creating an asset as assigned through a token', () => {
+  it('needs assignments:write beside assets:write', async () => {
+    ctx = await buildTestApp();
+    const { employee } = await workspace();
+    const body = { ...LAPTOP, status: 'assigned', assignedToEmployeeId: employee.id };
+
+    const writeOnly = await mint(['assets:write'], 90, 'Writer');
+    const refused = await inject(ctx.app, {
+      method: 'POST',
+      url: `${P}/assets`,
+      headers: bearer(writeOnly),
+      body,
+    });
+    expect(refused.statusCode).toBe(403);
+    expect(refused.json().error).toMatchObject({ code: 'missing_scope' });
+    expect(refused.json().error.message).toContain('assignments:write');
+
+    const both = await mint(['assets:write', 'assignments:write'], 90, 'Assigner');
+    const res = await inject(ctx.app, {
+      method: 'POST',
+      url: `${P}/assets`,
+      headers: bearer(both),
+      body,
+    });
+    expect(res.statusCode).toBe(200);
+    expect(res.json().asset.status).toBe('assigned');
+  });
+});

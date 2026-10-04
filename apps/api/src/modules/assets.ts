@@ -1,7 +1,13 @@
 import type { FastifyInstance } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
 import { z } from 'zod';
-import { assetCreateInput, assetPatchInput, assignInput, checkinInput } from '@inventory/shared';
+import {
+  ASSIGNED_STATUS,
+  assetCreateInput,
+  assetPatchInput,
+  assignInput,
+  checkinInput,
+} from '@inventory/shared';
 import type { AppDeps } from '@/types/app.js';
 import type { AssignRequest, CheckinRequest } from '@/types/assets.js';
 import { requireAction, requireAnyAction, requireAuth } from '@/plugins/rbac.js';
@@ -44,10 +50,17 @@ export function registerAssetRoutes(app: FastifyInstance, deps: AppDeps): void {
     async (request) => getAssetDetail(deps.db, request.params.id),
   );
 
+  // Creating an asset already assigned is a handover too, so it needs the
+  // grant a handover needs — the body says which, so the handler asks.
   typed.post(
     '/api/v1/assets',
     { schema: { body: assetCreateInput }, preValidation: requireAction('assets.create') },
-    async (request) => ({ asset: await createAsset(deps, request.member!, request.body) }),
+    async (request) => {
+      if (request.body.status === ASSIGNED_STATUS && !request.permissions.has('assets.assign')) {
+        throw forbidden();
+      }
+      return { asset: await createAsset(deps, request.member!, request.body) };
+    },
   );
 
   /**

@@ -421,13 +421,22 @@ describe('the status ⇔ ownership invariant', () => {
           assetIds.push((await createAsset(admin, { name: `R${step}` })).id);
         }
       } else {
-        const created = await createAsset(admin, {
-          name: `N${step}`,
-          status: random() < 0.5 ? 'available' : 'assigned',
-          assignedToEmployeeId: pick(people).id,
-          checkoutDate: pick(dates),
+        // Created as assigned is a handover, so an offboarding pick is refused
+        // exactly as assign refuses it — a legal outcome of the sequence.
+        const res = await inject(ctx.app, {
+          method: 'POST',
+          url: '/api/v1/assets',
+          cookie: admin,
+          body: {
+            name: `N${step}`,
+            category: 'laptops',
+            status: random() < 0.5 ? 'available' : 'assigned',
+            assignedToEmployeeId: pick(people).id,
+            checkoutDate: pick(dates),
+          },
         });
-        assetIds.push(created.id);
+        if (res.statusCode === 200) assetIds.push(res.json().asset.id as string);
+        else expect(res.statusCode).toBe(422);
       }
 
       // Checked after every single step: a violation names the step that caused it.

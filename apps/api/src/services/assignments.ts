@@ -11,6 +11,7 @@ import type { Actor } from '@/types/audit.js';
 import type {
   AssignmentRow,
   CloseAssignmentParams,
+  HandOverParams,
   OpenAssignmentParams,
 } from '@/types/assignments.js';
 import { assets, assignments, employees } from '@/db/schema.js';
@@ -141,6 +142,73 @@ export async function employeeHistory(db: DbOrTx, employeeId: string) {
     .orderBy(desc(assignments.checkedOutAt), desc(assignments.createdAt));
 }
 
+/**
+ * The handover itself, whichever door it came through: assigning an asset that
+ * exists, or creating one already assigned. Who may take an asset (somebody on
+ * file and active), the ownership record, the audit row and the holder's own
+ * notice — one function, so the create form cannot become a way round any of
+ * them. Inside the caller's transaction, like `openAssignment` beneath it.
+ * Whether the asset may be handed out is the caller's question: creating is
+ * not a transition, assigning is.
+ */
+export async function handOver(
+  tx: DbOrTx,
+  actor: Actor,
+  params: HandOverParams,
+  now: Date,
+): Promise<void> {
+  const [holder] = await tx.select().from(employees).where(eq(employees.id, params.employeeId));
+  if (!holder) throw invalidFields({ [params.field]: 'The employee could not be found.' });
+  if (holder.status !== 'active') {
+    throw invalidFields({
+      [params.field]: 'That person is offboarding and cannot take on assets.',
+    });
+  }
+
+  const holderName = `${holder.firstName} ${holder.lastName}`;
+  await openAssignment(
+    tx,
+    {
+      assetId: params.asset.id,
+      employeeId: holder.id,
+      holderName,
+      checkedOutAt: params.checkedOutAt,
+      expectedReturnDate: params.expectedReturnDate,
+      notes: params.notes,
+    },
+    now,
+  );
+  await writeAudit(
+    tx,
+    {
+      type: 'assets',
+      action: 'asset.assigned',
+      actor: auditActor(actor),
+      assetId: params.asset.id,
+      employeeId: holder.id,
+      params: {
+        assetName: params.asset.name,
+        assetTag: params.asset.assetTag,
+        holderName,
+        checkedOutAt: params.checkedOutAt,
+      },
+    },
+    now,
+  );
+  // The holder's own copy, when their employee record links to a member
+  // account — in this transaction like the audit row, and for the same
+  // reason: a handover that happened tells everyone it happened.
+  await notifyLinkedMember(
+    tx,
+    holder.id,
+    {
+      kind: 'assignment.received',
+      params: { assetName: params.asset.name, assetTag: params.asset.assetTag },
+    },
+    now,
+  );
+}
+
 export async function assignAsset(
   deps: AppDeps,
   actor: Actor,
@@ -168,51 +236,16 @@ export async function assignAsset(
       );
     }
 
-    const [holder] = await tx.select().from(employees).where(eq(employees.id, input.employeeId));
-    if (!holder) throw invalidFields({ employeeId: 'The employee could not be found.' });
-    if (holder.status !== 'active') {
-      throw invalidFields({ employeeId: 'That person is offboarding and cannot take on assets.' });
-    }
-
-    const holderName = `${holder.firstName} ${holder.lastName}`;
-    await openAssignment(
+    await handOver(
       tx,
+      actor,
       {
-        assetId,
-        employeeId: holder.id,
-        holderName,
+        asset,
+        employeeId: input.employeeId,
+        field: 'employeeId',
         checkedOutAt: input.checkoutDate,
         expectedReturnDate: input.expectedReturnDate,
         notes: input.notes,
-      },
-      now,
-    );
-    await writeAudit(
-      tx,
-      {
-        type: 'assets',
-        action: 'asset.assigned',
-        actor: auditActor(actor),
-        assetId,
-        employeeId: holder.id,
-        params: {
-          assetName: asset.name,
-          assetTag: asset.assetTag,
-          holderName,
-          checkedOutAt: input.checkoutDate,
-        },
-      },
-      now,
-    );
-    // The holder's own copy, when their employee record links to a member
-    // account — in this transaction like the audit row, and for the same
-    // reason: a handover that happened tells everyone it happened.
-    await notifyLinkedMember(
-      tx,
-      holder.id,
-      {
-        kind: 'assignment.received',
-        params: { assetName: asset.name, assetTag: asset.assetTag },
       },
       now,
     );
