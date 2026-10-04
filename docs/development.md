@@ -78,7 +78,8 @@ npm run lint             # ESLint
 npm run typecheck        # tsc across workspaces
 npm run format           # Prettier (CI runs format:check)
 npm run build            # production build
-npm run test:pg          # the API suite against PostgreSQL on :5433
+npm run test:pg          # the API suite against PostgreSQL on :5433, e.g.
+                         # docker run -d -e POSTGRES_PASSWORD=test -p 5433:5432 postgres:17
 ```
 
 In Docker, put `docker compose -f docker-compose.dev.yml run --rm app` in front of any of them.

@@ -21,6 +21,8 @@ docker run -d --name inventory -p 3000:3000 -v ./data:/data ghcr.io/mikhailbahda
 # then open http://localhost:3000 — the first screen creates your organization and its first admin
 ```
 
+It prints a short warning that `APP_URL` is still `http://localhost:3000` on a production instance; on a laptop, where localhost is the address, that is expected.
+
 ## What it is
 
 - **Assets** — tag, name, category, serial, status, purchase, warranty, supplier, notes, attachments and any custom fields you define. Filters live in the URL, so a filtered view is a link.
@@ -65,9 +67,9 @@ docker compose up -d
 Open <http://localhost:3000>: the first screen creates your organization and its first admin. Then, before it is on the internet:
 
 - **Put it behind a reverse proxy for TLS and set `APP_URL` to the public address.** [`docs/deployment.md`](docs/deployment.md) is the whole procedure — DNS, the proxy contract, Caddy and nginx blocks, firewall, backups, upgrades, health.
-- **Pin a version.** Releases publish `:X.Y.Z`, `:X.Y` and `:latest` (amd64 and arm64); `:latest` is for trying it, a pinned tag is for running it.
+- **Pin a version.** Releases publish `:X.Y.Z`, `:X.Y` and `:latest` (amd64 and arm64); `:latest` is for trying it, a pinned tag is for running it ([Upgrades](docs/deployment.md#upgrades) says how to choose one).
 - **Single replica.** The scheduler runs in-process, so two containers would both fire the nightly jobs. Scale the machine, not the count.
-- **Nothing in the container runs as root**, so the data directory must be writable by uid 1000: create `./data` yourself, or `chown -R 1000:1000 ./data`. A container that cannot write it says so and prints the fix.
+- **Nothing in the container runs as root**, so the data directory must be writable by uid 1000: create `./data` yourself, or `chown -R 1000:1000 ./data`. A container that cannot write it says so and prints the fix — under `restart: unless-stopped` it repeats until fixed ([When it does not work](docs/deployment.md#when-it-does-not-work)).
 
 **Upgrading is `docker compose pull && docker compose up -d`** — migrations run at boot. Read [Upgrades](docs/deployment.md#upgrades) in the deployment guide first: it covers release notes, coming from v0.1.0/v0.2.0, and the boot line that confirms what the instance engaged.
 
@@ -130,7 +132,7 @@ Off by default. An admin turns it on for the whole workspace in **Admin → Sett
 
 - **TOTP**, so any authenticator works; a code works once.
 - **Ten recovery codes**, shown once, stored as hashes, each single-use. A spent set replaces itself at the next sign-in, and an admin can arm that from the Members page, which also shows who is enrolled and how many codes they have left.
-- **Only admins reset it** — a second factor you could clear with a stolen password would not be one. **Turning it off deletes every secret and code.**
+- **Resets come from the Members page** (whoever may manage members; an admin's only from an admin). There is no self-service reset — a second factor you could clear with a stolen password would not be one. **Turning it off deletes every secret and code.**
 
 If the last admin loses both phone and codes, break glass from the host:
 
