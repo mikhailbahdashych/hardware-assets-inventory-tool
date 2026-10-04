@@ -1,4 +1,4 @@
-import { eq, lt } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 import type { FastifyReply } from 'fastify';
 import type { Config } from '@/types/config.js';
 import type { Db } from '@/types/db.js';
@@ -42,10 +42,6 @@ export function clearSessionCookie(reply: FastifyReply, config: Config): void {
 
 export async function deleteSession(db: Db, rawToken: string): Promise<void> {
   await db.delete(sessions).where(eq(sessions.id, hashToken(rawToken)));
-}
-
-export async function pruneExpiredSessions(db: Db, now: Date = new Date()): Promise<void> {
-  await db.delete(sessions).where(lt(sessions.expiresAt, now.toISOString()));
 }
 
 /**

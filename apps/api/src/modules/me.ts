@@ -137,17 +137,6 @@ export function registerMeRoutes(app: FastifyInstance, deps: AppDeps): void {
       const now = deps.now();
       const member = request.member!;
       const recoveryCodes = await confirmEnrolment(deps.db, member, request.body.code, now);
-      await writeAudit(
-        deps.db,
-        {
-          type: 'auth',
-          action: 'member.mfa_enrolled',
-          actor: auditActor(member),
-          memberId: member.id,
-          params: { memberName: member.displayName },
-        },
-        now,
-      );
       return { recoveryCodes };
     },
   );

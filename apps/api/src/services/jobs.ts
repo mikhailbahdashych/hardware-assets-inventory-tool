@@ -10,7 +10,6 @@ import {
   notifications,
   sessions,
 } from '@/db/schema.js';
-import { pruneExpiredSessions } from './sessions.js';
 import { getSettings } from './settings.js';
 import { notifyActionHolders, notifyLinkedMember } from './notifications.js';
 
@@ -167,7 +166,6 @@ export async function runMaintenance(deps: AppDeps, now: Date): Promise<Maintena
   const at = now.toISOString();
   let pruned = 0;
 
-  await pruneExpiredSessions(deps.db, now);
   // How many rows a delete took is the one result shape the two drivers do not
   // agree on — libsql answers `rowsAffected`, node-postgres `rowCount`. Both
   // dialects support RETURNING, so the deleted ids are the count, said in a way

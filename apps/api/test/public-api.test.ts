@@ -467,7 +467,9 @@ describe('a token is an actor with no member row', () => {
       90,
       'Deploy bot',
     );
-    const before = (await ctx.db.select().from(auditEvents)).length;
+    // The rows already there, by id: an unordered select answers in whatever
+    // order the engine likes, so "everything after the first N" is not a set.
+    const before = new Set((await ctx.db.select().from(auditEvents)).map((row) => row.id));
 
     const created = await inject(ctx.app, {
       method: 'POST',
@@ -497,7 +499,7 @@ describe('a token is an actor with no member row', () => {
     }
 
     const id = await tokenId('Deploy bot');
-    const written = (await ctx.db.select().from(auditEvents)).slice(before);
+    const written = (await ctx.db.select().from(auditEvents)).filter((row) => !before.has(row.id));
     expect(written.length).toBeGreaterThanOrEqual(8);
     for (const row of written) {
       expect(`${row.action}: ${row.actorKind} ${row.actorApiTokenId} ${row.actorName}`).toBe(

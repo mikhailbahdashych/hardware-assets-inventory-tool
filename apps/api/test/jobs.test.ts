@@ -321,6 +321,22 @@ describe('nightly maintenance', () => {
     expect(admin).toContain('inv_session=');
   });
 
+  it('counts the expired sessions it removes', async () => {
+    await withApp();
+    const at = new Date(MONDAY.getTime() - 86_400_000).toISOString();
+    const memberId = (await ctx.db.select().from(sessions))[0]!.memberId;
+    await ctx.db.insert(sessions).values([
+      { id: 'expired-1', memberId, expiresAt: at, createdAt: at },
+      { id: 'expired-2', memberId, expiresAt: at, createdAt: at },
+    ]);
+
+    // Retention is 12 months and nothing is that old, so the sessions are all
+    // there is to count.
+    const result = await runMaintenance(ctx.deps, MONDAY);
+    expect(result.pruned).toBe(2);
+    expect(await ctx.db.select().from(sessions)).toHaveLength(1);
+  });
+
   it('prunes the activity log past the retention the workspace chose', async () => {
     const admin = await withApp();
     await createAsset(admin, { name: 'MacBook Pro 14"' });

@@ -404,6 +404,25 @@ describe('admin control', () => {
     expect((await login(ADMIN)).json().mfaRequired).toBeUndefined();
   });
 
+  it('wipes nothing when a form resends an unchanged false beside another edit', async () => {
+    ctx = await buildTestApp();
+    const cookie = await setupOrg(ctx.app);
+    // Enrolled by choice, with the workspace requirement off.
+    await enrol(cookie, ADMIN.email);
+
+    const save = await inject(ctx.app, {
+      method: 'PATCH',
+      url: '/api/v1/settings',
+      cookie,
+      body: { orgName: 'Acme Holdings', mfaRequired: false },
+    });
+    expect(save.statusCode).toBe(200);
+
+    const [row] = await ctx.db.select().from(members).where(eq(members.email, ADMIN.email));
+    expect(row!.mfaConfirmedAt).not.toBeNull();
+    expect((await ctx.db.select().from(mfaRecoveryCodes)).length).toBeGreaterThan(0);
+  });
+
   it('is admin-only — a viewer cannot reset anybody, including themselves', async () => {
     ctx = await buildTestApp();
     const adminCookie = await setupOrg(ctx.app);
