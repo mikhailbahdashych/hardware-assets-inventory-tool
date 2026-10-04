@@ -46,7 +46,7 @@ Admin's `grants` array stays empty on purpose — see above. And editing `DEFAUL
 
 It asserts that `ACTION_GROUPS` partitions `ACTIONS` exactly — every action in one group, none in two — that `ACTION_LABELS` labels each one as something other than its slug, and that the bands are the five the matrix draws, in order. It will fail the moment you add the slug and pass again when the group has it; that failure _is_ the reminder, so run it before you go looking for the next file. `DEFAULT_ROLES` has its own tests there too, including one that refuses a grant this build does not declare.
 
-`packages/shared/src/audit-render.test.ts` is the other one to watch if the action writes events (step 5).
+`packages/shared/src/audit-render.test.ts` is the other one to watch if the action writes events (step 5). And on the API side, `apps/api/test/<area>.test.ts` gets the 403 case from step 3 — a role holding everything but the new action, refused.
 
 ## 3. The door — `apps/api/src/modules/<area>.ts`
 
@@ -54,11 +54,18 @@ It asserts that `ACTION_GROUPS` partitions `ACTIONS` exactly — every action in
 typed.post(
   '/api/v1/locations',
   { schema: { body: locationCreateInput }, preValidation: requireAction('locations.create') },
-  async (request) => ({ location: createLocation(deps, request.member!, request.body) }),
+  async (request) => ({ location: await createLocation(deps, request.member!, request.body) }),
 );
 ```
 
-`requireAction` composes `requireAuth`, so it also carries the two-factor enrolment gate — never re-implement a guard's body, call the one below it. Attach it as `preValidation`, never `preHandler`: a `preHandler` runs after the schema, so an anonymous caller posting junk would read the field errors instead of a 401. **A route with no action named on it is a route nothing guards**: reads are deliberately open to every authenticated member, so anything that mutates or is admin-only must name one.
+**Await the service inside the object.** Without the `await`, `{ location: createLocation(…) }` compiles, the write still happens, and the response serializes the promise as `{}` — eslint's promise rules cannot see a promise handed to an object literal, so read the line back.
+
+`requireAction` composes `requireAuth`, so it also carries the two-factor enrolment gate — never re-implement a guard's body, call the one below it. Attach it as `preValidation`, never `preHandler`: a `preHandler` runs after the schema, so an anonymous caller posting junk would read the field errors instead of a 401. Two exceptions to the shape, both with a precedent:
+
+- **One door, two actions.** `PATCH /api/v1/assets/:id` moves a status under `assets.change_status` and edits everything else under `assets.edit`: `requireAnyAction('assets.edit', 'assets.change_status')` refuses a caller with neither at `preValidation`, then the handler and the service ask for the one the body actually needs (`modules/assets.ts`).
+- **A route that raises `bodyLimit` authorizes at `onRequest`.** The body is read and parsed before `preValidation` runs, so a larger limit on a door that checks later is that much pre-auth work for anybody. `/import/validate` and `/import/commit` (`modules/data.ts`) are the two.
+
+**The server must check the action, or it is a checkbox no door reads.** Hiding a button is not enforcement — `assets.change_status` once sat on the Roles page while `PATCH /assets/:id` only ever asked for `assets.edit`. Every action you add is named by at least one guard on the API — `requireAction`, `requireAnyAction`, or a check against `request.permissions` in the handler — and an API test proves a role without it gets 403. A route with no action named on it is a route nothing guards: reads are deliberately open to every authenticated member, so anything that mutates or is admin-only must name one.
 
 The permission set is resolved per request in `apps/api/src/plugins/session.ts`, which is why a grant an admin made a second ago lands on the member's very next request with no session machinery involved.
 
@@ -72,7 +79,7 @@ Every gated page takes a `permissions: Action[]` prop threaded from the session 
 
 If the action gates a whole page, guard the **route** in `apps/web/src/routes.tsx` (`can(permissions, 'locations.manage') ? <LocationsPage …/> : <Navigate to="/dashboard" replace />`) and add `requires: 'locations.manage'` to the entry in `apps/web/src/components/app/nav.ts`. A hidden nav item hides the door without locking it.
 
-The command palette filters its entries by permission too — `apps/web/src/components/app/palette.ts`.
+The command palette follows on its own for a page (its Pages group is the sidebar's items, read through the same filter); a palette **command** is an `ActionDefinition` in `apps/web/src/components/app/palette.ts` and takes the same `requires: '<action>'`.
 
 ## 5. The sentence, if it writes events — `packages/shared/src/audit-render.ts`
 

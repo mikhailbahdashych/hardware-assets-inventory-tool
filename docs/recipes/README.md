@@ -4,15 +4,17 @@ End-to-end checklists for the changes teams actually make to this app. Each one 
 
 They are written to be handed to Claude Code: open a session in the repo and say _"follow docs/recipes/add-asset-field.md to add a `mac_address` field"_. They read as instructions to a person too.
 
-| Recipe                                               | When                                                                                 |
-| ---------------------------------------------------- | ------------------------------------------------------------------------------------ |
-| [add-asset-field.md](add-asset-field.md)             | A column every asset should have, on the form, the table, the CSV and the export.    |
-| [add-enum-value.md](add-enum-value.md)               | A new category, condition or any other enum value. (Statuses are edited in the app.) |
-| [add-permission-action.md](add-permission-action.md) | A new thing a role may be granted. (Roles themselves are edited in the app.)         |
-| [add-page.md](add-page.md)                           | A new section with its own nav entry and route.                                      |
-| [add-dashboard-widget.md](add-dashboard-widget.md)   | Another card on the dashboard, toggleable per member.                                |
-| [rebrand.md](rebrand.md)                             | Your own name, colours and fonts.                                                    |
-| [change-infrastructure.md](change-infrastructure.md) | Resize, re-region, rotate or restore the AWS deployment in `infrastructure/`.        |
+| Recipe                                                               | When                                                                                 |
+| -------------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
+| [add-asset-field.md](add-asset-field.md)                             | A column every asset should have, on the form, the table, the CSV and the export.    |
+| [add-enum-value.md](add-enum-value.md)                               | A new category, condition or any other enum value. (Statuses are edited in the app.) |
+| [add-permission-action.md](add-permission-action.md)                 | A new thing a role may be granted. (Roles themselves are edited in the app.)         |
+| [add-page.md](add-page.md)                                           | A new section with its own nav entry and route.                                      |
+| [add-dashboard-widget.md](add-dashboard-widget.md)                   | Another card on the dashboard, toggleable per member.                                |
+| [add-api-scope-or-public-route.md](add-api-scope-or-public-route.md) | Let an API token reach something new on `/api/public/v1`.                            |
+| [add-notification-kind.md](add-notification-kind.md)                 | A new notice in the in-app inbox, from a mutation or on a schedule.                  |
+| [rebrand.md](rebrand.md)                                             | Your own name, colours and fonts.                                                    |
+| [change-infrastructure.md](change-infrastructure.md)                 | Resize, re-region, rotate or restore the AWS deployment in `infrastructure/`.        |
 
 ## Before any of them
 
