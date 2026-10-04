@@ -43,12 +43,18 @@ export function AppShell({ member, permissions, orgName }: AppShellProps) {
 /**
  * ⌘K anywhere inside the shell. A separate component so the hotkey lives under
  * the provider it needs — and so re-registering it never re-renders the shell.
+ *
+ * Not while a dialog is open: the palette replaces whatever modal is up, and a
+ * half-filled form is not something a shortcut should throw away. Any dialog
+ * counts — the app-level ones and the ones a page keeps for itself alike.
  */
 function PaletteHotkey() {
   const { openModal } = useModals();
   useHotkey(
     'k',
-    useCallback(() => openModal('palette'), [openModal]),
+    useCallback(() => {
+      if (document.querySelector('[role="dialog"]') === null) openModal('palette');
+    }, [openModal]),
   );
   return null;
 }

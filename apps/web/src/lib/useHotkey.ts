@@ -1,10 +1,9 @@
 import { useEffect } from 'react';
 
 /**
- * A document-level shortcut. Skips the event when it lands in a field, so ⌘K
- * inside a text input is still whatever the browser wants it to be — the only
- * exception being the palette's own input, which is inside a dialog and closes
- * on Escape instead.
+ * A document-level ⌘/Ctrl shortcut, wherever focus is — a field included.
+ * Whether the handler should act right now is the handler's question; the
+ * palette's, for one, declines while a dialog is open.
  */
 export function useHotkey(key: string, handler: () => void): void {
   useEffect(() => {

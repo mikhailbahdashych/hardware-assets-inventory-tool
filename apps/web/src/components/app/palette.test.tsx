@@ -45,6 +45,19 @@ describe('opening and closing the palette', () => {
     expect(await screen.findByRole('dialog')).toBeInTheDocument();
   });
 
+  it('does not open over a dialog, which would throw away a half-filled form', async () => {
+    renderApp(DASHBOARD_ROUTES, '/dashboard');
+    const palette = await openPalette();
+    await userEvent.click(await within(palette).findByRole('option', { name: /new asset/i }));
+    const form = await screen.findByRole('dialog', { name: /new asset/i });
+    const name = within(form).getAllByRole('textbox')[0]!;
+    await userEvent.type(name, 'ThinkPad');
+
+    await userEvent.keyboard('{Meta>}k{/Meta}');
+    expect(screen.getByRole('dialog', { name: /new asset/i })).toBeInTheDocument();
+    expect(name).toHaveValue('ThinkPad');
+  });
+
   it('closes on Escape', async () => {
     renderApp(DASHBOARD_ROUTES, '/dashboard');
     await openPalette();
