@@ -2,6 +2,7 @@ import { eq, lt } from 'drizzle-orm';
 import type { FastifyReply } from 'fastify';
 import type { Config } from '@/types/config.js';
 import type { Db } from '@/types/db.js';
+import type { ResolvedSession } from '@/types/auth.js';
 import { members, sessions } from '@/db/schema.js';
 import { nowIso } from '@/lib/dates.js';
 import { createRawToken, hashToken } from '@/lib/tokens.js';
@@ -43,10 +44,6 @@ export async function deleteSession(db: Db, rawToken: string): Promise<void> {
   await db.delete(sessions).where(eq(sessions.id, hashToken(rawToken)));
 }
 
-export async function revokeMemberSessions(db: Db, memberId: string): Promise<void> {
-  await db.delete(sessions).where(eq(sessions.memberId, memberId));
-}
-
 export async function pruneExpiredSessions(db: Db, now: Date = new Date()): Promise<void> {
   await db.delete(sessions).where(lt(sessions.expiresAt, now.toISOString()));
 }
@@ -54,9 +51,14 @@ export async function pruneExpiredSessions(db: Db, now: Date = new Date()): Prom
 /**
  * Resolves a raw cookie token to its member. Deletes expired sessions on
  * sight, slides the expiry when under 15 days remain, and bumps the member's
- * last_active_at at most every 5 minutes.
+ * last_active_at at most every 5 minutes. A slide is reported back, because
+ * the cookie carries its own expiry and has to be re-set to match.
  */
-export async function resolveSession(db: Db, rawToken: string, now: Date = new Date()) {
+export async function resolveSession(
+  db: Db,
+  rawToken: string,
+  now: Date = new Date(),
+): Promise<ResolvedSession | null> {
   const id = hashToken(rawToken);
   const [session] = await db.select().from(sessions).where(eq(sessions.id, id));
   if (!session) return null;
@@ -65,11 +67,10 @@ export async function resolveSession(db: Db, rawToken: string, now: Date = new D
     return null;
   }
 
+  let slidTo: string | null = null;
   if (new Date(session.expiresAt).getTime() - now.getTime() < SLIDING_THRESHOLD_MS) {
-    await db
-      .update(sessions)
-      .set({ expiresAt: new Date(now.getTime() + SESSION_TTL_MS).toISOString() })
-      .where(eq(sessions.id, id));
+    slidTo = new Date(now.getTime() + SESSION_TTL_MS).toISOString();
+    await db.update(sessions).set({ expiresAt: slidTo }).where(eq(sessions.id, id));
   }
 
   const [member] = await db.select().from(members).where(eq(members.id, session.memberId));
@@ -85,5 +86,5 @@ export async function resolveSession(db: Db, rawToken: string, now: Date = new D
       .where(eq(members.id, member.id));
   }
 
-  return member;
+  return { member, slidTo };
 }

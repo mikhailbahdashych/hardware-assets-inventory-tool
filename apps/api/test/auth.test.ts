@@ -192,6 +192,41 @@ describe('login / logout / me', () => {
     );
   });
 
+  it('hands the browser the slid expiry too, with the same attributes', async () => {
+    let clock = new Date('2026-08-01T09:00:00.000Z');
+    ctx = await buildTestApp({}, () => clock);
+    const cookie = await setupOrg(ctx.app);
+    const raw = cookie.slice('inv_session='.length);
+
+    // Fresh: nothing to slide, so nothing re-set.
+    const early = await inject(ctx.app, { method: 'GET', url: '/api/v1/auth/me', cookie });
+    expect(early.cookies.find((c) => c.name === 'inv_session')).toBeUndefined();
+
+    // Twenty days on, under the threshold: the row slides, and so must the
+    // cookie — or the browser drops it at login + 30 days regardless.
+    clock = new Date('2026-08-21T09:00:00.000Z');
+    const later = await inject(ctx.app, { method: 'GET', url: '/api/v1/auth/me', cookie });
+    expect(later.statusCode).toBe(200);
+    const reset = later.cookies.find((c) => c.name === 'inv_session');
+    expect(reset).toMatchObject({ value: raw, httpOnly: true, sameSite: 'Lax', path: '/' });
+    expect(reset!.expires!.toISOString()).toBe('2026-09-20T09:00:00.000Z');
+    const [row] = await ctx.db.select().from(sessions);
+    expect(row!.expiresAt).toBe('2026-09-20T09:00:00.000Z');
+  });
+
+  it('lets a sign-out in the same request win over the slide', async () => {
+    let clock = new Date('2026-08-01T09:00:00.000Z');
+    ctx = await buildTestApp({}, () => clock);
+    const cookie = await setupOrg(ctx.app);
+    clock = new Date('2026-08-21T09:00:00.000Z');
+
+    const out = await inject(ctx.app, { method: 'POST', url: '/api/v1/auth/logout', cookie });
+    expect(out.statusCode).toBe(204);
+    const set = out.cookies.filter((c) => c.name === 'inv_session');
+    expect(set).toHaveLength(1);
+    expect(set[0]!.value).toBe('');
+  });
+
   it('rejects an expired session', async () => {
     ctx = await buildTestApp();
     const cookie = await setupOrg(ctx.app);
