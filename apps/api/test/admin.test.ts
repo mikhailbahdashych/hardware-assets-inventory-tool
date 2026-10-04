@@ -269,8 +269,9 @@ describe('filtering the activity log by who acted', () => {
     const lines = res.body.trim().split('\n');
     expect(lines).toHaveLength(2);
     expect(lines[1]).toContain('Deploy bot');
-    // And says what kind of actor that is, in the words the filter uses.
-    expect(lines[1]).toContain('API tokens');
+    // And says what kind of actor that is — one row is one actor, so the cell
+    // is singular; the filter's plural is a heading for many.
+    expect(lines[1]).toMatch(/,API token,/);
   });
 
   it('refuses an actor kind it does not have', async () => {

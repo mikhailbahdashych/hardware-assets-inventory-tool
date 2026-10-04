@@ -3,7 +3,7 @@
   "info": {
     "title": "Inventory public API",
     "description": "The curated, versioned surface an integration talks to. Mint a token on the API tokens page, send it as `Authorization: Bearer invt_…`, and every endpoint below opens for the scopes that token holds. Cookies are never consulted here; the internal `/api/v1` the app itself uses is not this and is not a contract.",
-    "version": "0.2.0"
+    "version": "0.3.0"
   },
   "components": {
     "securitySchemes": {

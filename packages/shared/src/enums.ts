@@ -196,6 +196,15 @@ export const AUDIT_ACTOR_KIND_LABELS: Record<AuditActorKind, string> = {
   token: 'API tokens',
   system: 'System',
 };
+/**
+ * The same kinds named one at a time, for the CSV export's "Actor kind" cell:
+ * a row is one actor, so the filter's plural heading would misname it.
+ */
+export const AUDIT_ACTOR_KIND_NAMES: Record<AuditActorKind, string> = {
+  member: 'Member',
+  token: 'API token',
+  system: 'System',
+};
 
 export const AUDIT_TYPES = ['assets', 'people', 'auth', 'system'] as const;
 export type AuditType = (typeof AUDIT_TYPES)[number];

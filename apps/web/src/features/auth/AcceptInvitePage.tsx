@@ -82,7 +82,9 @@ export function AcceptInvitePage() {
           accept.mutate({ token, name, password }, { onSuccess: () => navigate('/dashboard') });
         }}
       >
-        <FormError error={accept.error} />
+        {/* A 422 that names a field is said under that field; the banner is
+            for the refusals that belong to the form as a whole. */}
+        <FormError error={!errors.name && !errors.password ? accept.error : null} />
         <AuthField label="Email" value={invite.data.email} onChange={() => {}} />
         <AuthField
           label="Your name"

@@ -191,6 +191,36 @@ describe('accepting an invitation', () => {
     expect(await screen.findByText('This link is invalid or has expired.')).toBeInTheDocument();
   });
 
+  it('puts a refused field under its input, and not again in a banner', async () => {
+    renderApp(
+      {
+        'GET /meta': { body: READY_META },
+        'GET /auth/me': UNAUTHENTICATED,
+        'GET /auth/invite/abc123': {
+          body: { email: 'grace@acme.io', role: 'viewer', roleLabel: 'Viewer', orgName: 'Acme' },
+        },
+        'POST /auth/accept-invite': {
+          status: 422,
+          body: {
+            error: {
+              code: 'validation',
+              message: 'Request validation failed.',
+              fields: { password: 'Use at least 10 characters.' },
+            },
+          },
+        },
+      },
+      '/accept-invite?token=abc123',
+    );
+
+    await userEvent.type(await screen.findByLabelText('Your name'), 'Grace');
+    await userEvent.type(screen.getByLabelText('Password'), 'short');
+    await userEvent.click(screen.getByRole('button', { name: 'Join workspace' }));
+
+    expect(await screen.findByText('Use at least 10 characters.')).toBeInTheDocument();
+    expect(screen.queryByText('Request validation failed.')).toBeNull();
+  });
+
   it('says the link is missing its token without asking the server', async () => {
     const api = renderApp(
       { 'GET /meta': { body: READY_META }, 'GET /auth/me': UNAUTHENTICATED },

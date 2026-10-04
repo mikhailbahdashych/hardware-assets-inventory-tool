@@ -3,7 +3,11 @@ import type { SemanticColor } from '@inventory/shared';
 // Which widgets exist, and how a member's stored map decides what they see.
 
 export const DASHBOARD_WIDGETS = [
-  { key: 'kpi', label: 'Status counts', description: 'Six KPI tiles, one per asset status' },
+  {
+    key: 'kpi',
+    label: 'Status counts',
+    description: 'A tile per asset status, counting what is in it',
+  },
   {
     key: 'category',
     label: 'Assets by category',

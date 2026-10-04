@@ -32,8 +32,9 @@ import styles from './Workflow.module.css';
  * What this workspace can say about an asset, and what it may do next.
  *
  * Statuses used to be an enum compiled into both apps; they are rows now, and
- * this is where they are edited. Admins only — enforced by the route guard in
- * routes.tsx, and by `workflow.manage` on every endpoint underneath.
+ * this is where they are edited. Behind `workflow.manage`, which any role can
+ * be granted — enforced by the route guard in routes.tsx and on every endpoint
+ * underneath.
  */
 export function WorkflowPage() {
   // Read again on arrival — see useCustomFields in api/queries.ts.
@@ -44,7 +45,8 @@ export function WorkflowPage() {
       <div>
         <h1 className={styles.title}>Workflow</h1>
         <p className={styles.summary}>
-          The statuses this workspace uses, and the moves between them · visible to Admins only
+          The statuses this workspace uses, and the moves between them · visible to anyone whose
+          role may change them
         </p>
       </div>
       {/* Failed, then not yet here, then the cards — three states, three

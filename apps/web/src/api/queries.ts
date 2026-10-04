@@ -98,6 +98,21 @@ export function useMeta() {
 }
 
 /**
+ * `/meta` failed, so no route set can be chosen and the app cannot start. The
+ * router throws this rather than a bare `Error` because what `fetch` throws
+ * for a refused connection is a plain `TypeError` — the same class a renderer
+ * throws on a bad row — and `AppErrorBoundary` has to tell "the server never
+ * answered" from "a screen could not be drawn" by more than a guess. The
+ * request's own failure rides along as `cause`.
+ */
+export class MetaUnanswered extends Error {
+  constructor(cause: unknown) {
+    super('GET /api/v1/meta has not answered, so no route set can be chosen.', { cause });
+    this.name = 'MetaUnanswered';
+  }
+}
+
+/**
  * What /meta said, for the screens that cannot be drawn without it. **Every
  * route set in routes.tsx is chosen from this payload and throws without it**,
  * so anything the router rendered — the shell and the auth screens alike — can

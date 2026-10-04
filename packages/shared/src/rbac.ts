@@ -162,7 +162,7 @@ export const DEFAULT_ROLES = [
   {
     id: 'viewer',
     label: 'Viewer',
-    description: 'Read-only access to all pages',
+    description: 'Sees the inventory and its people, and changes nothing',
     color: 'neut',
     isSystem: false,
     // Reads are open to every authenticated member, so a role that grants

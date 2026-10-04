@@ -75,7 +75,9 @@ describe('the roles card', () => {
     const rows = await roleRows();
     expect(rowLabels(rows)).toEqual(['Admin', 'Manager', 'Viewer']);
     expect(within(rows[0]!).getByText('Admin')).toHaveAttribute('data-sv', 'acc');
-    expect(within(rows[2]!).getByText('Read-only access to all pages')).toBeInTheDocument();
+    expect(
+      within(rows[2]!).getByText('Sees the inventory and its people, and changes nothing'),
+    ).toBeInTheDocument();
   });
 
   it('says how many people hold each role', async () => {
