@@ -68,8 +68,10 @@ export async function updateSettings(
     // Switching the requirement off takes every secret and recovery code with
     // it, in the same transaction as the setting that stopped needing them.
     // Leaving them behind would mean a later re-enable silently restored
-    // authenticators nobody remembers adding.
-    if (patch.mfaRequired === false) await wipeAllMfa(tx, now);
+    // authenticators nobody remembers adding. Only on the switch itself: the
+    // Settings form resends an unchanged `false` with every save, and members
+    // may enrol by choice while nothing requires it.
+    if (values.mfaRequired === false) await wipeAllMfa(tx, now);
     await writeAudit(
       tx,
       {

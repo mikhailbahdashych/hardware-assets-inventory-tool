@@ -3,7 +3,7 @@ import type { Action } from '@inventory/shared';
 import type { AppDeps } from '@/types/app.js';
 import type { MemberRow } from '@/types/members.js';
 import { resolvePermissions } from '@/services/roles.js';
-import { resolveSession, SESSION_COOKIE } from '@/services/sessions.js';
+import { resolveSession, SESSION_COOKIE, setSessionCookie } from '@/services/sessions.js';
 import { getSettings } from '@/services/settings.js';
 
 // The augmentation stays here rather than moving to `src/types/`: it is
@@ -37,14 +37,20 @@ export function registerSessionAuth(app: FastifyInstance, deps: AppDeps): void {
   app.decorateRequest('mustEnrolMfa');
   app.decorateRequest('permissions');
 
-  app.addHook('onRequest', async (request) => {
+  app.addHook('onRequest', async (request, reply) => {
     request.member = null;
     request.mustEnrolMfa = false;
     request.permissions = new Set();
     const raw = request.cookies[SESSION_COOKIE];
     if (!raw) return;
-    request.member = await resolveSession(deps.db, raw, deps.now());
-    if (!request.member) return;
+    const resolved = await resolveSession(deps.db, raw, deps.now());
+    if (!resolved) return;
+    request.member = resolved.member;
+    // The row's expiry slid; the cookie's has to follow, or the browser drops
+    // it at sign-in + 30 days however active the member has been. Same helper
+    // as sign-in, so the attributes cannot drift — and a logout later in this
+    // request still wins, because a later cookie of the same name replaces it.
+    if (resolved.slidTo) setSessionCookie(reply, raw, resolved.slidTo, deps.config);
     request.permissions = await resolvePermissions(deps.db, request.member.role);
 
     // Read from the settings row rather than cached anywhere: an admin turning

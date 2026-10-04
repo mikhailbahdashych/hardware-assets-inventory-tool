@@ -467,7 +467,9 @@ describe('a token is an actor with no member row', () => {
       90,
       'Deploy bot',
     );
-    const before = (await ctx.db.select().from(auditEvents)).length;
+    // The rows already there, by id: an unordered select answers in whatever
+    // order the engine likes, so "everything after the first N" is not a set.
+    const before = new Set((await ctx.db.select().from(auditEvents)).map((row) => row.id));
 
     const created = await inject(ctx.app, {
       method: 'POST',
@@ -497,7 +499,7 @@ describe('a token is an actor with no member row', () => {
     }
 
     const id = await tokenId('Deploy bot');
-    const written = (await ctx.db.select().from(auditEvents)).slice(before);
+    const written = (await ctx.db.select().from(auditEvents)).filter((row) => !before.has(row.id));
     expect(written.length).toBeGreaterThanOrEqual(8);
     for (const row of written) {
       expect(`${row.action}: ${row.actorKind} ${row.actorApiTokenId} ${row.actorName}`).toBe(
@@ -655,5 +657,34 @@ describe('the origin guard and the public surface', () => {
     });
     expect(res.statusCode).toBe(403);
     expect(res.json().error.code).toBe('bad_origin');
+  });
+});
+
+describe('creating an asset as assigned through a token', () => {
+  it('needs assignments:write beside assets:write', async () => {
+    ctx = await buildTestApp();
+    const { employee } = await workspace();
+    const body = { ...LAPTOP, status: 'assigned', assignedToEmployeeId: employee.id };
+
+    const writeOnly = await mint(['assets:write'], 90, 'Writer');
+    const refused = await inject(ctx.app, {
+      method: 'POST',
+      url: `${P}/assets`,
+      headers: bearer(writeOnly),
+      body,
+    });
+    expect(refused.statusCode).toBe(403);
+    expect(refused.json().error).toMatchObject({ code: 'missing_scope' });
+    expect(refused.json().error.message).toContain('assignments:write');
+
+    const both = await mint(['assets:write', 'assignments:write'], 90, 'Assigner');
+    const res = await inject(ctx.app, {
+      method: 'POST',
+      url: `${P}/assets`,
+      headers: bearer(both),
+      body,
+    });
+    expect(res.statusCode).toBe(200);
+    expect(res.json().asset.status).toBe('assigned');
   });
 });

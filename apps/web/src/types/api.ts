@@ -426,7 +426,11 @@ export interface DashboardPayload {
   /** Every status in sort order, zeros included — a tile is drawn regardless. */
   statusCounts: StatusCount[];
   categoryCounts: CategoryCount[];
-  recentActivity: AuditLogItem[];
+  /**
+   * The newest log lines, sign-ins left out — or `null` for a member without
+   * `audit.view`: absent by permission, not "nothing has happened".
+   */
+  recentActivity: AuditLogItem[] | null;
   warrantyExpirations: WarrantyExpiry[];
   pendingReturns: PendingReturn[];
 }

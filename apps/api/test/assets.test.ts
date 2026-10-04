@@ -6,7 +6,10 @@ import {
   assetStatusTransitions,
   assignments,
   auditEvents,
+  members,
+  notifications,
   orgSettings,
+  rolePermissions,
 } from '@/db/schema.js';
 import { buildTestApp, inject, memberCookie, setupOrg, type TestApp } from './helpers.js';
 
@@ -179,6 +182,55 @@ describe('creating an asset', () => {
       returnedAt: null,
     });
     expect(res.json().asset.status).toBe('assigned');
+  });
+
+  it('needs assets.assign beside assets.create when created as assigned', async () => {
+    ctx = await buildTestApp();
+    const admin = await setupOrg(ctx.app);
+    const employee = await createEmployee(admin);
+    await ctx.db
+      .delete(rolePermissions)
+      .where(
+        and(eq(rolePermissions.roleId, 'manager'), eq(rolePermissions.action, 'assets.assign')),
+      );
+
+    const res = await createAsset(await memberCookie(ctx.db, 'manager'), {
+      status: 'assigned',
+      assignedToEmployeeId: employee.id,
+    });
+    expect(res.statusCode).toBe(403);
+    expect(res.json().error.code).toBe('forbidden');
+    expect(await ctx.db.select().from(assets)).toHaveLength(0);
+  });
+
+  it('refuses a holder who is offboarding, exactly as assign does', async () => {
+    ctx = await buildTestApp();
+    const admin = await setupOrg(ctx.app);
+    const leaver = await createEmployee(admin);
+    await inject(ctx.app, {
+      method: 'PATCH',
+      url: `/api/v1/employees/${leaver.id}`,
+      cookie: admin,
+      body: { status: 'offboarding', returnDueDate: '2026-08-23' },
+    });
+
+    const res = await createAsset(admin, { status: 'assigned', assignedToEmployeeId: leaver.id });
+    expect(res.statusCode).toBe(422);
+    expect(res.json().error.fields).toMatchObject({ assignedToEmployeeId: expect.any(String) });
+    expect(await ctx.db.select().from(assets)).toHaveLength(0);
+  });
+
+  it('sends the holder their notice, as assign does', async () => {
+    ctx = await buildTestApp();
+    const admin = await setupOrg(ctx.app);
+    const employee = await createEmployee(admin);
+    await memberCookie(ctx.db, 'viewer');
+    await ctx.db.update(members).set({ employeeId: employee.id }).where(eq(members.role, 'viewer'));
+
+    const res = await createAsset(admin, { status: 'assigned', assignedToEmployeeId: employee.id });
+    expect(res.statusCode).toBe(200);
+    const notices = await ctx.db.select().from(notifications);
+    expect(notices.map((row) => row.kind)).toEqual(['assignment.received']);
   });
 
   it('refuses to be assigned to nobody, or to somebody who does not exist', async () => {

@@ -1,5 +1,12 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { buildTestApp, inject, memberCookie, setupOrg, type TestApp } from './helpers.js';
+import {
+  buildTestApp,
+  inject,
+  memberCookie,
+  SETUP_BODY,
+  setupOrg,
+  type TestApp,
+} from './helpers.js';
 
 let ctx: TestApp;
 afterEach(async () => {
@@ -122,6 +129,51 @@ describe('the dashboard payload', () => {
       params: { assetName: 'MacBook Pro 14"' },
     });
     expect(body.recentActivity.length).toBeLessThanOrEqual(8);
+  });
+
+  it('carries no activity for a member who may not read the log — null, not empty', async () => {
+    ctx = await buildTestApp();
+    const admin = await setupOrg(ctx.app);
+    await createAsset(admin, { name: 'MacBook Pro 14"' });
+
+    const body = (
+      await inject(ctx.app, {
+        method: 'GET',
+        url: '/api/v1/dashboard',
+        cookie: await memberCookie(ctx.db, 'viewer'),
+      })
+    ).json();
+    // Absent by permission, which is a different thing from "nothing yet".
+    expect(body.recentActivity).toBeNull();
+    expect(body.assetCount).toBe(1);
+  });
+
+  it('leaves sign-ins out of the feed, which the log itself keeps', async () => {
+    ctx = await buildTestApp();
+    const admin = await setupOrg(ctx.app);
+    await createAsset(admin, { name: 'MacBook Pro 14"' });
+    for (let i = 0; i < 3; i += 1) {
+      const login = await ctx.app.inject({
+        method: 'POST',
+        url: '/api/v1/auth/login',
+        body: { email: SETUP_BODY.email, password: SETUP_BODY.password },
+      });
+      expect(login.statusCode).toBe(200);
+    }
+
+    const body = (
+      await inject(ctx.app, { method: 'GET', url: '/api/v1/dashboard', cookie: admin })
+    ).json();
+    const actions = body.recentActivity.map((event: { action: string }) => event.action);
+    expect(actions).not.toContain('auth.login');
+    expect(actions[0]).toBe('asset.created');
+
+    const log = (
+      await inject(ctx.app, { method: 'GET', url: '/api/v1/audit', cookie: admin })
+    ).json();
+    expect(
+      log.items.filter((event: { action: string }) => event.action === 'auth.login'),
+    ).toHaveLength(3);
   });
 
   it('lists warranties running out inside 90 days, soonest first', async () => {

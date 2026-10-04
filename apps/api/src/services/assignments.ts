@@ -11,6 +11,7 @@ import type { Actor } from '@/types/audit.js';
 import type {
   AssignmentRow,
   CloseAssignmentParams,
+  HandOverParams,
   OpenAssignmentParams,
 } from '@/types/assignments.js';
 import { assets, assignments, employees } from '@/db/schema.js';
@@ -85,6 +86,8 @@ export async function openAssignment(
   return id;
 }
 
+const notHeld = () => new AppError(409, 'asset_not_assigned', 'Nobody is holding this asset.');
+
 /**
  * Closes an ownership record and lands the asset in its new status together —
  * the mirror image of openAssignment, and the only way an asset may leave
@@ -98,7 +101,11 @@ export async function closeAssignment(
   params: CloseAssignmentParams,
   now: Date,
 ): Promise<void> {
-  await tx
+  // Compare-and-set on the record still being open: two check-ins that both
+  // read it open (PostgreSQL, READ COMMITTED) must not both close it, or the
+  // second would write its status, its audit row and its notice over the
+  // first. The loser is told what the pre-check would have told it.
+  const closed = await tx
     .update(assignments)
     .set({
       returnedAt: params.returnedAt,
@@ -107,7 +114,9 @@ export async function closeAssignment(
       checkinNotes: params.notes ?? null,
       outcome: params.outcome,
     })
-    .where(eq(assignments.id, params.assignment.id));
+    .where(and(eq(assignments.id, params.assignment.id), isNull(assignments.returnedAt)))
+    .returning({ id: assignments.id });
+  if (closed.length === 0) throw notHeld();
   await tx
     .update(assets)
     .set({ status: params.newStatus, updatedAt: nowIso(now) })
@@ -131,6 +140,73 @@ export async function employeeHistory(db: DbOrTx, employeeId: string) {
     .innerJoin(assets, eq(assets.id, assignments.assetId))
     .where(eq(assignments.employeeId, employeeId))
     .orderBy(desc(assignments.checkedOutAt), desc(assignments.createdAt));
+}
+
+/**
+ * The handover itself, whichever door it came through: assigning an asset that
+ * exists, or creating one already assigned. Who may take an asset (somebody on
+ * file and active), the ownership record, the audit row and the holder's own
+ * notice — one function, so the create form cannot become a way round any of
+ * them. Inside the caller's transaction, like `openAssignment` beneath it.
+ * Whether the asset may be handed out is the caller's question: creating is
+ * not a transition, assigning is.
+ */
+export async function handOver(
+  tx: DbOrTx,
+  actor: Actor,
+  params: HandOverParams,
+  now: Date,
+): Promise<void> {
+  const [holder] = await tx.select().from(employees).where(eq(employees.id, params.employeeId));
+  if (!holder) throw invalidFields({ [params.field]: 'The employee could not be found.' });
+  if (holder.status !== 'active') {
+    throw invalidFields({
+      [params.field]: 'That person is offboarding and cannot take on assets.',
+    });
+  }
+
+  const holderName = `${holder.firstName} ${holder.lastName}`;
+  await openAssignment(
+    tx,
+    {
+      assetId: params.asset.id,
+      employeeId: holder.id,
+      holderName,
+      checkedOutAt: params.checkedOutAt,
+      expectedReturnDate: params.expectedReturnDate,
+      notes: params.notes,
+    },
+    now,
+  );
+  await writeAudit(
+    tx,
+    {
+      type: 'assets',
+      action: 'asset.assigned',
+      actor: auditActor(actor),
+      assetId: params.asset.id,
+      employeeId: holder.id,
+      params: {
+        assetName: params.asset.name,
+        assetTag: params.asset.assetTag,
+        holderName,
+        checkedOutAt: params.checkedOutAt,
+      },
+    },
+    now,
+  );
+  // The holder's own copy, when their employee record links to a member
+  // account — in this transaction like the audit row, and for the same
+  // reason: a handover that happened tells everyone it happened.
+  await notifyLinkedMember(
+    tx,
+    holder.id,
+    {
+      kind: 'assignment.received',
+      params: { assetName: params.asset.name, assetTag: params.asset.assetTag },
+    },
+    now,
+  );
 }
 
 export async function assignAsset(
@@ -160,51 +236,16 @@ export async function assignAsset(
       );
     }
 
-    const [holder] = await tx.select().from(employees).where(eq(employees.id, input.employeeId));
-    if (!holder) throw invalidFields({ employeeId: 'The employee could not be found.' });
-    if (holder.status !== 'active') {
-      throw invalidFields({ employeeId: 'That person is offboarding and cannot take on assets.' });
-    }
-
-    const holderName = `${holder.firstName} ${holder.lastName}`;
-    await openAssignment(
+    await handOver(
       tx,
+      actor,
       {
-        assetId,
-        employeeId: holder.id,
-        holderName,
+        asset,
+        employeeId: input.employeeId,
+        field: 'employeeId',
         checkedOutAt: input.checkoutDate,
         expectedReturnDate: input.expectedReturnDate,
         notes: input.notes,
-      },
-      now,
-    );
-    await writeAudit(
-      tx,
-      {
-        type: 'assets',
-        action: 'asset.assigned',
-        actor: auditActor(actor),
-        assetId,
-        employeeId: holder.id,
-        params: {
-          assetName: asset.name,
-          assetTag: asset.assetTag,
-          holderName,
-          checkedOutAt: input.checkoutDate,
-        },
-      },
-      now,
-    );
-    // The holder's own copy, when their employee record links to a member
-    // account — in this transaction like the audit row, and for the same
-    // reason: a handover that happened tells everyone it happened.
-    await notifyLinkedMember(
-      tx,
-      holder.id,
-      {
-        kind: 'assignment.received',
-        params: { assetName: asset.name, assetTag: asset.assetTag },
       },
       now,
     );
@@ -230,7 +271,7 @@ export async function checkinAsset(
 
     const open = await activeAssignment(tx, assetId);
     if (!open) {
-      throw new AppError(409, 'asset_not_assigned', 'Nobody is holding this asset.');
+      throw notHeld();
     }
 
     // Where it lands has to be somewhere the workspace says an asset can come

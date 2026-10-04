@@ -10,6 +10,7 @@ import { newId } from '@/lib/ids.js';
 import { nowIso } from '@/lib/dates.js';
 import { hashToken } from '@/lib/tokens.js';
 import { generateTotpSecret, otpauthUri, verifyTotp } from '@/lib/totp.js';
+import { auditActor, writeAudit } from './audit.js';
 
 /**
  * Two-factor authentication, TOTP only.
@@ -105,6 +106,19 @@ export async function confirmEnrolment(
       .set({ mfaConfirmedAt: nowIso(now), updatedAt: nowIso(now) })
       .where(eq(members.id, member.id));
     await replaceRecoveryCodes(tx, member.id, codes, now);
+    // In the transaction it describes, like every audit row: an enrolment
+    // that rolled back must not be on the record, nor one that landed be off it.
+    await writeAudit(
+      tx,
+      {
+        type: 'auth',
+        action: 'member.mfa_enrolled',
+        actor: auditActor(member),
+        memberId: member.id,
+        params: { memberName: member.displayName },
+      },
+      now,
+    );
   });
   return codes;
 }

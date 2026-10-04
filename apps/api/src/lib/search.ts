@@ -7,6 +7,14 @@ import { z } from 'zod';
 // written for one would silently find nothing on the other, so both sides are
 // lowered here rather than trusting the operator — see "Two engines, one
 // boundary" in apps/api/CLAUDE.md.
+//
+// Both sides are lowered **by the database**, not one in JS and one in SQL.
+// SQLite's `lower()` folds ASCII only, so a needle lowered in JS ("łukasz")
+// never met a column lowered in SQLite ("Łukasz") — text typed exactly as
+// stored found nothing. Lowered by the same function, exact case always
+// matches on both engines. What remains is a SQLite limit, not a bug here:
+// "łukasz" does not find "Łukasz" there, because SQLite has no Unicode case
+// folding without the ICU extension; PostgreSQL folds it.
 
 /** What a whole-list endpoint answers with, and the most it will ever answer. */
 export const DEFAULT_LIST_LIMIT = 50;
@@ -59,7 +67,9 @@ export function escapeLike(value: string): string {
  * type for a parameter in that position, and it is a constant of this module.
  */
 export function contains(column: SQLWrapper, query: string): SQL {
-  return sql`lower(${column}) LIKE ${`%${escapeLike(query.toLowerCase())}%`} ESCAPE '\\'`;
+  // The cast names the parameter's type, so Postgres never has to choose
+  // between `lower(text)` and its range-bound `lower(anyrange)` for it.
+  return sql`lower(${column}) LIKE lower(cast(${`%${escapeLike(query)}%`} as text)) ESCAPE '\\'`;
 }
 
 /**

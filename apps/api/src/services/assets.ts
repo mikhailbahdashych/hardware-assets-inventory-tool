@@ -14,19 +14,18 @@ import {
   assignments,
   auditEvents,
   customFieldDefs,
-  employees,
   orgSettings,
 } from '@/db/schema.js';
-import { AppError, invalidFields, notFound } from '@/lib/errors.js';
+import { AppError, forbidden, invalidFields, notFound } from '@/lib/errors.js';
 import { DUPLICATE_ASSET_TAG } from '@/lib/unique.js';
 import { nowIso, todayDate } from '@/lib/dates.js';
 import { newId } from '@/lib/ids.js';
 import { containsAny } from '@/lib/search.js';
 import { serializeAsset, serializeAssignment } from '@/lib/serialize.js';
 import type { Actor } from '@/types/audit.js';
-import type { StatusMove } from '@/types/assets.js';
+import type { StatusMove, UpdateAssetOptions } from '@/types/assets.js';
 import { auditActor, writeAudit } from './audit.js';
-import { activeAssignment, assetHistory, openAssignment } from './assignments.js';
+import { activeAssignment, assetHistory, handOver } from './assignments.js';
 import { listAttachments, storedNamesForAsset } from './attachments.js';
 import { getSettings } from './settings.js';
 import { computeNextTag } from './tag.js';
@@ -191,18 +190,6 @@ export async function createAsset(deps: AppDeps, actor: Actor, input: AssetCreat
     // insert-only. It just has to be a status that exists.
     await requireStatus(tx, input.status);
 
-    let holder: typeof employees.$inferSelect | null = null;
-    if (input.status === ASSIGNED_STATUS) {
-      const [found] = await tx
-        .select()
-        .from(employees)
-        .where(eq(employees.id, input.assignedToEmployeeId!));
-      if (!found) {
-        throw invalidFields({ assignedToEmployeeId: 'The employee could not be found.' });
-      }
-      holder = found;
-    }
-
     const id = newId();
     await tx.insert(assets).values({
       id,
@@ -238,29 +225,20 @@ export async function createAsset(deps: AppDeps, actor: Actor, input: AssetCreat
       now,
     );
 
-    if (holder) {
-      const holderName = `${holder.firstName} ${holder.lastName}`;
-      await openAssignment(
+    if (input.status === ASSIGNED_STATUS) {
+      // The same handover `POST /assets/:id/assign` makes: an active holder,
+      // the record, the audit row and the holder's notice. The schema's refine
+      // is what guarantees the id when the status is `assigned`.
+      await handOver(
         tx,
+        actor,
         {
-          assetId: id,
-          employeeId: holder.id,
-          holderName,
+          asset: { id, name: input.name, assetTag },
+          employeeId: input.assignedToEmployeeId!,
+          field: 'assignedToEmployeeId',
           // The create form makes the checkout date optional; leaving it out
           // means "handed over today", which is what this records.
           checkedOutAt: input.checkoutDate ?? todayDate(now),
-        },
-        now,
-      );
-      await writeAudit(
-        tx,
-        {
-          type: 'assets',
-          action: 'asset.assigned',
-          actor: auditActor(actor),
-          assetId: id,
-          employeeId: holder.id,
-          params: { assetName: input.name, assetTag, holderName },
         },
         now,
       );
@@ -273,7 +251,13 @@ export async function createAsset(deps: AppDeps, actor: Actor, input: AssetCreat
   });
 }
 
-export async function updateAsset(deps: AppDeps, actor: Actor, id: string, patch: AssetPatchInput) {
+export async function updateAsset(
+  deps: AppDeps,
+  actor: Actor,
+  id: string,
+  patch: AssetPatchInput,
+  { mayChangeStatus }: UpdateAssetOptions,
+) {
   const now = deps.now();
 
   return await deps.db.transaction(async (tx) => {
@@ -303,6 +287,9 @@ export async function updateAsset(deps: AppDeps, actor: Actor, id: string, patch
 
     let statusMove: StatusMove | null = null;
     if (patch.status && patch.status !== current.status) {
+      // Asked here, against the row this transaction read, rather than at the
+      // door: a status sent back unchanged is not a move and needs no grant.
+      if (!mayChangeStatus) throw forbidden();
       const to = await requireStatus(tx, patch.status);
       // The status the asset is leaving. A slug with no row would be a broken
       // invariant — a deleted status takes its assets somewhere — so the same
@@ -337,7 +324,7 @@ export async function updateAsset(deps: AppDeps, actor: Actor, id: string, patch
     }
 
     values.updatedAt = nowIso(now);
-    await tx.update(assets).set(values).where(eq(assets.id, id));
+    await writeAssetRow(tx, current, values);
 
     // The audit line names the asset as it is *after* the edit, so an unchanged
     // field reads from the stored row rather than from the patch.
@@ -377,6 +364,38 @@ export async function updateAsset(deps: AppDeps, actor: Actor, id: string, patch
       await activeAssignment(tx, id),
     );
   });
+}
+
+/**
+ * The edit's one write. A status move is compare-and-set on the status this
+ * request read: on PostgreSQL under READ COMMITTED a check-in or an assign can
+ * commit between the read and this line, and an unconditional write would then
+ * land the asset somewhere its ownership rows disagree with — the one
+ * invariant, broken. On SQLite the write lock already keeps the two apart; the
+ * condition costs nothing there. Zero rows means somebody else moved it first.
+ */
+export async function writeAssetRow(
+  tx: DbOrTx,
+  current: AssetRow,
+  values: Record<string, unknown>,
+): Promise<void> {
+  const moving = values.status !== undefined;
+  const written = await tx
+    .update(assets)
+    .set(values)
+    .where(
+      moving
+        ? and(eq(assets.id, current.id), eq(assets.status, current.status))
+        : eq(assets.id, current.id),
+    )
+    .returning({ id: assets.id });
+  if (written.length === 0) {
+    throw new AppError(
+      409,
+      'asset_changed',
+      'Somebody changed this asset’s status a moment ago. Reload it and try again.',
+    );
+  }
 }
 
 /** Returns the stored file names the caller should unlink once the rows are gone. */

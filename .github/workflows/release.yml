@@ -2,7 +2,8 @@ name: Release
 
 # A tag is the release. `git tag vX.Y.Z && git push --tags` builds and publishes
 # ghcr.io/<owner>/<repo>:X.Y.Z, :X.Y and :latest — nothing else is required, and
-# nothing publishes from a branch.
+# nothing publishes from a branch. A pre-release tag (vX.Y.Z-rc.1) publishes
+# :X.Y.Z-rc.1 alone: it moves neither :X.Y nor :latest.
 on:
   push:
     tags: ['v*.*.*']
@@ -32,10 +33,14 @@ jobs:
         uses: docker/metadata-action@v5
         with:
           images: ghcr.io/${{ github.repository }}
+          # `latest=auto` puts :latest on a release and never on a pre-release,
+          # which the old unconditional `type=raw,value=latest` did; the
+          # semver {{major}}.{{minor}} pattern already skips pre-releases.
+          flavor: |
+            latest=auto
           tags: |
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
-            type=raw,value=latest
 
       - uses: docker/build-push-action@v6
         with:

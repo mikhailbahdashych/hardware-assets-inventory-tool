@@ -132,6 +132,8 @@ describe('committing an asset import', () => {
       .where(eq(auditEvents.action, 'system.import_completed'));
     expect(events).toHaveLength(1);
     expect(JSON.parse(events[0]!.params)).toEqual({ kind: 'assets', created: 2, updated: 0 });
+    // Typed by what it touched, so the log's Assets pill finds it.
+    expect(events[0]!.type).toBe('assets');
   });
 
   it('opens an ownership record for a row that arrives already assigned', async () => {
@@ -233,6 +235,12 @@ describe('committing an employee import', () => {
     expect(maya.location).toBe('Stockholm');
     // An update never resurrects somebody who is on their way out.
     expect(maya.status).toBe('active');
+
+    const [event] = await ctx.db
+      .select()
+      .from(auditEvents)
+      .where(eq(auditEvents.action, 'system.import_completed'));
+    expect(event!.type).toBe('people');
   });
 
   it('keeps the person a member is linked to, rather than replacing the row', async () => {
@@ -255,5 +263,91 @@ describe('committing an employee import', () => {
     expect(rows).toHaveLength(1);
     expect(rows[0]!.id).toBe(maya.id);
     expect(rows[0]!.firstName).toBe('Maja');
+  });
+});
+
+describe('the size of a file the import takes', () => {
+  /**
+   * A row with every asset column filled, about 450 bytes of JSON — so five
+   * thousand of them are well past Fastify's 1 MiB default body limit, which
+   * used to refuse a file around 4,500 rows short of the schema's own cap.
+   */
+  const fullRow = (n: number) => ({
+    asset_tag: `AST-${String(n).padStart(5, '0')}`,
+    name: 'MacBook Pro 14" M3 Pro 18GB 512GB Space Black',
+    category: 'Laptops',
+    serial_number: `C02XK${String(n).padStart(7, '0')}`,
+    status: 'Available',
+    assigned_to_email: '',
+    purchase_date: '2026-03-12',
+    purchase_price: '2340.00',
+    currency: 'EUR',
+    supplier: 'Apple Business, Ireland',
+    warranty_until: '2029-03-12',
+    notes:
+      'Imaged with the standard engineering profile; charger and sleeve in the box, AppleCare+ on the invoice.',
+  });
+  const rows = (count: number) => Array.from({ length: count }, (_, i) => fullRow(i + 1));
+
+  it('validates a file at the schema’s cap of 5,000 rows', async () => {
+    ctx = await buildTestApp();
+    const admin = await setupOrg(ctx.app);
+    const body = { kind: 'assets', rows: rows(5000) };
+    expect(JSON.stringify(body).length).toBeGreaterThan(1024 * 1024);
+
+    const res = await post('/import/validate', admin, body);
+    expect(res.statusCode, res.body.slice(0, 200)).toBe(200);
+    expect(res.json().report).toMatchObject({ totalRows: 5000, validCount: 5000 });
+  });
+
+  it('refuses 5,001 rows with the schema’s own answer, not a 413, on both routes', async () => {
+    ctx = await buildTestApp();
+    const admin = await setupOrg(ctx.app);
+    const body = { kind: 'assets', rows: rows(5001) };
+
+    for (const url of ['/import/validate', '/import/commit']) {
+      const res = await post(url, admin, body);
+      expect(`${url} → ${res.statusCode}`).toBe(`${url} → 422`);
+      expect(res.json().error.code).toBe('validation');
+    }
+  });
+});
+
+describe('who pays for reading an import body', () => {
+  // These two routes alone take more than the 1 MiB default, so they decide
+  // who is asking before the body is read: an unparsed body cannot produce a
+  // parse error, so malformed JSON of import size answering 401/403 rather
+  // than 400 is the proof nothing was buffered and parsed for a stranger.
+  const junk = `{"kind":"assets","rows":[${'x'.repeat(2 * 1024 * 1024)}`;
+
+  it('refuses an anonymous caller before parsing a large body', async () => {
+    ctx = await buildTestApp();
+    await setupOrg(ctx.app);
+    for (const url of ['/api/v1/import/validate', '/api/v1/import/commit']) {
+      const res = await ctx.app.inject({
+        method: 'POST',
+        url,
+        headers: { 'content-type': 'application/json' },
+        payload: junk,
+      });
+      expect(`${url} → ${res.statusCode}`).toBe(`${url} → 401`);
+      expect(res.json().error.code).toBe('unauthorized');
+    }
+  });
+
+  it('refuses a member without import.run before parsing a large body', async () => {
+    ctx = await buildTestApp();
+    await setupOrg(ctx.app);
+    const viewer = await memberCookie(ctx.db, 'viewer');
+    for (const url of ['/api/v1/import/validate', '/api/v1/import/commit']) {
+      const res = await ctx.app.inject({
+        method: 'POST',
+        url,
+        headers: { 'content-type': 'application/json', cookie: viewer },
+        payload: junk,
+      });
+      expect(`${url} → ${res.statusCode}`).toBe(`${url} → 403`);
+      expect(res.json().error.code).toBe('forbidden');
+    }
   });
 });

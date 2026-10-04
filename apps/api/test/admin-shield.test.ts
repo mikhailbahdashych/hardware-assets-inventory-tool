@@ -120,3 +120,76 @@ describe('the admin shield', () => {
     expect(link.statusCode).toBe(200);
   });
 });
+
+describe('the admin shield over the role door', () => {
+  /** A manager granted `roles.manage` — the Roles page allows it. */
+  async function roleManager(): Promise<string> {
+    await ctx.db.insert(rolePermissions).values({ roleId: 'manager', action: 'roles.manage' });
+    return memberCookie(ctx.db, 'manager');
+  }
+
+  it('refuses deleting a populated role into Admin unless the actor is an admin', async () => {
+    ctx = await buildTestApp();
+    await setupOrg(ctx.app);
+    const manager = await roleManager();
+    await memberCookie(ctx.db, 'viewer');
+
+    const res = await inject(ctx.app, {
+      method: 'DELETE',
+      url: '/api/v1/roles/viewer?migrateTo=admin',
+      cookie: manager,
+    });
+    expect(res.statusCode).toBe(403);
+    expect(res.json().error.code).toBe('admin_shield');
+    // Nobody promoted, nothing deleted.
+    expect(await ctx.db.select().from(members).where(eq(members.role, 'viewer'))).toHaveLength(1);
+  });
+
+  it('refuses it even when nobody would move — the destination is the claim', async () => {
+    ctx = await buildTestApp();
+    await setupOrg(ctx.app);
+    const manager = await roleManager();
+
+    const res = await inject(ctx.app, {
+      method: 'DELETE',
+      url: '/api/v1/roles/viewer?migrateTo=admin',
+      cookie: manager,
+    });
+    expect(res.statusCode).toBe(403);
+    expect(res.json().error.code).toBe('admin_shield');
+  });
+
+  it('lets an admin delete a populated role into Admin', async () => {
+    ctx = await buildTestApp();
+    const admin = await setupOrg(ctx.app);
+    await memberCookie(ctx.db, 'viewer');
+
+    const res = await inject(ctx.app, {
+      method: 'DELETE',
+      url: '/api/v1/roles/viewer?migrateTo=admin',
+      cookie: admin,
+    });
+    expect(res.statusCode).toBe(204);
+    expect(await ctx.db.select().from(members).where(eq(members.role, 'admin'))).toHaveLength(2);
+  });
+
+  it('still lets the role manager delete a populated role into a role below Admin', async () => {
+    ctx = await buildTestApp();
+    await setupOrg(ctx.app);
+    const manager = await roleManager();
+    await memberCookie(ctx.db, 'viewer');
+    await inject(ctx.app, {
+      method: 'POST',
+      url: '/api/v1/roles',
+      cookie: manager,
+      body: { label: 'Contractor', description: null, color: 'neut' },
+    });
+
+    const res = await inject(ctx.app, {
+      method: 'DELETE',
+      url: '/api/v1/roles/viewer?migrateTo=contractor',
+      cookie: manager,
+    });
+    expect(res.statusCode).toBe(204);
+  });
+});

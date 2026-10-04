@@ -1,4 +1,4 @@
-import type { DashboardPayload, Member } from '@/types/api';
+import type { AuditLogItem, DashboardPayload, Member } from '@/types/api';
 
 export interface DashboardPageProps {
   member: Member;
@@ -13,7 +13,8 @@ export interface CategoryBarsProps {
 }
 
 export interface RecentActivityProps {
-  data: DashboardPayload;
+  /** Only drawn when the payload carries the feed at all. */
+  items: AuditLogItem[];
 }
 
 export interface WarrantyExpirationsProps {

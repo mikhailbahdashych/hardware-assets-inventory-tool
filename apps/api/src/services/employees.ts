@@ -173,7 +173,14 @@ export async function updateEmployee(
     if (typeof values.email === 'string') await requireFreeEmail(tx, values.email, id);
 
     const startsOffboarding = patch.status === 'offboarding' && current.status !== 'offboarding';
-    if (patch.status && patch.status !== current.status) values.status = patch.status;
+    if (patch.status && patch.status !== current.status) {
+      values.status = patch.status;
+      // Starting offboarding has an event of its own below; every other move
+      // — back to active is the one there is — is an edit like any field, and
+      // a status change that wrote no row would be a mutation without its
+      // audit event.
+      if (!startsOffboarding) changedFields.push('status');
+    }
 
     // Offboarding optionally puts a return date on everything they still hold.
     let scheduledReturns = 0;

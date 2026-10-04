@@ -1,5 +1,3 @@
-import type { FastifyRequest } from 'fastify';
-import type { AssignInput, CheckinInput } from '@inventory/shared';
 import type { SerializedAsset } from '@/lib/serialize.js';
 import type { ListQuery } from '@/types/list.js';
 
@@ -41,15 +39,11 @@ export interface StatusMove {
   to: string;
 }
 
-/** Every per-asset route is addressed the same way, so the shape is named once. */
-export interface AssetIdParams {
-  id: string;
+/**
+ * What the caller may do beyond editing. A status move is its own grant
+ * (`assets.change_status`) on the internal surface; on the public one the
+ * `assets:write` scope covers it, so that surface passes `true`.
+ */
+export interface UpdateAssetOptions {
+  mayChangeStatus: boolean;
 }
-
-// The two ownership routes' requests, named so their helpers can take them —
-// handing an asset over and taking it back are operations, not edits, and each
-// one does work after the transaction that a route handler should not inline.
-
-export type AssignRequest = FastifyRequest<{ Params: AssetIdParams; Body: AssignInput }>;
-
-export type CheckinRequest = FastifyRequest<{ Params: AssetIdParams; Body: CheckinInput }>;

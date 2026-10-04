@@ -145,9 +145,9 @@ export async function revokeApiToken(deps: AppDeps, actor: Actor, id: string): P
  * does not check out — unknown and expired answer the same way, because the
  * caller may not learn which it was.
  *
- * Wired to nothing yet: the Bearer plugin that consumes it is the next PR. It
- * is tested now because the rules it carries — hash lookup, the expiry
- * refusal, the last-used throttle — are the ones a door must not get wrong.
+ * `plugins/bearer.ts` is its caller, on every request under `/api/public/`.
+ * The rules it carries — hash lookup, the expiry refusal, the last-used
+ * throttle — are the ones that door must not get wrong.
  */
 export async function resolveApiToken(
   db: Db,

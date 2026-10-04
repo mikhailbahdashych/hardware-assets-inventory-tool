@@ -53,7 +53,7 @@ export async function notifyLinkedMember(
 
 /**
  * The operational half: events addressed to whoever does a job, resolved by
- * permission rather than role name — a workspace that grants `assets.manage`
+ * permission rather than role name — a workspace that grants `assets.edit`
  * to its own "Fleet manager" gets the notifications with the grant. Admin is
  * the system role whose set is every action by definition and stores no rows,
  * so it is named alongside the subquery.
@@ -102,7 +102,10 @@ export async function listNotifications(
     .select()
     .from(notifications)
     .where(eq(notifications.memberId, memberId))
-    .orderBy(desc(notifications.createdAt))
+    // Total, with the id as the tiebreak: a scan writes its rows under one
+    // `now`, and rows free to swap places would repeat or vanish at a page
+    // boundary — the lists' rule, see apps/api/CLAUDE.md.
+    .orderBy(desc(notifications.createdAt), desc(notifications.id))
     .limit(limit)
     .offset(offset);
   const [total] = await db

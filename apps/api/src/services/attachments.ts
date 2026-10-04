@@ -91,8 +91,13 @@ export async function storedNamesForAsset(db: Db, assetId: string): Promise<stri
  *
  * Two policies stand in front of it: the type allowlist, checked on the
  * sanitized extension before a single byte is read, and the workspace's storage
- * quota, checked inside the transaction that would record the file — so two
- * uploads racing each other cannot both find room in the same gap.
+ * quota, checked inside the transaction that would record the file. On SQLite
+ * that transaction holds the one write lock across the sum and the insert, so
+ * two uploads racing each other cannot both find room in the same gap. On
+ * PostgreSQL under READ COMMITTED they can: each sums without the other's
+ * uncommitted row, and both may land, overshooting the quota by at most the
+ * uploads in flight (10 MB each). Accepted — the quota is an operator's
+ * budget, not a security boundary; closing it would mean locking the table.
  *
  * The part is buffered rather than piped, because a bucket takes a body rather
  * than a stream of one. @fastify/multipart stops at 10 MB, so that is the whole

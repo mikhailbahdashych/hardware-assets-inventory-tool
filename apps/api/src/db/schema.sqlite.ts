@@ -218,6 +218,8 @@ export const assets = sqliteTable(
     status: text('status').notNull().default('available'),
     purchaseDate: text('purchase_date'),
     purchasePriceCents: integer('purchase_price_cents'),
+    // NULL means the price follows the workspace's default currency — rows from
+    // before the column, and a PATCH that clears it. Deliberately not backfilled.
     currency: text('currency'),
     supplier: text('supplier'),
     warrantyUntil: text('warranty_until'),

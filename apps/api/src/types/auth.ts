@@ -1,3 +1,5 @@
+import type { MemberRow } from '@/types/members.js';
+
 /**
  * What a row in `auth_tokens` is for. The purpose decides the token's lifetime
  * and which unconsumed token a new one retires, so a reset link never quietly
@@ -32,4 +34,14 @@ export interface RateWindow {
 export interface FailureLimit {
   charge: (key: string) => void;
   refund: (key: string) => void;
+}
+
+/**
+ * A session cookie that checked out. `slidTo` is the new expiry when this
+ * request slid it, and null when it did not: the database row and the browser's
+ * cookie both have to move, and only the session hook can reach the second.
+ */
+export interface ResolvedSession {
+  member: MemberRow;
+  slidTo: string | null;
 }
