@@ -139,6 +139,8 @@ export function EmployeeDetailPage({ permissions, viewerRole }: EmployeeDetailPa
       header: '',
       width: '120px',
       align: 'right',
+      // Pinned: a scrolled table keeps the row's only door in view.
+      sticky: 'end',
       render: (holding) =>
         can(permissions, 'assets.checkin') ? (
           <button

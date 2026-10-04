@@ -15,6 +15,19 @@ if (typeof Element !== 'undefined' && !Element.prototype.scrollIntoView) {
   Element.prototype.scrollIntoView = () => {};
 }
 
+// jsdom has no layout, so no ResizeObserver either. One that never reports is
+// exactly what a layout-free document would see: nothing ever resizes.
+if (typeof window !== 'undefined' && typeof window.ResizeObserver === 'undefined') {
+  Object.defineProperty(window, 'ResizeObserver', {
+    configurable: true,
+    value: class {
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    },
+  });
+}
+
 // Node's experimental localStorage global (undefined without --localstorage-file)
 // shadows jsdom's implementation in Vitest's jsdom environment. Install a real
 // in-memory Storage so code under test sees the browser API.

@@ -181,6 +181,8 @@ function StatusesCard({ statuses }: StatusesCardProps) {
       header: '',
       width: '70px',
       align: 'right',
+      // Pinned: a scrolled table keeps the row's only door in view.
+      sticky: 'end',
       render: (status) => (
         <span className={styles.rowActions}>
           <IconButton

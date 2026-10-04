@@ -570,13 +570,41 @@ export function KitchenSink() {
         />
         {/* The same table in a box narrower than its columns: it scrolls
             sideways inside the card rather than clipping its right-hand edge,
-            and a long value still ellipsises — the cell, not the table, gives. */}
-        <div style={{ maxWidth: 360 }}>
+            and a long value still ellipsises — the cell, not the table, gives.
+            The first has no actions, so a soft edge on the right is the only
+            cue that it scrolls; the second pins its row menu (`sticky: 'end'`)
+            so the row's only door never scrolls away, with a separator only
+            while something can pass under it. */}
+        <div style={{ display: 'grid', gridTemplateColumns: '360px 400px', gap: 14 }}>
           <DataTable
             columns={demoColumns}
             rows={[...DEMO_ROWS]}
             rowKey={(row) => row.tag}
+            onRowClick={(row) => show(`Would open ${row.tag}`, 'info')}
             footer="Narrower than its columns"
+          />
+          <DataTable
+            columns={[
+              ...demoColumns,
+              {
+                header: '',
+                width: '40px',
+                sticky: 'end',
+                render: (row) => (
+                  <Menu
+                    label={`Actions for ${row.tag}`}
+                    items={[
+                      { label: 'Change status', onSelect: () => {} },
+                      { label: 'Delete', onSelect: () => {}, danger: true },
+                    ]}
+                  />
+                ),
+              },
+            ]}
+            rows={[...DEMO_ROWS]}
+            rowKey={(row) => row.tag}
+            onRowClick={(row) => show(`Would open ${row.tag}`, 'info')}
+            footer="With its actions pinned"
           />
         </div>
         <Card padding={false}>

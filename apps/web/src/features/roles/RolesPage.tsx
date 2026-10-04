@@ -161,6 +161,8 @@ function RolesCard({ roles, ownRole }: RolesCardProps) {
       header: '',
       width: '70px',
       align: 'right',
+      // Pinned: a scrolled table keeps the row's only door in view.
+      sticky: 'end',
       render: (role) => {
         // The system role has neither: Admin is what keeps a workspace
         // administrable, so its words, its colour and its grants are all fixed.

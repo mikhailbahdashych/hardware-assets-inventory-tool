@@ -1,3 +1,4 @@
+import { useLayoutEffect, useRef } from 'react';
 import type { DataTableProps } from './types/dataTable';
 import styles from './DataTable.module.css';
 
@@ -17,8 +18,26 @@ export function DataTable<T>({
   empty,
 }: DataTableProps<T>) {
   const template = columns.map((column) => column.width).join(' ');
+  // Null until the table mounts; the effect only runs after it has.
+  const table = useRef<HTMLDivElement>(null);
+
+  // Whether the columns are wider than the card, kept as an attribute rather
+  // than state: it only decides whether a pinned column draws its separator,
+  // and a re-render for that would be a re-render of every row.
+  useLayoutEffect(() => {
+    const element = table.current;
+    if (!element) return;
+    const measure = () => {
+      element.dataset.overflows = String(element.scrollWidth > element.clientWidth);
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, []);
+
   return (
-    <div className={styles.table} role="table" aria-label={label}>
+    <div ref={table} className={styles.table} role="table" aria-label={label}>
       {title !== undefined && <div className={styles.tableTitle}>{title}</div>}
       {showHeader && (
         <div
@@ -28,7 +47,13 @@ export function DataTable<T>({
           style={{ gridTemplateColumns: template }}
         >
           {columns.map((column, index) => (
-            <div key={index} role="columnheader" data-align={column.align} className={styles.cell}>
+            <div
+              key={index}
+              role="columnheader"
+              data-align={column.align}
+              data-sticky={column.sticky}
+              className={styles.cell}
+            >
               {column.header}
             </div>
           ))}
@@ -55,7 +80,13 @@ export function DataTable<T>({
           }
         >
           {columns.map((column, index) => (
-            <div key={index} role="cell" data-align={column.align} className={styles.cell}>
+            <div
+              key={index}
+              role="cell"
+              data-align={column.align}
+              data-sticky={column.sticky}
+              className={styles.cell}
+            >
               {column.render(row)}
             </div>
           ))}

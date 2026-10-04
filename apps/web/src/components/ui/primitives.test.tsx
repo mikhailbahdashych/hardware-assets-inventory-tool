@@ -547,6 +547,26 @@ describe('DataTable', () => {
     await userEvent.click(screen.getByText('MacBook Pro'));
     expect(onRowClick).toHaveBeenCalledWith({ name: 'MacBook Pro' });
   });
+
+  it('pins a column marked sticky to the end, header and cells alike', () => {
+    render(
+      <DataTable
+        columns={[
+          ...columns,
+          { header: 'Actions', width: '40px', sticky: 'end', render: () => '···' },
+        ]}
+        rows={[{ name: 'MacBook Pro' }]}
+        rowKey={(r) => r.name}
+      />,
+    );
+    // Asserted as the attribute the stylesheet keys on: jsdom has no layout.
+    expect(screen.getByRole('columnheader', { name: 'Actions' })).toHaveAttribute(
+      'data-sticky',
+      'end',
+    );
+    expect(screen.getByRole('cell', { name: '···' })).toHaveAttribute('data-sticky', 'end');
+    expect(screen.getByRole('cell', { name: 'X' })).not.toHaveAttribute('data-sticky');
+  });
 });
 
 describe('ErrorState', () => {

@@ -7,4 +7,10 @@ export interface TableColumn<T> {
   width: string;
   render: (row: T) => ReactNode;
   align?: 'left' | 'right';
+  /**
+   * `'end'` pins the column to the table's right edge while the rest scrolls
+   * under it. For a row's actions: when a narrow screen scrolls the table, the
+   * menu that is the only way to act on a row stays in view beside its row.
+   */
+  sticky?: 'end';
 }

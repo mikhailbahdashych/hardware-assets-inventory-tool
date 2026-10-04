@@ -86,6 +86,8 @@ export function ApiTokensPage() {
       // the table's edge the way it does on every other list.
       width: '130px',
       align: 'right',
+      // Pinned: a scrolled table keeps the row's only door in view.
+      sticky: 'end',
       render: (token) =>
         // Two steps, like deleting a custom field: the first opens the row's
         // own button, and the button is what does it. Every call using this

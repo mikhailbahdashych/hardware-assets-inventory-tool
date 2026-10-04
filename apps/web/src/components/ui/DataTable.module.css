@@ -6,11 +6,18 @@
 .table {
   display: grid;
   grid-template-columns: minmax(min-content, 1fr);
-  background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 8px;
   box-shadow: var(--shadow);
   overflow-x: auto;
+  /* The cue that there is more to the right, drawn without a line of JS: a
+     soft --border edge pinned to the card (`scroll`), hidden under a cover of
+     --surface that travels with the content (`local`) and reaches the edge
+     only once the table is scrolled to its end — or fits, which is the same. */
+  background:
+    linear-gradient(to left, var(--surface) 60%, transparent) right / 32px 100% no-repeat local,
+    linear-gradient(to left, var(--border), transparent) right / 14px 100% no-repeat scroll,
+    var(--surface);
 }
 
 .tableTitle {
@@ -74,4 +81,42 @@
   padding: 8px 16px;
   font-size: 12px;
   color: var(--faint);
+}
+
+/* A pinned column (`sticky: 'end'` — a row's actions) stays at the card's right
+   edge while the others scroll under it. It reaches over the row's right
+   padding and the gap before it, and over the row's vertical padding, so what
+   scrolls under it is covered edge to edge; its own padding puts the content
+   back where it was. The background is the row's own, layered the same way:
+   the translucent --thead / --hover over --surface. */
+.cell[data-sticky='end'] {
+  position: sticky;
+  right: 0;
+  z-index: 1;
+  align-self: stretch;
+  display: flex;
+  align-items: center;
+  margin: calc(-1 * var(--rp)) -16px calc(-1 * var(--rp)) -12px;
+  padding: var(--rp) 16px var(--rp) 12px;
+  background: var(--surface);
+}
+
+.cell[data-sticky='end'][data-align='right'] {
+  justify-content: flex-end;
+}
+
+.header .cell[data-sticky='end'] {
+  margin-block: -8px;
+  padding-block: 8px;
+  background: linear-gradient(var(--thead), var(--thead)), var(--surface);
+}
+
+.row[data-clickable='true']:hover .cell[data-sticky='end'] {
+  background: linear-gradient(var(--hover), var(--hover)), var(--surface);
+}
+
+/* The separator says the column is pinned — only when something can scroll
+   under it, so a table that fits looks exactly as it did. */
+.table[data-overflows='true'] .cell[data-sticky='end'] {
+  box-shadow: inset 1px 0 0 var(--border);
 }

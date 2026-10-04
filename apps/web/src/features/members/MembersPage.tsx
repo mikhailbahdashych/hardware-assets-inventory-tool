@@ -258,6 +258,8 @@ export function MembersPage({ permissions, memberId, viewerRole }: MembersPagePr
       {
         header: '',
         width: '40px',
+        // Pinned: a scrolled table keeps the row's only door in view.
+        sticky: 'end',
         render: (member) => {
           if (!manages) return null;
           const items = rowActions(member);
