@@ -100,7 +100,7 @@ describe('DEFAULT_ROLES', () => {
     expect(DEFAULT_ROLES.map((role) => [role.id, role.color, role.description])).toEqual([
       ['admin', 'acc', 'Full access — settings, members, activity log'],
       ['manager', 'info', 'Create and edit assets, employees and assignments'],
-      ['viewer', 'neut', 'Read-only access to all pages'],
+      ['viewer', 'neut', 'Sees the inventory and its people, and changes nothing'],
     ]);
   });
 

@@ -1,6 +1,6 @@
 // A component imports its own type module directly (`./types/appShell`), never
 // this barrel — that is what keeps the barrel from forming an import cycle.
-export type { AppErrorBoundaryProps, AppErrorBoundaryState } from './appErrorBoundary';
+export type { AppErrorBoundaryProps, AppErrorBoundaryState, CaughtError } from './appErrorBoundary';
 export type { AppShellProps } from './appShell';
 export type { CommandPaletteProps } from './commandPalette';
 export type { ListToolbarProps } from './listToolbar';

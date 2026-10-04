@@ -50,7 +50,7 @@ No file here is a module and no file here has a `count` on it for cleverness's s
 - Terraform ≥ 1.9 (CI pins 1.14.x).
 - AWS credentials with enough rights to create everything above. This is not a least-privilege deployment role; it is an operator running `apply` from a laptop.
 - The [Session Manager plugin](https://docs.aws.amazon.com/systems-manager/latest/userguide/session-manager-working-with-install-plugin.html) for the AWS CLI, if you want a shell on the instance. There is no SSH key in this stack and no port 22 in any security group.
-- An image tag that exists. The default, `ghcr.io/mikhailbahdashych/hardware-assets-inventory-tool:latest`, is one — but pin a release (`:0.1.0`) rather than track a moving tag, so an upgrade is a decision rather than a reboot. An apply against a tag that does not exist _succeeds_ while leaving you nothing to open; [Applying it](#applying-it) has the symptom.
+- An image tag that exists. The default, `ghcr.io/mikhailbahdashych/hardware-assets-inventory-tool:latest`, is one — but pin a release (`:X.Y.Z` — the newest `vX.Y.Z` on the repository's [packages page](https://github.com/mikhailbahdashych/hardware-assets-inventory-tool/pkgs/container/hardware-assets-inventory-tool), `:0.3.0` as of this writing) rather than track a moving tag, so an upgrade is a decision rather than a reboot. An older tag than the one you run is a downgrade, and migrations do not run backwards. An apply against a tag that does not exist _succeeds_ while leaving you nothing to open; [Applying it](#applying-it) has the symptom.
 
 ## Applying it
 
@@ -61,7 +61,7 @@ terraform init
 terraform apply
 ```
 
-Ten to fifteen minutes, most of it RDS. When it finishes:
+About ten minutes, most of it RDS — the last measured apply (27 September 2026) took 8m43s, 8m17s of it the database. When it finishes:
 
 ```bash
 terraform output app_url
@@ -69,7 +69,7 @@ terraform output app_url
 
 **Open that address and finish `/setup` before you tell anybody about it.** A fresh instance is empty and its first screen creates the organization and its first admin, then answers 409 to everyone else forever. Whoever gets there first is the admin.
 
-If the address answers nothing for the first minute or two, that is `user_data` still working: it waits for the Elastic IP to be attached, installs Docker, downloads the RDS certificate bundle, reads the connection string out of SSM and starts the container. [When it does not work](#when-it-does-not-work) is at the bottom.
+**The address answers nothing for about another 90 seconds after the apply returns**, and that is expected — `user_data` is still working: it waits for the Elastic IP to be attached, installs Docker, downloads the RDS certificate bundle, reads the connection string out of SSM and starts the container. [When it does not work](#when-it-does-not-work) is at the bottom.
 
 **The first apply's likeliest surprise, in full: an `app_image` tag that does not exist.** Terraform does not pull the image — `user_data` does, on the instance, after Terraform has finished — so an apply against a mistyped or unpublished tag **succeeds**, prints an `app_url`, and leaves you with an address that answers nothing and a stack that looks fine in every `terraform` command you can type. The evidence is on the instance, in `/var/log/cloud-init-output.log`, where the `docker pull` says `manifest unknown`. Point `app_image` at a tag that exists: a published release, or your own build in ECR (`aws ecr create-repository`, `docker build --platform linux/arm64`, push, and set `app_image` to the resulting URI — the instance role grows the pull grants on its own when the string names an ECR registry).
 
@@ -80,7 +80,9 @@ terraform apply  -var bucket_force_destroy=true
 terraform destroy
 ```
 
-Two commands, and the order matters. `force_destroy` is read from **state**, not from the command line at destroy time, so `terraform destroy -var bucket_force_destroy=true` on its own will still fail on a bucket with objects in it. The `apply` is what writes the flag down; the `destroy` is what uses it.
+Two commands, and the order matters. `force_destroy` is read from **state**, not from the command line at destroy time, so `terraform destroy -var bucket_force_destroy=true` on its own will still fail on a bucket with objects in it. The `apply` is what writes the flag down; the `destroy` is what uses it. It takes about three minutes — the last measured destroy (27 September 2026) took 2m32s.
+
+The first one's plan looks larger than it is: it reports **3 to change**, with the bucket policy's and the instance role's policy JSON drawn as removed. Both are built from policy-document data sources that name the bucket, and a bucket with a pending change makes Terraform re-read them at apply time — nothing is being rewritten, and the apply itself reports `1 changed`, the bucket.
 
 That flag deletes every attachment and every old version of every attachment, without asking. It is off by default for exactly that reason.
 
@@ -115,7 +117,7 @@ done
 
 And the honest answer is that `bucket_force_destroy = true` does all of this for you, correctly and in one pass. The manual route is for when you want to look at what you are deleting first.
 
-**Nothing else survives a destroy.** The RDS instance is created with `skip_final_snapshot = true` and `deletion_protection = false`, so it leaves no snapshot behind and nothing refuses. That is the right default for a starter and the wrong one for production — see [Before you call it production](#before-you-call-it-production).
+**Nothing else survives a destroy.** The RDS instance is created with `skip_final_snapshot = true` and `deletion_protection = false`, so it leaves no final snapshot behind and nothing refuses. Its last _automated_ snapshot does stay listed as `available` in the console for a few minutes after `destroy` returns — about six, measured — and then goes on its own; it is RDS cleaning up, not something the stack left. That is the right default for a starter and the wrong one for production — see [Before you call it production](#before-you-call-it-production).
 
 ## Reaching the instance
 
@@ -125,13 +127,27 @@ There is no SSH. Session Manager is the door, and the instance role carries exac
 aws ssm start-session --target "$(terraform output -raw instance_id)"
 ```
 
-You land as `ssm-user` with `sudo`. The three things worth knowing once you are there:
+No Session Manager plugin — a fresh machine has none — and the AWS CLI alone can still read the logs, by running one command on the instance and fetching its output:
 
 ```bash
-sudo docker logs -f inventory                  # the app: pino JSON, migrations, requests
+ID="$(terraform output -raw instance_id)"
+CMD="$(aws ssm send-command --instance-ids "$ID" --document-name AWS-RunShellScript \
+  --parameters 'commands=["docker logs --tail 50 inventory 2>&1"]' \
+  --query Command.CommandId --output text)"
+sleep 5
+aws ssm get-command-invocation --command-id "$CMD" --instance-id "$ID" \
+  --query StandardOutputContent --output text
+```
+
+With a session, you land as `ssm-user` with `sudo`. The three things worth knowing once you are there:
+
+```bash
+sudo docker logs -f inventory                  # the app: pino JSON, requests, and the boot line below
 sudo cat /var/log/cloud-init-output.log        # the boot script, traced line by line
 sudo cat /etc/inventory.env                    # what the container actually runs with
 ```
+
+The first JSON line of every boot is `"msg":"database and storage engaged"`, and on this stack it should say `"engine":"postgres"`, the RDS host and database (never the password), `"storage":"s3"` with the bucket, and `migrationsApplied` — how many migrations that boot ran. If it says `sqlite` or `local`, the env file is not what this stack wrote.
 
 The database is private to the VPC, so reaching it from a laptop means tunnelling through the instance:
 
@@ -180,12 +196,14 @@ None of them is sensitive, deliberately. The one credential this stack generates
 ## Upgrading
 
 ```bash
-terraform apply -var 'app_image=ghcr.io/mikhailbahdashych/hardware-assets-inventory-tool:0.1.0'
+terraform apply -var 'app_image=ghcr.io/mikhailbahdashych/hardware-assets-inventory-tool:X.Y.Z'
 ```
+
+`X.Y.Z` is the release you are moving to — the newest `vX.Y.Z` on the packages page, and never one older than what runs now. Read its [release notes](https://github.com/mikhailbahdashych/hardware-assets-inventory-tool/releases) first.
 
 And now the honest part: **this replaces the instance.** The image tag is read by `user_data` at boot, `user_data` is part of what defines the instance, and `user_data_replace_on_change = true` means Terraform builds a new one rather than leaving a machine whose script no longer describes it. Two or three minutes of downtime, and the Elastic IP moves across, so the address does not change.
 
-That is safe here precisely because the instance holds nothing. The rows are in RDS, the attachments are in S3, and the container's `/data` volume exists only because the image's entrypoint probes it for writability at boot. Migrations run at every start and are idempotent, so the new instance upgrades the schema on its way up.
+That is safe here precisely because the instance holds nothing. The rows are in RDS, the attachments are in S3, and the container's `/data` volume exists only because the image's entrypoint probes it for writability at boot. Migrations run at every start and are idempotent, so the new instance upgrades the schema on its way up — from v0.1.0 and v0.2.0 included, whose collapsed migration history v0.3.0 recognises and finishes. A history it does not recognise stops the boot before anything changes, and `docker logs inventory` says so in a sentence.
 
 If you would rather not replace the machine for a patch release, do it by hand over Session Manager — `docker pull`, `docker rm -f inventory`, `docker run` with the same flags `user_data` used — and then set `app_image` to match on your next `apply` so Terraform and reality agree. The replacement is the supported path; this is the one for the afternoon you cannot spare the three minutes.
 
@@ -207,7 +225,7 @@ What is _not_ a variable: a second instance. The scheduler runs in-process, so t
 
 ## Before you call it production
 
-The defaults here are a starter's defaults: everything is arranged so that the stack goes up in ten to fifteen minutes and comes down in about five. One of the differences is a decision; the rest are four lines.
+The defaults here are a starter's defaults: everything is arranged so that the stack goes up in about ten minutes and comes down in about three. One of the differences is a decision; the rest are four lines.
 
 1. **Put TLS in front of it.** This is the one that is not a line, and it is first because the default is worse than it looks: the app answers on a public IP over **plain HTTP** — and that is the transport for `/setup`, for every sign-in, and for the session cookie that comes back. Anyone on the path reads the admin password. Put your company's own edge in front and set `app_url` and `trust_proxy` to match, or terminate TLS on the instance yourself ([`docs/deployment.md`](../docs/deployment.md) has the Caddy block, and port 443 is already open for it). Until you do, treat the address as something to finish setup on and not something to hand around.
 2. **`deletion_protection = true`** in `rds.tf`. Off, today, so `destroy` works.

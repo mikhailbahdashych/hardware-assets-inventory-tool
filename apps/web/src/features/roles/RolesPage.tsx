@@ -303,9 +303,10 @@ function PermissionsCard({ roles, ownRole }: PermissionsCardProps) {
         <div>
           <h2 className={styles.cardTitle}>Permissions</h2>
           <p className={styles.cardHint}>
-            A tick is permission to change something. Reading is open to everyone who can sign in,
-            so a role with nothing ticked is a read-only one — and Admin holds every action there
-            is, including the ones a later version adds.
+            A tick is permission to do something. With none, a member still reads the inventory, its
+            people and the member list — so a role with nothing ticked is a read-only one, and pages
+            like this one open only to a role ticked for them. Admin holds every action there is,
+            including the ones a later version adds.
           </p>
         </div>
         <div className={styles.actions}>

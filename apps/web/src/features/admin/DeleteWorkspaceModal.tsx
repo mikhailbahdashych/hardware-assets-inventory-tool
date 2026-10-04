@@ -49,7 +49,8 @@ export function DeleteWorkspaceModal({ orgName, onClose }: DeleteWorkspaceModalP
     >
       <p className={styles.dangerCopy}>
         This removes every asset, employee, ownership record, attachment and account, including
-        yours. It cannot be undone, and there is no export to fall back on.
+        yours. It cannot be undone, and the export is a report rather than a backup — nothing
+        restores a workspace from it.
       </p>
       <Field label={`Type ${orgName} to confirm`}>
         {(id) => (

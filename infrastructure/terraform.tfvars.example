@@ -7,8 +7,10 @@
 
 # The image the instance runs. Pin a published release rather than tracking
 # :latest, so an upgrade is a decision and not a reboot that made one for you.
+# :X.Y.Z is the newest vX.Y.Z on the repository's packages page — 0.3.0 below is
+# an example that ages, not a recommendation; an older tag is a downgrade.
 # An ECR URI works too — the instance role grows the pull grants by itself.
-# app_image = "ghcr.io/mikhailbahdashych/hardware-assets-inventory-tool:0.1.0"
+# app_image = "ghcr.io/mikhailbahdashych/hardware-assets-inventory-tool:0.3.0"
 
 # Sizes. The AMI's architecture follows instance_type, so t3.small is a
 # one-line change and not two.

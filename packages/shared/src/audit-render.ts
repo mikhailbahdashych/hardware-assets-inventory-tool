@@ -190,10 +190,13 @@ const RENDERERS: Record<string, (params: AuditParams) => string> = {
   // admin picked, snapshotted at write time like every other label in here.
   // What is never recorded is the token itself: it exists once, in the response
   // that created it.
+  // A row with no expiry recorded leaves that segment off rather than saying
+  // "Unlimited": that is a choice an admin makes, and this row never said so.
   'token.created': (p) => {
     const scopes = typeof p.scopeCount === 'number' ? p.scopeCount : 0;
     const reach = `${scopes} ${scopes === 1 ? 'scope' : 'scopes'}`;
-    return `Created the API token ${text(p, 'name', 'a token')} · ${reach} · ${text(p, 'expiry', 'Unlimited')}`;
+    const expiry = typeof p.expiry === 'string' && p.expiry.length > 0 ? ` · ${p.expiry}` : '';
+    return `Created the API token ${text(p, 'name', 'a token')} · ${reach}${expiry}`;
   },
   'token.revoked': (p) => `Revoked the API token ${text(p, 'name', 'a token')}`,
   'auth.login': () => 'Signed in',
@@ -202,6 +205,14 @@ const RENDERERS: Record<string, (params: AuditParams) => string> = {
   'member.password_set': (p) => `Set a new password for ${text(p, 'memberName', 'a member')}`,
   'system.setup_completed': (p) => `Set up ${text(p, 'orgName', 'the workspace')}`,
   'system.settings_updated': (p) => `Updated workspace settings${fieldList(p)}`,
+  // `kind` is the import's own slug (`assets`, `employees`), which already
+  // reads as the plural noun it names.
+  'system.import_completed': (p) => {
+    if (typeof p.kind !== 'string') return 'Imported a CSV file';
+    const created = typeof p.created === 'number' ? p.created : 0;
+    const updated = typeof p.updated === 'number' ? p.updated : 0;
+    return `Imported ${p.kind} from a CSV file · ${created} added, ${updated} updated`;
+  },
 };
 
 /** Every action the API writes today. The test asserts each one renders. */

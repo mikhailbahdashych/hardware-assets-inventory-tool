@@ -29,7 +29,7 @@ npm run build        # production build
 npm run format       # Prettier
 ```
 
-**A fresh clone starts empty**, at `/setup`. `npm run seed:demo` is the shortcut: a fictional company, its people, 26 devices and four months of history, so every screen has something on it. It prints the logins — one per role — and refuses to touch a workspace that already has data unless you pass `--reset`.
+**A fresh clone starts empty**, at `/setup`. `npm run seed:demo` is the shortcut: a fictional company, its people, 27 devices and four months of history, so every screen has something on it. It prints the logins — one per role — and refuses to touch a workspace that already has data unless you pass `--reset`.
 
 **Two ways to run it, documented in [`docs/development.md`](docs/development.md).** The commands above are the native one. The other needs only Docker:
 

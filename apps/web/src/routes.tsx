@@ -1,7 +1,7 @@
 import { lazy, Suspense } from 'react';
 import { Navigate, Route, Routes, useLocation } from 'react-router';
 import { can } from '@inventory/shared';
-import { orgMeta, useMe, useMeta } from './api/queries';
+import { MetaUnanswered, orgMeta, useMe, useMeta } from './api/queries';
 import { AppShell } from './components/app/AppShell';
 import { Spinner } from './components/ui';
 import { isAdmin } from './lib/roles';
@@ -84,7 +84,7 @@ export function AppRoutes() {
   // Guessing "signed out" when /meta failed would send an uninitialized
   // instance to a login screen nobody can pass.
   if (!meta.data) {
-    throw new Error('GET /api/v1/meta has not answered, so no route set can be chosen.');
+    throw new MetaUnanswered(meta.error);
   }
 
   if (meta.data.needsSetup) {

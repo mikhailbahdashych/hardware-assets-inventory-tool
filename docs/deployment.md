@@ -58,7 +58,7 @@ services:
 docker compose up -d
 ```
 
-The file you downloaded also carries `build: .`, so from a checkout of the repo `docker compose up -d --build` deploys the image that checkout builds — the same deployment, from your own bytes.
+The file you downloaded also carries `build: .`, so from a checkout of the repo `docker compose up -d --build` deploys the image that checkout builds — the same deployment, from your own bytes. It tags that build with the `image:` name, so `docker images` then shows your build as `…:latest`; `GET /api/v1/meta` reports the version the running code says it is.
 
 **Finish `/setup` before you hand the address to anybody.** A fresh instance is empty and its first screen creates the organization and its first admin — it answers 409 to everyone afterwards, so whoever reaches it first is the admin. That is a ten-second window you should close yourself.
 
@@ -75,7 +75,7 @@ Four rules, and the app asks for nothing else.
 - **The origin guard.** Every mutating request is checked: the browser's `Origin` (or `Referer`) must parse to the same origin as `APP_URL`, exactly, or it is a 403. That is the CSRF stance here — same-origin only, no tokens — and because it compares against that one value and nothing else, a wrong `APP_URL` is not a warning you can live with, it is an app where nothing saves. `/setup` included: get it wrong and the very first screen refuses. The 403 names the origin the instance expects, which is the fastest way to see what you typed. `www.` counts. The port counts. `http` versus `https` counts.
 - **Secure cookies.** An `https://` value marks the session cookie `Secure` on its own; nothing else has to be set. `COOKIE_SECURE` overrides that, and exists for the deployment whose public scheme `APP_URL` does not describe.
 
-The default is `http://localhost:3000`, which is right for a laptop and wrong for everything else. A production instance still carrying it prints a warning to stderr on boot naming this variable.
+The default is `http://localhost:3000`, which is right for a laptop and wrong for everything else. A production instance still carrying it prints a warning to stderr on boot naming this variable — expected, and harmless, when you really are trying it on localhost.
 
 **4. `TRUST_PROXY` names the proxy — and is never set without one.** It decides what the app believes the client's address is, and the rate limits are keyed on that: ten sign-in attempts per 15 minutes, five password-reset requests an hour, ten invite or reset token uses an hour, each per address.
 
@@ -215,11 +215,13 @@ docker compose pull
 docker compose up -d
 ```
 
-That is the whole procedure. **Migrations run at every boot and are idempotent**, so there is no separate step, no maintenance mode and nothing to remember.
+That is the whole procedure. **Migrations run at every boot and are idempotent**, so there is no separate step, no maintenance mode and nothing to remember. v0.1.0 and v0.2.0 upgrade the same way: v0.3.0 collapsed the migration history they carry, and the migrator recognises it, finishes it and carries on. A history it does not recognise — written by a build that is neither a release nor this version — stops the boot before anything changes, with a sentence beginning `This database's migration history has N entries this version does not recognise` that ends by saying how to move the data out.
+
+- **Read the [release notes](https://github.com/mikhailbahdashych/hardware-assets-inventory-tool/releases)** for every version you are crossing. A breaking change — an environment variable that means something new, a feature that went away — is written there and nowhere else.
 
 - **Back up first** if the nightly copy is hours old. Migrations are forward-only — there is no down step — so going back to an older image after one has run means restoring the directory, not pulling the previous tag.
-- **Pin the tag if you want to choose your moment.** A release publishes `:0.2.0`, `:0.2` and `:latest`, for amd64 and arm64; `image: …:0.2.0` in the compose file makes `pull` a decision instead of a surprise.
-- **Watch it come up**: `docker compose logs -f inventory`. Migration and boot lines land there.
+- **Pin the tag if you want to choose your moment.** A release publishes `:X.Y.Z`, `:X.Y` and `:latest`, for amd64 and arm64; `image: …:0.3.0` in the compose file makes `pull` a decision instead of a surprise. Take `X.Y.Z` from the newest `vX.Y.Z` on the repository's [packages page](https://github.com/mikhailbahdashych/hardware-assets-inventory-tool/pkgs/container/hardware-assets-inventory-tool) — a pinned tag older than what runs is a downgrade, and migrations do not run backwards.
+- **Watch it come up**: `docker compose logs -f inventory`. The first JSON line of every boot is `"msg":"database and storage engaged"`, naming the `engine`, the `database`, the `storage` and `migrationsApplied` — how many migrations this boot ran, which is the line that says the upgrade did something.
 - `docker image prune` afterwards, when the old images stop being interesting.
 
 ## Health
@@ -253,7 +255,7 @@ Moving an existing workspace across is an export and an import, not a migration:
 
 **Ten bad logins locked everybody out.** `TRUST_PROXY` is unset behind a proxy, so every request shares the proxy's address and its bucket. Name the proxy — `loopback,uniquelocal` for one on the same host — and restart. (It refuses to boot on a hop count like `1`, the pre-0.2 form: name an address instead.)
 
-**The container prints "The data directory … is not writable" and stops.** The mounted directory is not writable by uid 1000. `chown -R 1000:1000 /srv/inventory/data`, or take the one-run root heal the message itself prints.
+**The container prints "The data directory … is not writable" and exits — and under `restart: unless-stopped`, again and again.** Compose restarts it on every exit, so the logs fill with the same lines until the directory is fixed. The mounted directory is not writable by uid 1000. `chown -R 1000:1000 /srv/inventory/data`, or take the one-run root heal the message itself prints.
 
 **502 from the proxy.** Nothing is listening where the proxy looks. `docker compose ps` for the state, then `curl -sS http://127.0.0.1:3000/api/v1/healthz` from the host — if that answers, the proxy has the wrong address; if it does not, `docker compose logs inventory` has the reason.
 

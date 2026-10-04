@@ -48,13 +48,13 @@ export function MfaEnrollPage({ member }: MfaEnrollPageProps) {
 
   if (recoveryCodes) {
     // A reload is what re-asks /auth/me, and the gate in routes.tsx opens
-    // because the enrolment is now confirmed.
-    return (
-      <RecoveryCodesScreen
-        codes={recoveryCodes}
-        onDone={() => window.location.assign('/dashboard')}
-      />
-    );
+    // because the enrolment is now confirmed. It reloads *this* URL rather
+    // than /dashboard: enrolment draws on a catch-all, so the address still
+    // says where the member was — /admin for the admin who just required it,
+    // a deep link for a session that met the gate on one. Sign-in, an accepted
+    // invitation and a reset link all arrive on /dashboard already, and a URL
+    // the member may not open is the shell's own redirect to the dashboard.
+    return <RecoveryCodesScreen codes={recoveryCodes} onDone={() => window.location.reload()} />;
   }
 
   const errors = fieldErrors(confirm.error);

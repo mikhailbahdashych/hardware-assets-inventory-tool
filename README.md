@@ -54,12 +54,12 @@ npm run dev           # → http://localhost:5173
 
 Node 22+. Two processes start — the API on `:3000` and Vite on `:5173`, which proxies to it — so **open `:5173`**. If you would rather install nothing but Docker, [`docs/development.md`](docs/development.md) has a route that needs exactly that.
 
-A fresh instance is empty and lands on `/setup`, which is the real first-run experience but leaves every screen blank — and this app is largely about history. `npm run seed:demo` gives you a fictional company: twelve people, twenty-six devices, four months of assignments, returns and audit history. It prints one login per role — including the fourth one the workspace invented for itself — so you can see what each of them gets:
+A fresh instance is empty and lands on `/setup`, which is the real first-run experience but leaves every screen blank — and this app is largely about history. `npm run seed:demo` gives you a fictional company: twelve people, twenty-seven devices, four months of assignments, returns and audit history. It prints one login per role — including the fourth one the workspace invented for itself — so you can see what each of them gets:
 
 ```
 Northwind Robotics is ready in /path/to/repo/data
 
-26 assets · 12 employees · 19 ownership records · 79 logged events
+27 assets · 12 employees · 19 ownership records · 82 logged events
 
 ada.okafor@northwind.example    Demo-password1  (admin)
 marco.rossi@northwind.example   Demo-password1  (manager)
@@ -67,7 +67,7 @@ lena.fischer@northwind.example  Demo-password1  (viewer)
 grace.chen@northwind.example    Demo-password1  (auditor)
 ```
 
-Every date is relative to the moment you run it, so warranties are always about to lapse and returns are always about to fall due — the dashboard is never a museum. It refuses to touch a workspace that already has data; `npm run seed:demo -- --reset` replaces one. The seeder ships in the production image too (`node apps/api/dist/db/seed-demo-cli.js --reset`, honouring `DEMO_PASSWORD`), so a public demo instance can restore itself on a schedule.
+Every date is relative to the moment you run it, so warranties are always about to lapse and returns are always about to fall due — the dashboard is never a museum. It refuses to touch a workspace that already has data — the sentence saying so is followed by a few lines of `npm error`, which is npm reporting the non-zero exit and not a second problem — and `npm run seed:demo -- --reset` replaces one. The seeder ships in the production image too (`node apps/api/dist/db/seed-demo-cli.js --reset`, honouring `DEMO_PASSWORD`), so a public demo instance can restore itself on a schedule.
 
 **This repo is built to be customized by asking Claude Code.** Every area carries a `CLAUDE.md` explaining its patterns, and [`docs/recipes/`](docs/recipes/) has step-by-step checklists for the changes teams actually make — a new field, a new page, a new permission. Describe the change and let the session follow what is already written down.
 
@@ -82,6 +82,8 @@ docker run -d --name inventory \
   ghcr.io/mikhailbahdashych/hardware-assets-inventory-tool:latest
 ```
 
+On a laptop that prints a three-line warning that `APP_URL is still http://localhost:3000 on a production instance` before it starts. That is expected here, where localhost _is_ the address; it is there for the server that still carries it.
+
 With compose, which is the same thing written down:
 
 ```bash
@@ -90,24 +92,24 @@ mkdir -p data
 docker compose up -d
 ```
 
-Every release publishes the exact version, its `major.minor` and `:latest`, for amd64 and arm64 — `0.1.0`, `0.1` and `latest` today. `:latest` is the right tag to try it with and the wrong one to run it on: pin a version (`image: ghcr.io/mikhailbahdashych/hardware-assets-inventory-tool:0.1.0` in the compose file) so an upgrade is a decision you make, not a restart that made it for you. Running your own modifications is the same file from a checkout: the compose file carries `build: .` beside the image name, and `docker compose up -d --build` at the repository root builds the image from the source beside it instead of pulling one.
+Every release publishes the exact version, its `major.minor` and `:latest`, for amd64 and arm64 — `:X.Y.Z`, `:X.Y` and `:latest`, where `X.Y.Z` is the newest `vX.Y.Z` on the repository's [packages page](https://github.com/mikhailbahdashych/hardware-assets-inventory-tool/pkgs/container/hardware-assets-inventory-tool). `:latest` is the right tag to try it with and the wrong one to run it on: pin a version (`image: ghcr.io/mikhailbahdashych/hardware-assets-inventory-tool:0.3.0` in the compose file — check that page for a newer one, because pinning an older tag is a downgrade) so an upgrade is a decision you make, not a restart that made it for you. Running your own modifications is the same file from a checkout: the compose file carries `build: .` beside the image name, and `docker compose up -d --build` at the repository root builds the image from the source beside it instead of pulling one. Mind that it tags that build with the `image:` name — `ghcr.io/…:latest` — so afterwards `docker images` can no longer tell your build from the published one; `GET /api/v1/meta` reports the version the running code was built from.
 
 Whichever of them you ran, open <http://localhost:3000>: the first screen creates your organization and its first admin. That is the whole install.
 
 `mkdir -p data` first because the container runs unprivileged as uid 1000 and may not take ownership of anything: a data directory the Docker daemon creates for you arrives owned by root, and then nothing inside the container can write it. Making it yourself makes it yours — which on a normal single-user Linux host is uid 1000 already. If it is not, `chown -R 1000:1000 data` once and it is settled; the container prints that line itself rather than dying on an unreadable permission error.
 
-**Upgrading is `docker compose pull && docker compose up -d`.** Migrations run at every boot and are idempotent; there is no separate step and no maintenance mode.
+**Upgrading is `docker compose pull && docker compose up -d`.** Migrations run at every boot and are idempotent; there is no separate step and no maintenance mode. Read the [release notes](https://github.com/mikhailbahdashych/hardware-assets-inventory-tool/releases) for every version you are crossing first — a breaking change, such as an environment variable that now means something else, is written there. That includes v0.1.0 and v0.2.0, whose migration history v0.3.0 collapsed: the migrator recognises it, finishes it and carries on. A history it does not recognise — a build from neither a release nor this version — stops the boot before anything is changed, with a sentence that begins `This database's migration history has N entries this version does not recognise` and ends by saying how to move the data out. Every boot writes one line naming what it engaged — `"msg":"database and storage engaged"` with `engine` (`sqlite` or `postgres`), `database`, `storage` (`local` or `s3`) and `migrationsApplied` — so `docker compose logs inventory | grep engaged` answers "is this running against what my env file says" and "did that upgrade migrate anything".
 
 Four things worth knowing before this is on the internet:
 
 - **Put it behind a reverse proxy for TLS and set `APP_URL` to the public address.** [`docs/deployment.md`](docs/deployment.md) is the whole procedure — DNS, the four rules of the proxy contract, copy-paste Caddy and nginx blocks, firewall, backup cron, upgrades and health checks.
 - **Single replica.** The scheduler runs in-process, so two containers on one database would both fire the nightly jobs. That holds on either engine: scale the machine, not the count.
-- **Nothing in the container runs as root, `docker compose exec` sessions included** — every process, and every shell you open into a running instance, is uid 1000. The price is that the mounted data directory has to be writable by uid 1000 before the first start, because the container has no privilege left to fix it: create `./data` yourself, or `chown -R 1000:1000 ./data`. A container that finds it unwritable says so and stops, printing the fix.
+- **Nothing in the container runs as root, `docker compose exec` sessions included** — every process, and every shell you open into a running instance, is uid 1000. The price is that the mounted data directory has to be writable by uid 1000 before the first start, because the container has no privilege left to fix it: create `./data` yourself, or `chown -R 1000:1000 ./data`. A container that finds it unwritable says so and exits, printing the fix — under the compose file's `restart: unless-stopped` that becomes a restart loop, printing the same lines on every attempt (Docker backs off, up to a minute apart) until you fix the directory; only a bare `docker run` without a restart policy actually stays stopped.
 - **`--user root` is the escape hatch, and it heals a mount in one run.** Started that way the entrypoint does what it always did — take ownership of the data directory, drop back to uid 1000 with `setpriv`, run the app — so `docker compose run --rm --user root inventory node -e ''` is enough to hand a stray directory over, after which normal starts work again.
 
 ### Full scale
 
-When one machine stops being the answer — more people than one process should serve, attachments outgrowing a disk, or a compliance line that says the database cannot live on the same box as the app — [`infrastructure/`](infrastructure/README.md) is the other one. Flat Terraform for the AWS build: a VPC with no NAT gateway, an EC2 instance running this same image on an Elastic IP, RDS PostgreSQL 17 for the rows, and a private versioned S3 bucket for the attachments. Thirty-two resources, roughly $40 a month, and ten minutes or so to stand up — most of that is RDS, which is also what makes the number move; the apply that proved this stack took 6m20s up and 3m23s down. Its README carries the variables, the cost arithmetic, how to reach the instance without SSH, and the teardown — read [Tearing it down](infrastructure/README.md#tearing-it-down) before the first apply, because a versioned bucket refuses to be deleted while a single object version is left in it, and that flag is read from state rather than from the command line.
+When one machine stops being the answer — more people than one process should serve, attachments outgrowing a disk, or a compliance line that says the database cannot live on the same box as the app — [`infrastructure/`](infrastructure/README.md) is the other one. Flat Terraform for the AWS build: a VPC with no NAT gateway, an EC2 instance running this same image on an Elastic IP, RDS PostgreSQL 17 for the rows, and a private versioned S3 bucket for the attachments. Thirty-two resources, roughly $40 a month, and about ten minutes to stand up — most of that is RDS, which is also what makes the number move. The last measured run (27 September 2026) took 8m43s to apply, 8m17s of it RDS, then about 90 seconds more before the address answered while the instance pulled the image, and 2m32s to destroy. Its README carries the variables, the cost arithmetic, how to reach the instance without SSH, and the teardown — read [Tearing it down](infrastructure/README.md#tearing-it-down) before the first apply, because a versioned bucket refuses to be deleted while a single object version is left in it, and that flag is read from state rather than from the command line.
 
 **Nothing in the app changes; two environment variables do**, and the stack exists to produce them correctly. `DATABASE_URL` is the whole engine choice — absent, the rows are in the SQLite file under `DATA_DIR`; a `postgres://` URL puts them in PostgreSQL, and the schema, the API and every screen are the same either way, migrations included. `S3_BUCKET` is the same switch for the files — absent, uploads are files under `DATA_DIR`; naming a bucket sends them there instead, while downloads still stream through the app under a session, because no presigned URL ever reaches a browser. Credentials come from the standard AWS chain, which in that stack is the instance's own role.
 

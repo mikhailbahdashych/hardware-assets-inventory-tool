@@ -72,6 +72,10 @@ test('two-factor: enrol, spend a code, and be handed a fresh set at sign-in', as
   await page.getByLabel('I have saved these somewhere safe').check();
   await page.getByRole('button', { name: 'Continue to Inventory' }).click();
   await expect(page.getByRole('navigation', { name: 'Inventory' })).toBeVisible();
+  // Back where they turned it on, not dropped on the dashboard: enrolment drew
+  // over /admin without moving the URL, so continuing is reading it again.
+  await expect(page).toHaveURL(/\/admin$/);
+  await expect(page.getByRole('heading', { name: 'Admin' })).toBeVisible();
 
   // The admin surface says where everybody stands, which is the whole point of
   // the column: enrolled, with the full set still in hand.

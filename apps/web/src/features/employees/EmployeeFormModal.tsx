@@ -173,7 +173,7 @@ export function EmployeeFormModal({
     return (
       <CopyLinkModal
         title="Invitation ready"
-        subtitle={`${form.email} is on file and can now sign in`}
+        subtitle={`${form.email} is on file · they can sign in once they open this link`}
         label="Invitation link"
         url={inviteUrl}
         onClose={onClose}

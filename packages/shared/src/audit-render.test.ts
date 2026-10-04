@@ -268,8 +268,31 @@ describe('renderAuditEvent', () => {
         params: { name: 'Deploy bot', scopeCount: 1, expiry: 'Unlimited' },
       }),
     ).toBe('Created the API token Deploy bot · 1 scope · Unlimited');
+    // A row with no expiry recorded says nothing about one. "Unlimited" is a
+    // choice an admin makes, and nobody recorded making it here.
+    expect(
+      renderAuditEvent({ action: 'token.created', params: { name: 'Deploy bot', scopeCount: 2 } }),
+    ).toBe('Created the API token Deploy bot · 2 scopes');
     expect(renderAuditEvent({ action: 'token.revoked', params: { name: 'Deploy bot' } })).toBe(
       'Revoked the API token Deploy bot',
+    );
+  });
+
+  it('says what an import wrote', () => {
+    expect(
+      renderAuditEvent({
+        action: 'system.import_completed',
+        params: { kind: 'assets', created: 12, updated: 3 },
+      }),
+    ).toBe('Imported assets from a CSV file · 12 added, 3 updated');
+    expect(
+      renderAuditEvent({
+        action: 'system.import_completed',
+        params: { kind: 'employees', created: 1, updated: 0 },
+      }),
+    ).toBe('Imported employees from a CSV file · 1 added, 0 updated');
+    expect(renderAuditEvent({ action: 'system.import_completed', params: {} })).toBe(
+      'Imported a CSV file',
     );
   });
 
