@@ -35,10 +35,15 @@ const INVENTORY_PREFIXES = [
   ['members'],
 ];
 
-export function invalidateInventory(queryClient: QueryClient): void {
-  for (const queryKey of INVENTORY_PREFIXES) {
-    queryClient.invalidateQueries({ queryKey });
-  }
+/**
+ * Resolves once every active query it touched has been read again — which a
+ * mutation's `onSuccess` can return, to stay pending until the screen shows
+ * what the write did. Callers that do not need to wait simply do not.
+ */
+export async function invalidateInventory(queryClient: QueryClient): Promise<void> {
+  await Promise.all(
+    INVENTORY_PREFIXES.map((queryKey) => queryClient.invalidateQueries({ queryKey })),
+  );
 }
 
 /**
@@ -68,8 +73,7 @@ const ADMIN_PREFIXES = [
   ['me'],
 ];
 
-export function invalidateAdmin(queryClient: QueryClient): void {
-  for (const queryKey of ADMIN_PREFIXES) {
-    queryClient.invalidateQueries({ queryKey });
-  }
+/** Resolves like `invalidateInventory`, once the admin queries are read again. */
+export async function invalidateAdmin(queryClient: QueryClient): Promise<void> {
+  await Promise.all(ADMIN_PREFIXES.map((queryKey) => queryClient.invalidateQueries({ queryKey })));
 }

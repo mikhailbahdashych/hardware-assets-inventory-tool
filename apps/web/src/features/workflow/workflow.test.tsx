@@ -214,6 +214,42 @@ describe('the statuses card', () => {
     });
   });
 
+  it('cannot send an order built from the list before the last move', async () => {
+    const { routes, statuses } = workspace();
+    // The re-read after a move is slow, which is the window a second click
+    // used to fall into: the move had landed, the list on screen had not.
+    let release: () => void = () => {};
+    let moved = false;
+    const api = renderApp(
+      {
+        ...routes,
+        'GET /workflow': () =>
+          moved
+            ? new Promise((resolve) => {
+                release = () => resolve({ body: { statuses, transitions: WORKFLOW.transitions } });
+              })
+            : { body: { statuses, transitions: WORKFLOW.transitions } },
+        'PUT /workflow/statuses/order': (body) => {
+          const { ids } = body as { ids: string[] };
+          statuses.sort((a, b) => ids.indexOf(a.id) - ids.indexOf(b.id));
+          moved = true;
+          return { body: { statuses } };
+        },
+      },
+      '/workflow',
+    );
+    const rows = await statusRows();
+
+    const up = within(rows[2]!).getByRole('button', { name: 'Move In repair up' });
+    await userEvent.click(up);
+    await waitFor(() => expect(api.calledAll('PUT /workflow/statuses/order')).toHaveLength(1));
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    // The list on screen is still the old one; its arrows must not act on it.
+    expect(up).toBeDisabled();
+    release();
+    await waitFor(() => expect(up).not.toBeDisabled());
+  });
+
   it('cannot move the first status up or the last one down', async () => {
     renderApp(workspace().routes, '/workflow');
     const rows = await statusRows();
