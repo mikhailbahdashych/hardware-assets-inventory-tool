@@ -33,11 +33,11 @@ A stopped container has flushed the WAL, so the copy is a consistent database.
 The inventory image ships no `sqlite3` binary (it is Debian-based and carries only what the app needs), so run it from a throwaway container attached to the same volume:
 
 ```bash
-docker run --rm -v inventory_data:/data alpine \
+docker run --rm -v "$PWD/data:/data" alpine \
   sh -c 'apk add --no-cache sqlite >/dev/null && sqlite3 /data/inventory.db ".backup /data/backup.db"'
 ```
 
-Substitute your volume name — `docker volume ls` if you are not sure, or the host path if you bind-mounted `./data` as the compose file does.
+Run it beside the compose file, whose `./data` bind mount this mirrors. If you mounted a named volume instead, put its name in place of `"$PWD/data"` (`docker volume ls` lists them).
 
 Then copy `backup.db` and `uploads/` wherever backups go.
 

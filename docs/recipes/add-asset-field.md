@@ -2,7 +2,7 @@
 
 Worked example: a `macAddress` column, visible on the form, the detail page, the CSV import and the export.
 
-**First ask whether it should be a custom field instead.** The **Custom fields** page (`/custom-fields`, in the sidebar's Workspace half) adds a text, yes/no, date or number field with no code at all, and it appears on every asset form immediately. Do this recipe only when the field needs to be _queryable_, appear in the assets **table**, or take part in validation — a MAC address that must be unique, say, rather than one somebody types into a note.
+**First ask whether it should be a custom field instead.** The **Custom fields** page (`/custom-fields`, in the sidebar's Workspace half) adds a text, yes/no, date or number field with no code at all, and it appears on every asset form immediately. Do this recipe only when the field needs to be _queryable_, appear in the assets **table**, or take part in validation — a MAC address people search by, say, rather than one somebody types into a note. If it must also be **unique**, that is a unique index in both schemas plus a pre-check and a `translateUniqueViolation` entry — `apps/api/CLAUDE.md`, "A duplicate has two doors".
 
 ---
 
@@ -48,7 +48,7 @@ Read the SQL each wrote. Never edit a migration that has been merged — add ano
 
 Add the field to the `EDITABLE` list. That one array drives the diffing, so the field is written, and an edit to it produces an `asset.updated` audit event naming it — nothing else to do.
 
-Add it to the `values` object in `createAsset` too.
+Add it to the `tx.insert(assets).values({…})` in `createAsset` too.
 
 ## 4. Its name in the log — `packages/shared/src/audit-render.ts`
 
@@ -56,7 +56,7 @@ Add it to the `values` object in `createAsset` too.
 
 ## 5. The form — `apps/web/src/features/assets/AssetFormModal.tsx`
 
-Add it to `FormState` and `EMPTY`, render a `<Field>` with an `<Input>`, and include it in the object passed to `create.mutate` / `update.mutate`. Follow `serialNumber` — it is the same shape of field.
+Add it to `AssetFormState` (`features/assets/types/assetFormModal.ts`), `EMPTY` and `fromAsset`, render a `<Field>` with an `<Input>`, and include it in the object passed to `create.mutate` / `update.mutate`. Follow `serialNumber` — it is the same shape of field.
 
 ## 6. The wire type — `apps/web/src/types/api.ts`
 
@@ -66,11 +66,11 @@ Add `macAddress: string | null` to `Asset`. The compiler will now point at anyth
 
 - **Detail page** (`AssetDetailPage.tsx`): a `KeyValueRow` in the Details card. Use `?? '—'` — the design's em dash for an empty cell is a rule, and a comment saying so keeps it from looking like a rescue.
 - **Table** (`AssetsPage.tsx`): only if it earns a column. The grid template comes from the design; adding a column means deciding what shrinks.
-- **Search** (`features/assets/filters.ts`): add it to the fields the text filter looks at, if people would search by it. Serial number is the precedent.
+- **Search** happens on the server: add the column to `ASSET_SEARCH_FIELDS` in `apps/api/src/services/assets.ts`, if people would search by it. The assets list and the command palette's `GET /search` both read that one array, so they cannot disagree about what "found" means. Serial number is the precedent.
 
 ## 8. CSV — `packages/shared/src/schemas/import.ts`
 
-Add `column('mac_address')` to `ASSET_IMPORT_COLUMNS`, and a value to each row of `TEMPLATE_ROWS.assets` so the template stays valid. Then read it in `apps/api/src/services/import-validator.ts`:
+Add `column('mac_address')` to `ASSET_IMPORT_COLUMNS`, and a cell in the same position to each row `assetTemplateRows` returns, so the template stays valid. Then read it in `apps/api/src/services/import-validator.ts`:
 
 ```ts
 macAddress: orNull(cell(row, 'mac_address')),
@@ -80,7 +80,15 @@ and add it to `PlannedAsset` in `apps/api/src/types/import.ts` and to the insert
 
 The export needs nothing: `workspaceExport` selects whole rows, so a new column is in it the moment the schema has it.
 
-## 9. Tests
+## 9. The public API — nothing to write, three things to check
+
+`/api/public/v1` takes the same `assetCreateInput` / `assetPatchInput` and answers through the same `serializeAsset`, which spreads the whole row — so the field is on the public surface, and in its OpenAPI document, the moment steps 1–3 land. That surface is a promise to integrators rather than the SPA's private contract, so mean it:
+
+- If a route's prose in `apps/api/src/modules/public.ts` names body fields, keep it true — `apps/api/test/openapi.test.ts` fails when the prose names a field the body does not have.
+- **Recapture `apps/web/src/test/openapi.json`** from a dev server (`curl -s localhost:5173/api/public/openapi.json`, then prettier — see `OPENAPI_SPEC` in `src/test/api-stub.ts`), so the API reference page's tests run against the document as it now is.
+- `apps/api/test/public-api.test.ts` — add the field to a create through a token if it carries a rule (uniqueness, a format) the integration should meet.
+
+## 10. Tests
 
 Add cases where the existing ones live, which is also how you find anything missed:
 
@@ -91,4 +99,4 @@ Add cases where the existing ones live, which is also how you find anything miss
 
 ## The step people forget
 
-**The CSV template.** `csvTemplate()` builds it from the same column list the validator reads, so the header row updates itself — but the example rows in `TEMPLATE_ROWS` are literal, and a row with the wrong number of cells makes a template that fails its own import. The test in `packages/shared/src/schemas/import.test.ts` catches it.
+**The CSV template.** `csvTemplate()` builds it from the same column list the validator reads, so the header row updates itself — but the example rows in `assetTemplateRows` are literal, and a row with the wrong number of cells makes a template that fails its own import. The test in `packages/shared/src/schemas/import.test.ts` catches it.
