@@ -31,6 +31,8 @@ export interface ActionDefinition {
   requires?: Action;
   /** The nav's own flag: see `isAdmin` in `lib/roles.ts` for why it is a role. */
   adminOnly?: true;
+  /** Other words a search finds it by ("docs" → API reference). */
+  keywords?: string[];
 }
 
 /**

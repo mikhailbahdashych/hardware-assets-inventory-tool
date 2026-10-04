@@ -5,6 +5,7 @@ import {
   ADMIN_MEMBER,
   DASHBOARD_ROUTES,
   DB_DOWN,
+  EVERY_ACTION,
   LAPTOP,
   MAYA,
   searchRoute,
@@ -12,6 +13,7 @@ import {
   VIEWER_ACTIONS,
 } from '@/test/api-stub';
 import { renderApp, resetAppState } from '@/test/render';
+import { paletteGroups } from './palette';
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -71,9 +73,9 @@ describe('what the palette finds', () => {
     renderApp(DASHBOARD_ROUTES, '/dashboard');
     const dialog = await openPalette();
 
-    expect(await within(dialog).findByText('Assets')).toBeInTheDocument();
-    expect(within(dialog).getByText('Employees')).toBeInTheDocument();
-    expect(within(dialog).getByText('Actions')).toBeInTheDocument();
+    expect(await within(dialog).findByRole('group', { name: 'Assets' })).toBeInTheDocument();
+    expect(within(dialog).getByRole('group', { name: 'Employees' })).toBeInTheDocument();
+    expect(within(dialog).getByRole('group', { name: 'Actions' })).toBeInTheDocument();
     expect(within(dialog).getByRole('option', { name: /MacBook Pro 14"/ })).toHaveTextContent(
       'AST-0142 · Assigned',
     );
@@ -191,8 +193,6 @@ describe('the actions', () => {
       'Import CSV',
       'Change password',
       'Toggle theme',
-      'Custom fields',
-      'Admin settings',
     ]) {
       expect(within(dialog).getByRole('option', { name: new RegExp(action) })).toBeInTheDocument();
     }
@@ -215,7 +215,60 @@ describe('the actions', () => {
     expect(within(dialog).queryByRole('option', { name: /New asset/ })).toBeNull();
     expect(within(dialog).queryByRole('option', { name: /Invite member/ })).toBeNull();
     expect(within(dialog).queryByRole('option', { name: /Custom fields/ })).toBeNull();
-    expect(within(dialog).queryByRole('option', { name: /Admin settings/ })).toBeNull();
+    expect(within(dialog).queryByRole('option', { name: /^Admin/ })).toBeNull();
+  });
+
+  it('goes to every page in the sidebar the member may open', async () => {
+    renderApp(DASHBOARD_ROUTES, '/dashboard');
+    const dialog = await openPalette();
+
+    const pages = await within(dialog).findByRole('group', { name: 'Pages' });
+    for (const page of [
+      'Dashboard',
+      'Assets',
+      'Employees',
+      'Members',
+      'Activity log',
+      'Workflow',
+      'Custom fields',
+      'Roles',
+      'API tokens',
+      'Admin',
+    ]) {
+      expect(
+        within(pages).getByRole('option', { name: new RegExp(`^${page}`) }),
+      ).toBeInTheDocument();
+    }
+  });
+
+  it('finds a page by a word for it, not only by its name', async () => {
+    renderApp(DASHBOARD_ROUTES, '/dashboard');
+    const dialog = await openPalette();
+
+    await userEvent.type(search(), 'settings');
+    await userEvent.click(await within(dialog).findByRole('option', { name: /^Admin/ }));
+    expect(await screen.findByRole('heading', { name: 'Admin' })).toBeInTheDocument();
+
+    await openPalette();
+    await userEvent.type(search(), 'docs');
+    expect(
+      await within(screen.getByRole('dialog')).findByRole('option', { name: /API reference/ }),
+    ).toBeInTheDocument();
+  });
+
+  it('offers no page the sidebar would not', async () => {
+    renderApp(
+      {
+        ...DASHBOARD_ROUTES,
+        'GET /auth/me': session({ ...ADMIN_MEMBER, role: 'viewer' }, VIEWER_ACTIONS),
+      },
+      '/dashboard',
+    );
+    const dialog = await openPalette();
+    const pages = await within(dialog).findByRole('group', { name: 'Pages' });
+    expect(within(pages).getByRole('option', { name: /^Members/ })).toBeInTheDocument();
+    expect(within(pages).queryByRole('option', { name: /^Workflow/ })).toBeNull();
+    expect(within(pages).queryByRole('option', { name: /^Roles/ })).toBeNull();
   });
 
   it('opens the modal an action names', async () => {
@@ -269,5 +322,23 @@ describe('a search that failed', () => {
     // Not "AST-0142 · assigned": a subtitle printing the stored slug is this
     // workspace's vocabulary invented by the browser.
     expect(within(dialog).queryByRole('option', { name: /MacBook/ })).toBeNull();
+  });
+});
+
+describe('paletteGroups', () => {
+  it('sends Admin to /admin, not to the legacy /admin/settings redirect', () => {
+    const groups = paletteGroups({
+      query: 'settings',
+      permissions: EVERY_ACTION,
+      role: 'admin',
+      results: { assets: [], employees: [] },
+      statuses: [],
+    });
+    const rows = groups.flatMap((group) => group.rows);
+    expect(rows.map((row) => row.effect)).toContainEqual({ kind: 'navigate', to: '/admin' });
+    expect(rows.map((row) => row.effect)).not.toContainEqual({
+      kind: 'navigate',
+      to: '/admin/settings',
+    });
   });
 });

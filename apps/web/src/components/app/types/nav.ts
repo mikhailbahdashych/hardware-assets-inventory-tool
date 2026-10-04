@@ -5,6 +5,8 @@ export interface NavItem {
   label: string;
   to: string;
   icon: IconName;
+  /** Other words the command palette finds this page by ("settings" → Admin). */
+  keywords?: string[];
 }
 
 /**
