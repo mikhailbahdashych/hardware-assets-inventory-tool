@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router';
 import { ASSET_CATEGORY_LABELS, can, type WorkflowStatus } from '@inventory/shared';
 import { LIST_PAGE, useAssets, useWorkflow } from '@/api/queries';
@@ -22,6 +21,7 @@ import type { TableColumn } from '@/types/table';
 import { formatMonthYear } from '@/lib/format';
 import { setParam } from '@/lib/searchParams';
 import { useDebouncedValue } from '@/lib/useDebouncedValue';
+import { usePage } from '@/lib/usePage';
 import { usePageSize } from '@/lib/usePageSize';
 import { statusInfo, statusMap } from '@/lib/workflow';
 import { assetStatusPills, parseStatusFilter } from './filters';
@@ -95,7 +95,6 @@ const assetColumns = (statuses: WorkflowStatus[]): TableColumn<Asset>[] => {
 
 export function AssetsPage({ permissions }: AssetsPageProps) {
   const [searchParams, setSearchParams] = useSearchParams();
-  const [page, setPage] = useState(1);
   // How many rows a page holds is the reader's choice, kept across visits.
   const [pageSize, setPageSize] = usePageSize('assets', LIST_PAGE);
   const navigate = useNavigate();
@@ -113,6 +112,10 @@ export function AssetsPage({ permissions }: AssetsPageProps) {
   const query = searchParams.get('q') ?? '';
   // The input stays instant; the request waits for the typing to stop.
   const debounced = useDebouncedValue(query);
+  // A different filter is a different list; page three of it is not where
+  // anybody meant to land. Keyed on the debounced search, so a page picked
+  // while the typing settles is not carried onto the new list.
+  const { page, setPage, clampTo } = usePage(`${status}\n${debounced}`);
 
   // Either filter can be set on its own, so an absent key here means "leave
   // the other one as the URL already has it" — not "reset it".
@@ -123,9 +126,6 @@ export function AssetsPage({ permissions }: AssetsPageProps) {
     });
     setParam(params, 'q', next.q ?? params.get('q') ?? '');
     setSearchParams(params, { replace: true });
-    // A different filter is a different list; page three of it is not where
-    // anybody meant to land.
-    setPage(1);
   };
 
   const assets = useAssets({
@@ -135,6 +135,8 @@ export function AssetsPage({ permissions }: AssetsPageProps) {
     limit: pageSize,
     offset: (page - 1) * pageSize,
   });
+  // Read during render: a page the list no longer fills steps back before it is drawn.
+  const pageCount = assets.isSuccess ? clampTo(assets.data.total, pageSize) : 1;
 
   /**
    * Every query this page reads is one it needs — without the workflow the
@@ -210,7 +212,7 @@ export function AssetsPage({ permissions }: AssetsPageProps) {
           {/* A pager over a failure has nothing to page. */}
           <Pagination
             page={page}
-            pageCount={Math.ceil(assets.data.total / pageSize)}
+            pageCount={pageCount}
             onChange={setPage}
             rowsPerPage={{
               size: pageSize,

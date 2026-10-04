@@ -84,6 +84,26 @@ describe('asset list', () => {
     expect(searches).toHaveLength(2);
   });
 
+  it('goes back to page one when the search settles, not on the keystroke', async () => {
+    const many = Array.from({ length: 120 }, (_, index) => ({
+      ...LAPTOP,
+      id: `asset-${index}`,
+      name: `Device ${String(index).padStart(3, '0')}`,
+      assetTag: `AST-${String(index).padStart(4, '0')}`,
+      serialNumber: `SN${index}`,
+    }));
+    const api = renderApp({ ...INVENTORY_ROUTES, 'GET /assets': assetsRoute(many) }, '/assets');
+    await screen.findByText('Device 000');
+
+    // A page picked while the search is still settling belongs to the old
+    // list; the new one starts at its first page.
+    await userEvent.type(screen.getByLabelText(/filter assets/i), 'Device');
+    await userEvent.click(screen.getByRole('button', { name: '2' }));
+    await waitFor(() => expect(api.calledAll('GET /assets').at(-1)!.search).toContain('q=Device'));
+    expect(api.calledAll('GET /assets').at(-1)!.search).toContain('offset=0');
+    expect(screen.getByRole('button', { name: '1' })).toHaveAttribute('aria-current', 'page');
+  });
+
   it('asks for one page at a time and pages through the rest', async () => {
     const many = Array.from({ length: 120 }, (_, index) => ({
       ...LAPTOP,

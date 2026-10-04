@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import { useSearchParams } from 'react-router';
 import {
   AUDIT_ACTOR_KIND_LABELS,
@@ -27,6 +26,7 @@ import {
 import type { FilterPillOption } from '@/components/ui';
 import { formatLogTime } from '@/lib/format';
 import { setParam } from '@/lib/searchParams';
+import { usePage } from '@/lib/usePage';
 import { usePageSize } from '@/lib/usePageSize';
 import type { AuditLogItem } from '@/types/api';
 import type { TableColumn } from '@/types/table';
@@ -78,13 +78,15 @@ const COLUMNS: TableColumn<AuditLogItem>[] = [
 
 export function ActivityLogPanel() {
   const [searchParams, setSearchParams] = useSearchParams();
-  const [page, setPage] = useState(1);
+  const { page, setPage, clampTo } = usePage();
   // How many rows a page holds is the reader's choice, kept across visits.
   const [pageSize, setPageSize] = usePageSize('activity', PAGE);
 
   const type = readType(searchParams.get('type'));
   const actorKind = readActorKind(searchParams.get('actorKind'));
   const log = useAuditLog({ type, actorKind, limit: pageSize, offset: (page - 1) * pageSize });
+  // Read during render: a page the list no longer fills steps back before it is drawn.
+  const pageCount = log.isSuccess ? clampTo(log.data.total, pageSize) : 1;
   /**
    * The one query on this page whose failure is *not* the page's, and the
    * exception apps/web/CLAUDE.md's own rule allows for: this page is gated on
@@ -191,7 +193,7 @@ export function ActivityLogPanel() {
           {/* A pager over a failure has nothing to page. */}
           <Pagination
             page={page}
-            pageCount={Math.ceil(log.data.total / pageSize)}
+            pageCount={pageCount}
             onChange={setPage}
             rowsPerPage={{
               size: pageSize,

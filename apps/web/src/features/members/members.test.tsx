@@ -93,6 +93,40 @@ describe('the members list', () => {
     expect(api.calledAll('GET /members').at(-1)!.search).toContain('offset=50');
   });
 
+  it('steps back a page when the last row of the last one is removed', async () => {
+    const many = Array.from({ length: 51 }, (_, index) => ({
+      ...LINKED_SUMMARY,
+      id: `member-${index}`,
+      displayName: `Person ${String(index).padStart(3, '0')}`,
+      email: `person${index}@acme.io`,
+      linkedEmployee: null,
+    }));
+    const list = membersRoute(many);
+    renderApp(
+      {
+        ...ADMIN_ROUTES,
+        'GET /members': (body, search) => list(body, search),
+        'DELETE /members/member-50': () => {
+          many.pop();
+          return { status: 204 };
+        },
+      },
+      '/members',
+    );
+    await screen.findByText('person0@acme.io');
+    await userEvent.click(screen.getByRole('button', { name: '2' }));
+    const row = await memberRow('person50@acme.io');
+
+    await userEvent.click(within(row).getByRole('button', { name: /actions for/i }));
+    await userEvent.click(screen.getByRole('menuitem', { name: /remove/i }));
+    await userEvent.click(await screen.findByRole('button', { name: 'Remove member' }));
+
+    // Page two no longer exists; the list it would have drawn is not the
+    // workspace's, and "nobody can sign in yet" would be a lie.
+    expect(await screen.findByText('person0@acme.io')).toBeInTheDocument();
+    expect(screen.queryByText(/nobody can sign in yet/i)).toBeNull();
+  });
+
   it('draws a role the workspace invented, in the words and colour it chose', async () => {
     renderApp(
       {
