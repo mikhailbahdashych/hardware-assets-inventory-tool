@@ -8,6 +8,7 @@ import {
   SEMANTIC_COLORS,
 } from '@inventory/shared';
 import { ApiError, HttpError, ServerUnreachable } from '@/api/client';
+import type { TableColumn } from '@/types/table';
 import {
   Avatar,
   BackLink,
@@ -227,6 +228,43 @@ export function KitchenSink() {
   const [demoSize, setDemoSize] = useState(50);
   const [role, setRole] = useState('viewer');
   const [toggles, setToggles] = useState({ warranty: true, returns: false });
+  const demoColumns: TableColumn<(typeof DEMO_ROWS)[number]>[] = [
+    {
+      header: 'Asset',
+      width: 'minmax(210px,1.6fr)',
+      render: (row) => (
+        <div>
+          <div style={{ fontWeight: 500, fontSize: 13 }}>{row.name}</div>
+          <div
+            style={{
+              fontFamily: 'var(--font-mono)',
+              fontSize: 11.5,
+              color: 'var(--muted)',
+              marginTop: 1,
+            }}
+          >
+            {row.tag}
+          </div>
+        </div>
+      ),
+    },
+    {
+      header: 'Serial',
+      width: '130px',
+      render: (row) => (
+        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 12 }}>{row.serial}</span>
+      ),
+    },
+    {
+      header: 'Status',
+      width: '110px',
+      render: (row) => (
+        <Pill sv={row.sv} dot>
+          {row.status}
+        </Pill>
+      ),
+    },
+  ];
   const [modal, setModal] = useState<'none' | 'plain' | 'scroll'>('none');
   const [category, setCategory] = useState('laptops');
   const [condition, setCondition] = useState('good');
@@ -524,48 +562,23 @@ export function KitchenSink() {
 
       <Section title="Table">
         <DataTable
-          columns={[
-            {
-              header: 'Asset',
-              width: 'minmax(210px,1.6fr)',
-              render: (row: (typeof DEMO_ROWS)[number]) => (
-                <div>
-                  <div style={{ fontWeight: 500, fontSize: 13 }}>{row.name}</div>
-                  <div
-                    style={{
-                      fontFamily: 'var(--font-mono)',
-                      fontSize: 11.5,
-                      color: 'var(--muted)',
-                      marginTop: 1,
-                    }}
-                  >
-                    {row.tag}
-                  </div>
-                </div>
-              ),
-            },
-            {
-              header: 'Serial',
-              width: '130px',
-              render: (row) => (
-                <span style={{ fontFamily: 'var(--font-mono)', fontSize: 12 }}>{row.serial}</span>
-              ),
-            },
-            {
-              header: 'Status',
-              width: '110px',
-              render: (row) => (
-                <Pill sv={row.sv} dot>
-                  {row.status}
-                </Pill>
-              ),
-            },
-          ]}
+          columns={demoColumns}
           rows={[...DEMO_ROWS]}
           rowKey={(row) => row.tag}
           onRowClick={(row) => show(`Would open ${row.tag}`, 'info')}
           footer="3 assets"
         />
+        {/* The same table in a box narrower than its columns: it scrolls
+            sideways inside the card rather than clipping its right-hand edge,
+            and a long value still ellipsises — the cell, not the table, gives. */}
+        <div style={{ maxWidth: 360 }}>
+          <DataTable
+            columns={demoColumns}
+            rows={[...DEMO_ROWS]}
+            rowKey={(row) => row.tag}
+            footer="Narrower than its columns"
+          />
+        </div>
         <Card padding={false}>
           <EmptyState>No assets match the current filter.</EmptyState>
         </Card>

@@ -177,10 +177,9 @@ export function MembersPage({ permissions, memberId, viewerRole }: MembersPagePr
    * the payload is the same for everybody, because reads are open, and the
    * gate is the affordance — as it is for every other admin control here.
    *
-   * The other widths shrank to make room for it, because they have to: this
-   * page is 960 wide by the design's own note, the table clips its overflow
-   * (that clip is what gives the cells their ellipsis), and a seventh column
-   * that did not fit would take the `···` button off the right-hand edge.
+   * The other widths shrank to make room for it: this page is 960 wide by the
+   * design's own note, and below that the table scrolls sideways rather than
+   * showing the `···` button only to somebody who thinks to scroll.
    */
   function columnsFor(byRoleId: Map<string, WorkspaceRole>): TableColumn<MemberSummary>[] {
     return [

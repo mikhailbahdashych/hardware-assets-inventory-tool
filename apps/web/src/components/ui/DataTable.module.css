@@ -1,9 +1,16 @@
+/* Scrolls sideways rather than clipping: a table narrower than its columns
+   used to lose its right-hand edge — the row menu, Revoke — at 1024 wide.
+   One grid column that is at least as wide as the widest row's minimum and
+   otherwise the card's width, so the header, rows, footer and an empty state
+   all stretch to the same width and scroll together. */
 .table {
+  display: grid;
+  grid-template-columns: minmax(min-content, 1fr);
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 8px;
   box-shadow: var(--shadow);
-  overflow: hidden;
+  overflow-x: auto;
 }
 
 .tableTitle {
@@ -48,6 +55,10 @@
 
 .cell {
   min-width: 0;
+  /* A cell's text never widens the table: its intrinsic width is zero, so a
+     row's minimum is its column template's own (the px in each minmax) and
+     the ellipsis below is what a long value gets — at any width. */
+  contain: inline-size;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

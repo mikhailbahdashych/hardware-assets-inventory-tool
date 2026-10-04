@@ -43,7 +43,8 @@ const COLUMNS: TableColumn<Employee>[] = [
   },
   {
     header: 'Email',
-    width: '1.3fr',
+    // A floor, so a table scrolled sideways never squeezes the address to nothing.
+    width: 'minmax(160px, 1.3fr)',
     render: (employee) => <span className={styles.muted}>{employee.email}</span>,
   },
   { header: 'Department', width: '130px', render: (employee) => employee.department ?? '—' },

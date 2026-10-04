@@ -60,7 +60,8 @@ const COLUMNS: TableColumn<AuditLogItem>[] = [
   },
   {
     header: 'Event',
-    width: '1fr',
+    // A floor, so a table scrolled sideways never squeezes the event to nothing.
+    width: 'minmax(200px, 1fr)',
     // One renderer for the trail, this log and the CSV export, so the three
     // can never describe the same event differently.
     render: (item) => <span className={styles.event}>{renderAuditEvent(item)}</span>,
