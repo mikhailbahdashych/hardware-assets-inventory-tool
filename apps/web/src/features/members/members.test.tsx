@@ -179,8 +179,10 @@ describe('the members list', () => {
     );
 
     // The payload is the same for everybody — reads are open — but a viewer
-    // has nothing to do with the answer, so the column is not drawn.
-    await screen.findByRole('heading', { name: 'Members' });
+    // has nothing to do with the answer, so the column is not drawn. Wait for
+    // the rows themselves: the heading is drawn before the data arrives, and
+    // an absence asserted then is true of every role.
+    await memberRow('tomasz@acme.io');
     expect(screen.queryByRole('columnheader', { name: 'Two-factor' })).toBeNull();
     expect(screen.queryByText('3 of 10 codes left')).toBeNull();
   });
@@ -193,7 +195,8 @@ describe('the members list', () => {
       },
       '/members',
     );
-    await screen.findByRole('heading', { name: 'Members' });
+    // The rows, not the heading: the menus live in the rows.
+    await memberRow('maya.lindqvist@acme.io');
     expect(screen.queryByRole('button', { name: /invite member/i })).toBeNull();
     expect(screen.queryByRole('button', { name: /actions for/i })).toBeNull();
   });
