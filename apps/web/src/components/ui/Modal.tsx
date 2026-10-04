@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { IconButton } from './IconButton';
 import type { ModalProps } from './types/modal';
@@ -18,6 +18,11 @@ const FOCUSABLE =
  * wraps inside the card rather than walking off into the page under the
  * overlay. An Escape somebody inside already answered — an open `Dropdown`
  * closing its list calls `preventDefault` — is theirs, not the modal's.
+ *
+ * Focus comes in and goes back: whatever had it when the modal rendered is
+ * remembered, the card takes focus on mount unless something inside already
+ * has it (a field marked `autoFocus`), and the remembered element gets it back
+ * on close — so a keyboard user lands where they were, not on the body.
  */
 export function Modal({
   title,
@@ -32,6 +37,17 @@ export function Modal({
   const titleId = useId();
   // Null until the card mounts; the listener only runs after it has.
   const card = useRef<HTMLDivElement>(null);
+  // Read during the first render — before a child's `autoFocus` has run in the
+  // commit — so it is the element that opened the modal, not the modal's field.
+  const [returnTo] = useState(() => document.activeElement);
+
+  useEffect(() => {
+    if (card.current && !card.current.contains(document.activeElement)) card.current.focus();
+    return () => {
+      // A trigger that left with its row (a removed member) has nothing to take it.
+      if (returnTo instanceof HTMLElement && returnTo.isConnected) returnTo.focus();
+    };
+  }, [returnTo]);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -56,6 +72,7 @@ export function Modal({
         aria-modal="true"
         aria-labelledby={titleId}
         ref={card}
+        tabIndex={-1}
         className={styles.card}
         style={{ width, maxHeight }}
       >

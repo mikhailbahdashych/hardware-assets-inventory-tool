@@ -473,6 +473,40 @@ describe('the row actions', () => {
     expect(api.called('PATCH /members/member-3')!.body).toEqual({ role: 'manager' });
   });
 
+  it('changes a role without the mouse, and hands focus back to the row', async () => {
+    const api = renderApp(
+      { ...ADMIN_ROUTES, 'PATCH /members/member-3': { body: { member: {} } } },
+      '/members',
+    );
+
+    const row = await memberRow('maya.lindqvist@acme.io');
+    const trigger = within(row).getByRole('button', { name: /actions for/i });
+    trigger.focus();
+    await userEvent.keyboard('{Enter}');
+    expect(screen.getByRole('menuitem', { name: /reset link/i })).toHaveFocus();
+    await userEvent.keyboard('{ArrowDown}{ArrowDown}');
+    expect(screen.getByRole('menuitem', { name: /change role/i })).toHaveFocus();
+    await userEvent.keyboard('{Enter}');
+
+    const dialog = await screen.findByRole('dialog', { name: /change role/i });
+    expect(dialog).toHaveFocus();
+    // Close, then the radio group lands on the role held today.
+    await userEvent.tab();
+    await userEvent.tab();
+    expect(within(dialog).getByRole('radio', { name: /viewer/i })).toHaveFocus();
+    await userEvent.keyboard('{ArrowUp}');
+    expect(within(dialog).getByRole('radio', { name: /manager/i })).toBeChecked();
+    await userEvent.tab();
+    await userEvent.tab();
+    expect(within(dialog).getByRole('button', { name: 'Save role' })).toHaveFocus();
+    await userEvent.keyboard('{Enter}');
+
+    await waitFor(() => expect(api.called('PATCH /members/member-3')).toBeDefined());
+    expect(api.called('PATCH /members/member-3')!.body).toEqual({ role: 'manager' });
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    expect(trigger).toHaveFocus();
+  });
+
   it('asks before removing someone, and says what they lose', async () => {
     const api = renderApp(
       { ...ADMIN_ROUTES, 'DELETE /members/member-3': { status: 204 } },

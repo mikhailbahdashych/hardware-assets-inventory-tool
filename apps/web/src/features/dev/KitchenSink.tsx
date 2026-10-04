@@ -482,6 +482,9 @@ export function KitchenSink() {
           />
           <Kbd>⌘K</Kbd>
           <Kbd>esc</Kbd>
+          {/* Walk it without the mouse: Tab to the square, Enter, and focus is on
+              the first item — ↑↓ stop at the ends, Home/End jump, Esc hands
+              focus back to the square, Tab closes it on the way past. */}
           <Menu
             label="Row actions"
             items={[
