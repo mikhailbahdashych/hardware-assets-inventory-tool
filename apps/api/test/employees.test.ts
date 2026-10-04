@@ -171,6 +171,28 @@ describe('editing an employee', () => {
     expect(open[0]!.expectedReturnDate).toBeNull();
   });
 
+  it('audits bringing somebody back from offboarding', async () => {
+    ctx = await buildTestApp();
+    const admin = await setupOrg(ctx.app);
+    const id = (await createEmployee(admin)).json().employee.id;
+    const patch = (status: string) =>
+      inject(ctx.app, {
+        method: 'PATCH',
+        url: `/api/v1/employees/${id}`,
+        cookie: admin,
+        body: { status },
+      });
+    await patch('offboarding');
+
+    const res = await patch('active');
+    expect(res.json().employee.status).toBe('active');
+    const updated = (await ctx.db.select().from(auditEvents)).filter(
+      (e) => e.action === 'employee.updated',
+    );
+    expect(updated).toHaveLength(1);
+    expect(JSON.parse(updated[0]!.params)).toMatchObject({ changedFields: ['status'] });
+  });
+
   it('refuses an email that another employee already uses', async () => {
     ctx = await buildTestApp();
     const admin = await setupOrg(ctx.app);
