@@ -26,7 +26,13 @@ export function LoginPage() {
   const errors = fieldErrors(login.error);
 
   if (challengeToken) {
-    return <MfaChallenge challengeToken={challengeToken} orgName={org.orgName} />;
+    return (
+      <MfaChallenge
+        challengeToken={challengeToken}
+        orgName={org.orgName}
+        onBack={() => setChallengeToken(null)}
+      />
+    );
   }
 
   return (
@@ -88,7 +94,7 @@ export function LoginPage() {
  * decides which by what matches — asking somebody to pick "authenticator" or
  * "recovery" before typing is a choice they should not have to make.
  */
-export function MfaChallenge({ challengeToken, orgName }: MfaChallengeProps) {
+export function MfaChallenge({ challengeToken, orgName, onBack }: MfaChallengeProps) {
   const navigate = useNavigate();
   const verify = useMfaVerify();
   const refreshSession = useRefreshSession();
@@ -114,7 +120,16 @@ export function MfaChallenge({ challengeToken, orgName }: MfaChallengeProps) {
   }
 
   return (
-    <AuthLayout title="Two-factor authentication" subtitle={`${orgName} requires a second factor`}>
+    <AuthLayout
+      title="Two-factor authentication"
+      subtitle={`${orgName} requires a second factor`}
+      // The wrong account, or no phone to hand: there has to be a way out.
+      below={
+        <Link to="/login" onClick={onBack}>
+          Back to sign in
+        </Link>
+      }
+    >
       <form
         style={{ display: 'contents' }}
         onSubmit={(event) => {

@@ -9,4 +9,10 @@ export interface MfaChallengeProps {
    * and routes.tsx has already read /meta to decide that.
    */
   orgName: string;
+  /**
+   * Run as "Back to sign in" is followed. The login page passes the reset of
+   * its own state, since /login is where it already is; the reset page needs
+   * nothing, because leaving its route is enough.
+   */
+  onBack?: () => void;
 }

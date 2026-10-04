@@ -62,6 +62,28 @@ describe('signing in with a second factor', () => {
     expect(screen.queryByRole('heading', { name: /save your recovery codes/i })).toBeNull();
   });
 
+  it('offers a way back to the sign-in form from the code screen', async () => {
+    renderApp(
+      {
+        'GET /meta': { body: READY_META },
+        'GET /auth/me': UNAUTHENTICATED,
+        'POST /auth/login': { body: { mfaRequired: true, challengeToken: 'challenge-1' } },
+      },
+      '/login',
+    );
+    await screen.findByRole('heading', { name: /sign in to inventory/i });
+    await userEvent.type(screen.getByLabelText(/email/i), 'tomasz@acme.io');
+    await userEvent.type(screen.getByLabelText(/password/i), 'correct-horse-battery');
+    await userEvent.click(screen.getByRole('button', { name: /^sign in$/i }));
+    await screen.findByRole('heading', { name: /two-factor authentication/i });
+
+    // The wrong account, or no phone to hand: somebody has to be able to leave.
+    await userEvent.click(screen.getByRole('link', { name: 'Back to sign in' }));
+    expect(
+      await screen.findByRole('heading', { name: /sign in to inventory/i }),
+    ).toBeInTheDocument();
+  });
+
   it('stops to hand over a reissued set before letting anybody in', async () => {
     let authenticated = false;
     await signInWithMfa({
