@@ -53,7 +53,7 @@ export async function notifyLinkedMember(
 
 /**
  * The operational half: events addressed to whoever does a job, resolved by
- * permission rather than role name — a workspace that grants `assets.manage`
+ * permission rather than role name — a workspace that grants `assets.edit`
  * to its own "Fleet manager" gets the notifications with the grant. Admin is
  * the system role whose set is every action by definition and stores no rows,
  * so it is named alongside the subquery.

@@ -396,7 +396,7 @@ export async function removeMember(deps: AppDeps, actor: Actor, id: string): Pro
   });
 }
 
-/** One member, for a caller that has an id — the routes that mail them. */
+/** One member, for a caller that has an id — the routes that answer with the row. */
 export async function memberById(db: DbOrTx, id: string): Promise<MemberSummary> {
   return await readMember(db, id);
 }
@@ -413,6 +413,27 @@ async function readMember(tx: DbOrTx, id: string): Promise<MemberSummary> {
     row.employee,
     await unusedRecoveryCodeCount(tx, row.member.id),
   );
+}
+
+/**
+ * Nobody below admin acts on an admin — or mints one. `members.manage` is a
+ * grant any workspace role can hold, so without this rule a custom role would
+ * be a ladder over the very accounts that could revoke it: set an admin's
+ * password, or hold a fresh reset or invite link, and the workspace is yours.
+ * The actor's rank is read from their row rather than trusted from a claim,
+ * so a demotion bites on the demoted member's very next request.
+ */
+export async function assertAdminActor(db: DbOrTx, actor: Actor): Promise<void> {
+  // An actor with no member row is an API token, and a token is never an
+  // admin: no member surface appears on the public API at all, so this is the
+  // right answer rather than a guard against a case that could arise.
+  const row =
+    actor.id === null
+      ? undefined
+      : (await db.select({ role: members.role }).from(members).where(eq(members.id, actor.id)))[0];
+  if (!row || row.role !== ADMIN_ROLE) {
+    throw new AppError(403, 'admin_shield', 'Only an admin can manage an admin account.');
+  }
 }
 
 /**
@@ -437,27 +458,6 @@ async function readMember(tx: DbOrTx, id: string): Promise<MemberSummary> {
  * anchored to `ASSIGNED_STATUS`: every other role is a row a workspace edits,
  * and this one is the row it cannot.
  */
-/**
- * Nobody below admin acts on an admin — or mints one. `members.manage` is a
- * grant any workspace role can hold, so without this rule a custom role would
- * be a ladder over the very accounts that could revoke it: set an admin's
- * password, or hold a fresh reset or invite link, and the workspace is yours.
- * The actor's rank is read from their row rather than trusted from a claim,
- * so a demotion bites on the demoted member's very next request.
- */
-export async function assertAdminActor(db: DbOrTx, actor: Actor): Promise<void> {
-  // An actor with no member row is an API token, and a token is never an
-  // admin: no member surface appears on the public API at all, so this is the
-  // right answer rather than a guard against a case that could arise.
-  const row =
-    actor.id === null
-      ? undefined
-      : (await db.select({ role: members.role }).from(members).where(eq(members.id, actor.id)))[0];
-  if (!row || row.role !== ADMIN_ROLE) {
-    throw new AppError(403, 'admin_shield', 'Only an admin can manage an admin account.');
-  }
-}
-
 async function assertNotLastAdmin(tx: DbOrTx, target: MemberRow): Promise<void> {
   if (target.role !== ADMIN_ROLE || target.status !== 'active') return;
 

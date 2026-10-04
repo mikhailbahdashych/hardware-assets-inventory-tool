@@ -9,7 +9,6 @@ import {
   checkinInput,
 } from '@inventory/shared';
 import type { AppDeps } from '@/types/app.js';
-import type { AssignRequest, CheckinRequest } from '@/types/assets.js';
 import { requireAction, requireAnyAction, requireAuth } from '@/plugins/rbac.js';
 import { forbidden } from '@/lib/errors.js';
 import { assetListQuery } from '@/lib/search.js';
@@ -107,8 +106,9 @@ export function registerAssetRoutes(app: FastifyInstance, deps: AppDeps): void {
       schema: { params: idParam, body: assignInput },
       preValidation: requireAction('assets.assign'),
     },
+    // The holder's inbox copy is written inside the service's transaction.
     async (request) => ({
-      asset: await handOver(request),
+      asset: await assignAsset(deps, request.member!, request.params.id, request.body),
     }),
   );
 
@@ -119,21 +119,7 @@ export function registerAssetRoutes(app: FastifyInstance, deps: AppDeps): void {
       preValidation: requireAction('assets.checkin'),
     },
     async (request) => ({
-      asset: await takeBack(request),
+      asset: await checkinAsset(deps, request.member!, request.params.id, request.body),
     }),
   );
-
-  /**
-   * Assign, then tell the assignee if the form asked us to. The mail is sent
-   * after the transaction and never inside it: a message cannot be rolled back,
-   * and the handover has already happened by the time anyone would read it.
-   */
-  async function handOver(request: AssignRequest) {
-    // The holder's inbox copy is written inside the service's transaction.
-    return await assignAsset(deps, request.member!, request.params.id, request.body);
-  }
-
-  async function takeBack(request: CheckinRequest) {
-    return await checkinAsset(deps, request.member!, request.params.id, request.body);
-  }
 }

@@ -222,8 +222,9 @@ export const AUDIT_TYPE_COLORS: Record<AuditType, SemanticColor> = {
 };
 
 /**
- * How far ahead of a warranty expiring the nightly scan mails admins — a
- * number of days the workspace chooses, not a menu of three.
+ * How far ahead of a warranty expiring the nightly scan puts a notice in the
+ * inbox of everybody who manages assets — a number of days the workspace
+ * chooses, not a menu of three.
  *
  * The bounds are what makes it a *lead* time: below a day there is no notice
  * to give (the dashboard already shows what expires today), and beyond a year

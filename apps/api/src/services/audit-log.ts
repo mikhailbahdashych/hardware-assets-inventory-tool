@@ -168,12 +168,6 @@ export function toAuditItem(row: typeof auditEvents.$inferSelect): AuditItem {
 }
 
 /**
- * The type column is TEXT with no CHECK constraint, like every enum here, but
- * `writeAudit` is its only writer and it takes an `AuditType`. A value outside
- * the list means a row nothing can file under a pill or colour, so it says so
- * instead of rendering an event under a colour that does not exist.
- */
-/**
  * What kind of actor a stored row belongs to.
  *
  * `actor_kind` is NULL exactly on rows written before the column existed, the
@@ -195,6 +189,12 @@ function actorKindOf(row: typeof auditEvents.$inferSelect): AuditActorKind {
   return row.actorKind as AuditActorKind;
 }
 
+/**
+ * The type column is TEXT with no CHECK constraint, like every enum here, but
+ * `writeAudit` is its only writer and it takes an `AuditType`. A value outside
+ * the list means a row nothing can file under a pill or colour, so it says so
+ * instead of rendering an event under a colour that does not exist.
+ */
 function auditTypeOf(value: string): AuditType {
   if (!(AUDIT_TYPES as readonly string[]).includes(value)) {
     throw new AppError(
