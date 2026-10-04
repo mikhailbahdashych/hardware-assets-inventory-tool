@@ -134,7 +134,7 @@ terraform output -raw ssm_parameter_name      # note it, and your region, for th
 aws ssm start-session --target "$(terraform output -raw instance_id)"
 ```
 
-The plan for that apply should show `random_password.db` replaced and the two in-place updates above, and **no** change to `aws_instance.app`: `user_data` names the parameter, not its value. From the moment it finishes, new database connections fail until the container restarts, so go straight on — on the instance:
+The plan for that apply should show `random_password.db` replaced and the two in-place updates above, and **no** change to `aws_instance.app`: `user_data` names the parameter, not its value. One exception: the AMI lookup is `most_recent = true`, so if a newer AL2023 has shipped, that plan also replaces the instance — then this is the slow path after all, and the steps below are unnecessary. From the moment it finishes, new database connections fail until the container restarts, so go straight on — on the instance:
 
 ```bash
 sudo -i

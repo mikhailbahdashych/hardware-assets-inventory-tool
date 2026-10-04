@@ -10,7 +10,7 @@ Worked example: `locations.create`, the permission a new Locations section would
 
 ## 1. The action — `packages/shared/src/rbac.ts`
 
-Four edits in one file, and TypeScript will not let you stop after the first.
+Three edits in one file, and TypeScript will not let you stop after the first — plus `DEFAULT_ROLES` below, if a fresh instance's roles should hold it.
 
 ```ts
 export const ACTIONS = [
@@ -44,7 +44,7 @@ Admin's `grants` array stays empty on purpose — see above. And editing `DEFAUL
 
 ## 2. The test that pins the partition — `packages/shared/src/rbac.test.ts`
 
-It asserts that `ACTION_GROUPS` partitions `ACTIONS` exactly — every action in one group, none in two — that `ACTION_LABELS` labels each one as something other than its slug, and that the bands are the five the matrix draws, in order. It will fail the moment you add the slug and pass again when the group has it; that failure _is_ the reminder, so run it before you go looking for the next file. `DEFAULT_ROLES` has its own tests there too, including one that refuses a grant this build does not declare.
+It asserts that `ACTION_GROUPS` partitions `ACTIONS` exactly — every action in one group, none in two — that `ACTION_LABELS` labels each one as something other than its slug, and that the bands are the five the matrix draws, in order. It will fail the moment you add the slug and pass again when the group has it; that failure _is_ the reminder, so run it before you go looking for the next file. The test also asserts `ACTIONS` equals `MANAGER_ACTIONS ∪ ADMIN_ACTIONS`, two lists written inside it — **add the slug to whichever of the two it belongs in**. `DEFAULT_ROLES` has its own tests there too, including one that refuses a grant this build does not declare.
 
 `packages/shared/src/audit-render.test.ts` is the other one to watch if the action writes events (step 5). And on the API side, `apps/api/test/<area>.test.ts` gets the 403 case from step 3 — a role holding everything but the new action, refused.
 

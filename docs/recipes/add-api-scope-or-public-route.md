@@ -60,7 +60,7 @@ typed.get(
 ## 3. The API tests
 
 - `apps/api/test/public-api.test.ts` — the happy path with a token holding the scope, 403 `missing_scope` for a token without it (add the route to the `closed` list in "keeps each area behind its own scope"), and for a mutation, **add the call to the `calls` list in "attributes every row a mutating route writes"**.
-- Nothing to add, and both will fail if step 2 was skipped: `public-surface-fence.test.ts` requires every route under `/api/public/` to answer an anonymous caller 401 `invalid_token`, and `openapi.test.ts` requires every operation to carry a tag, a summary, the Bearer requirement and a sentence naming a real scope, and its prose to name only real body fields. Both read the registered route table, so a new route is in their expectation the day it exists.
+- Nothing to add there, and both fail when a route is registered **without** `documented(…)`: `public-surface-fence.test.ts` requires every route under `/api/public/` to answer an anonymous caller 401 `invalid_token`, and `openapi.test.ts` requires every operation to carry a tag, a summary, the Bearer requirement and a sentence naming a real scope, and its prose to name only real body fields. Both read the registered route table, so a new route is in their expectation the day it exists.
 
 ## 4. The web
 

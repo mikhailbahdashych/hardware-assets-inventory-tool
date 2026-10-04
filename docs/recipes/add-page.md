@@ -4,6 +4,13 @@ Worked example: a **Locations** section — a nav entry, a server-paged list and
 
 ---
 
+## 0. The table — `apps/api/src/db/schema.sqlite.ts` **and** `schema.pg.ts`
+
+A new `locations` table in both schemas, then both migrations (`npm run db:generate -w apps/api` and `npm run db:generate:pg -w apps/api`) — [`add-asset-field.md`](add-asset-field.md) step 2 is the same move for a column; `test/schema-parity.test.ts` names what you forgot. Two more places a table must be named:
+
+- **`emptyWorkspace`** (the workspace wipe) empties every table children-first — add `locations` in its place in that list, or a wipe leaves it behind (or fails on a foreign key).
+- **`workspaceExport`** (`services/export.ts`) — decide whether the export carries it; a table the export should hold is a line there.
+
 ## 1. The API — `apps/api/src/modules/locations.ts` + `services/locations.ts`
 
 Thin routes in the module, anything transactional in the service, and `registerLocationRoutes(app, deps)` wired into `apps/api/src/app.ts` beside the others.
@@ -45,7 +52,7 @@ typed.post(
 
   Search goes through `contains` / `containsAny`, never a raw `LIKE` (it behaves differently on the two engines). The order must be total, or a row repeats or vanishes at a page boundary. A small list nobody scrolls — API tokens — may skip paging, deliberately.
 
-- **Every mutation writes its audit event in the same transaction** (`writeAudit`), and every audited action needs a renderer in `packages/shared/src/audit-render.ts`; its test asserts each one renders something other than its slug.
+- **Every mutation writes its audit event in the same transaction** (`writeAudit`), and every audited action needs a renderer in `packages/shared/src/audit-render.ts` **and a case in `audit-render.test.ts`**: the "every action" test only walks the renderers that exist, so it cannot notice one you never wrote.
 
 ## 2. Reading it — `apps/web/src/api/queries.ts`
 
@@ -107,17 +114,17 @@ Inside the signed-in shell block:
 <Route path="/locations/:id" element={<LocationDetailPage permissions={permissions} />} />
 ```
 
-A page not everybody may open is gated **here**, the way `/workflow` is — `can(permissions, 'locations.manage') ? <LocationsPage …/> : <Navigate to="/dashboard" replace />`. A hidden nav item hides the door without locking it. `permissions` is the set `/auth/me` resolved; nothing downstream knows what a role is called.
+Reads are open to every member, so a list like this is not gated. A page not everybody may open is gated **here**, the way `/workflow` is — `can(permissions, 'workflow.manage') ? <WorkflowPage …/> : <Navigate to="/dashboard" replace />`. A hidden nav item hides the door without locking it. `permissions` is the set `/auth/me` resolved; nothing downstream knows what a role is called.
 
 ## 5. The nav entry — `apps/web/src/components/app/nav.ts`
 
 The sidebar is two named landmarks. Inventory work goes in `INVENTORY_ITEMS`; managing the workspace goes in `WORKSPACE_ITEMS`:
 
 ```ts
-{ label: 'Locations', to: '/locations', icon: 'mapPin', requires: 'locations.view', keywords: ['sites'] },
+{ label: 'Locations', to: '/locations', icon: 'mapPin', keywords: ['sites'] },
 ```
 
-`requires` hides it from anybody whose role lacks the action (or `adminOnly: true`, for the one page gated on the role itself — never both). Add `locations: 'Locations'` to `SECTION_LABELS` in the same file for the breadcrumb. A missing icon goes into `components/ui/Icon.tsx` in the same Feather style at stroke 1.7 — no icon library.
+No `requires`, because the page is open to everybody; a gated page names its action there (or `adminOnly: true`, for the one page gated on the role itself — never both). Add `locations: 'Locations'` to `SECTION_LABELS` in the same file for the breadcrumb. `mapPin` is not in `components/ui/Icon.tsx` yet: add its path there in the same Feather style at stroke 1.7 — no icon library.
 
 **The command palette follows by itself**: its Pages group is the sidebar's items through the same permission filter, and `keywords` are the other words it finds the page by. A palette **command** — "New location", opening a modal — is an `ActionDefinition` in `components/app/palette.ts`, with its own `requires`.
 

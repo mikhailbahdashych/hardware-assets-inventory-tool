@@ -40,18 +40,18 @@ Call it with `tx`, beside `writeAudit`, as `handOver` in `services/assignments.t
 ### From a schedule — a job
 
 1. **The job** — a plain function of `(deps, now)` in `apps/api/src/services/jobs.ts`, returning a `JobResult`, so every rule is testable with a fixed date. "Today" is `dayOf(now)` (UTC). Read the switch first (step 4) and return `skipped()` when it is off.
-2. **The dedupe key** — required. The unique `(member_id, dedupe_key)` index plus `notify`'s `onConflictDoNothing` is what makes a re-run (or a restart) write nothing new. Key on the subject **and on the fact that should re-arm it**: `escalate:{assignmentId}:{expectedReturnDate}` notifies once, and again only if the date is changed. Compare `warranty:{assetId}:{warrantyUntil}` and `return:{assignmentId}:{date}:{due|overdue}`.
+2. **The dedupe key** — required. The unique `(member_id, dedupe_key)` index plus `notify`'s `onConflictDoNothing` is what makes a re-run (or a restart) write nothing new. Key on the subject **and on the fact that should re-arm it**: `escalate:{assignmentId}:{expectedReturnDate}` notifies once per date — and again whenever the row is pruned (next item). Compare `warranty:{assetId}:{warrantyUntil}` and `return:{assignmentId}:{date}:{due|overdue}`.
 3. **The schedule** — an entry in `SCHEDULE` and a `task(…)` in `apps/api/src/services/scheduler.ts`. Times are the container's `TZ`; a missed run is skipped, not queued.
-4. **The prune** — `runMaintenance` deletes every inbox row older than 90 days, whatever its kind, and **a deleted row frees its key**. A condition that stays true longer than that notifies again once its row is pruned. Keep the key's window inside 90 days, or put something in the key that changes.
+4. **The prune** — `runMaintenance` deletes every inbox row older than 90 days, whatever its kind, and **a deleted row frees its key**. So a notice whose condition stays true **fires again about every 90 days while the condition holds** — true today of `return:…:overdue` and of a warranty alert set more than 90 days ahead, and it would be of `return.escalated`. Say so in the job's comment if that is what you want; otherwise the key needs a fact that changes.
 5. **Tests** — `apps/api/test/jobs.test.ts`, with fixed dates: who receives it and who does not, a second run writes nothing, a changed fact re-arms it, the switch turns it off.
 
 ## 4. The Settings switch — if a workspace should be able to turn it off
 
 Reuse an existing switch only when it honestly means the same thing; `returnReminders` is described as reminding _holders_, so `return.escalated` gets its own. A new one is:
 
-- A boolean column on `org_settings` in `apps/api/src/db/schema.sqlite.ts` **and** `schema.pg.ts`, default `true`, then both migrations (`npm run db:generate -w apps/api` and `db:generate:pg`).
+- A boolean column on `org_settings` in `apps/api/src/db/schema.sqlite.ts` **and** `schema.pg.ts`, default `true`, then both migrations (`npm run db:generate -w apps/api` and `npm run db:generate:pg -w apps/api`).
 - The key in `settingsPatchInput` (`packages/shared/src/schemas/settings.ts`) and in `EDITABLE` in `apps/api/src/services/settings.ts`, which is what audits a change to it.
-- On the web: `OrgSettings` in `apps/web/src/types/api.ts`, the draft and its key loop in `features/admin/settingsDraft.ts`, the `NotificationToggleKey` union in `features/admin/types/settingsPanel.ts`, and a row in `NOTIFICATION_TOGGLES` in `SettingsPanel.tsx` — its description says who hears it.
+- On the web, under `apps/web/src/`: `OrgSettings` in `types/api.ts`; the `SettingsDraft` shape in `features/admin/types/settingsDraft.ts`; `toDraft()` in `features/admin/SettingsPanel.tsx`; the boolean key loop in `changedSettings` (`features/admin/settingsDraft.ts`); the `Extract<…>` in `NotificationToggleKey` (`features/admin/types/settingsPanel.ts`); a row in `NOTIFICATION_TOGGLES` (`SettingsPanel.tsx`), whose description says who hears it; and the `SETTINGS` fixture in `test/api-stub.ts`.
 
 ## What updates itself
 
