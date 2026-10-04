@@ -19,11 +19,23 @@ import styles from './Field.module.css';
  * at each of the forty call sites is what makes it true of every form at once;
  * a child that is not a single element (a control sitting inside a row of
  * them) keeps the message visible and simply gains no attributes.
+ *
+ * **A hint is described the same way**, without the invalid state: it is often
+ * the only reason a control is the way it is — "Check the asset in to change
+ * its status." beside a disabled dropdown — and a screen reader that hears
+ * only "disabled" has been told nothing.
  */
 export function Field({ label, required = false, hint, error, children }: FieldProps) {
   const id = useId();
   const errorId = `${id}-error`;
+  const hintId = `${id}-hint`;
   const control = typeof children === 'function' ? children(id) : children;
+  // The error replaces the hint on screen, so it replaces it here too.
+  const aria: FieldErrorAria | null = error
+    ? { 'aria-invalid': true, 'aria-describedby': errorId }
+    : hint
+      ? { 'aria-describedby': hintId }
+      : null;
 
   return (
     <div className={styles.field}>
@@ -34,13 +46,14 @@ export function Field({ label, required = false, hint, error, children }: FieldP
       >
         {label}
       </label>
-      {error && isValidElement(control)
-        ? cloneElement(control as ReactElement<FieldErrorAria>, {
-            'aria-invalid': true,
-            'aria-describedby': errorId,
-          })
+      {aria !== null && isValidElement(control)
+        ? cloneElement(control as ReactElement<FieldErrorAria>, aria)
         : control}
-      {hint && !error && <div className={styles.hint}>{hint}</div>}
+      {hint && !error && (
+        <div id={hintId} className={styles.hint}>
+          {hint}
+        </div>
+      )}
       {error && (
         <div id={errorId} className={styles.error}>
           {error}

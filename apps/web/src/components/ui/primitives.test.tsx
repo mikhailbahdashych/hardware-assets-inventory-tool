@@ -480,7 +480,7 @@ describe('Field', () => {
     expect(document.getElementById(describedBy!)).toHaveTextContent('Give the token a name.');
   });
 
-  it('says nothing of the sort while the field is fine', () => {
+  it('says nothing of the sort while the field is fine, but still reads out its hint', () => {
     render(
       <Field label="Name" hint="What holds it">
         {(id) => <Input id={id} defaultValue="" />}
@@ -488,7 +488,9 @@ describe('Field', () => {
     );
     const input = screen.getByRole('textbox', { name: 'Name' });
     expect(input).not.toHaveAttribute('aria-invalid');
-    expect(input).not.toHaveAttribute('aria-describedby');
+    // A hint is often the only reason a control is the way it is — a disabled
+    // one most of all — so it is described, not only painted.
+    expect(input).toHaveAccessibleDescription('What holds it');
   });
 
   it('does the same for the app’s only select', () => {

@@ -409,7 +409,10 @@ describe('asset detail', () => {
     // The API refuses the move; a dropdown offering it would be a promise the
     // door does not keep.
     expect(within(dialog).getByLabelText(/status/i)).toBeDisabled();
-    expect(within(dialog).getByText(/your role cannot change/i)).toBeInTheDocument();
+    // Announced on the control, so "disabled" comes with its reason.
+    expect(within(dialog).getByLabelText(/status/i)).toHaveAccessibleDescription(
+      /your role cannot change/i,
+    );
   });
 
   it('deletes only after a confirmation press, then returns to the list', async () => {
