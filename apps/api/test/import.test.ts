@@ -132,6 +132,8 @@ describe('committing an asset import', () => {
       .where(eq(auditEvents.action, 'system.import_completed'));
     expect(events).toHaveLength(1);
     expect(JSON.parse(events[0]!.params)).toEqual({ kind: 'assets', created: 2, updated: 0 });
+    // Typed by what it touched, so the log's Assets pill finds it.
+    expect(events[0]!.type).toBe('assets');
   });
 
   it('opens an ownership record for a row that arrives already assigned', async () => {
@@ -233,6 +235,12 @@ describe('committing an employee import', () => {
     expect(maya.location).toBe('Stockholm');
     // An update never resurrects somebody who is on their way out.
     expect(maya.status).toBe('active');
+
+    const [event] = await ctx.db
+      .select()
+      .from(auditEvents)
+      .where(eq(auditEvents.action, 'system.import_completed'));
+    expect(event!.type).toBe('people');
   });
 
   it('keeps the person a member is linked to, rather than replacing the row', async () => {

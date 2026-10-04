@@ -82,7 +82,10 @@ export async function commitImport(
     await writeAudit(
       tx,
       {
-        type: 'system',
+        // Typed by what the file touched, so the log's Assets or People pill
+        // finds it. The action keeps its name: rows written before this read
+        // `system`, and nothing rewrites history.
+        type: result.kind === 'assets' ? 'assets' : 'people',
         action: 'system.import_completed',
         actor: auditActor(actor),
         params: { kind: result.kind, created: result.created, updated: result.updated },
