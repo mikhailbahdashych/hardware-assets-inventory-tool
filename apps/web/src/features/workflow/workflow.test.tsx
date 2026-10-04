@@ -7,6 +7,7 @@ import {
   ADMIN_ROUTES,
   DB_DOWN,
   MANAGER_ACTIONS,
+  READY_META,
   session,
   WORKFLOW,
   type StubRoutes,
@@ -381,6 +382,44 @@ describe('the transition matrix', () => {
       expect(screen.getByRole('button', { name: 'Save workflow' })).toBeDisabled(),
     );
     expect(cell('Available', 'Retired')).not.toBeChecked();
+  });
+
+  it('says it saved, even though the save re-seeds the card that asked', async () => {
+    let stored = WORKFLOW.transitions;
+    // The save stays pending until every read it touched has come back. Holding
+    // one of them (`/meta`) lets the new graph arrive first — which re-keys the
+    // card, so the one that pressed Save is gone before the save settles.
+    let held = false;
+    let release: () => void = () => {};
+    renderApp(
+      {
+        ...workspace().routes,
+        'GET /workflow': () => ({ body: { statuses: WORKFLOW.statuses, transitions: stored } }),
+        'GET /meta': () =>
+          held
+            ? new Promise((resolve) => {
+                release = () => resolve({ body: READY_META });
+              })
+            : { body: READY_META },
+        'PUT /workflow/transitions': (body) => {
+          stored = (body as { transitions: typeof stored }).transitions;
+          held = true;
+          return { body: { transitions: stored } };
+        },
+      },
+      '/workflow',
+    );
+    await screen.findByRole('table', { name: 'Transitions' });
+
+    await userEvent.click(cell('Available', 'Retired'));
+    await userEvent.click(screen.getByRole('button', { name: 'Save workflow' }));
+    // Re-seeded from the new graph while the save is still in flight.
+    await waitFor(() => expect(cell('Available', 'Retired')).not.toBeChecked());
+    await screen.findByText('Everything here is saved');
+    expect(screen.queryByText('Workflow saved.')).toBeNull();
+
+    release();
+    expect(await screen.findByText('Workflow saved.')).toBeInTheDocument();
   });
 
   it('redraws the diagram from the draft, before anything is saved', async () => {

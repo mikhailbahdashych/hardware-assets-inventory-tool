@@ -331,11 +331,14 @@ function MatrixCard({ statuses, transitions }: MatrixCardProps) {
           </Button>
           <Button
             disabled={!dirty || save.isPending}
+            // The promise, not mutate's callbacks: the save stays pending until
+            // the graph is read again, and the new graph re-keys this card — so
+            // the observer holding those callbacks is gone before they run.
             onClick={() =>
-              save.mutate(transitionsFromDraft(draft), {
-                onSuccess: () => toast.show('Workflow saved.', 'ok'),
-                onError: (error) => toast.show(error.message, 'err'),
-              })
+              void save.mutateAsync(transitionsFromDraft(draft)).then(
+                () => toast.show('Workflow saved.', 'ok'),
+                (error: Error) => toast.show(error.message, 'err'),
+              )
             }
           >
             {save.isPending ? 'Saving…' : 'Save workflow'}
