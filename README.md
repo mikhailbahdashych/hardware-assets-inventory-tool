@@ -123,7 +123,7 @@ On the default single container, **back up `DATA_DIR`** — the SQLite file and 
 - Sign-in answers identically for a wrong password, an unknown email and an inactive account, with flat timing.
 - Rate limits on failed sign-ins (only failures count, so an office behind one address is not locked out by its own colleagues), on invitation and reset links, and on changing your own password.
 - Uploads answer to an extension allowlist (no SVG), a 10 MB cap and a workspace quota; each is stored under a generated name with its sha256, and served as a download with `nosniff`, so it never runs as a page.
-- Nightly maintenance removes expired sessions and tokens, audit events past retention, inbox rows past 90 days, and files no attachment names.
+- Nightly maintenance removes expired sessions and tokens, audit events past retention, inbox rows past 90 days whose dedupe key no job can still ask for, and files no attachment names.
 - Logs are pino JSON and hold no secrets.
 
 ### Two-factor authentication
@@ -152,45 +152,53 @@ npm run lint && npm run typecheck && npm run format:check
 
 ## Screenshots
 
-![The Inventory dashboard: a tile per asset status, assets broken down by category, recent activity, warranties running out and returns due back](media/dashboard.png)
+![The Inventory dashboard inside the app shell: a tile per asset status, assets by category, recent activity, warranties running out and returns due back, with the bell in the topbar](media/dashboard.png)
 
 _The demo workspace, as `npm run seed:demo` leaves it._
 
-![The asset list: a filter pill per status carrying its own count, and a column naming who currently holds each device](media/assets.png)
+![The asset list scrolled to its foot: status filter pills with their counts, a holder column, and the pager with its rows-per-page selector](media/assets.png)
 
-_Each status pill carries its count, so the fleet's shape reads before you filter._
+_Each status pill carries its count, and rows per page is yours, remembered per list._
 
-![The detail page for one laptop: specification, custom fields, its current holder, an ownership timeline and the audit trail for that asset](media/asset-detail.png)
+![The detail page for one laptop: specification, custom fields, attachments, its current holder, an ownership timeline and the audit trail for that asset](media/asset-detail.png)
 
 _One laptop's holders and the gaps between them, derived from the ownership rows rather than stored._
 
-![The Workflow page: seven statuses with their colours and two behaviour toggles each, above a from-to checkbox matrix, with a node-and-arrow diagram of the same graph beside it](media/workflow.png)
+![The Workflow page's from-to checkbox matrix above a node-and-arrow diagram of the same graph, solid lines for status changes and dashed ones for assign and check-in](media/workflow.png)
 
-_The demo's own workflow, with the diagram redrawing as the checkboxes change._
-
-![The Change status modal for a laptop that is in repair, its status list open and offering only Available and Retired](media/workflow-change-status.png)
-
-_Only the moves the graph allows are offered — and only those does the API accept._
+_The demo's own workflow: the Change-status modal offers exactly these moves, and the diagram redraws as the boxes change._
 
 ![The Roles page: four roles with their colours, descriptions and member counts, above a matrix of every action with a checkbox per role](media/roles.png)
 
-_The demo's own Auditor role, granted exactly two actions, beside an Admin column locked to all of them._
+_The demo's own Auditor role beside an Admin column locked to every action._
 
-![The Invite member modal: a radio card per role, each with the description its admin wrote, above the email field](media/roles-invite.png)
+![The Members page: each sign-in account with its role pill, linked employee, last activity, status and two-factor state](media/members.png)
 
-_A new role appears on the invite form at once, with the words its admin wrote._
+_Members sign in; employees hold assets — two tables, linked where they are the same person._
 
-![The activity log: filter pills counting assets, people, auth and system events, above a table of events written as sentences](media/activity-log.png)
+![The notifications inbox with three unread warranty notices, and the bell in the topbar showing a count of 3](media/notifications.png)
 
-_Every mutation as a sentence, from the same renderer as the CSV export._
+_No email: warranties, returns and hand-overs land in an in-app inbox, counted on the bell._
 
-![The command palette open over the dashboard, one query matching both assets and an employee, grouped under separate headings](media/command-palette.png)
+![The activity log: filter pills counting assets, people, auth and system events and a who-acted filter, above events written as sentences, two of them by an API token marked with an API pill](media/activity-log.png)
 
-_⌘K from anywhere: assets, people, pages and commands in one list._
+_Every mutation as a sentence, and a call made with an API token is audited as that token._
 
-![The dashboard again in dark theme, with the same tiles, category bars and widgets](media/dashboard-dark.png)
+![The New API token modal over the API tokens page: a name, scope checkboxes grouped into reading and changing things, and an expiry](media/api-tokens.png)
 
-_Both themes ship, and the choice follows your account between browsers._
+_A token is a credential for a system, scoped to what it needs and shown once._
+
+![The in-app API reference: base URL and authentication, an endpoint index by area, and the List assets operation with its scope, parameters and an example request](media/api-docs.png)
+
+_The public API documents itself from the OpenAPI document this instance serves._
+
+![The Custom fields page: four workspace-defined fields with their keys and types, and a form to add another](media/custom-fields.png)
+
+_Fields a workspace tracks on every asset, shown on each asset's page._
+
+![The command palette open over the dashboard in dark theme, one query matching assets, an employee and a page under separate headings](media/command-palette.png)
+
+_⌘K from anywhere: assets, people, pages and commands in one list — here in the dark theme, which follows your account between browsers._
 
 ## License
 
