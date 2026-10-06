@@ -142,5 +142,6 @@ export interface DemoHolding {
    * things a return can produce.
    */
   returnedTo?: DemoCheckinStatus;
+  /** The check-in note — why it came back. The hand-over is seeded without one. */
   notes?: string;
 }
