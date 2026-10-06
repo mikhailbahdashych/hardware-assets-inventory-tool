@@ -119,6 +119,14 @@ describe('the demo seed', () => {
     expect(new Set(returned.map((row) => row.outcome)).size).toBeGreaterThan(1);
   });
 
+  it('says why a holding came back on the return, not again on the hand-over', async () => {
+    await seeded();
+    const rows = await ctx.db.select().from(assignments);
+    const returned = rows.filter((row) => row.checkinNotes !== null);
+    expect(returned.length).toBeGreaterThan(0);
+    for (const row of returned) expect(row.checkoutNotes).not.toBe(row.checkinNotes);
+  });
+
   it('reads an outcome from the status the holder had at the time', async () => {
     await seeded();
 

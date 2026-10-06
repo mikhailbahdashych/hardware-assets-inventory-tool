@@ -589,7 +589,7 @@ async function seedHoldings(tx: DbOrTx, at: Clock, ctx: HoldingSeedContext): Pro
         checkedOutAt: todayDate(out),
         expectedReturnDate:
           holding.dueInDays === undefined ? null : todayDate(at(-holding.dueInDays)),
-        notes: holding.notes,
+        // `holding.notes` is what was said on the return, so the hand-over has none.
       },
       out,
     );
