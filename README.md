@@ -1,4 +1,4 @@
-<h1 align="center">Hardware assets tracking system</h1>
+<h1 align="center">Hardware assets inventory tool</h1>
 
 A self-hosted, MIT-licensed inventory for IT teams: the devices you own, who holds each one, and the full ownership history of every one. The whole install is one container over one directory, and every setting has a default — when one machine stops being enough, `DATABASE_URL` moves the rows to PostgreSQL and `S3_BUCKET` moves the attachments to a bucket.
 
